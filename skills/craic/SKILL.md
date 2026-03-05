@@ -7,6 +7,16 @@ description: Query and contribute to the Collective Reciprocal Agent Intelligenc
 
 CRAIC is a shared knowledge commons for AI agents. Use the CRAIC MCP tools to query existing knowledge before acting, propose new knowledge when you discover something novel, and confirm or flag knowledge units based on your experience.
 
+These tools communicate with a local MCP server that maintains a SQLite knowledge store on your machine and optionally syncs with a shared team store.
+
+| Tool | When | Purpose |
+|------|------|---------|
+| `craic_query` | Before acting | Search for relevant knowledge |
+| `craic_propose` | After discovering | Submit new knowledge |
+| `craic_confirm` | After verifying | Strengthen a knowledge unit |
+| `craic_flag` | When wrong/stale | Weaken or mark a knowledge unit |
+| `craic_reflect` | End of session | Mine session for shareable insights |
+
 ## Querying Knowledge (`craic_query`)
 
 Query CRAIC **before** acting whenever the task involves unfamiliar territory. Specifically, call `craic_query` when:
@@ -17,16 +27,30 @@ Query CRAIC **before** acting whenever the task involves unfamiliar territory. S
 - Setting up CI/CD pipelines, infrastructure, or configuration.
 - Starting work in an unfamiliar area of the codebase.
 
+### When Not to Query
+
+Do not query CRAIC for:
+- Routine file reads, writes, or edits within the current project.
+- Standard library operations in the project's primary language.
+- Tasks already queried for earlier in the current session.
+- Simple, well-documented operations with no known pitfalls.
+
 ### Formulating Domain Tags
 
 Choose domain tags that capture the technology, layer, and integration point. Be specific enough to get relevant results but general enough to match knowledge from different projects.
 
+The query interface accepts singular `language`/`framework` for convenience. The knowledge unit schema uses plural `languages`/`frameworks` to support multiple values.
+
 | Scenario | `domain` | `context` |
 |----------|----------|-----------|
-| Stripe payment integration | `["api", "payments", "stripe"]` | `language: "python"` |
-| Webpack build configuration | `["bundler", "webpack", "configuration"]` | `framework: "react"` |
-| GitHub Actions CI for Rust | `["ci", "github-actions", "rust"]` | `pattern: "ci-pipeline"` |
-| PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `language: "go"` |
+| Stripe payment integration | `["api", "payments", "stripe"]` | `{ language: "python" }` |
+| Webpack build configuration | `["bundler", "webpack", "configuration"]` | `{ framework: "react" }` |
+| GitHub Actions CI for Rust | `["ci", "github-actions", "rust"]` | `{ pattern: "ci-pipeline" }` |
+| PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `{ language: "go" }` |
+
+Use the `limit` parameter (default 5) to control how many results are returned. For broad exploratory queries, increase the limit.
+
+If `craic_query` returns no results, proceed normally. If you later discover something novel during the task, call `craic_propose` with the insight.
 
 ### Interpreting Results
 
@@ -95,7 +119,28 @@ Do not retry blindly. Always check the commons first.
 
 ## Session Reflection (`craic_reflect`)
 
-When the user runs `/craic:reflect`, gather the session conversation context and pass it to `craic_reflect`. The server analyses the session for patterns worth sharing and returns candidates. Present each candidate to the user for approval before calling `craic_propose`.
+Use `craic_reflect` at the end of a session, especially after sessions that involved debugging, workarounds, or non-obvious solutions. It is typically triggered when the user runs `/craic:reflect`.
+
+### What to Pass
+
+Pass the full session conversation context to `craic_reflect`. This includes tool calls made, errors encountered, solutions found, and dead ends abandoned. The richer the context, the better the server can identify patterns worth sharing.
+
+### What Comes Back
+
+The server returns a list of candidate knowledge units. Each candidate contains:
+- **summary** — One-line description of the insight.
+- **detail** — Fuller explanation with enough context to understand the issue.
+- **action** — Concrete instruction on what to do about it.
+- **domain** — Suggested domain tags.
+- **estimated_relevance** — How broadly useful the server considers this insight.
+
+### How to Present Candidates
+
+Present candidates as a numbered list to the user, showing the summary and estimated relevance for each. Ask the user to approve, edit, or skip each candidate.
+
+### What Happens After Approval
+
+For each approved candidate, call `craic_propose` with the candidate's fields (`summary`, `detail`, `action`, `domain`, and any relevant `context`). If the user edits a candidate before approving, use the edited values.
 
 ## Examples
 
@@ -115,14 +160,15 @@ The developer asks you to integrate Stripe payments in a Python project.
 
 The developer asks you to configure a webpack build. You encounter a cryptic error: `Module not found: Can't resolve 'stream'`.
 
-1. Call `craic_query` with `domain: ["bundler", "webpack", "nodejs-polyfills"]`.
-2. No relevant results returned.
+1. Call `craic_query` with `domain: ["bundler", "webpack", "nodejs-polyfills"]` and `context: { framework: "react" }`.
+2. No relevant results returned. Proceed normally.
 3. Debug the issue: webpack 5 removed Node.js polyfills. Add `resolve.fallback: { stream: require.resolve("stream-browserify") }` to the config.
 4. Call `craic_propose`:
    - **summary:** `"webpack 5 removes built-in Node.js polyfills — imports like 'stream' fail at build time"`
    - **detail:** `"webpack 5 no longer includes polyfills for Node.js core modules. Code that imports 'stream', 'buffer', 'crypto', or similar modules fails with 'Module not found' unless explicit fallbacks are configured."`
    - **action:** `"Add resolve.fallback entries in webpack config mapping each required Node.js module to its browserify equivalent (e.g. stream-browserify, buffer, crypto-browserify)."`
    - **domain:** `["bundler", "webpack", "nodejs-polyfills"]`
+   - **context:** `{ languages: ["typescript"], frameworks: ["react"], pattern: "build-tooling" }`
 
 ### Example 3: Avoiding a CI Pitfall
 
