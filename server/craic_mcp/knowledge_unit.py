@@ -1,14 +1,12 @@
 """Pydantic models for CRAIC knowledge units."""
 
+import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from nanoid import generate
 from pydantic import BaseModel, Field, model_validator
 
 KU_ID_PREFIX = "ku_"
-KU_ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-KU_ID_LENGTH = 21
 
 
 class Tier(StrEnum):
@@ -92,8 +90,8 @@ class KnowledgeUnit(BaseModel):
 
 
 def _generate_ku_id() -> str:
-    """Generate a prefixed nanoid for knowledge unit identification."""
-    return KU_ID_PREFIX + generate(KU_ID_ALPHABET, KU_ID_LENGTH)
+    """Generate a prefixed UUID for knowledge unit identification."""
+    return KU_ID_PREFIX + uuid.uuid4().hex
 
 
 def create_knowledge_unit(

@@ -40,8 +40,8 @@ class TestKnowledgeUnitCreation:
 
     def test_auto_generated_id_has_sufficient_length(self):
         unit = _make_unit()
-        # Prefix is 3 chars, nanoid is 21 chars.
-        assert len(unit.id) == 24
+        # Prefix is 3 chars, UUID hex is 32 chars.
+        assert len(unit.id) == 35
 
     def test_default_confidence_is_half(self):
         unit = _make_unit()

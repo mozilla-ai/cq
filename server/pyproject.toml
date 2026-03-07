@@ -10,7 +10,6 @@ requires-python = ">=3.11"
 dependencies = [
     "fastmcp",
     "pydantic>=2.0",
-    "nanoid",
     "httpx",
 ]
 
