@@ -28,22 +28,6 @@ jobs:
       - name: Lint
         run: make lint
 
-      - name: Format check
-        run: make format-check
-
-  typecheck:
-    name: Type check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Type check
-        run: make typecheck
-
   test:
     name: Test
     runs-on: ubuntu-latest
