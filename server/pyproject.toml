@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "CRAIC MCP server — shared agent knowledge commons"
 requires-python = ">=3.11"
 dependencies = [
-    "fastmcp",
+    "mcp>=1.25",
     "pydantic>=2.0",
     "httpx",
 ]
