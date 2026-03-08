@@ -2,9 +2,13 @@
 
 Exposes five tools via the Model Context Protocol:
 craic_query, craic_propose, craic_confirm, craic_flag, craic_reflect.
+
+Searches local store first, then the team API. Degrades gracefully
+to local-only mode when the team API is unreachable.
 """
 
 import atexit
+import logging
 import os
 import threading
 from pathlib import Path
@@ -15,24 +19,36 @@ from .knowledge_unit import (
     Context,
     FlagReason,
     Insight,
+    KnowledgeUnit,
     Tier,
     create_knowledge_unit,
 )
 from .local_store import LocalStore
-from .scoring import apply_confirmation, apply_flag
+from .scoring import apply_confirmation, apply_flag, calculate_relevance
+from .team_client import TeamClient
+
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP("craic")
 
 _MAX_QUERY_LIMIT = 50
+_DEFAULT_TEAM_API_URL = "http://localhost:8742"
 
 _store_local = threading.local()
+_store_registry: list[LocalStore] = []
+_store_registry_lock = threading.Lock()
+
+_team_client: TeamClient | None = None
+_team_client_lock = threading.Lock()
 
 
 def _get_store() -> LocalStore:
     """Return the thread-local store, creating it on first access.
 
     Each thread gets its own LocalStore instance to avoid sharing a single
-    SQLite connection across threads.
+    SQLite connection across threads. All created stores are tracked in a
+    registry so they can be closed at shutdown regardless of which thread
+    created them.
     """
     store: LocalStore | None = getattr(_store_local, "store", None)
     if store is None:
@@ -40,18 +56,125 @@ def _get_store() -> LocalStore:
         db_path = Path(db_path_str) if db_path_str else None
         store = LocalStore(db_path=db_path)
         _store_local.store = store
+        with _store_registry_lock:
+            _store_registry.append(store)
     return store
 
 
 def _close_store() -> None:
-    """Close the thread-local store for the current thread, if open."""
-    store: LocalStore | None = getattr(_store_local, "store", None)
-    if store is not None:
-        store.close()
+    """Close all registered stores across all threads."""
+    with _store_registry_lock:
+        for store in _store_registry:
+            store.close()
+        _store_registry.clear()
+    # Also clear the thread-local reference for the current thread.
+    if getattr(_store_local, "store", None) is not None:
         _store_local.store = None
 
 
+def _get_team_client() -> TeamClient | None:
+    """Return the team API client, creating it on first access.
+
+    Returns None if the team API URL is explicitly disabled (empty string).
+    The client is a module-level singleton since httpx.Client is thread-safe.
+    Initialisation is guarded by a lock to prevent duplicate creation.
+    """
+    global _team_client  # noqa: PLW0603
+    if _team_client is not None:
+        return _team_client
+    with _team_client_lock:
+        # Double-check after acquiring the lock.
+        if _team_client is not None:
+            return _team_client
+        url = os.environ.get("CRAIC_TEAM_API_URL", _DEFAULT_TEAM_API_URL)
+        if not url:
+            return None
+        _team_client = TeamClient(base_url=url)
+    return _team_client
+
+
+def _close_team_client() -> None:
+    """Close the team client if open."""
+    global _team_client  # noqa: PLW0603
+    with _team_client_lock:
+        if _team_client is not None:
+            _team_client.close()
+            _team_client = None
+
+
 atexit.register(_close_store)
+atexit.register(_close_team_client)
+
+
+def _merge_results(
+    local_units: list[KnowledgeUnit],
+    team_units: list[KnowledgeUnit] | None,
+    query_domains: list[str],
+    query_language: str | None,
+    query_framework: str | None,
+    limit: int,
+) -> tuple[list[dict], str]:
+    """Merge local and team results, dedup by ID, re-rank, and truncate.
+
+    Args:
+        local_units: Results from the local store.
+        team_units: Results from the team API, or None if unavailable.
+        query_domains: Domain tags used in the query.
+        query_language: Language filter used in the query.
+        query_framework: Framework filter used in the query.
+        limit: Maximum results to return.
+
+    Returns:
+        Tuple of (serialised results, source indicator). The source
+        reflects whether each store was *consulted*, not just whether
+        its results survived deduplication.
+    """
+    if team_units is None:
+        return (
+            [u.model_dump(mode="json") for u in local_units[:limit]],
+            "local",
+        )
+
+    seen_ids: set[str] = set()
+    merged: list[KnowledgeUnit] = []
+
+    # Local results take precedence for duplicate IDs.
+    for unit in local_units:
+        if unit.id not in seen_ids:
+            seen_ids.add(unit.id)
+            merged.append(unit)
+
+    for unit in team_units:
+        if unit.id not in seen_ids:
+            seen_ids.add(unit.id)
+            merged.append(unit)
+
+    # Source reflects which stores were consulted and returned data.
+    has_local = len(local_units) > 0
+    has_team = len(team_units) > 0
+
+    if has_local and has_team:
+        source = "both"
+    elif has_team:
+        source = "team"
+    else:
+        source = "local"
+
+    # Re-rank merged results by relevance * confidence.
+    scored = []
+    for unit in merged:
+        relevance = calculate_relevance(
+            unit,
+            query_domains,
+            query_language=query_language,
+            query_framework=query_framework,
+        )
+        scored.append((relevance * unit.evidence.confidence, unit))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    top = [unit for _, unit in scored[:limit]]
+
+    return [u.model_dump(mode="json") for u in top], source
 
 
 @mcp.tool()
@@ -63,6 +186,9 @@ def craic_query(
 ) -> dict:
     """Search for relevant knowledge units by domain tags.
 
+    Searches the local store first, then the team API if available.
+    Results are merged, deduplicated by ID, and re-ranked.
+
     Args:
         domain: Domain tags to search for.
         language: Optional programming language filter.
@@ -70,8 +196,8 @@ def craic_query(
         limit: Maximum results to return.
 
     Returns:
-        Dict with ``results`` (list of knowledge unit dicts) and ``source``,
-        or ``error`` if inputs are invalid.
+        Dict with ``results`` (list of knowledge unit dicts) and ``source``
+        ("local", "team", or "both"), or ``error`` if inputs are invalid.
     """
     cleaned = [d.strip() for d in domain if d.strip()]
     if not cleaned:
@@ -80,12 +206,36 @@ def craic_query(
         return {"error": "limit must be a positive integer."}
     if limit > _MAX_QUERY_LIMIT:
         return {"error": f"limit must not exceed {_MAX_QUERY_LIMIT}."}
+
     store = _get_store()
-    results = store.query(cleaned, language=language, framework=framework, limit=limit)
-    return {
-        "results": [r.model_dump(mode="json") for r in results],
-        "source": "local",
-    }
+    local_results = store.query(
+        cleaned,
+        language=language,
+        framework=framework,
+        limit=limit,
+    )
+
+    team_results = None
+    team_client = _get_team_client()
+    if team_client is not None:
+        team_results = team_client.query(
+            cleaned,
+            language=language,
+            framework=framework,
+            limit=limit,
+        )
+        if team_results is None:
+            logger.info("Team API unavailable for query; using local results only.")
+
+    results, source = _merge_results(
+        local_results,
+        team_results,
+        query_domains=cleaned,
+        query_language=language,
+        query_framework=framework,
+        limit=limit,
+    )
+    return {"results": results, "source": source}
 
 
 @mcp.tool()
@@ -98,11 +248,10 @@ def craic_propose(
     framework: str | None = None,
     pattern: str = "",
 ) -> dict:
-    """Propose a new knowledge unit to the local store.
+    """Propose a new knowledge unit.
 
-    Accepts a single language and framework value. The underlying data model
-    supports lists; use craic_propose multiple times or modify the unit
-    directly for multi-value context.
+    Always stores in the local store. Also pushes to the team API on a
+    best-effort basis for sharing across the team.
 
     Args:
         summary: Concise description of the insight.
@@ -114,10 +263,13 @@ def craic_propose(
         pattern: Optional pattern name.
 
     Returns:
-        Dict with ``id``, ``tier``, and ``message``,
-        or ``error`` if required fields are blank or domain is empty.
+        Dict with ``id``, ``tier``, ``message``, and ``team_id``
+        (if pushed to team), or ``error`` if inputs are invalid.
     """
-    if not summary.strip() or not detail.strip() or not action.strip():
+    cleaned_summary = summary.strip()
+    cleaned_detail = detail.strip()
+    cleaned_action = action.strip()
+    if not cleaned_summary or not cleaned_detail or not cleaned_action:
         return {"error": "summary, detail, and action must be non-blank."}
     cleaned_domain = [d.strip() for d in domain if d.strip()]
     if not cleaned_domain:
@@ -125,6 +277,7 @@ def craic_propose(
     cleaned_language = language.strip() if language else None
     cleaned_framework = framework.strip() if framework else None
     cleaned_pattern = pattern.strip() if pattern else ""
+
     store = _get_store()
     context = Context(
         languages=[cleaned_language] if cleaned_language else [],
@@ -133,71 +286,138 @@ def craic_propose(
     )
     unit = create_knowledge_unit(
         domain=cleaned_domain,
-        insight=Insight(summary=summary, detail=detail, action=action),
+        insight=Insight(
+            summary=cleaned_summary,
+            detail=cleaned_detail,
+            action=cleaned_action,
+        ),
         context=context,
         tier=Tier.LOCAL,
     )
     store.insert(unit)
-    return {
+
+    result: dict = {
         "id": unit.id,
         "tier": unit.tier.value,
         "message": f"Knowledge unit {unit.id} stored locally.",
     }
+
+    team_client = _get_team_client()
+    if team_client is not None:
+        team_unit = team_client.propose(unit)
+        if team_unit is not None:
+            result["team_id"] = team_unit.id
+            result["message"] += f" Also shared to team as {team_unit.id}."
+        else:
+            logger.info("Team API unavailable for propose; stored locally only.")
+
+    return result
 
 
 @mcp.tool()
 def craic_confirm(unit_id: str) -> dict:
     """Confirm a knowledge unit proved correct, boosting its confidence.
 
+    Checks the local store first, then the team API. If found in both,
+    confirms in both stores.
+
     Args:
         unit_id: Knowledge unit ID to confirm.
 
     Returns:
-        Dict with ``id``, ``new_confidence``, and ``confirmations``,
-        or ``error`` if the unit was not found.
+        Dict with ``id``, ``new_confidence``, ``confirmations``, and
+        ``source``, or ``error`` if the unit was not found in either store.
     """
     store = _get_store()
-    unit = store.get(unit_id)
-    if unit is None:
-        return {"error": f"Knowledge unit not found: {unit_id}"}
-    confirmed = apply_confirmation(unit)
-    store.update(confirmed)
-    return {
-        "id": confirmed.id,
-        "new_confidence": confirmed.evidence.confidence,
-        "confirmations": confirmed.evidence.confirmations,
-    }
+    local_unit = store.get(unit_id)
+
+    if local_unit is not None:
+        confirmed = apply_confirmation(local_unit)
+        store.update(confirmed)
+        result: dict = {
+            "id": confirmed.id,
+            "new_confidence": confirmed.evidence.confidence,
+            "confirmations": confirmed.evidence.confirmations,
+            "source": "local",
+        }
+        # Best-effort propagation to team.
+        team_client = _get_team_client()
+        if team_client is not None:
+            team_unit = team_client.confirm(unit_id)
+            if team_unit is not None:
+                result["source"] = "both"
+        return result
+
+    # Not in local store — try team API.
+    team_client = _get_team_client()
+    if team_client is not None:
+        team_unit = team_client.confirm(unit_id)
+        if team_unit is not None:
+            return {
+                "id": team_unit.id,
+                "new_confidence": team_unit.evidence.confidence,
+                "confirmations": team_unit.evidence.confirmations,
+                "source": "team",
+            }
+
+    return {"error": f"Knowledge unit not found: {unit_id}"}
 
 
 @mcp.tool()
 def craic_flag(unit_id: str, reason: str) -> dict:
     """Flag a knowledge unit as problematic, reducing its confidence.
 
+    Checks the local store first, then the team API. If found in both,
+    flags in both stores.
+
     Args:
         unit_id: Knowledge unit ID to flag.
         reason: One of: stale, incorrect, duplicate.
 
     Returns:
-        Dict with ``id``, ``new_confidence``, and ``message``,
+        Dict with ``id``, ``new_confidence``, ``message``, and ``source``,
         or ``error`` if the unit was not found or the reason is invalid.
     """
-    store = _get_store()
-    unit = store.get(unit_id)
-    if unit is None:
-        return {"error": f"Knowledge unit not found: {unit_id}"}
     cleaned_reason = reason.strip().lower()
     try:
         flag_reason = FlagReason(cleaned_reason)
     except ValueError:
         valid = ", ".join(r.value for r in FlagReason)
         return {"error": f"Invalid reason: {reason}. Must be one of: {valid}."}
-    flagged = apply_flag(unit, flag_reason)
-    store.update(flagged)
-    return {
-        "id": flagged.id,
-        "new_confidence": flagged.evidence.confidence,
-        "message": f"Knowledge unit {flagged.id} flagged as {reason}.",
-    }
+
+    store = _get_store()
+    local_unit = store.get(unit_id)
+
+    if local_unit is not None:
+        flagged = apply_flag(local_unit, flag_reason)
+        store.update(flagged)
+        result: dict = {
+            "id": flagged.id,
+            "new_confidence": flagged.evidence.confidence,
+            "message": f"Knowledge unit {flagged.id} flagged as {cleaned_reason}.",
+            "source": "local",
+        }
+        # Best-effort propagation to team.
+        team_client = _get_team_client()
+        if team_client is not None:
+            team_unit = team_client.flag(unit_id, flag_reason)
+            if team_unit is not None:
+                result["source"] = "both"
+        return result
+
+    # Not in local store — try team API.
+    team_client = _get_team_client()
+    if team_client is not None:
+        team_unit = team_client.flag(unit_id, flag_reason)
+        if team_unit is not None:
+            return {
+                "id": team_unit.id,
+                "new_confidence": team_unit.evidence.confidence,
+                "message": f"Knowledge unit {team_unit.id} flagged as {cleaned_reason}.",
+                "source": "team",
+            }
+
+    return {"error": f"Knowledge unit not found: {unit_id}"}
 
 
 @mcp.tool()

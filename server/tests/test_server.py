@@ -2,9 +2,17 @@
 
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from craic_mcp import server
+from craic_mcp.knowledge_unit import (
+    Context,
+    Evidence,
+    Insight,
+    KnowledgeUnit,
+    Tier,
+)
 from craic_mcp.server import (
     _MAX_QUERY_LIMIT,
     craic_confirm,
@@ -17,11 +25,14 @@ from craic_mcp.server import (
 
 @pytest.fixture(autouse=True)
 def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Provide a fresh local store for each test."""
+    """Provide a fresh local store and no team client for each test."""
     monkeypatch.setenv("CRAIC_LOCAL_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("CRAIC_TEAM_API_URL", "")
     server._close_store()
+    server._close_team_client()
     yield
     server._close_store()
+    server._close_team_client()
 
 
 def _propose_unit(
@@ -41,6 +52,24 @@ def _propose_unit(
         domain=domain or ["databases", "performance"],
         language=language,
         framework=framework,
+    )
+
+
+def _make_team_unit(
+    *,
+    unit_id: str = "ku_team_001",
+    domain: list[str] | None = None,
+    summary: str = "Team insight",
+    confidence: float = 0.8,
+) -> KnowledgeUnit:
+    """Create a KnowledgeUnit that looks like it came from the team store."""
+    return KnowledgeUnit(
+        id=unit_id,
+        domain=domain or ["api"],
+        insight=Insight(summary=summary, detail="Detail.", action="Act."),
+        context=Context(),
+        evidence=Evidence(confidence=confidence, confirmations=3),
+        tier=Tier.TEAM,
     )
 
 
@@ -108,6 +137,86 @@ class TestCraicQuery:
         assert len(result["results"]) == 1
 
 
+class TestCraicQueryWithTeam:
+    def test_query_merges_local_and_team_results(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _propose_unit(domain=["api"])
+        team_unit = _make_team_unit(domain=["api"])
+        mock_client = MagicMock()
+        mock_client.query.return_value = [team_unit]
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_query(domain=["api"])
+        assert len(result["results"]) == 2
+        assert result["source"] == "both"
+
+    def test_query_deduplicates_by_id(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        proposed = _propose_unit(domain=["api"])
+        # Team returns a unit with the same ID as the local one.
+        duplicate = _make_team_unit(
+            unit_id=proposed["id"],
+            domain=["api"],
+        )
+        mock_client = MagicMock()
+        mock_client.query.return_value = [duplicate]
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_query(domain=["api"])
+        assert len(result["results"]) == 1
+        # Local version takes precedence.
+        assert result["results"][0]["tier"] == "local"
+        # Source reflects that both stores were consulted.
+        assert result["source"] == "both"
+
+    def test_query_team_only_results(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        team_unit = _make_team_unit(domain=["api"])
+        mock_client = MagicMock()
+        mock_client.query.return_value = [team_unit]
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_query(domain=["api"])
+        assert len(result["results"]) == 1
+        assert result["source"] == "team"
+
+    def test_query_degrades_when_team_unreachable(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _propose_unit(domain=["api"])
+        mock_client = MagicMock()
+        mock_client.query.return_value = None
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_query(domain=["api"])
+        assert len(result["results"]) == 1
+        assert result["source"] == "local"
+
+    def test_query_respects_limit_across_merged_results(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _propose_unit(domain=["api"])
+        _propose_unit(domain=["api"])
+        team_units = [
+            _make_team_unit(unit_id="ku_team_1", domain=["api"]),
+            _make_team_unit(unit_id="ku_team_2", domain=["api"]),
+        ]
+        mock_client = MagicMock()
+        mock_client.query.return_value = team_units
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_query(domain=["api"], limit=3)
+        assert len(result["results"]) == 3
+
+
 class TestCraicPropose:
     def test_propose_returns_id_and_tier(self) -> None:
         result = _propose_unit()
@@ -173,6 +282,34 @@ class TestCraicPropose:
         assert confirmed["id"] == result["id"]
 
 
+class TestCraicProposeWithTeam:
+    def test_propose_pushes_to_team(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        team_unit = _make_team_unit(unit_id="ku_team_pushed")
+        mock_client = MagicMock()
+        mock_client.propose.return_value = team_unit
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = _propose_unit(domain=["api"])
+        assert result["team_id"] == "ku_team_pushed"
+        assert "shared to team" in result["message"]
+        mock_client.propose.assert_called_once()
+
+    def test_propose_succeeds_when_team_unreachable(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_client.propose.return_value = None
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = _propose_unit(domain=["api"])
+        assert result["id"].startswith("ku_")
+        assert "team_id" not in result
+
+
 class TestCraicConfirm:
     def test_confirm_boosts_confidence(self) -> None:
         proposed = _propose_unit()
@@ -184,6 +321,63 @@ class TestCraicConfirm:
         result = craic_confirm(unit_id="ku_nonexistent")
         assert "error" in result
         assert "not found" in result["error"].lower()
+
+
+class TestCraicConfirmWithTeam:
+    def test_confirm_propagates_to_team(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        proposed = _propose_unit()
+        team_unit = _make_team_unit(unit_id=proposed["id"])
+        mock_client = MagicMock()
+        mock_client.confirm.return_value = team_unit
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_confirm(unit_id=proposed["id"])
+        assert result["source"] == "both"
+        mock_client.confirm.assert_called_once_with(proposed["id"])
+
+    def test_confirm_local_only_when_team_not_found(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        proposed = _propose_unit()
+        mock_client = MagicMock()
+        mock_client.confirm.return_value = None
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_confirm(unit_id=proposed["id"])
+        assert result["source"] == "local"
+
+    def test_confirm_team_only_unit(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        team_unit = _make_team_unit(unit_id="ku_team_only")
+        confirmed_unit = team_unit.model_copy(
+            update={
+                "evidence": Evidence(confidence=0.9, confirmations=4),
+            },
+        )
+        mock_client = MagicMock()
+        mock_client.confirm.return_value = confirmed_unit
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_confirm(unit_id="ku_team_only")
+        assert result["source"] == "team"
+        assert result["new_confidence"] == pytest.approx(0.9)
+
+    def test_confirm_not_found_anywhere(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_client.confirm.return_value = None
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_confirm(unit_id="ku_nowhere")
+        assert "error" in result
 
 
 class TestCraicFlag:
@@ -212,6 +406,50 @@ class TestCraicFlag:
         result = craic_flag(unit_id=proposed["id"], reason="invalid")
         assert "error" in result
         assert "Invalid reason" in result["error"]
+
+
+class TestCraicFlagWithTeam:
+    def test_flag_propagates_to_team(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        proposed = _propose_unit()
+        team_unit = _make_team_unit(unit_id=proposed["id"])
+        mock_client = MagicMock()
+        mock_client.flag.return_value = team_unit
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_flag(unit_id=proposed["id"], reason="stale")
+        assert result["source"] == "both"
+
+    def test_flag_team_only_unit(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        team_unit = _make_team_unit(unit_id="ku_team_only")
+        flagged_unit = team_unit.model_copy(
+            update={
+                "evidence": Evidence(confidence=0.65, confirmations=3),
+            },
+        )
+        mock_client = MagicMock()
+        mock_client.flag.return_value = flagged_unit
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_flag(unit_id="ku_team_only", reason="stale")
+        assert result["source"] == "team"
+        assert result["new_confidence"] == pytest.approx(0.65)
+
+    def test_flag_not_found_anywhere(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        mock_client = MagicMock()
+        mock_client.flag.return_value = None
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        result = craic_flag(unit_id="ku_nowhere", reason="stale")
+        assert "error" in result
 
 
 class TestCraicReflect:
