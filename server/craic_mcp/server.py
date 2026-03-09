@@ -283,7 +283,7 @@ def craic_propose(
     cleaned_action = action.strip()
     if not cleaned_summary or not cleaned_detail or not cleaned_action:
         return {"error": "summary, detail, and action must be non-blank."}
-    cleaned_domain = [d.strip() for d in domain if d.strip()]
+    cleaned_domain = [d.strip().lower() for d in domain if d.strip()]
     if not cleaned_domain:
         return {"error": "At least one non-empty domain tag is required."}
     cleaned_language = language.strip() if language else None
