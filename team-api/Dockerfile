@@ -11,9 +11,10 @@ COPY team_api/ team_api/
 RUN uv sync --no-dev --frozen
 
 RUN addgroup --system app && adduser --system --ingroup app app \
-    && mkdir -p /data && chown app:app /data
+    && mkdir -p /data && chown app:app /data \
+    && chown -R app:app /app
 USER app
 
 EXPOSE 8742
 
-CMD ["uv", "run", "craic-team-api"]
+CMD ["/app/.venv/bin/craic-team-api"]
