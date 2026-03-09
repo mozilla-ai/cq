@@ -2,6 +2,9 @@
   "name": "craic",
   "version": "0.1.0",
   "description": "Collective Reciprocal Agent Intelligence Commons — shared agent learning",
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "hooks": "./hooks/hooks.json",
   "mcpServers": {
     "craic": {
       "command": "uv",
