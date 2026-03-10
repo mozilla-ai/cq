@@ -86,7 +86,7 @@ Shared knowledge is only valuable if it is safe, accurate, and free from manipul
 
 Mozilla.ai's **any-guardrail** is a natural fit here. any-guardrail provides a unified, model-agnostic interface for applying safety and quality checks across different LLM providers and guardrail implementations. In the context of CRAIC, it serves multiple roles:
 
-- **Ingestion filtering:** When an agent proposes a new learning unit, any-guardrail checks for harmful content, prompt injection attempts, vendor bias signals, and PII leakage before the knowledge enters even the local store.
+- **Ingestion filtering (the primary PII control):** When an agent proposes a new learning unit, any-guardrail checks for harmful content, prompt injection attempts, vendor bias signals, and PII leakage before the knowledge enters even the local store. This automated filtering is the primary defence against PII entering the commons — not human review. Regulators (particularly under GDPR) do not consider humans to be reliable determinants of what constitutes personal data, especially when rapidly processing information at scale. Automated guardrails handle PII detection; human reviewers focus on what humans are good at: accuracy, relevance, quality, and generalisability.
 - **Graduation gates:** When knowledge is nominated for promotion (local → team, team → global), guardrails run a more thorough assessment — checking for factual consistency, potential security implications (e.g. knowledge that could expose infrastructure details), and alignment with the commons' quality standards.
 - **Retrieval-time validation:** When an agent queries the commons, guardrails can flag knowledge that has been disputed, is approaching staleness thresholds, or has low confidence relative to the agent's domain.
 
@@ -116,10 +116,20 @@ The public, community-governed knowledge commons. Only knowledge that has been e
 
 **The flow between tiers:**
 
+There are two graduation paths to the global commons, reflecting the different compliance requirements of enterprise and individual contributors:
+
+**Enterprise path:** Local → team (internal review) → global. Enterprise organisations graduate knowledge through their team store first. Internal reviewers verify quality, strip organisation-specific context, and ensure compliance with internal policies. Only knowledge that has passed internal review is nominated for global graduation. This means enterprise contributors never upload raw local knowledge directly to the commons — everything goes through the team layer's existing compliance infrastructure.
+
+**Individual path:** Local → global. Individual contributors (not operating within an enterprise context) can nominate local knowledge directly for global graduation. The review is lighter — automated guardrails plus community review — because the compliance burden is lower when individuals are not handling enterprise PII or proprietary context.
+
+Both paths converge at the global graduation boundary, where HITL reviewers apply the same quality, safety, and generalisability standards regardless of the contribution source.
+
+**Within each path, the steps are:**
+
 1. Agents generate local knowledge through normal operation.
-2. The system (or the agent itself) identifies candidates for team-level sharing based on confirmation frequency and generalisability signals.
-3. Team-level reviewers (human or hybrid) approve promotion to the team store.
-4. Over time, team-level knowledge that appears generic is flagged as a candidate for global graduation. The agent categorises and abstracts it — stripping company-specific identifiers and context.
+2. The system (or the agent itself) identifies candidates for sharing based on confirmation frequency and generalisability signals.
+3. For enterprise: team-level reviewers (human or hybrid) approve promotion to the team store. For individuals: candidates are flagged directly for global nomination.
+4. Over time, knowledge that appears generic is flagged as a candidate for global graduation. The agent categorises and abstracts it — stripping any remaining context-specific identifiers.
 5. Human reviewers at the graduation boundary approve or reject submissions to the global commons, checking for quality, safety, vendor neutrality, and genuine generalisability.
 6. Knowledge in the global commons is consumed by agents worldwide, confirmed or disputed through use, and subject to ongoing confidence scoring and staleness decay.
 
@@ -269,9 +279,12 @@ Every piece of shared knowledge flows through a common structured format. This i
   },
   "lifecycle": {
     "status": "active",
+    "kind": "pitfall",
     "staleness_policy": "confirm_or_decay_after_90d",
     "superseded_by": null,
-    "related": ["ku_f7g8h9i0j1k2"]
+    "related": [
+      { "id": "ku_f7g8h9i0j1k2", "type": "extends" }
+    ]
   }
 }
 ```
@@ -287,6 +300,10 @@ The schema is deliberately opinionated about a few things:
 **`provenance` is the audit trail:** Every graduation step records who approved it (human, always — this is the HITL guarantee) and when. The proposer's DID ties back to the Veridian identity layer. This is what makes CRAIC EU AI Act compliant by design — the audit trail is a byproduct of normal operation, not a retrofit.
 
 **`lifecycle` handles staleness:** Knowledge units decay if not re-confirmed within a configurable window. APIs change, libraries update, best practices evolve. A `staleness_policy` of `confirm_or_decay_after_90d` means that after 90 days without fresh confirmation, the confidence score begins to decrease. Knowledge can also be explicitly superseded — when Stripe fixes their rate-limiting status codes, a new knowledge unit replaces the old one via `superseded_by`.
+
+**`lifecycle.kind` classifies what type of knowledge this is.** Not all knowledge units are the same. A `kind` of `pitfall` is permanent knowledge that no tool can abstract away (an API quirk, an undocumented behaviour). A `kind` of `workaround` is useful now but represents a gap in tooling — if a better tool existed, agents wouldn't need this knowledge. A `kind` of `tool-recommendation` points agents to the right tool rather than providing knowledge directly. This classification drives the tool ecosystem intelligence described in section 3.8.
+
+**`lifecycle.related` carries explicit relationship types.** Knowledge units are atomic by default — each captures one insight. The `related` field supports typed relationships between units: `supersedes` (this unit replaces a previous one), `contradicts` (this unit conflicts with another — agents should weigh both), `extends` (this unit adds detail to another), and `requires` (this unit only applies when another is also true). This gives agents enough to compose related knowledge without requiring a full reasoning chain model.
 
 **Where the data lives**
 
@@ -314,6 +331,29 @@ The specification should define the API contract (how agents read and write know
 10. Over time, if multiple organisations' agents independently confirm the same insight, it becomes a candidate for global graduation.
 
 The entire flow uses existing infrastructure: MCP for transport, Agent Skills for agent behaviour, JSON schema for data format, DIDs for identity, any-guardrail for safety, skills.sh/plugin marketplaces for distribution. No new protocols. No new runtimes. Just a knowledge layer that plugs into the stack developers already have.
+
+### 3.8 Knowledge Unit Lifecycle and Tool Ecosystem Intelligence
+
+The commons is not just a knowledge store — it is a data source about the agent tooling ecosystem itself. Not all knowledge units are the same kind of thing, and the aggregate patterns in the data reveal where the ecosystem has gaps.
+
+**Four levels of knowledge:**
+
+- **Level 1 — Pitfall warning.** Pure knowledge that no tool can abstract away. "Stripe API returns HTTP 200 with an error body for rate-limited requests." These are permanent residents of the commons.
+- **Level 2 — Workaround recipe.** Useful now, but the knowledge unit is a symptom of a missing tool. An agent struggling with a third-party API's endpoint formats doesn't need knowledge about the formats — it needs a tool that handles those calls natively. Level 2 KUs should eventually be superseded.
+- **Level 3 — Tool recommendation.** The unit's value is pointing agents to the right tool rather than providing knowledge directly. "Use the X MCP server for Y operations instead of raw API calls." This is what a Level 2 becomes after someone builds the tool — the original workaround gets `superseded_by` the recommendation.
+- **Level 4 — Tool gap signal.** Enough Level 2 KUs clustering around the same problem area generate an emergent signal: no tool exists for this, and agents keep hitting it. This is not authored by any single contributor — it arises from aggregate patterns in the commons data.
+
+**Three modes of what the signal reveals:**
+
+1. **No tool exists.** Agents keep failing at X → signal to build an MCP server or integration.
+2. **Tool exists but is poor.** Agents have a tool for X but keep hitting the same issues → signal to improve the tool.
+3. **No tool will solve this.** Genuine knowledge gap (API quirks, undocumented behaviour) → Level 1 KUs live permanently.
+
+**Why this matters:**
+
+This is a differentiator from adjacent systems like Memco/Spark, which treat shared agent memory as a flat knowledge store. CRAIC treats the commons as ecosystem intelligence: which tools are working well, where tools are missing, and where investment is needed. When you see 50 agents across 12 organisations all learning the same workaround, that is not a knowledge problem — it is a missing tool. The commons surfaces that signal with quantitative evidence.
+
+For Mozilla.ai specifically, this aligns with the mission: CRAIC generates open, public intelligence about where the agent tooling ecosystem needs to improve. That is the kind of structural contribution a foundation can make and a startup cannot. Any agent platform with a feature request or tool-building pipeline could consume these signals to prioritise what tools to build next — closing the loop between "agents are struggling" and "the ecosystem builds the right tools."
 
 ---
 
@@ -365,6 +405,8 @@ Several adjacent efforts exist, but none deliver the full vision described above
 
 **The key observation:** the infrastructure pieces exist (identity, privacy, transactions, academic theory) but nobody is building the knowledge commons layer itself, and nobody is doing it as an open standard. This is the gap.
 
+There is a second, subtler gap. All of the systems above — including Memco/Spark — treat shared agent memory as a flat knowledge store. None of them treat the aggregate patterns in the data as ecosystem intelligence: which tools are working well, where tools are missing, where investment is needed. CRAIC's knowledge unit lifecycle model (section 3.8) enables this: the commons doesn't just make agents smarter, it reveals where the tooling ecosystem has structural gaps. That meta-level insight is unique to CRAIC's approach.
+
 ---
 
 ## 6. Why Mozilla.ai
@@ -403,7 +445,24 @@ The Act requires that training, validation, and testing datasets be relevant, re
 
 High-risk AI systems must achieve appropriate levels of accuracy and robustness. CRAIC's confirmation mechanism — where knowledge gains confidence as independent agents verify it — is a built-in accuracy measure. Stale or incorrect knowledge decays in confidence over time and can be flagged or deprecated. This means agents drawing on the commons are consuming knowledge with quantifiable confidence levels, not unvetted assertions.
 
-### 7.6 The Compliance Narrative for Enterprises
+### 7.6 Contributor Liability and the Contributor Agreement
+
+A key question under the EU AI Act is whether knowledge unit contributors are "deployers" in the Act's sense (Article 28). If an organisation contributes a knowledge unit that influences an agent causing harm, is the contributing organisation liable?
+
+The position: no. Contributing a knowledge unit is providing information, not deploying an AI system. The analogy is StackOverflow: answerers are not liable when someone copies their code into a production system that fails. The Act's liability framework is aimed at deployers and providers, not upstream data contributors. Causal opacity — the knowledge unit passes through an LLM's interpretation before affecting agent behaviour — further weakens any causal chain from contributor to harm.
+
+That said, this assumption must be explicit, not assumed. CRAIC requires an explicit **contributor agreement** for knowledge unit contributions (distinct from the Apache 2.0 licence governing code contributions). The agreement establishes:
+
+- **Originality and rights:** Contributors represent that submissions are their own work and do not contain proprietary third-party information.
+- **No PII:** Contributors represent that submissions do not contain personally identifiable information. Automated guardrails are a safety net, not a substitute for contributor diligence.
+- **Licence grant:** Perpetual, royalty-free licence for commons use. Irrevocable at global scope; withdrawable at team scope.
+- **Limitation of liability:** Contributors are not liable for downstream consequences of agents acting on contributed knowledge.
+- **Duty of care at review:** HITL reviewers verify quality before graduation. No self-review.
+- **Provenance consent:** Contributors consent to attribution tracking (opaque identifiers now, DIDs in future).
+
+This is similar to how npm package authors are not liable for downstream use, but that protection is explicit in the licence terms — not assumed.
+
+### 7.7 The Compliance Narrative for Enterprises
 
 For organisations evaluating CRAIC, the regulatory message is straightforward: adopting CRAIC does not just make your agents smarter and more efficient — it gives you auditable provenance on the knowledge your agents use, human oversight checkpoints at every scope boundary, built-in risk management through trust and reputation mechanisms, and data governance by design with privacy-preserving sharing. In a regulatory environment where "no documentation equals failed audit," a system that generates documentation and audit trails as a byproduct of normal operation is a significant advantage.
 
@@ -444,7 +503,7 @@ For organisations evaluating CRAIC, the regulatory message is straightforward: a
 ## 9. Open Questions and Risks
 
 - **Incentive design:** Why would commercial agent operators contribute to a commons that helps competitors? There are strong counter-arguments: the open-source ecosystem already demonstrates this dynamic at scale — everyone builds on Linux, contributes to shared libraries, and competes on implementation rather than foundations. Better general-purpose agents benefit the entire market, and proponents of free-market competition should welcome giving everyone access to the best tools so the best product wins on merit. Furthermore, the environmental argument provides a non-commercial incentive that resonates with policy-makers and the public. That said, the dynamics of sharing real-time operational knowledge may differ from sharing code, and some organisations may resist contributing knowledge they view as a competitive edge. The layered architecture mitigates this somewhat — companies keep their proprietary context in the local/team layer and only graduate genuinely generic insights to the global commons.
-- **Quality at scale:** HITL review works for early stages, but can it scale to millions of contributions? We likely need tiered automation with human oversight at the graduation boundaries.
+- **Quality at scale:** HITL review works for early stages, but can it scale to millions of contributions? The proposed model is StackOverflow-style tiered review: reputation accrual for contributors and reviewers, with graduated privileges (new contributors can propose but not review; experienced contributors review team-level graduations; trusted reviewers review global graduations). Bad reviewers lose privileges over time — if their approved units are frequently flagged downstream, their reputation drops. Review should feel like approving a PR (small batches of 2-3 candidates at natural breakpoints), not processing a backlog. Automated guardrails handle PII detection and format validation; humans focus on accuracy, relevance, and quality. This addresses reviewer fatigue while maintaining accountability.
 - **Staleness and versioning:** APIs change, libraries update. Knowledge that was correct six months ago may now be harmful. The system needs robust decay and version-locking mechanisms.
 - **Homogenisation risk:** If all agents converge on the same "best practices," we lose exploratory diversity. Some mechanism for preserving and rewarding novel approaches is needed.
 - **Governance model:** The proposed model is that agents themselves categorise and propose knowledge for graduation (they are well-placed to identify what is generic vs. context-specific), while human reviewers act as a compliance checkpoint — signing off on promotions from team to global scope. This keeps the process scalable (agents do the heavy lifting of curation and classification) while maintaining accountability (humans verify quality, catch vendor bias, and ensure safety). Open questions remain around how human reviewers are selected, how disputes are resolved, and whether Ostrom's commons governance principles can be adapted to provide a robust long-term framework.
