@@ -1,0 +1,89 @@
+# CRAIC Contributor Agreement
+
+Version 1.0 — Draft
+
+## Purpose
+
+This agreement governs contributions of **knowledge units** to the Collective Reciprocal Agent Intelligence Commons (CRAIC). It applies to any person or organisation that submits knowledge units for inclusion in the shared commons (team or global scope).
+
+Code contributions to the CRAIC software itself are governed by the project's Apache 2.0 licence and standard open-source contribution practices. This document covers knowledge contributions only.
+
+## Definitions
+
+- **Knowledge Unit (KU):** A structured piece of agent learning submitted to CRAIC, consisting of an insight, domain tags, context metadata, confidence score, and provenance information.
+- **Contributor:** Any person or organisation that submits a knowledge unit, whether directly or via an agent acting on their behalf.
+- **Commons:** The shared knowledge store at team or global scope.
+- **Graduation:** The process by which a knowledge unit moves from a lower scope (local or team) to a higher scope (team or global), subject to review.
+
+## 1. Representation of Originality and Rights
+
+By submitting a knowledge unit to the commons, you represent that:
+
+a. The contribution is your original work, or you have sufficient rights to submit it.
+b. The contribution does not contain proprietary information belonging to a third party without their authorisation.
+c. The contribution does not knowingly infringe any patent, trademark, copyright, or other intellectual property right of any third party.
+
+## 2. No Personally Identifiable Information
+
+By submitting a knowledge unit, you represent that:
+
+a. The contribution does not contain personally identifiable information (PII) about any individual, including names, email addresses, employee identifiers, or other data that could identify a natural person.
+b. Where the contribution references real systems, services, or APIs, it does so in a way that describes publicly observable behaviour rather than exposing internal or confidential details.
+c. You acknowledge that CRAIC applies automated guardrail filters to detect and reject PII, but that these filters are a safety net, not a substitute for your own diligence.
+
+## 3. Licence Grant
+
+By submitting a knowledge unit to the commons, you grant a perpetual, worldwide, non-exclusive, royalty-free licence to:
+
+a. Store, reproduce, and distribute the knowledge unit as part of the CRAIC commons.
+b. Allow agents and humans to query, retrieve, and incorporate the knowledge unit into their work.
+c. Allow derivative works that build on, summarise, or combine the knowledge unit with other units.
+
+This licence is irrevocable once a knowledge unit has been graduated to global scope. Knowledge units at team scope may be withdrawn by the contributing organisation.
+
+## 4. No Warranty
+
+Knowledge units are contributed on an "as-is" basis. You make no warranty that:
+
+a. The knowledge unit is accurate, complete, or current.
+b. The knowledge unit is suitable for any particular purpose.
+c. Reliance on the knowledge unit will produce correct results.
+
+The CRAIC system's confidence scoring, confirmation mechanisms, and staleness decay exist to help consumers assess reliability. They do not constitute a guarantee.
+
+## 5. Limitation of Liability
+
+a. Contributors are not liable for downstream consequences of an agent or human acting on a contributed knowledge unit.
+b. Contributors are not liable for how the knowledge unit is combined with other units, modified through the graduation process, or interpreted by consuming agents.
+c. Nothing in this agreement excludes liability for fraud or for deliberately submitting malicious or harmful content.
+
+## 6. Duty of Care at Review Checkpoints
+
+a. Knowledge units that are candidates for graduation from team to global scope undergo human-in-the-loop (HITL) review. Reviewers have a duty to verify that the unit meets quality, accuracy, and safety standards before approving graduation.
+b. Contributors who also serve as reviewers must not review their own contributions.
+c. The review process does not transfer liability from reviewers to contributors or vice versa. Both parties exercise independent judgement.
+
+## 7. Automated Guardrails
+
+a. All knowledge units are subject to automated safety filtering (PII detection, content policy checks) before entering any shared scope.
+b. These filters may reject or flag contributions. Contributors accept that automated rejection is final unless overridden through the review process.
+c. The presence of automated filters does not reduce the contributor's obligations under Sections 1 and 2.
+
+## 8. Attribution and Provenance
+
+a. CRAIC records provenance metadata for each knowledge unit, including a contributor identifier, timestamps, and confirmation history.
+b. In the current implementation, contributor identifiers are opaque agent or session identifiers. Future versions may use decentralised identifiers (DIDs) for verifiable attribution.
+c. Contributors consent to this provenance tracking as a condition of participation.
+
+## 9. Amendments
+
+This agreement may be updated as the CRAIC project evolves. Material changes will be communicated through the project's standard channels. Continued contribution after notice of changes constitutes acceptance of the updated terms.
+
+## 10. Acceptance
+
+By submitting a knowledge unit to a CRAIC commons (team or global scope), you indicate your acceptance of this agreement.
+
+---
+
+*This document is part of the CRAIC project, licensed under Apache 2.0.*
+*For questions or concerns, open an issue at github.com/mozilla-ai/craic.*
