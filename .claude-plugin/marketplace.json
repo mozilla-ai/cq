@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "craic",
-      "source": ".",
+      "source": "./plugins/craic",
       "description": "Collective Reciprocal Agent Intelligence Commons — shared agent learning",
       "version": "0.1.0",
       "category": "knowledge",
