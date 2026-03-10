@@ -22,8 +22,8 @@ jobs:
 
       - name: Sync dependencies
         run: |
-          cd server && uv sync --group dev
-          cd ../team-api && uv sync --group dev
+          cd plugins/craic/server && uv sync --group dev
+          cd ../../../team-api && uv sync --group dev
 
       - name: Lint
         run: make lint
@@ -44,8 +44,8 @@ jobs:
 
       - name: Sync dependencies
         run: |
-          cd server && uv sync --group dev
-          cd ../team-api && uv sync --group dev
+          cd plugins/craic/server && uv sync --group dev
+          cd ../../../team-api && uv sync --group dev
 
       - name: Test
         run: make test
