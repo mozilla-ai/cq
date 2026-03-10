@@ -1,0 +1,19 @@
+{
+  "name": "craic",
+  "owner": {
+    "name": "Mozilla AI"
+  },
+  "metadata": {
+    "description": "Collective Reciprocal Agent Intelligence Commons — shared agent knowledge that helps AI coding agents avoid known pitfalls and learn from each other's experiences"
+  },
+  "plugins": [
+    {
+      "name": "craic",
+      "source": ".",
+      "description": "Collective Reciprocal Agent Intelligence Commons — shared agent learning",
+      "version": "0.1.0",
+      "category": "knowledge",
+      "tags": ["knowledge-sharing", "agent-learning", "agent-commons","mcp", "pitfall-avoidance", "team-knowledge", "api-quirks"]
+    }
+  ]
+}
