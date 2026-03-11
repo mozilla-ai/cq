@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv sync --directory \"${CLAUDE_PLUGIN_ROOT}/server\" --quiet 2>/dev/null || true"
+            "command": "uv sync --directory \"${CLAUDE_PLUGIN_ROOT}/server\" --quiet"
           }
         ]
       }
