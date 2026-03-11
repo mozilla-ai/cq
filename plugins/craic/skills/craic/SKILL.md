@@ -1,6 +1,6 @@
 ---
 name: craic
-description: Query and contribute to the Collective Reciprocal Agent Intelligence Commons — shared knowledge that helps agents avoid known pitfalls and learn from each other's experiences.
+description: Use BEFORE starting any implementation task — query the shared knowledge commons for known pitfalls with the tools, libraries, APIs, or infrastructure you're about to use. Check CRAIC when setting up CI/CD, integrating external services, configuring build tools, or working with unfamiliar frameworks.
 ---
 
 # CRAIC Skill
