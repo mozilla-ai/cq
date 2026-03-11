@@ -249,8 +249,6 @@ class LocalStore:
         """
         rows = self._conn.execute(sql, normalised).fetchall()
 
-        # PoC: all filtering and scoring is in-memory after deserialization.
-        # For larger stores, push coarse filters into SQL.
         units = [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
 
         scored = []
