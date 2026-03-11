@@ -86,6 +86,14 @@ class TestCraicQuery:
         assert len(result["results"]) == 1
         assert "databases" in result["results"][0]["domain"]
 
+    def test_query_results_include_confirm_reminder(self) -> None:
+        proposed = _propose_unit(domain=["databases"])
+        result = craic_query(domain=["databases"])
+        returned = result["results"][0]
+        assert "action_required" in returned
+        assert proposed["id"] in returned["action_required"]
+        assert "craic_confirm" in returned["action_required"]
+
     def test_query_boosts_matching_language(self) -> None:
         _propose_unit(domain=["web"], language="python")
         _propose_unit(domain=["web"], language="go")

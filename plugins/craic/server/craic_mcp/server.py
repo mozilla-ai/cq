@@ -260,6 +260,9 @@ def craic_query(
         query_framework=framework,
         limit=limit,
     )
+    for result in results:
+        unit_id = result["id"]
+        result["action_required"] = f'If you verify this, call craic_confirm(unit_id="{unit_id}").'
     return {"results": results, "source": source}
 
 
