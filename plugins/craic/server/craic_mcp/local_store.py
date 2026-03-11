@@ -55,6 +55,11 @@ CREATE INDEX IF NOT EXISTS idx_domains_domain
     ON knowledge_unit_domains(domain);
 """
 
+_FTS_SCHEMA_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_units_fts
+    USING fts5(id UNINDEXED, summary, detail, action);
+"""
+
 
 def _normalise_domains(domains: list[str]) -> list[str]:
     """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
@@ -92,8 +97,9 @@ class LocalStore:
         return conn
 
     def _ensure_schema(self) -> None:
-        """Create tables and indexes if they do not exist."""
+        """Create tables, indexes, and FTS virtual table if they do not exist."""
         self._conn.executescript(_SCHEMA_SQL)
+        self._conn.executescript(_FTS_SCHEMA_SQL)
 
     def _check_open(self) -> None:
         """Raise if the store has been closed."""
@@ -150,6 +156,10 @@ class LocalStore:
                 "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
                 [(unit.id, d) for d in domains],
             )
+            self._conn.execute(
+                "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)",
+                (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
+            )
 
     def get(self, unit_id: str) -> KnowledgeUnit | None:
         """Retrieve a knowledge unit by ID.
@@ -200,6 +210,14 @@ class LocalStore:
                 "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
                 [(unit.id, d) for d in domains],
             )
+            self._conn.execute(
+                "DELETE FROM knowledge_units_fts WHERE id = ?",
+                (unit.id,),
+            )
+            self._conn.execute(
+                "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)",
+                (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
+            )
 
     def query(
         self,
@@ -249,7 +267,27 @@ class LocalStore:
         """
         rows = self._conn.execute(sql, normalised).fetchall()
 
-        units = [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
+        # Also search FTS5 for units matching query terms in their text.
+        fts_terms = " OR ".join(f'"{term}"' for term in normalised)
+        fts_sql = """
+            SELECT ku.data
+            FROM knowledge_units_fts fts
+            JOIN knowledge_units ku ON ku.id = fts.id
+            WHERE knowledge_units_fts MATCH ?
+        """
+        try:
+            fts_rows = self._conn.execute(fts_sql, (fts_terms,)).fetchall()
+        except sqlite3.OperationalError:
+            fts_rows = []
+
+        # Merge and deduplicate by ID.
+        seen: set[str] = set()
+        units: list[KnowledgeUnit] = []
+        for row in [*rows, *fts_rows]:
+            unit = KnowledgeUnit.model_validate_json(row[0])
+            if unit.id not in seen:
+                seen.add(unit.id)
+                units.append(unit)
 
         scored = []
         for unit in units:

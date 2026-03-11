@@ -320,6 +320,79 @@ class TestQuery:
         assert results[0].id == high_conf.id
 
 
+class TestFTS:
+    def test_fts_finds_units_by_summary_text(self, store: LocalStore):
+        unit = _make_unit(
+            domain=["ci"],
+            insight=Insight(
+                summary="actions/checkout latest version is v6",
+                detail="LLMs default to v4.",
+                action="Pin to v6.",
+            ),
+        )
+        store.insert(unit)
+
+        results = store.query(["checkout"])
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
+    def test_fts_finds_units_by_detail_text(self, store: LocalStore):
+        unit = _make_unit(
+            domain=["ci"],
+            insight=Insight(
+                summary="Stale action versions",
+                detail="The astral-sh/setup-uv action is now at v7.",
+                action="Update to v7.",
+            ),
+        )
+        store.insert(unit)
+
+        results = store.query(["setup-uv"])
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
+    def test_fts_deduplicates_with_domain_matches(self, store: LocalStore):
+        unit = _make_unit(
+            domain=["github-actions"],
+            insight=Insight(
+                summary="github-actions checkout is at v6",
+                detail="Detail.",
+                action="Action.",
+            ),
+        )
+        store.insert(unit)
+
+        results = store.query(["github-actions"])
+        assert len(results) == 1
+
+    def test_fts_updated_after_unit_update(self, store: LocalStore):
+        unit = _make_unit(
+            domain=["ci"],
+            insight=Insight(
+                summary="Old summary about webpack",
+                detail="Old detail.",
+                action="Old action.",
+            ),
+        )
+        store.insert(unit)
+
+        updated = unit.model_copy(
+            update={
+                "insight": Insight(
+                    summary="New summary about vite bundler",
+                    detail="New detail.",
+                    action="New action.",
+                )
+            }
+        )
+        store.update(updated)
+
+        assert store.query(["webpack"]) == []
+        results = store.query(["vite"])
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
+
 class TestDomainNormalisation:
     def test_stores_domains_as_lowercase(self, store: LocalStore):
         unit = _make_unit(domain=["API", "Payments"])
