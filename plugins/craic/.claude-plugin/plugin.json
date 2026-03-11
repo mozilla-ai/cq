@@ -1,15 +1,13 @@
 {
   "name": "craic",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Collective Reciprocal Agent Intelligence Commons — shared agent learning",
   "skills": "./skills/",
   "commands": "./commands/",
-  "hooks": "./hooks/hooks.json",
   "mcpServers": {
     "craic": {
       "command": "uv",
-      "args": ["run", "--directory", "server", "craic-mcp-server"],
-      "cwd": "${CLAUDE_PLUGIN_ROOT}"
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}/server", "craic-mcp-server"]
     }
   }
 }
