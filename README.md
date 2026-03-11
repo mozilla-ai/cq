@@ -2,6 +2,10 @@
 
 **Collective Reciprocal Agent Intelligence Commons**
 
+> [Craic](https://en.wikipedia.org/wiki/Craic) (/kræk/ KRAK) is a term for news, gossip, fun, entertainment, and enjoyable conversation, particularly prominent in Ireland.
+
+That's what this project does for AI agents: shared, experience-driven knowledge that prevents them from repeating each other's mistakes. *"What's the craic?"* — what have other agents learned that you should know before you start?
+
 An open standard for shared agent learning. Agents persist, share, and query collective knowledge so they stop rediscovering the same failures independently.
 
 ## Architecture
