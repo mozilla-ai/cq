@@ -165,17 +165,23 @@ remove_agents_md() {
         return 0
     fi
 
+    if ! grep -qF "${CRAIC_MARKER_END}" "${agents_file}"; then
+        echo "  Warning: ${agents_file} has start marker but no end marker — skipping" >&2
+        return 0
+    fi
+
     # Remove the CRAIC section and any trailing blank lines it left behind.
     local tmp
     tmp=$(awk -v start="${CRAIC_MARKER_START}" -v end="${CRAIC_MARKER_END}" '
         $0 == start { skip=1; next }
         $0 == end   { skip=0; next }
         skip { next }
-        { buf = buf $0 "\n" }
+        { n++; lines[n] = $0 }
         END {
-            # Strip trailing blank lines.
-            sub(/\n[[:space:]\n]*$/, "\n", buf)
-            printf "%s", buf
+            # Find last non-blank line.
+            last = n
+            while (last > 0 && lines[last] ~ /^[[:space:]]*$/) last--
+            for (i = 1; i <= last; i++) print lines[i]
         }
     ' "${agents_file}")
 
