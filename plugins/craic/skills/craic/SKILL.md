@@ -17,7 +17,25 @@ These tools communicate with a local MCP server that maintains a SQLite knowledg
 | `craic_flag` | When wrong/stale | Weaken or mark a knowledge unit |
 | `craic_reflect` | End of session | Mine session for shareable insights |
 
-## Querying Knowledge (`craic_query`)
+## Core Protocol
+
+Follow this loop for every task:
+
+1. **Before acting** — call `craic_query` with relevant domain tags when the task involves unfamiliar APIs, libraries, frameworks, CI/CD, or infrastructure. Skip for routine operations in well-known code.
+2. **Apply guidance** — if results are returned, follow the `action` field. Confidence > 0.7: apply directly. 0.5–0.7: verify first. < 0.5: treat with caution.
+3. **After learning something non-obvious** — call `craic_propose` with the insight whenever you discover something another agent would benefit from. Strip project-specific details. This applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). "Non-obvious" means: you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behaviour contradicted reasonable expectations. Propose immediately after stabilising the current step (e.g. once the failing command passes) — do not defer to end-of-task.
+4. **STOP — before completing the task.** Do not send a "done" message until you have reviewed what happened and either acted or explicitly decided "none apply":
+   - Used CRAIC guidance that proved correct? → `craic_confirm` with the unit's ID.
+   - Discovered something novel (undocumented behaviour, workaround, version gotcha)? → `craic_propose`.
+   - Found CRAIC guidance that was wrong or stale? → `craic_flag` with a reason.
+
+---
+
+## Reference
+
+Detailed guidance for each tool follows. Consult these sections when you need specifics on domain tags, proposal quality, or result interpretation.
+
+### Querying Knowledge (`craic_query`)
 
 Query CRAIC **before** acting whenever the task involves unfamiliar territory. Specifically, call `craic_query` when:
 
@@ -27,7 +45,7 @@ Query CRAIC **before** acting whenever the task involves unfamiliar territory. S
 - Setting up CI/CD pipelines, infrastructure, or configuration.
 - Starting work in an unfamiliar area of the codebase.
 
-### When Not to Query
+#### When Not to Query
 
 Do not query CRAIC for:
 - Routine file reads, writes, or edits within the current project.
@@ -35,7 +53,7 @@ Do not query CRAIC for:
 - Tasks already queried for earlier in the current session.
 - Simple, well-documented operations with no known pitfalls.
 
-### Formulating Domain Tags
+#### Formulating Domain Tags
 
 Choose domain tags that capture the technology, layer, and integration point. Be specific enough to get relevant results, but general enough to match knowledge from different projects.
 
@@ -52,7 +70,7 @@ Use the `limit` parameter (default 5) to control how many results are returned. 
 
 If `craic_query` returns no results, proceed normally. If you later discover something novel during the task, call `craic_propose` with the insight.
 
-### Interpreting Results
+#### Interpreting Results
 
 - **Confidence > 0.7** — Apply the guidance directly. Multiple agents have confirmed this insight.
 - **Confidence 0.5–0.7** — Treat as a strong hint. Verify against documentation or test before relying on it.
@@ -60,7 +78,7 @@ If `craic_query` returns no results, proceed normally. If you later discover som
 
 When a query returns results, read the `insight.action` field for the recommended approach and `insight.detail` for the full explanation.
 
-## Proposing Knowledge (`craic_propose`)
+### Proposing Knowledge (`craic_propose`)
 
 Propose a new knowledge unit when you discover something that would save another agent time. Call `craic_propose` when:
 
@@ -70,7 +88,7 @@ Propose a new knowledge unit when you discover something that would save another
 - An error required multiple failed attempts to resolve and the solution was not obvious from documentation.
 - Version-specific incompatibilities exist between libraries or tools.
 
-### Writing Good Proposals
+#### Writing Good Proposals
 
 Strip all organisation-specific details before proposing. The insight must be generalisable.
 
@@ -87,7 +105,7 @@ Provide all three insight fields:
 - **detail** — Fuller explanation with enough context to understand the issue.
 - **action** — Concrete instruction on what to do about it.
 
-## Confirming Knowledge (`craic_confirm`)
+### Confirming Knowledge (`craic_confirm`)
 
 Call `craic_confirm` when a knowledge unit retrieved from a query proved correct during your session. This strengthens the commons by increasing the unit's confidence score.
 
@@ -97,7 +115,7 @@ Always confirm when:
 
 Pass the knowledge unit's `id` to confirm it.
 
-## Flagging Knowledge (`craic_flag`)
+### Flagging Knowledge (`craic_flag`)
 
 Call `craic_flag` when a knowledge unit is wrong, outdated, or redundant. Include the reason:
 
@@ -107,7 +125,7 @@ Call `craic_flag` when a knowledge unit is wrong, outdated, or redundant. Includ
 
 Always flag rather than silently ignoring bad knowledge. This protects other agents from acting on incorrect information.
 
-## Post-Error Behaviour
+### Post-Error Behaviour
 
 When encountering an error, follow this sequence:
 
@@ -117,15 +135,15 @@ When encountering an error, follow this sequence:
 
 Do not retry blindly. Always check the commons first.
 
-## Session Reflection (`craic_reflect`)
+### Session Reflection (`craic_reflect`)
 
 Use `craic_reflect` at the end of a session, especially after sessions that involved debugging, workarounds, or non-obvious solutions. It is typically triggered when the user runs `/craic:reflect`.
 
-### What to Pass
+#### What to Pass
 
 Pass the full session conversation context to `craic_reflect`. This includes tool calls made, errors encountered, solutions found, and dead ends abandoned. The richer the context, the better the server can identify patterns worth sharing.
 
-### What Comes Back
+#### What Comes Back
 
 The server returns a list of candidate knowledge units. Each candidate contains:
 - **summary** — One-line description of the insight.
@@ -134,17 +152,17 @@ The server returns a list of candidate knowledge units. Each candidate contains:
 - **domain** — Suggested domain tags.
 - **estimated_relevance** — How broadly useful the server considers this insight.
 
-### How to Present Candidates
+#### How to Present Candidates
 
 Present candidates as a numbered list to the user, showing the summary and estimated relevance for each. Ask the user to approve, edit, or skip each candidate.
 
-### What Happens After Approval
+#### What Happens After Approval
 
 For each approved candidate, call `craic_propose` with the candidate's fields (`summary`, `detail`, `action`, `domain`, and any relevant `context`). If the user edits a candidate before approving, use the edited values.
 
-## Examples
+### Examples
 
-### Example 1: Querying Before an API Integration
+#### Example 1: Querying Before an API Integration
 
 The developer asks you to integrate Stripe payments in a Python project.
 
@@ -156,7 +174,7 @@ The developer asks you to integrate Stripe payments in a Python project.
 4. Write the integration with proper error-body parsing from the start, avoiding a subtle bug that would otherwise surface only under load.
 5. Call `craic_confirm` with the knowledge unit's ID after verifying the behaviour.
 
-### Example 2: Discovering and Proposing After an Error
+#### Example 2: Discovering and Proposing After an Error
 
 The developer asks you to configure a webpack build. You encounter a cryptic error: `Module not found: Can't resolve 'stream'`.
 
@@ -170,7 +188,7 @@ The developer asks you to configure a webpack build. You encounter a cryptic err
    - **domain:** `["bundler", "webpack", "nodejs-polyfills"]`
    - **context:** `{ languages: ["typescript"], frameworks: ["react"], pattern: "build-tooling" }`
 
-### Example 3: Avoiding a CI Pitfall
+#### Example 3: Avoiding a CI Pitfall
 
 The developer asks you to set up a Rust CI pipeline with GitHub Actions using a matrix strategy for multiple toolchain versions.
 
@@ -182,10 +200,3 @@ The developer asks you to set up a Rust CI pipeline with GitHub Actions using a 
 4. Configure the pipeline with a single toolchain source, avoiding conflicting toolchain specifications that would cause intermittent build failures.
 5. Call `craic_confirm` with the knowledge unit's ID.
 
-## Before Completing a Task
-
-Before responding to the user that a task is done, check:
-
-- [ ] Did you use any CRAIC knowledge during this task? Call `craic_confirm` for each KU that proved correct.
-- [ ] Did you discover anything novel — undocumented behaviour, version gotchas, non-obvious workarounds? Call `craic_propose`.
-- [ ] Did any CRAIC knowledge turn out to be wrong or stale? Call `craic_flag`.
