@@ -28,6 +28,14 @@ def _propose_payload(**overrides: Any) -> dict[str, Any]:
     return {**defaults, **overrides}
 
 
+def _approve_unit(client: TestClient, unit_id: str) -> None:
+    """Approve a unit via the store for testing."""
+    from team_api.app import _get_store
+
+    store = _get_store()
+    store.set_review_status(unit_id, "approved", "test-reviewer")
+
+
 class TestHealth:
     def test_health_returns_ok(self, client: TestClient) -> None:
         resp = client.get("/health")
@@ -76,7 +84,9 @@ class TestQuery:
     def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:
         resp = client.post("/propose", json=_propose_payload(**overrides))
         assert resp.status_code == 201
-        return resp.json()
+        body = resp.json()
+        _approve_unit(client, body["id"])
+        return body
 
     def test_query_returns_matching_units(self, client: TestClient) -> None:
         self._insert_unit(client, domain=["databases"])
@@ -124,11 +134,17 @@ class TestQuery:
 class TestConfirm:
     def test_confirm_boosts_confidence(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
+        _approve_unit(client, created["id"])
         resp = client.post(f"/confirm/{created['id']}")
         assert resp.status_code == 200
         body = resp.json()
         assert body["evidence"]["confirmations"] == 2
         assert body["evidence"]["confidence"] > 0.5
+
+    def test_confirm_pending_unit_returns_404(self, client: TestClient) -> None:
+        created = client.post("/propose", json=_propose_payload()).json()
+        resp = client.post(f"/confirm/{created['id']}")
+        assert resp.status_code == 404
 
     def test_confirm_missing_unit_returns_404(self, client: TestClient) -> None:
         resp = client.post("/confirm/ku_nonexistent")
@@ -139,11 +155,17 @@ class TestConfirm:
 class TestFlag:
     def test_flag_reduces_confidence(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
+        _approve_unit(client, created["id"])
         resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
         assert resp.status_code == 200
         body = resp.json()
         assert body["evidence"]["confidence"] < 0.5
         assert len(body["flags"]) == 1
+
+    def test_flag_pending_unit_returns_404(self, client: TestClient) -> None:
+        created = client.post("/propose", json=_propose_payload()).json()
+        resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
+        assert resp.status_code == 404
 
     def test_flag_missing_unit_returns_404(self, client: TestClient) -> None:
         resp = client.post("/flag/ku_nonexistent", json={"reason": "stale"})
@@ -185,6 +207,9 @@ class TestEndToEnd:
         created = client.post("/propose", json=payload)
         assert created.status_code == 201
         unit_id = created.json()["id"]
+
+        # Approve the unit so it becomes queryable.
+        _approve_unit(client, unit_id)
 
         # Query returns the unit.
         resp = client.get(

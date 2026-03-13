@@ -42,11 +42,19 @@ def store(tmp_path: Path) -> Iterator[TeamStore]:
     s.close()
 
 
+def _insert_and_approve(store: TeamStore, **overrides: Any) -> KnowledgeUnit:
+    """Insert a knowledge unit and approve it for query visibility."""
+    unit = _make_unit(**overrides)
+    store.insert(unit)
+    store.set_review_status(unit.id, "approved", "test-reviewer")
+    return unit
+
+
 class TestInsertAndGet:
     def test_insert_and_retrieve(self, store: TeamStore) -> None:
         unit = _make_unit()
         store.insert(unit)
-        retrieved = store.get(unit.id)
+        retrieved = store.get_any(unit.id)
         assert retrieved == unit
 
     def test_insert_duplicate_raises(self, store: TeamStore) -> None:
@@ -66,8 +74,7 @@ class TestInsertAndGet:
 
 class TestUpdate:
     def test_update_persists_changes(self, store: TeamStore) -> None:
-        unit = _make_unit()
-        store.insert(unit)
+        unit = _insert_and_approve(store)
         confirmed = apply_confirmation(unit)
         store.update(confirmed)
         retrieved = store.get(unit.id)
@@ -89,22 +96,18 @@ class TestUpdate:
 
 class TestQuery:
     def test_returns_matching_units(self, store: TeamStore) -> None:
-        unit = _make_unit(domain=["databases"])
-        store.insert(unit)
+        unit = _insert_and_approve(store, domain=["databases"])
         results = store.query(["databases"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
     def test_returns_empty_for_no_match(self, store: TeamStore) -> None:
-        unit = _make_unit(domain=["databases"])
-        store.insert(unit)
+        _insert_and_approve(store, domain=["databases"])
         assert store.query(["networking"]) == []
 
     def test_filters_by_language(self, store: TeamStore) -> None:
-        py = _make_unit(domain=["web"], context=Context(languages=["python"]))
-        go = _make_unit(domain=["web"], context=Context(languages=["go"]))
-        store.insert(py)
-        store.insert(go)
+        py = _insert_and_approve(store, domain=["web"], context=Context(languages=["python"]))
+        _insert_and_approve(store, domain=["web"], context=Context(languages=["go"]))
         results = store.query(["web"], language="python")
         assert len(results) == 1
         assert results[0].id == py.id
@@ -143,14 +146,47 @@ class TestReviewStatus:
         assert status["reviewed_at"] is None
 
 
+class TestStatusFiltering:
+    def test_query_excludes_pending_units(self, store: TeamStore) -> None:
+        unit = _make_unit(domain=["api"])
+        store.insert(unit)
+        results = store.query(["api"])
+        assert len(results) == 0
+
+    def test_query_returns_approved_units(self, store: TeamStore) -> None:
+        unit = _make_unit(domain=["api"])
+        store.insert(unit)
+        store.set_review_status(unit.id, "approved", "reviewer")
+        results = store.query(["api"])
+        assert len(results) == 1
+
+    def test_query_excludes_rejected_units(self, store: TeamStore) -> None:
+        unit = _make_unit(domain=["api"])
+        store.insert(unit)
+        store.set_review_status(unit.id, "rejected", "reviewer")
+        results = store.query(["api"])
+        assert len(results) == 0
+
+    def test_get_only_returns_approved_for_agents(self, store: TeamStore) -> None:
+        unit = _make_unit()
+        store.insert(unit)
+        assert store.get(unit.id) is None
+
+    def test_get_returns_approved_unit(self, store: TeamStore) -> None:
+        unit = _make_unit()
+        store.insert(unit)
+        store.set_review_status(unit.id, "approved", "reviewer")
+        assert store.get(unit.id) is not None
+
+
 class TestEndToEnd:
     def test_propose_confirm_flag_lifecycle(self, store: TeamStore) -> None:
-        unit = _make_unit(
+        _insert_and_approve(
+            store,
             domain=["api", "payments"],
             context=Context(languages=["python"], frameworks=["fastapi"]),
             tier=Tier.TEAM,
         )
-        store.insert(unit)
 
         results = store.query(["api", "payments"], language="python")
         assert len(results) == 1

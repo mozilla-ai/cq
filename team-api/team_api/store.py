@@ -7,6 +7,7 @@ Implements the context manager protocol for deterministic resource cleanup.
 
 import sqlite3
 import threading
+from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 
@@ -133,7 +134,31 @@ class TeamStore:
             )
 
     def get(self, unit_id: str) -> KnowledgeUnit | None:
-        """Retrieve a knowledge unit by ID.
+        """Retrieve an approved knowledge unit by ID.
+
+        Agent-facing: only returns KUs that have passed human review.
+        For internal access regardless of status, use get_any().
+
+        Args:
+            unit_id: The knowledge unit identifier.
+
+        Returns:
+            The knowledge unit, or None if not found or not approved.
+        """
+        self._check_open()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT data FROM knowledge_units WHERE id = ? AND status = 'approved'",
+                (unit_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return KnowledgeUnit.model_validate_json(row[0])
+
+    def get_any(self, unit_id: str) -> KnowledgeUnit | None:
+        """Retrieve a knowledge unit by ID regardless of review status.
+
+        Internal use only — review endpoints and activity feed.
 
         Args:
             unit_id: The knowledge unit identifier.
@@ -170,6 +195,27 @@ class TeamStore:
         if row is None:
             return None
         return {"status": row[0], "reviewed_by": row[1], "reviewed_at": row[2]}
+
+    def set_review_status(self, unit_id: str, status: str, reviewed_by: str) -> None:
+        """Update the review status of a knowledge unit.
+
+        Args:
+            unit_id: The knowledge unit identifier.
+            status: The new review status (e.g. "approved", "rejected").
+            reviewed_by: Username of the reviewer.
+
+        Raises:
+            KeyError: If no unit with the given ID exists.
+        """
+        self._check_open()
+        now = datetime.now(UTC).isoformat()
+        with self._lock, self._conn:
+            cursor = self._conn.execute(
+                "UPDATE knowledge_units SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?",
+                (status, reviewed_by, now, unit_id),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Knowledge unit not found: {unit_id}")
 
     def update(self, unit: KnowledgeUnit) -> None:
         """Replace an existing knowledge unit in the store.
@@ -239,7 +285,8 @@ class TeamStore:
         sql = f"""
             SELECT ku.data
             FROM knowledge_units ku
-            WHERE ku.id IN (
+            WHERE ku.status = 'approved'
+            AND ku.id IN (
                 SELECT DISTINCT unit_id
                 FROM knowledge_unit_domains
                 WHERE domain IN ({placeholders})
