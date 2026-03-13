@@ -59,6 +59,26 @@ class ReviewStatsResponse(BaseModel):
     trends: TrendsResponse
 
 
+def _build_decision(unit_id: str, row: dict[str, str | None]) -> ReviewDecisionResponse:
+    """Build a ReviewDecisionResponse from a review status row.
+
+    All fields are guaranteed non-None after set_review_status, so we assert
+    rather than silently defaulting.
+    """
+    status = row["status"]
+    reviewed_by = row["reviewed_by"]
+    reviewed_at = row["reviewed_at"]
+    assert status is not None
+    assert reviewed_by is not None
+    assert reviewed_at is not None
+    return ReviewDecisionResponse(
+        unit_id=unit_id,
+        status=status,
+        reviewed_by=reviewed_by,
+        reviewed_at=reviewed_at,
+    )
+
+
 router = APIRouter(prefix="/review", tags=["review"])
 
 
@@ -128,12 +148,7 @@ def approve_unit(
     store.set_review_status(unit_id, "approved", username)
     updated = store.get_review_status(unit_id)
     assert updated is not None  # Unit exists; we just wrote to it.
-    return ReviewDecisionResponse(
-        unit_id=unit_id,
-        status=updated["status"],
-        reviewed_by=updated["reviewed_by"],
-        reviewed_at=updated["reviewed_at"],
-    )
+    return _build_decision(unit_id, updated)
 
 
 @router.post("/{unit_id}/reject")
@@ -166,12 +181,7 @@ def reject_unit(
     store.set_review_status(unit_id, "rejected", username)
     updated = store.get_review_status(unit_id)
     assert updated is not None  # Unit exists; we just wrote to it.
-    return ReviewDecisionResponse(
-        unit_id=unit_id,
-        status=updated["status"],
-        reviewed_by=updated["reviewed_by"],
-        reviewed_at=updated["reviewed_at"],
-    )
+    return _build_decision(unit_id, updated)
 
 
 @router.get("/stats")

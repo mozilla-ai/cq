@@ -200,6 +200,66 @@ class TestStats:
         assert body["domains"]["payments"] == 1
 
 
+class TestReviewLifecycleEndToEnd:
+    """End-to-end test covering propose -> review -> query -> stats lifecycle."""
+
+    def test_full_review_lifecycle(self, client: TestClient) -> None:
+        from team_api.app import _get_store
+        from team_api.auth import hash_password
+
+        store = _get_store()
+        store.create_user("reviewer", hash_password("pass123"))
+
+        # Log in.
+        login_resp = client.post(
+            "/auth/login",
+            json={"username": "reviewer", "password": "pass123"},
+        )
+        assert login_resp.status_code == 200
+        token = login_resp.json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Agent proposes a KU.
+        propose_resp = client.post(
+            "/propose", json=_propose_payload(domain=["e2e-test"])
+        )
+        assert propose_resp.status_code == 201
+        unit_id = propose_resp.json()["id"]
+
+        # KU is not queryable yet (pending).
+        query_resp = client.get("/query", params={"domain": ["e2e-test"]})
+        assert len(query_resp.json()) == 0
+
+        # KU appears in review queue.
+        queue_resp = client.get("/review/queue", headers=headers)
+        assert queue_resp.json()["total"] == 1
+
+        # Reviewer approves the KU.
+        approve_resp = client.post(f"/review/{unit_id}/approve", headers=headers)
+        assert approve_resp.status_code == 200
+        assert approve_resp.json()["status"] == "approved"
+
+        # KU is now queryable.
+        query_resp = client.get("/query", params={"domain": ["e2e-test"]})
+        assert len(query_resp.json()) == 1
+
+        # Queue is empty.
+        queue_resp = client.get("/review/queue", headers=headers)
+        assert queue_resp.json()["total"] == 0
+
+        # Agent can confirm the approved KU.
+        confirm_resp = client.post(f"/confirm/{unit_id}")
+        assert confirm_resp.status_code == 200
+        assert confirm_resp.json()["evidence"]["confirmations"] == 2
+
+        # Stats reflect the state including trends.
+        stats_resp = client.get("/review/stats", headers=headers)
+        body = stats_resp.json()
+        assert body["counts"]["approved"] == 1
+        assert "trends" in body
+        assert "daily" in body["trends"]
+
+
 class TestEndToEnd:
     def test_propose_confirm_flag_lifecycle(self, client: TestClient) -> None:
         # Propose a unit.
