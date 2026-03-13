@@ -353,7 +353,7 @@ class TeamStore:
             rows = self._conn.execute(
                 "SELECT data, status, reviewed_by, reviewed_at "
                 "FROM knowledge_units WHERE status = 'pending' "
-                "ORDER BY rowid ASC LIMIT ? OFFSET ?",
+                "ORDER BY created_at ASC LIMIT ? OFFSET ?",
                 (limit, offset),
             ).fetchall()
         return [
@@ -383,19 +383,26 @@ class TeamStore:
     def daily_counts(self, *, days: int = 30) -> list[dict[str, Any]]:
         """Return daily proposal counts for the last N days.
 
+        Pre-migration rows with NULL created_at are excluded from counts.
+
         Args:
             days: Number of days to look back.
 
         Returns:
             List of dicts with date and proposed count, ordered ascending.
+
+        Raises:
+            ValueError: If days is not positive.
         """
+        if days <= 0:
+            raise ValueError("days must be positive")
         self._check_open()
         with self._lock:
             rows = self._conn.execute(
                 "SELECT date(created_at) as day, COUNT(*) as proposed "
                 "FROM knowledge_units "
-                "WHERE created_at >= date('now', ? || ' days') "
+                "WHERE created_at >= date('now', ?) "
                 "GROUP BY day ORDER BY day ASC",
-                (f"-{days}",),
+                (f"-{days} days",),
             ).fetchall()
         return [{"date": row[0], "proposed": row[1]} for row in rows]

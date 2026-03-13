@@ -196,13 +196,11 @@ class TestReviewQueue:
         assert len(queue) == 0
 
     def test_pending_count(self, store: TeamStore) -> None:
-        store.insert(_make_unit(domain=["a"]))
-        store.insert(_make_unit(domain=["b"]))
-        store.set_review_status(
-            store.pending_queue(limit=1, offset=0)[0]["knowledge_unit"].id,
-            "approved",
-            "reviewer",
-        )
+        u1 = _make_unit(domain=["a"])
+        u2 = _make_unit(domain=["b"])
+        store.insert(u1)
+        store.insert(u2)
+        store.set_review_status(u1.id, "approved", "reviewer")
         assert store.pending_count() == 1
 
     def test_counts_by_status(self, store: TeamStore) -> None:
@@ -224,7 +222,26 @@ class TestReviewQueue:
         store.insert(_make_unit(domain=["b"]))
         counts = store.daily_counts(days=30)
         assert len(counts) >= 1
-        assert counts[0]["proposed"] == 2
+        total = sum(row["proposed"] for row in counts)
+        assert total == 2
+
+    def test_daily_counts_rejects_non_positive_days(self, store: TeamStore) -> None:
+        with pytest.raises(ValueError, match="days must be positive"):
+            store.daily_counts(days=0)
+
+    def test_pending_queue_pagination(self, store: TeamStore) -> None:
+        for _ in range(3):
+            store.insert(_make_unit(domain=["a"]))
+        page1 = store.pending_queue(limit=2, offset=0)
+        page2 = store.pending_queue(limit=2, offset=2)
+        assert len(page1) == 2
+        assert len(page2) == 1
+        ids = {r["knowledge_unit"].id for r in page1} | {r["knowledge_unit"].id for r in page2}
+        assert len(ids) == 3
+
+    def test_counts_by_status_empty(self, store: TeamStore) -> None:
+        counts = store.counts_by_status()
+        assert counts == {}
 
 
 class TestEndToEnd:
