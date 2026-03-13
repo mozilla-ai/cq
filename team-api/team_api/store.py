@@ -10,6 +10,7 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
+from typing import Any
 
 from .knowledge_unit import KnowledgeUnit
 from .scoring import calculate_relevance
@@ -123,10 +124,13 @@ class TeamStore:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domain": domains})
         data = unit.model_dump_json()
+        created_at = (
+            unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else datetime.now(UTC).isoformat()
+        )
         with self._lock, self._conn:
             self._conn.execute(
-                "INSERT INTO knowledge_units (id, data) VALUES (?, ?)",
-                (unit.id, data),
+                "INSERT INTO knowledge_units (id, data, created_at) VALUES (?, ?, ?)",
+                (unit.id, data, created_at),
             )
             self._conn.executemany(
                 "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
@@ -332,3 +336,66 @@ class TeamStore:
                 "SELECT domain, COUNT(*) FROM knowledge_unit_domains GROUP BY domain ORDER BY COUNT(*) DESC"
             ).fetchall()
         return {row[0]: row[1] for row in rows}
+
+    def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
+        """Return pending KUs with review metadata, oldest first.
+
+        Args:
+            limit: Maximum number of results to return.
+            offset: Number of results to skip.
+
+        Returns:
+            List of dicts with knowledge_unit, status, reviewed_by,
+            and reviewed_at keys.
+        """
+        self._check_open()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT data, status, reviewed_by, reviewed_at "
+                "FROM knowledge_units WHERE status = 'pending' "
+                "ORDER BY rowid ASC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+        return [
+            {
+                "knowledge_unit": KnowledgeUnit.model_validate_json(row[0]),
+                "status": row[1],
+                "reviewed_by": row[2],
+                "reviewed_at": row[3],
+            }
+            for row in rows
+        ]
+
+    def pending_count(self) -> int:
+        """Return the number of pending KUs."""
+        self._check_open()
+        with self._lock:
+            row = self._conn.execute("SELECT COUNT(*) FROM knowledge_units WHERE status = 'pending'").fetchone()
+        return row[0]
+
+    def counts_by_status(self) -> dict[str, int]:
+        """Return KU counts grouped by review status."""
+        self._check_open()
+        with self._lock:
+            rows = self._conn.execute("SELECT status, COUNT(*) FROM knowledge_units GROUP BY status").fetchall()
+        return {row[0]: row[1] for row in rows}
+
+    def daily_counts(self, *, days: int = 30) -> list[dict[str, Any]]:
+        """Return daily proposal counts for the last N days.
+
+        Args:
+            days: Number of days to look back.
+
+        Returns:
+            List of dicts with date and proposed count, ordered ascending.
+        """
+        self._check_open()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT date(created_at) as day, COUNT(*) as proposed "
+                "FROM knowledge_units "
+                "WHERE created_at >= date('now', ? || ' days') "
+                "GROUP BY day ORDER BY day ASC",
+                (f"-{days}",),
+            ).fetchall()
+        return [{"date": row[0], "proposed": row[1]} for row in rows]

@@ -179,6 +179,54 @@ class TestStatusFiltering:
         assert store.get(unit.id) is not None
 
 
+class TestReviewQueue:
+    def test_pending_queue_returns_pending_units(self, store: TeamStore) -> None:
+        u1 = _make_unit(domain=["api"])
+        u2 = _make_unit(domain=["db"])
+        store.insert(u1)
+        store.insert(u2)
+        queue = store.pending_queue(limit=20, offset=0)
+        assert len(queue) == 2
+
+    def test_pending_queue_excludes_reviewed(self, store: TeamStore) -> None:
+        unit = _make_unit(domain=["api"])
+        store.insert(unit)
+        store.set_review_status(unit.id, "approved", "reviewer")
+        queue = store.pending_queue(limit=20, offset=0)
+        assert len(queue) == 0
+
+    def test_pending_count(self, store: TeamStore) -> None:
+        store.insert(_make_unit(domain=["a"]))
+        store.insert(_make_unit(domain=["b"]))
+        store.set_review_status(
+            store.pending_queue(limit=1, offset=0)[0]["knowledge_unit"].id,
+            "approved",
+            "reviewer",
+        )
+        assert store.pending_count() == 1
+
+    def test_counts_by_status(self, store: TeamStore) -> None:
+        u1 = _make_unit(domain=["a"])
+        u2 = _make_unit(domain=["b"])
+        u3 = _make_unit(domain=["c"])
+        store.insert(u1)
+        store.insert(u2)
+        store.insert(u3)
+        store.set_review_status(u1.id, "approved", "reviewer")
+        store.set_review_status(u2.id, "rejected", "reviewer")
+        counts = store.counts_by_status()
+        assert counts["approved"] == 1
+        assert counts["rejected"] == 1
+        assert counts["pending"] == 1
+
+    def test_daily_counts(self, store: TeamStore) -> None:
+        store.insert(_make_unit(domain=["a"]))
+        store.insert(_make_unit(domain=["b"]))
+        counts = store.daily_counts(days=30)
+        assert len(counts) >= 1
+        assert counts[0]["proposed"] == 2
+
+
 class TestEndToEnd:
     def test_propose_confirm_flag_lifecycle(self, store: TeamStore) -> None:
         _insert_and_approve(
