@@ -34,6 +34,32 @@ else
 	@bash "$(CURDIR)/scripts/install-opencode.sh" uninstall
 endif
 
+.PHONY: compose-up
+compose-up:
+	docker compose up --build
+
+.PHONY: compose-down
+compose-down:
+	docker compose down
+
+.PHONY: seed-users
+seed-users:
+ifndef USER
+	$(error USER is required. Usage: make seed-users USER=peter PASS=changeme)
+endif
+ifndef PASS
+	$(error PASS is required. Usage: make seed-users USER=peter PASS=changeme)
+endif
+	docker compose exec craic-team-api /app/.venv/bin/python /app/scripts/seed-users.py --username "$(USER)" --password "$(PASS)"
+
+.PHONY: dev-api
+dev-api:
+	cd team-api && CRAIC_DB_PATH=./dev.db CRAIC_JWT_SECRET=dev-secret uv run craic-team-api
+
+.PHONY: dev-ui
+dev-ui:
+	cd team-ui && pnpm dev
+
 .PHONY: lint
 lint:
 	cd plugins/craic/server && uv run ruff check .
