@@ -20,10 +20,21 @@ jobs:
         with:
           enable-cache: true
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: team-ui/pnpm-lock.yaml
+
       - name: Sync dependencies
         run: |
           cd plugins/craic/server && uv sync --group dev
           cd ../../../team-api && uv sync --group dev
+          cd ../team-ui && pnpm install --frozen-lockfile
 
       - name: Lint
         run: make lint
