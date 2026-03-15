@@ -15,6 +15,7 @@ export function ReviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
   const [sessionApproved, setSessionApproved] = useState(0);
@@ -41,7 +42,8 @@ export function ReviewPage() {
   }, [fetchNext]);
 
   const confirmAction = useCallback(async () => {
-    if (!current || !selection) return;
+    if (!current || !selection || submitting) return;
+    setSubmitting(true);
     setError(null);
     try {
       if (selection === "approve") {
@@ -59,8 +61,10 @@ export function ReviewPage() {
       } else {
         setError("Something went wrong — try again");
       }
+    } finally {
+      setSubmitting(false);
     }
-  }, [current, selection, fetchNext]);
+  }, [current, selection, submitting, fetchNext]);
 
   const handleSelect = useCallback(
     (s: Selection) => {
@@ -72,7 +76,7 @@ export function ReviewPage() {
   // Keyboard handler.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (!current || loading) return;
+      if (!current || loading || submitting) return;
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         setSelection("reject");
@@ -88,7 +92,7 @@ export function ReviewPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [current, loading, selection, confirmAction]);
+  }, [current, loading, submitting, selection, confirmAction]);
 
   if (loading) {
     return (
