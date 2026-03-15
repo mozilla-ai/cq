@@ -15,6 +15,13 @@ const CARD_STYLES: Record<string, string> = {
   skip: "border-slate-400 bg-slate-50",
 };
 
+const ACTION_BOX_STYLES: Record<string, string> = {
+  neutral: "bg-indigo-50 border-indigo-500 text-indigo-500",
+  approve: "bg-green-50 border-green-500 text-green-600",
+  reject: "bg-red-50 border-red-500 text-red-600",
+  skip: "bg-slate-50 border-slate-400 text-slate-500",
+};
+
 function confidenceColor(c: number): string {
   if (c < 0.3) return "text-red-600";
   if (c < 0.5) return "text-amber-600";
@@ -30,7 +37,7 @@ export function ReviewCard({ unit, selection, onSelect }: Props) {
       className={`border-2 rounded-lg p-6 max-w-xl mx-auto transition-all duration-200 ${cardStyle}`}
     >
       <div className="flex items-center justify-between mb-3">
-        <DomainTags domains={unit.domain} />
+        <DomainTags domains={unit.domain} variant={selection} />
         <span className="text-xs text-gray-400">
           {timeAgo(unit.evidence.first_observed)}
         </span>
@@ -44,8 +51,8 @@ export function ReviewCard({ unit, selection, onSelect }: Props) {
         {unit.insight.detail}
       </p>
 
-      <div className="bg-indigo-50 border-l-3 border-indigo-500 rounded-r-lg px-4 py-3 mb-6">
-        <span className="text-xs font-semibold uppercase tracking-wide text-indigo-500">
+      <div className={`border-l-3 rounded-r-lg px-4 py-3 mb-6 ${ACTION_BOX_STYLES[selection ?? "neutral"]}`}>
+        <span className="text-xs font-semibold uppercase tracking-wide">
           Action
         </span>
         <p className="text-gray-800 text-sm mt-1">{unit.insight.action}</p>
