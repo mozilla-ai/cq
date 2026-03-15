@@ -31,6 +31,7 @@ from .team_client import TeamClient, TeamRejectedError
 logger = logging.getLogger(__name__)
 
 _MAX_QUERY_LIMIT = 50
+_DRAIN_BATCH_SIZE = 50
 _DEFAULT_TEAM_ADDR = ""
 
 # Module-level singleton. Initialisation happens on the event loop thread
@@ -122,40 +123,38 @@ async def _drain_local_to_team() -> None:
         _drain_promoted_count = 0
         return
 
-    # Semaphore limits concurrent team API requests to avoid overwhelming the server.
-    sem = asyncio.Semaphore(5)
-
     async def _promote(unit: KnowledgeUnit) -> bool:
-        async with sem:
-            try:
-                result = await team_client.propose(unit)
-            except TeamRejectedError:
-                logger.warning(
-                    "Team API rejected local KU %s; will retry next startup.",
-                    unit.id,
-                )
-                return False
-            if result is None:
-                logger.warning(
-                    "Team API unreachable for local KU %s; will retry next startup.",
-                    unit.id,
-                )
-                return False
-            return True
-
-    results = await asyncio.gather(*[_promote(u) for u in units], return_exceptions=True)
-
-    promoted = 0
-    for unit, result in zip(units, results, strict=True):
-        if isinstance(result, BaseException):
-            logger.error(
-                "Unexpected error promoting KU %s: %s",
+        try:
+            result = await team_client.propose(unit)
+        except TeamRejectedError:
+            logger.warning(
+                "Team API rejected local KU %s; will retry next startup.",
                 unit.id,
-                result,
             )
-        elif result is True:
-            await asyncio.to_thread(store.delete, unit.id)
-            promoted += 1
+            return False
+        if result is None:
+            logger.warning(
+                "Team API unreachable for local KU %s; will retry next startup.",
+                unit.id,
+            )
+            return False
+        return True
+
+    # Process in fixed-size batches to bound the number of in-flight tasks.
+    promoted = 0
+    for i in range(0, len(units), _DRAIN_BATCH_SIZE):
+        batch = units[i : i + _DRAIN_BATCH_SIZE]
+        results = await asyncio.gather(*[_promote(u) for u in batch], return_exceptions=True)
+        for unit, result in zip(batch, results, strict=True):
+            if isinstance(result, BaseException):
+                logger.error(
+                    "Unexpected error promoting KU %s: %s",
+                    unit.id,
+                    result,
+                )
+            elif result is True:
+                await asyncio.to_thread(store.delete, unit.id)
+                promoted += 1
 
     _drain_promoted_count = promoted
     logger.info("Promoted %d/%d local KUs to team.", promoted, len(units))
