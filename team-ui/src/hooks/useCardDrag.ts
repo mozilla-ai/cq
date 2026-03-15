@@ -93,7 +93,7 @@ export function useCardDrag(
     pointerId.current = e.pointerId;
     startPos.current = { x: e.clientX, y: e.clientY };
     setIsDragging(true);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, [disabled]);
 
   const onPointerMove = useCallback(
@@ -119,11 +119,12 @@ export function useCardDrag(
       startPos.current = null;
       pointerId.current = null;
       setIsDragging(false);
-      setDragProgress(0);
-      setOffset({ x: 0, y: 0 });
 
       if (action && progress >= 1) {
         onCommit(action);
+      } else {
+        setOffset({ x: 0, y: 0 });
+        setDragProgress(0);
       }
     },
     [computeProgress, onCommit],

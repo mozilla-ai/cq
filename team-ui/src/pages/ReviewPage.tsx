@@ -39,7 +39,7 @@ export function ReviewPage() {
       );
       if (next) {
         setCurrent(next);
-        setPendingCount(resp.total - skippedIds.current.size);
+        setPendingCount(Math.max(0, resp.total - skippedIds.current.size));
       } else {
         setCurrent(null);
         setPendingCount(resp.total);
@@ -64,13 +64,14 @@ export function ReviewPage() {
   const handleCommit = useCallback(
     async (action: Exclude<Selection, null>) => {
       if (!current || submitting) return;
+      setSubmitting(true);
       if (action === "skip") {
         skippedIds.current.add(current.knowledge_unit.id);
         await drag.flyOff(action);
         await fetchNext();
+        setSubmitting(false);
         return;
       }
-      setSubmitting(true);
       setError(null);
       try {
         if (action === "approve") {

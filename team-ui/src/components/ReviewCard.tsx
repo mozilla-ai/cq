@@ -35,7 +35,7 @@ function confidenceColor(c: number): string {
 
 export const ReviewCard = forwardRef<HTMLDivElement, Props>(
   function ReviewCard({ unit, selection, drag, pointerHandlers }, ref) {
-    const activeState = drag.isDragging ? drag.dragAction : selection;
+    const activeState = drag.isDragging || drag.isFlyingOff ? drag.dragAction : selection;
     const cardStyle = CARD_STYLES[activeState ?? "neutral"];
     const actionBoxStyle = ACTION_BOX_STYLES[activeState ?? "neutral"];
 
