@@ -189,6 +189,14 @@ export function DashboardPage() {
                 <p className="text-gray-400 text-sm">No activity yet</p>
               ) : (
                 <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="py-1.5 pr-3 text-left text-[10px] font-semibold text-gray-400 uppercase w-20">Status</th>
+                      <th className="py-1.5 pr-3 text-left text-[10px] font-semibold text-gray-400 uppercase">Summary</th>
+                      <th className="py-1.5 pr-3 text-right text-[10px] font-semibold text-gray-400 uppercase w-20">Reviewer</th>
+                      <th className="py-1.5 text-right text-[10px] font-semibold text-gray-400 uppercase w-16">Time</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {stats.recent_activity.map((event, i) => (
                       <tr key={i} className="border-b border-gray-50 last:border-0">
