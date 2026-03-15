@@ -35,4 +35,12 @@ Present the results using this structure:
 ■ 0.0-0.3: {count} units
 ```
 
-If the store is empty, display: "The local CRAIC store is empty. Knowledge units are added via `craic_propose` or the `/craic:reflect` command."
+If the response includes `promoted_to_team`, add this line after the total count:
+
+```
+Promoted {promoted_to_team} knowledge units to team at startup.
+```
+
+If the store is empty and `promoted_to_team` is present, show the promotion message instead of the empty store message.
+
+If the store is empty and no `promoted_to_team`, display: "The local CRAIC store is empty. Knowledge units are added via `craic_propose` or the `/craic:reflect` command."
