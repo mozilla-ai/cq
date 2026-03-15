@@ -119,7 +119,7 @@ async def _drain_local_to_team() -> None:
         return
 
     store = _get_store()
-    units = store.all()
+    units = await asyncio.to_thread(store.all)
     if not units:
         _drain_promoted_count = 0
         return
@@ -149,8 +149,14 @@ async def _drain_local_to_team() -> None:
 
     promoted = 0
     for unit, result in zip(units, results, strict=True):
-        if result is True:
-            store.delete(unit.id)
+        if isinstance(result, BaseException):
+            logger.error(
+                "Unexpected error promoting KU %s: %s",
+                unit.id,
+                result,
+            )
+        elif result is True:
+            await asyncio.to_thread(store.delete, unit.id)
             promoted += 1
 
     _drain_promoted_count = promoted
@@ -291,7 +297,8 @@ async def craic_query(
         return {"error": f"limit must not exceed {_MAX_QUERY_LIMIT}."}
 
     store = _get_store()
-    local_results = store.query(
+    local_results = await asyncio.to_thread(
+        store.query,
         cleaned,
         language=language,
         framework=framework,
@@ -398,7 +405,7 @@ async def craic_propose(
         logger.warning("Team API unreachable; falling back to local storage.")
 
     store = _get_store()
-    store.insert(unit)
+    await asyncio.to_thread(store.insert, unit)
     return {
         "id": unit.id,
         "tier": unit.tier.value,
@@ -421,11 +428,11 @@ async def craic_confirm(unit_id: str) -> dict:
         ``source``, or ``error`` if the unit was not found in either store.
     """
     store = _get_store()
-    local_unit = store.get(unit_id)
+    local_unit = await asyncio.to_thread(store.get, unit_id)
 
     if local_unit is not None:
         confirmed = apply_confirmation(local_unit)
-        store.update(confirmed)
+        await asyncio.to_thread(store.update, confirmed)
         result: dict = {
             "id": confirmed.id,
             "new_confidence": confirmed.evidence.confidence,
@@ -478,11 +485,11 @@ async def craic_flag(unit_id: str, reason: str) -> dict:
         return {"error": f"Invalid reason: {reason}. Must be one of: {valid}."}
 
     store = _get_store()
-    local_unit = store.get(unit_id)
+    local_unit = await asyncio.to_thread(store.get, unit_id)
 
     if local_unit is not None:
         flagged = apply_flag(local_unit, flag_reason)
-        store.update(flagged)
+        await asyncio.to_thread(store.update, flagged)
         result: dict = {
             "id": flagged.id,
             "new_confidence": flagged.evidence.confidence,
@@ -543,7 +550,7 @@ def craic_reflect(session_context: str) -> dict:
 
 
 @mcp.tool()
-def craic_status() -> dict:
+async def craic_status() -> dict:
     """Return local knowledge store statistics.
 
     Provides an overview of the local store: total knowledge unit count,
@@ -556,7 +563,8 @@ def craic_status() -> dict:
         Includes ``promoted_to_team`` when KUs were drained at startup.
     """
     store = _get_store()
-    result = store.stats().model_dump(mode="json")
+    stats = await asyncio.to_thread(store.stats)
+    result = stats.model_dump(mode="json")
     if _drain_promoted_count is not None and _drain_promoted_count > 0:
         result["promoted_to_team"] = _drain_promoted_count
     return result

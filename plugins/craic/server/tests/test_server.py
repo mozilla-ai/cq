@@ -329,8 +329,6 @@ class TestCraicProposeWithTeam:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from craic_mcp.team_client import TeamRejectedError
-
         mock_client = MagicMock()
         mock_client.propose = AsyncMock(side_effect=TeamRejectedError(422, "Invalid domain"))
         mock_client.query = AsyncMock(return_value=[])
@@ -518,7 +516,7 @@ class TestCraicReflect:
 
 class TestCraicStatus:
     async def test_status_empty_store(self) -> None:
-        result = craic_status()
+        result = await craic_status()
         assert result["total_count"] == 0
         assert result["domain_counts"] == {}
         assert result["recent"] == []
@@ -527,7 +525,7 @@ class TestCraicStatus:
         await _propose_unit(domain=["api", "payments"])
         await _propose_unit(domain=["api", "databases"])
         await _propose_unit(domain=["databases"])
-        result = craic_status()
+        result = await craic_status()
         assert result["total_count"] == 3
         assert result["domain_counts"]["api"] == 2
         assert result["domain_counts"]["databases"] == 2
@@ -537,7 +535,7 @@ class TestCraicStatus:
 
     async def test_status_returns_confidence_distribution(self) -> None:
         await _propose_unit(domain=["api"])
-        result = craic_status()
+        result = await craic_status()
         # Default confidence is 0.5, falls in "0.5-0.7" bucket.
         assert result["confidence_distribution"]["0.5-0.7"] == 1
 
@@ -681,22 +679,22 @@ class TestDrainLocalToTeam:
 
 
 class TestCraicStatusWithDrain:
-    def test_status_includes_promotion_count(
+    async def test_status_includes_promotion_count(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(server, "_drain_promoted_count", 3)
-        result = craic_status()
+        result = await craic_status()
         assert result["promoted_to_team"] == 3
 
-    def test_status_omits_promotion_count_when_zero(self) -> None:
-        result = craic_status()
+    async def test_status_omits_promotion_count_when_zero(self) -> None:
+        result = await craic_status()
         assert "promoted_to_team" not in result
 
-    def test_status_omits_promotion_count_when_none(
+    async def test_status_omits_promotion_count_when_none(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(server, "_drain_promoted_count", None)
-        result = craic_status()
+        result = await craic_status()
         assert "promoted_to_team" not in result

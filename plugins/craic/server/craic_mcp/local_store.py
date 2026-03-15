@@ -89,7 +89,8 @@ class LocalStore:
 
     def _open_connection(self) -> sqlite3.Connection:
         """Open and configure a SQLite connection."""
-        conn = sqlite3.connect(str(self._db_path))
+        # Allow access from asyncio.to_thread() executor threads.
+        conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
