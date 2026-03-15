@@ -33,19 +33,20 @@ logger = logging.getLogger(__name__)
 _MAX_QUERY_LIMIT = 50
 _DEFAULT_TEAM_ADDR = ""
 
-# All async tool handlers run on a single event loop thread, so a plain
-# module-level singleton replaces the previous threading.local() pattern.
-# Thread-local storage would only be necessary if handlers ran on multiple
-# OS threads, which the async model does not do.
+# Module-level singleton. Initialisation happens on the event loop thread
+# (single-threaded, so no lock needed). Store methods are called via
+# asyncio.to_thread(), which runs them on executor threads; the SQLite
+# connection is created with check_same_thread=False to allow this, and
+# SQLite's internal locking (WAL mode) serialises concurrent access.
 _store: LocalStore | None = None
 
 
 def _get_store() -> LocalStore:
     """Return the module-level store, creating it on first access.
 
-    All async tool handlers run on a single event loop thread, so
-    thread-local storage is unnecessary. A plain module-level singleton
-    replaces the previous threading.local() pattern.
+    Called from the event loop thread only — no locking required.
+    Store methods are later dispatched to executor threads via
+    asyncio.to_thread().
     """
     global _store  # noqa: PLW0603
     if _store is None:
@@ -64,9 +65,7 @@ def _close_store() -> None:
 
 
 _DISABLED_SENTINEL = object()
-# All async tool handlers run on a single event loop thread, so no lock is
-# needed to guard singleton initialisation — concurrent access from multiple
-# threads cannot occur.
+# Initialised on the event loop thread (single-threaded, no lock needed).
 _team_client: TeamClient | object | None = None
 
 
@@ -74,8 +73,7 @@ def _get_team_client() -> TeamClient | None:
     """Return the team API client, creating it on first access.
 
     Returns None when CRAIC_TEAM_ADDR is empty or unset (local-only mode).
-    The client is a module-level singleton. No locking is needed because
-    all async tool handlers run on a single event loop thread.
+    Called from the event loop thread only — no locking required.
     """
     global _team_client  # noqa: PLW0603
     if _team_client is _DISABLED_SENTINEL:
