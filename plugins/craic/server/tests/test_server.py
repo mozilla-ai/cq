@@ -12,6 +12,7 @@ from craic_mcp.knowledge_unit import (
     Insight,
     KnowledgeUnit,
     Tier,
+    create_knowledge_unit,
 )
 from craic_mcp.server import (
     _MAX_QUERY_LIMIT,
@@ -22,6 +23,7 @@ from craic_mcp.server import (
     craic_reflect,
     craic_status,
 )
+from craic_mcp.team_client import TeamRejectedError
 
 
 @pytest.fixture(autouse=True)
@@ -31,9 +33,11 @@ def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("CRAIC_TEAM_ADDR", "")
     server._close_store()
     server._team_client = None
+    server._drain_promoted_count = None
     yield
     server._close_store()
     server._team_client = None
+    server._drain_promoted_count = None
 
 
 async def _propose_unit(
@@ -574,3 +578,125 @@ class TestEndToEnd:
         assert result["evidence"]["confidence"] == pytest.approx(0.45)
         assert len(result["flags"]) == 1
         assert result["flags"][0]["reason"] == "stale"
+
+
+def _make_local_unit(*, domain: list[str] | None = None) -> KnowledgeUnit:
+    """Create a KnowledgeUnit with local tier for drain tests."""
+    return create_knowledge_unit(
+        domain=domain or ["api"],
+        insight=Insight(summary="Local insight", detail="Detail.", action="Act."),
+        context=Context(),
+        tier=Tier.LOCAL,
+    )
+
+
+class TestDrainLocalToTeam:
+    async def test_drain_promotes_local_kus_to_team(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Local KUs are proposed to team and deleted from local store."""
+        store = server._get_store()
+        unit = _make_local_unit(domain=["api"])
+        store.insert(unit)
+
+        team_unit = _make_team_unit(unit_id="ku_team_promoted")
+        mock_client = AsyncMock()
+        mock_client.propose.return_value = team_unit
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        await server._drain_local_to_team()
+
+        assert store.all() == []
+        assert server._drain_promoted_count == 1
+
+    async def test_drain_skips_when_no_team_client(self) -> None:
+        """Drain does nothing when team is not configured."""
+        store = server._get_store()
+        unit = _make_local_unit(domain=["api"])
+        store.insert(unit)
+
+        await server._drain_local_to_team()
+
+        assert len(store.all()) == 1
+
+    async def test_drain_keeps_unit_on_transport_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """KU stays local when team API is unreachable."""
+        store = server._get_store()
+        unit = _make_local_unit(domain=["api"])
+        store.insert(unit)
+
+        mock_client = AsyncMock()
+        mock_client.propose.return_value = None
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        await server._drain_local_to_team()
+
+        assert len(store.all()) == 1
+        assert server._drain_promoted_count == 0
+
+    async def test_drain_keeps_unit_on_rejection(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """KU stays local when team API rejects it."""
+        store = server._get_store()
+        unit = _make_local_unit(domain=["api"])
+        store.insert(unit)
+
+        mock_client = AsyncMock()
+        mock_client.propose.side_effect = TeamRejectedError(422, "bad")
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        await server._drain_local_to_team()
+
+        assert len(store.all()) == 1
+        assert server._drain_promoted_count == 0
+
+    async def test_drain_handles_mixed_results(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Some KUs promote, some fail — only promoted ones are deleted."""
+        store = server._get_store()
+        u1 = _make_local_unit(domain=["api"])
+        u2 = _make_local_unit(domain=["databases"])
+        store.insert(u1)
+        store.insert(u2)
+
+        team_unit = _make_team_unit(unit_id="ku_team_ok")
+        mock_client = AsyncMock()
+        # First call succeeds, second returns None (unreachable).
+        mock_client.propose.side_effect = [team_unit, None]
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        await server._drain_local_to_team()
+
+        remaining = store.all()
+        assert len(remaining) == 1
+        assert server._drain_promoted_count == 1
+
+
+class TestCraicStatusWithDrain:
+    def test_status_includes_promotion_count(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(server, "_drain_promoted_count", 3)
+        result = craic_status()
+        assert result["promoted_to_team"] == 3
+
+    def test_status_omits_promotion_count_when_zero(self) -> None:
+        result = craic_status()
+        assert "promoted_to_team" not in result
+
+    def test_status_omits_promotion_count_when_none(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(server, "_drain_promoted_count", None)
+        result = craic_status()
+        assert "promoted_to_team" not in result

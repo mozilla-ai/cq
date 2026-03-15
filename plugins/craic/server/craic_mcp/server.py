@@ -7,8 +7,11 @@ Searches local store first, then the team API. Degrades gracefully
 to local-only mode when the team API is unreachable.
 """
 
+import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -26,21 +29,6 @@ from .scoring import apply_confirmation, apply_flag, calculate_relevance
 from .team_client import TeamClient, TeamRejectedError
 
 logger = logging.getLogger(__name__)
-
-mcp = FastMCP(
-    "craic",
-    instructions=(
-        "CRAIC — Collective Reciprocal Agent Intelligence Commons.\n"
-        "Shared knowledge store that helps agents avoid known pitfalls.\n"
-        "\n"
-        "Environment variables:\n"
-        "  CRAIC_LOCAL_DB_PATH  Path to the local SQLite database.\n"
-        "                       Default: ~/.craic/local.db.\n"
-        "  CRAIC_TEAM_ADDR      URL of the team knowledge API for shared sync.\n"
-        "                       Disabled by default. Set to enable team sync,\n"
-        "                       e.g. http://localhost:8742."
-    ),
-)
 
 _MAX_QUERY_LIMIT = 50
 _DEFAULT_TEAM_ADDR = ""
@@ -108,6 +96,97 @@ async def _close_team_client() -> None:
     if isinstance(_team_client, TeamClient):
         await _team_client.close()
     _team_client = None
+
+
+# Tracks how many KUs were promoted at startup for craic_status reporting.
+# None means no drain has run (CRAIC_TEAM_ADDR not configured).
+_drain_promoted_count: int | None = None
+
+
+async def _drain_local_to_team() -> None:
+    """Promote locally-stored fallback KUs to the team API.
+
+    Runs once at MCP server startup when CRAIC_TEAM_ADDR is configured.
+    KUs that were stored locally as a fallback (e.g. when the team API
+    was temporarily unreachable) are proposed to team concurrently.
+    Successfully promoted KUs are deleted from local store; failures
+    (transport errors or rejections) are left in place for retry on
+    the next startup.
+    """
+    global _drain_promoted_count  # noqa: PLW0603
+    team_client = _get_team_client()
+    if team_client is None:
+        return
+
+    store = _get_store()
+    units = store.all()
+    if not units:
+        _drain_promoted_count = 0
+        return
+
+    # Semaphore limits concurrent team API requests to avoid overwhelming the server.
+    sem = asyncio.Semaphore(5)
+
+    async def _promote(unit: KnowledgeUnit) -> bool:
+        async with sem:
+            try:
+                result = await team_client.propose(unit)
+            except TeamRejectedError:
+                logger.warning(
+                    "Team API rejected local KU %s; will retry next startup.",
+                    unit.id,
+                )
+                return False
+            if result is None:
+                logger.warning(
+                    "Team API unreachable for local KU %s; will retry next startup.",
+                    unit.id,
+                )
+                return False
+            return True
+
+    results = await asyncio.gather(*[_promote(u) for u in units], return_exceptions=True)
+
+    promoted = 0
+    for unit, result in zip(units, results, strict=True):
+        if result is True:
+            store.delete(unit.id)
+            promoted += 1
+
+    _drain_promoted_count = promoted
+    logger.info("Promoted %d/%d local KUs to team.", promoted, len(units))
+
+
+@asynccontextmanager
+async def _lifespan(_server: FastMCP) -> AsyncIterator[None]:
+    """Manage MCP server startup and shutdown.
+
+    On startup: drains locally-stored fallback KUs to team API (if configured).
+    On shutdown: closes the team client and local store.
+    """
+    await _drain_local_to_team()
+    try:
+        yield
+    finally:
+        await _close_team_client()
+        _close_store()
+
+
+mcp = FastMCP(
+    "craic",
+    instructions=(
+        "CRAIC — Collective Reciprocal Agent Intelligence Commons.\n"
+        "Shared knowledge store that helps agents avoid known pitfalls.\n"
+        "\n"
+        "Environment variables:\n"
+        "  CRAIC_LOCAL_DB_PATH  Path to the local SQLite database.\n"
+        "                       Default: ~/.craic/local.db.\n"
+        "  CRAIC_TEAM_ADDR      URL of the team knowledge API for shared sync.\n"
+        "                       Disabled by default. Set to enable team sync,\n"
+        "                       e.g. http://localhost:8742."
+    ),
+    lifespan=_lifespan,
+)
 
 
 def _merge_results(
@@ -474,10 +553,13 @@ def craic_status() -> dict:
     Returns:
         Dict with ``total_count``, ``domain_counts``, ``recent``
         (serialised knowledge units), and ``confidence_distribution``.
+        Includes ``promoted_to_team`` when KUs were drained at startup.
     """
     store = _get_store()
-    result = store.stats()
-    return result.model_dump(mode="json")
+    result = store.stats().model_dump(mode="json")
+    if _drain_promoted_count is not None and _drain_promoted_count > 0:
+        result["promoted_to_team"] = _drain_promoted_count
+    return result
 
 
 def main() -> None:
