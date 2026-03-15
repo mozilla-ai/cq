@@ -41,6 +41,9 @@ If the response includes `promoted_to_team`, add this line after the total count
 Promoted {promoted_to_team} knowledge units to team at startup.
 ```
 
-If the store is empty and `promoted_to_team` is present, show the promotion message instead of the empty store message.
+## Empty Store
 
-If the store is empty and no `promoted_to_team`, display: "The local CRAIC store is empty. Knowledge units are added via `craic_propose` or the `/craic:reflect` command."
+When `total_count` is 0:
+
+- **With `promoted_to_team`:** Show the header, total count line, and promotion line. Omit Domains, Recent Additions, and Confidence sections (there is no data to display).
+- **Without `promoted_to_team`:** Display only: "The local CRAIC store is empty. Knowledge units are added via `craic_propose` or the `/craic:reflect` command."
