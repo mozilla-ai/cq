@@ -135,6 +135,8 @@ Both paths converge at the global graduation boundary, where HITL reviewers appl
 5. Human reviewers at the graduation boundary approve or reject submissions to the global commons, checking for quality, safety, vendor neutrality, and genuine generalisability.
 6. Knowledge in the global commons is consumed by agents worldwide, confirmed or disputed through use, and subject to ongoing confidence scoring and staleness decay.
 
+The mechanics of how nominations are tracked, how rejected or synthesised nominations are handled, and how contributing tiers reconcile with the global commons are detailed in section 3.9.
+
 **The commercial opportunity:**
 
 The global commons is free and open — this is non-negotiable and core to the Mozilla mission. But the Tier 1 and Tier 2 infrastructure represents a clear enterprise and SaaS opportunity:
@@ -356,6 +358,61 @@ The commons is not just a knowledge store — it is a data source about the agen
 This is a differentiator from adjacent systems like Memco/Spark, which treat shared agent memory as a flat knowledge store. CRAIC treats the commons as ecosystem intelligence: which tools are working well, where tools are missing, and where investment is needed. When you see 50 agents across 12 organisations all learning the same workaround, that is not a knowledge problem — it is a missing tool. The commons surfaces that signal with quantitative evidence.
 
 For Mozilla.ai specifically, this aligns with the mission: CRAIC generates open, public intelligence about where the agent tooling ecosystem needs to improve. That is the kind of structural contribution a foundation can make and a startup cannot. Any agent platform with a feature request or tool-building pipeline could consume these signals to prioritise what tools to build next — closing the loop between "agents are struggling" and "the ecosystem builds the right tools."
+
+### 3.9 Graduation Nomination Lifecycle
+
+The graduation paths described in section 3.6 imply a critical design constraint: **graduation is a nomination, not a move.** When a team nominates a knowledge unit for the global commons, the team's copy must remain active and queryable throughout the process. The global commons may accept it, modify it, synthesise it with other nominations, or reject it entirely. The team's knowledge remains valuable regardless of the outcome.
+
+This distinction matters because deletion-on-nomination creates an unacceptable risk: a team loses a proven, high-confidence knowledge unit that their agents depend on, only to discover weeks later that the global commons rejected it. The team store should never be degraded by the act of contributing to the global commons.
+
+**Nomination States**
+
+From the nominating tier's perspective, a nominated knowledge unit has one of four outcomes:
+
+| State | Meaning | Team Action |
+|-------|---------|-------------|
+| **Pending** | Nominated but not yet reviewed by the receiving tier. | Source KU remains active. No change. |
+| **Accepted** | Receiving tier accepted the nomination, possibly with editorial changes. | Source KU remains active. Nominating tier receives a reference to the resulting KU at the higher tier. |
+| **Synthesised** | Receiving tier combined this nomination with others from different sources into a new, generalised KU. | Source KU remains active. Nominating tier receives a reference to the synthesised KU and sees which other nominations contributed. |
+| **Rejected** | Receiving tier declined the nomination, with a reason. | Source KU remains active. Nominating tier admin sees the rejection reason. The nomination is not re-submittable without material changes. |
+
+In all four outcomes, the source tier's original knowledge unit is untouched. The nomination is a **separate entity** that tracks the proposal's fate at the higher tier. This separation is important: the KU schema (section 3.7) captures what the knowledge *is*; the nomination record captures what *happened* when it was proposed for graduation.
+
+Although this section focuses on the team-to-global boundary (the most complex case), the same lifecycle applies to local-to-team graduation. A local KU nominated for the team store remains in the local store regardless of whether the team approves it. The pattern is consistent across all tier boundaries.
+
+**The Synthesis Case**
+
+Synthesis is the most interesting outcome and represents one of CRAIC's most powerful capabilities. Consider three organisations that have each independently discovered aspects of the same underlying truth:
+
+- **Org A** nominates: *"Our payment webhook handler needs idempotency keys because Stripe retries on timeout."*
+- **Org B** nominates: *"Webhook endpoints must handle duplicate deliveries; we saw triple-delivery from Stripe during their October incident."*
+- **Org C** nominates: *"Always store webhook event IDs and check for duplicates before processing; payment providers retry aggressively."*
+
+Each of these is org-specific and individually useful at the team level. But a global reviewer (human, or assisted by automated analysis) recognises the commonality and synthesises a new global KU: *"Payment webhook handlers must implement idempotency. Store event IDs on receipt and reject duplicates before processing. Payment providers retry delivery aggressively, including during provider-side incidents, and may deliver the same event multiple times."*
+
+The synthesised global KU is more useful than any individual nomination because it captures the generalised principle with broader evidence. Each contributing team's nomination record is updated to reference the resulting global KU, and the provenance chain records that three independent organisations contributed to the insight.
+
+Synthesis detection can be partially automated. Embedding-based similarity analysis over incoming nominations can cluster candidates that share underlying themes, even when they use different terminology or reference different specific providers. A lightweight model can then draft synthesis candidates for human review; the reviewer approves the generalisation, edits it, or dismisses it. This reduces the cognitive load on global reviewers from "identify patterns across hundreds of nominations" to "verify this proposed generalisation is accurate." The automation assists; the human decides.
+
+**Reconciliation**
+
+The nominating tier needs a mechanism to learn what happened to its nominations. Three models are possible, in order of implementation complexity:
+
+1. **Manual reconciliation.** A team admin clicks "check status" in the dashboard and the system queries the receiving tier's API for updates on outstanding nominations. Suitable for early stages where nomination volume is low.
+
+2. **Pull-based reconciliation.** The nominating tier periodically polls the receiving tier for status updates on outstanding nominations. A background job runs on a configurable interval (e.g. daily), updates nomination records, and surfaces changes in the admin dashboard. No webhook infrastructure required; works even when the nominating tier is behind a corporate firewall.
+
+3. **Push-based reconciliation.** The receiving tier calls back to registered endpoints when nomination decisions are made. More responsive but requires the nominating tier's API to be reachable from the receiving tier, which may not be true for all deployments.
+
+A production system should support all three models. The choice depends on the deployment context: push for cloud-hosted team stores with stable endpoints; pull for teams behind firewalls or NAT; manual as a universal fallback.
+
+**Downstream Notifications**
+
+Reconciliation flows in both directions. If the global commons later deprecates, flags, or supersedes a KU that a team contributed to, the team should be notified. Their nomination record is updated, and the admin dashboard surfaces the change: *"Global KU ku_xyz (which your nomination contributed to) has been flagged as stale by the global commons."*
+
+The team can then independently assess whether their original team-level KU is also affected, or whether it remains valid in their org-specific context. An API timeout workaround that was generalised for the global commons might be deprecated there when the API vendor fixes the issue; but the team's version might reference internal infrastructure that still exhibits the same behaviour.
+
+This bidirectional awareness is what makes graduation safe for contributors. Teams can nominate freely, knowing that contributing to the global commons never risks degrading their own knowledge store, and that they will be informed of the full lifecycle of any knowledge they helped create.
 
 ---
 
