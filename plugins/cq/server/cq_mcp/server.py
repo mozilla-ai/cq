@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+from sentence_transformers import SentenceTransformer
 
 from .knowledge_unit import (
     Context,
@@ -29,6 +30,9 @@ from .scoring import apply_confirmation, apply_flag, calculate_relevance
 from .team_client import TeamClient, TeamRejectedError
 
 logger = logging.getLogger(__name__)
+
+EMBEDDING_MODEL_NAME = "paraphrase-MiniLM-L3-v2"
+embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME, backend="onnx")
 
 _MAX_QUERY_LIMIT = 50
 _DRAIN_BATCH_SIZE = 50
@@ -53,7 +57,7 @@ def _get_store() -> LocalStore:
     if _store is None:
         db_path_str = os.environ.get("CQ_LOCAL_DB_PATH")
         db_path = Path(db_path_str) if db_path_str else None
-        _store = LocalStore(db_path=db_path)
+        _store = LocalStore(db_path=db_path, embedding_model=embedding_model)
     return _store
 
 

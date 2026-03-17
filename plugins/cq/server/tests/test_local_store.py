@@ -24,6 +24,7 @@ from cq_mcp.local_store import (
     _migrate_legacy_db,
 )
 from cq_mcp.scoring import apply_confirmation, apply_flag
+from sentence_transformers import SentenceTransformer
 
 
 def _make_insight(**overrides: Any) -> Insight:
@@ -76,8 +77,16 @@ def _inspect_tables(db_path: Path) -> list[str]:
 
 
 @pytest.fixture()
-def store(tmp_path: Path) -> Iterator[LocalStore]:
-    s = LocalStore(db_path=tmp_path / "test.db")
+def embedding_model() -> Iterator[SentenceTransformer]:
+    from sentence_transformers import SentenceTransformer
+
+    model = SentenceTransformer("all-MiniLM-L6-v2", backend="onnx")
+    yield model
+
+
+@pytest.fixture()
+def store(tmp_path: Path, embedding_model: SentenceTransformer) -> Iterator[LocalStore]:
+    s = LocalStore(db_path=tmp_path / "test.db", embedding_model=embedding_model)
     yield s
     s.close()
 
@@ -187,9 +196,9 @@ class TestBuildFtsMatchExpr:
 
 
 class TestAutoCreateSchema:
-    def test_creates_database_file(self, tmp_path: Path):
+    def test_creates_database_file(self, tmp_path: Path, embedding_model: SentenceTransformer):
         db_path = tmp_path / "subdir" / "nested" / "test.db"
-        store = LocalStore(db_path=db_path)
+        store = LocalStore(db_path=db_path, embedding_model=embedding_model)
         store.close()
         assert db_path.exists()
 
@@ -201,28 +210,28 @@ class TestAutoCreateSchema:
         tables = _inspect_tables(store.db_path)
         assert "knowledge_unit_domains" in tables
 
-    def test_idempotent_schema_creation(self, tmp_path: Path):
+    def test_idempotent_schema_creation(self, tmp_path: Path, embedding_model: SentenceTransformer):
         db_path = tmp_path / "test.db"
-        store1 = LocalStore(db_path=db_path)
+        store1 = LocalStore(db_path=db_path, embedding_model=embedding_model)
         store1.close()
-        store2 = LocalStore(db_path=db_path)
+        store2 = LocalStore(db_path=db_path, embedding_model=embedding_model)
         store2.close()
 
 
 class TestContextManager:
-    def test_usable_as_context_manager(self, tmp_path: Path):
-        with LocalStore(db_path=tmp_path / "test.db") as store:
+    def test_usable_as_context_manager(self, tmp_path: Path, embedding_model: SentenceTransformer):
+        with LocalStore(db_path=tmp_path / "test.db", embedding_model=embedding_model) as store:
             unit = _make_unit()
             store.insert(unit)
             assert store.get(unit.id) == unit
 
-    def test_close_is_idempotent(self, tmp_path: Path):
-        store = LocalStore(db_path=tmp_path / "test.db")
+    def test_close_is_idempotent(self, tmp_path: Path, embedding_model: SentenceTransformer):
+        store = LocalStore(db_path=tmp_path / "test.db", embedding_model=embedding_model)
         store.close()
         store.close()
 
-    def test_operations_after_close_raise(self, tmp_path: Path):
-        store = LocalStore(db_path=tmp_path / "test.db")
+    def test_operations_after_close_raise(self, tmp_path: Path, embedding_model: SentenceTransformer):
+        store = LocalStore(db_path=tmp_path / "test.db", embedding_model=embedding_model)
         store.close()
         with pytest.raises(RuntimeError, match="LocalStore is closed"):
             store.insert(_make_unit())
@@ -696,14 +705,14 @@ class TestEndToEnd:
         assert results[0].evidence.confidence == pytest.approx(0.45)
         assert len(results[0].flags) == 1
 
-    def test_context_manager_lifecycle(self, tmp_path: Path):
+    def test_context_manager_lifecycle(self, tmp_path: Path, embedding_model: SentenceTransformer):
         db_path = tmp_path / "lifecycle.db"
         unit = _make_unit(domain=["testing"])
 
-        with LocalStore(db_path=db_path) as store:
+        with LocalStore(db_path=db_path, embedding_model=embedding_model) as store:
             store.insert(unit)
 
-        with LocalStore(db_path=db_path) as store:
+        with LocalStore(db_path=db_path, embedding_model=embedding_model) as store:
             retrieved = store.get(unit.id)
             assert retrieved == unit
 
@@ -817,8 +826,8 @@ class TestStats:
         assert result.total_count == 1
         assert result.recent == []
 
-    def test_stats_raises_when_store_closed(self, tmp_path: Path):
-        s = LocalStore(db_path=tmp_path / "test.db")
+    def test_stats_raises_when_store_closed(self, tmp_path: Path, embedding_model: SentenceTransformer):
+        s = LocalStore(db_path=tmp_path / "test.db", embedding_model=embedding_model)
         s.close()
         with pytest.raises(RuntimeError, match="LocalStore is closed"):
             s.stats()
