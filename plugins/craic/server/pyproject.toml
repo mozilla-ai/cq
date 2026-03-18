@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "craic-mcp-server"
-version = "0.3.2"
+version = "0.3.3"
 description = "CRAIC MCP server — shared agent knowledge commons"
 requires-python = ">=3.11"
 dependencies = [
