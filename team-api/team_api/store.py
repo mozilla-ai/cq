@@ -267,8 +267,10 @@ class TeamStore:
 
         Args:
             domains: Domain tags to search for.
-            language: Optional programming language filter.
-            framework: Optional framework filter.
+            language: Optional language ranking signal. Matching KUs
+                rank higher but non-matching KUs are still returned.
+            framework: Optional framework ranking signal. Matching KUs
+                rank higher but non-matching KUs are still returned.
             limit: Maximum number of results to return. Must be positive.
 
         Returns:
@@ -315,7 +317,7 @@ class TeamStore:
             )
             scored.append((relevance * unit.evidence.confidence, unit))
 
-        scored.sort(key=lambda pair: pair[0], reverse=True)
+        scored.sort(key=lambda pair: (pair[0], pair[1].id), reverse=True)
         return [unit for _, unit in scored[:limit]]
 
     def count(self) -> int:
