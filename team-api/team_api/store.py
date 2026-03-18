@@ -305,11 +305,6 @@ class TeamStore:
         # For larger stores, push coarse filters into SQL.
         units = [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
 
-        if language:
-            units = [u for u in units if language in u.context.languages]
-        if framework:
-            units = [u for u in units if framework in u.context.frameworks]
-
         scored = []
         for unit in units:
             relevance = calculate_relevance(

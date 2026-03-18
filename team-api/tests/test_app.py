@@ -105,7 +105,7 @@ class TestQuery:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_query_filters_by_language(self, client: TestClient) -> None:
+    def test_query_boosts_matching_language(self, client: TestClient) -> None:
         self._insert_unit(
             client,
             domain=["web"],
@@ -119,7 +119,7 @@ class TestQuery:
         resp = client.get("/query", params={"domain": ["web"], "language": "python"})
         assert resp.status_code == 200
         results = resp.json()
-        assert len(results) == 1
+        assert len(results) == 2
         assert "python" in results[0]["context"]["languages"]
 
     def test_query_respects_limit(self, client: TestClient) -> None:
@@ -218,7 +218,10 @@ class TestReviewLifecycleEndToEnd:
         # Log in.
         login_resp = client.post(
             "/auth/login",
-            json={"username": "reviewer", "password": "pass123"},
+            json={
+                "username": "reviewer",
+                "password": "pass123",  # pragma: allowlist secret
+            },
         )
         assert login_resp.status_code == 200
         token = login_resp.json()["token"]

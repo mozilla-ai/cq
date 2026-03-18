@@ -105,14 +105,52 @@ class TestQuery:
         _insert_and_approve(store, domain=["databases"])
         assert store.query(["networking"]) == []
 
-    def test_filters_by_language(self, store: TeamStore) -> None:
+    def test_language_filter_boosts_matching_units(self, store: TeamStore) -> None:
         py = _insert_and_approve(
-            store, domain=["web"], context=Context(languages=["python"])
+            store,
+            domain=["web"],
+            context=Context(languages=["python"]),
         )
-        _insert_and_approve(store, domain=["web"], context=Context(languages=["go"]))
+        go = _insert_and_approve(
+            store,
+            domain=["web"],
+            context=Context(languages=["go"]),
+        )
         results = store.query(["web"], language="python")
-        assert len(results) == 1
+        assert len(results) == 2
         assert results[0].id == py.id
+        assert results[1].id == go.id
+
+    def test_language_filter_includes_units_without_language(
+        self, store: TeamStore
+    ) -> None:
+        """KUs with no language set should still appear when language filter is used."""
+        no_lang = _insert_and_approve(store, domain=["ci"])
+        results = store.query(["ci"], language="python")
+        assert len(results) == 1
+        assert results[0].id == no_lang.id
+
+    def test_framework_filter_includes_units_without_framework(
+        self, store: TeamStore
+    ) -> None:
+        """KUs with no framework set should still appear when framework filter is used."""
+        no_fw = _insert_and_approve(store, domain=["web"])
+        results = store.query(["web"], framework="fastapi")
+        assert len(results) == 1
+        assert results[0].id == no_fw.id
+
+    def test_language_filter_ranks_matching_higher(self, store: TeamStore) -> None:
+        """KUs with matching language should rank above those without."""
+        no_lang = _insert_and_approve(store, domain=["web"])
+        with_lang = _insert_and_approve(
+            store,
+            domain=["web"],
+            context=Context(languages=["python"]),
+        )
+        results = store.query(["web"], language="python")
+        assert len(results) == 2
+        assert results[0].id == with_lang.id
+        assert results[1].id == no_lang.id
 
     def test_rejects_non_positive_limit(self, store: TeamStore) -> None:
         with pytest.raises(ValueError, match="limit must be positive"):
