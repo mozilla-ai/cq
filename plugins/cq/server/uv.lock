@@ -143,8 +143,8 @@ wheels = [
 ]
 
 [[package]]
-name = "craic-mcp-server"
-version = "0.1.0"
+name = "cq-mcp-server"
+version = "0.3.3"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

@@ -1,21 +1,21 @@
 services:
-  craic-team-api:
+  cq-team-api:
     build: ./team-api
     ports:
       - "8742:8742"
     volumes:
-      - craic-data:/data
+      - cq-data:/data
       - ./scripts:/app/scripts:ro
     environment:
-      - CRAIC_DB_PATH=/data/team.db
-      - CRAIC_JWT_SECRET=${CRAIC_JWT_SECRET:?Set CRAIC_JWT_SECRET}
+      - CQ_DB_PATH=/data/team.db
+      - CQ_JWT_SECRET=${CQ_JWT_SECRET:?Set CQ_JWT_SECRET}
 
-  craic-team-ui:
+  cq-team-ui:
     build: ./team-ui
     ports:
       - "3000:3000"
     depends_on:
-      - craic-team-api
+      - cq-team-api
 
 volumes:
-  craic-data:
+  cq-data:

@@ -1,10 +1,10 @@
-"""Tests for the CRAIC Team API client."""
+"""Tests for the cq Team API client."""
 
 from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from craic_mcp.knowledge_unit import (
+from cq_mcp.knowledge_unit import (
     Context,
     Evidence,
     FlagReason,
@@ -12,7 +12,7 @@ from craic_mcp.knowledge_unit import (
     KnowledgeUnit,
     Tier,
 )
-from craic_mcp.team_client import TeamClient
+from cq_mcp.team_client import TeamClient
 
 _MOCK_REQUEST = httpx.Request("GET", "http://test")
 
@@ -153,7 +153,7 @@ class TestTeamClientPropose:
         client: TeamClient,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from craic_mcp.team_client import TeamRejectedError
+        from cq_mcp.team_client import TeamRejectedError
 
         response = _mock_response(422, {"detail": "Invalid domain"})
         monkeypatch.setattr(client._client, "post", _async_returning(response))

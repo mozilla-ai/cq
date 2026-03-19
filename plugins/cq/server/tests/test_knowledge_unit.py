@@ -3,7 +3,7 @@
 from datetime import UTC
 
 import pytest
-from craic_mcp.knowledge_unit import (
+from cq_mcp.knowledge_unit import (
     Context,
     Evidence,
     FlagReason,
@@ -12,7 +12,7 @@ from craic_mcp.knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
-from craic_mcp.scoring import apply_confirmation, apply_flag, calculate_relevance
+from cq_mcp.scoring import apply_confirmation, apply_flag, calculate_relevance
 from pydantic import ValidationError
 
 

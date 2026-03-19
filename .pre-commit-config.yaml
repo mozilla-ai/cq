@@ -17,12 +17,13 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
+        exclude: '(pnpm-lock\.yaml|uv\.lock)$'
 
   - repo: local
     hooks:
       - id: ty-check-server
         name: ty (server)
-        entry: bash -c 'cd server && uvx ty check craic_mcp --python .venv'
+        entry: bash -c 'cd server && uvx ty check cq_mcp --python .venv'
         language: system
         pass_filenames: false
         types: [python]

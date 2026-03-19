@@ -1,4 +1,4 @@
-"""HTTP client for the CRAIC Team API.
+"""HTTP client for the cq Team API.
 
 Wraps all team API endpoints with graceful degradation: connection
 errors, timeouts, malformed responses, and schema mismatches return
@@ -42,7 +42,7 @@ class TeamRejectedError(Exception):
 
 
 class TeamClient:
-    """Async HTTP client for the CRAIC Team API.
+    """Async HTTP client for the cq Team API.
 
     Most methods return None (or False for health) when the team API is
     unreachable or returns an unexpected response, allowing the caller

@@ -11,8 +11,8 @@ from team_api.app import app
 
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setenv("CRAIC_DB_PATH", str(tmp_path / "test.db"))
-    monkeypatch.setenv("CRAIC_JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("CQ_JWT_SECRET", "test-secret")
     with TestClient(app) as c:
         yield c
 

@@ -1,10 +1,8 @@
-# CRAIC
+# cq
 
-**Collective Reciprocal Agent Intelligence Commons**
+**cq** is derived from *colloquy* (/ˈkɒl.ə.kwi/), a structured exchange of ideas where understanding emerges through dialogue rather than one-way output. It reflects a focus on reciprocal knowledge sharing; systems that improve through participation, not passive use. In radio, **CQ** is a general call ("any station, respond"), capturing the same model: open invitation, response, and collective signal built through interaction.
 
-> [Craic](https://en.wikipedia.org/wiki/Craic) (/kræk/ KRAK) is a term for news, gossip, fun, entertainment, and enjoyable conversation, particularly prominent in Ireland.
-
-That's what this project does for AI agents: shared, experience-driven knowledge that prevents them from repeating each other's mistakes. *"What's the craic?"* — what have other agents learned that you should know before you start?
+Shared, experience-driven knowledge that prevents AI agents from repeating each other's mistakes.
 
 An open standard for shared agent learning. Agents persist, share, and query collective knowledge so they stop rediscovering the same failures independently.
 
@@ -15,8 +13,8 @@ Requires: `uv`
 ### Claude Code (plugin)
 
 ```
-claude plugin marketplace add mozilla-ai/craic
-claude plugin install craic
+claude plugin marketplace add mozilla-ai/cq
+claude plugin install cq
 ```
 
 ### OpenCode (MCP server)
@@ -24,8 +22,8 @@ claude plugin install craic
 Also requires: `jq`
 
 ```bash
-git clone https://github.com/mozilla-ai/craic.git
-cd craic
+git clone https://github.com/mozilla-ai/cq.git
+cd cq
 make install-opencode
 ```
 
@@ -37,15 +35,15 @@ make install-opencode PROJECT=/path/to/your/project
 
 ## Configuration
 
-CRAIC works out of the box in **local-only mode** with no configuration. Set environment variables to customise the local store path or connect to a team API for shared knowledge.
+cq works out of the box in **local-only mode** with no configuration. Set environment variables to customise the local store path or connect to a team API for shared knowledge.
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `CRAIC_LOCAL_DB_PATH` | No | `~/.craic/local.db` | Path to the local SQLite database |
-| `CRAIC_TEAM_ADDR` | No | *(disabled)* | Team API URL. Set to enable team sync (e.g. `http://localhost:8742`) |
-| `CRAIC_TEAM_API_KEY` | When team configured | — | API key for team API authentication |
+| `CQ_LOCAL_DB_PATH` | No | `~/.cq/local.db` | Path to the local SQLite database |
+| `CQ_TEAM_ADDR` | No | *(disabled)* | Team API URL. Set to enable team sync (e.g. `http://localhost:8742`) |
+| `CQ_TEAM_API_KEY` | When team configured | — | API key for team API authentication |
 
-When `CRAIC_TEAM_ADDR` is unset or empty, CRAIC runs in local-only mode — knowledge stays on your machine. Set it to a team API URL to enable shared knowledge across your team.
+When `CQ_TEAM_ADDR` is unset or empty, cq runs in local-only mode — knowledge stays on your machine. Set it to a team API URL to enable shared knowledge across your team.
 
 ### Claude Code
 
@@ -54,25 +52,25 @@ Add variables to `~/.claude/settings.json` under the `env` key:
 ```json
 {
   "env": {
-    "CRAIC_TEAM_ADDR": "http://localhost:8742",
-    "CRAIC_TEAM_API_KEY": "your-api-key"
+    "CQ_TEAM_ADDR": "http://localhost:8742",
+    "CQ_TEAM_API_KEY": "your-api-key"  # pragma: allowlist secret
   }
 }
 ```
 
 ### OpenCode
 
-Add an `env` key to the CRAIC MCP server entry in your OpenCode config (`~/.config/opencode/opencode.json` or `<project>/.opencode/opencode.json`):
+Add an `env` key to the cq MCP server entry in your OpenCode config (`~/.config/opencode/opencode.json` or `<project>/.opencode/opencode.json`):
 
 ```json
 {
   "mcp": {
-    "craic": {
+    "cq": {
       "type": "local",
-      "command": ["uv", "run", "--directory", "/path/to/craic/plugins/craic/server", "craic-mcp-server"],
+      "command": ["uv", "run", "--directory", "/path/to/cq/plugins/cq/server", "cq-mcp-server"],
       "env": {
-        "CRAIC_TEAM_ADDR": "http://localhost:8742",
-        "CRAIC_TEAM_API_KEY": "your-api-key"
+        "CQ_TEAM_ADDR": "http://localhost:8742",
+        "CQ_TEAM_API_KEY": "your-api-key"  # pragma: allowlist secret
       }
     }
   }
@@ -83,7 +81,7 @@ Alternatively, export the variables in your shell before launching OpenCode.
 
 ## Architecture
 
-CRAIC runs across three runtime boundaries: the agent process (plugin configuration), a local MCP server (knowledge logic and private store), and a Docker container (team-shared API).
+cq runs across three runtime boundaries: the agent process (plugin configuration), a local MCP server (knowledge logic and private store), and a Docker container (team-shared API).
 
 ```mermaid
 flowchart TB
@@ -91,14 +89,14 @@ flowchart TB
         direction TB
         skill["SKILL.md\nBehavioural instructions"]
         hook["hooks.json\nPost-error auto-query"]
-        cmd_status["/craic:status\nStore statistics"]
-        cmd_reflect["/craic:reflect\nSession mining"]
+        cmd_status["/cq:status\nStore statistics"]
+        cmd_reflect["/cq:reflect\nSession mining"]
     end
 
     subgraph mcp["Local MCP Server Process"]
         direction TB
-        server["CRAIC MCP Server\nPython / FastMCP"]
-        local_db[("Local Store\n~/.craic/local.db\nSQLite")]
+        server["cq MCP Server\nPython / FastMCP"]
+        local_db[("Local Store\n~/.cq/local.db\nSQLite")]
         server --> local_db
     end
 

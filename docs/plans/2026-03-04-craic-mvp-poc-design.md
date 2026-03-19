@@ -1,4 +1,4 @@
-# CRAIC MVP/PoC Design
+# cq MVP/PoC Design
 
 **Date:** 2026-03-04
 **Status:** Approved
@@ -8,7 +8,7 @@
 
 ## Goal
 
-Build a minimal proof-of-concept that demonstrates the core CRAIC loop: an AI agent that persists learnings locally, queries shared knowledge before acting, proposes new knowledge when discovering something novel, and retrospectively mines sessions for shareable insights.
+Build a minimal proof-of-concept that demonstrates the core cq loop: an AI agent that persists learnings locally, queries shared knowledge before acting, proposes new knowledge when discovering something novel, and retrospectively mines sessions for shareable insights.
 
 The PoC targets **Claude Code** as the primary agent platform, uses **Python** throughout, and demonstrates both local and team-level knowledge sharing.
 
@@ -22,22 +22,22 @@ Three distinct runtime boundaries:
 flowchart TB
     subgraph cc["Claude Code Process"]
         direction TB
-        skill["CRAIC Skill<br/><i>SKILL.md — behavioural instructions</i>"]
+        skill["cq Skill<br/><i>SKILL.md — behavioural instructions</i>"]
         hook["Post-Error Hook<br/><i>hooks.json — triggers on errors</i>"]
-        reflect_cmd["/craic:reflect<br/><i>Slash command — session mining</i>"]
-        status_cmd["/craic:status<br/><i>Slash command — store stats</i>"]
+        reflect_cmd["/cq:reflect<br/><i>Slash command — session mining</i>"]
+        status_cmd["/cq:status<br/><i>Slash command — store stats</i>"]
     end
 
     subgraph mcp["Local Process (spawned via stdio)"]
         direction TB
-        server["CRAIC MCP Server<br/><i>Python / FastMCP</i><br/><i>uv run craic-mcp-server</i>"]
-        local_db[("Local Store<br/>~/.craic/local.db<br/><i>SQLite — private to machine</i>")]
+        server["cq MCP Server<br/><i>Python / FastMCP</i><br/><i>uv run cq-mcp-server</i>"]
+        local_db[("Local Store<br/>~/.cq/local.db<br/><i>SQLite — private to machine</i>")]
         server --> local_db
     end
 
     subgraph docker["Docker Container"]
         direction TB
-        api["CRAIC Team API<br/><i>Python / FastAPI</i><br/><i>localhost:8742</i>"]
+        api["cq Team API<br/><i>Python / FastAPI</i><br/><i>localhost:8742</i>"]
         team_db[("Team Store<br/>/data/team.db<br/><i>SQLite — shared across team</i>")]
         api --> team_db
     end
@@ -48,7 +48,7 @@ flowchart TB
 
 **Claude Code process** loads the plugin's config files (skill, hooks, commands). These are markdown and JSON that shape agent behaviour — no code runs here.
 
-**Local MCP server process** is a Python process spawned by Claude Code via stdio. It owns the local SQLite store on disk and contains all the CRAIC logic.
+**Local MCP server process** is a Python process spawned by Claude Code via stdio. It owns the local SQLite store on disk and contains all the cq logic.
 
 **Docker container** runs the team API independently. In the PoC it is `docker compose up` on localhost. In production this would be a hosted service with auth, tenancy, and RBAC.
 
@@ -60,15 +60,15 @@ flowchart TB
 sequenceDiagram
     participant Dev as Developer
     participant CC as Claude Code
-    participant Skill as CRAIC Skill
+    participant Skill as cq Skill
     participant MCP as MCP Server
     participant Local as Local Store
     participant Team as Team API
 
     Dev->>CC: "Integrate Stripe payments"
     CC->>Skill: Recognises trigger: API integration
-    Skill->>CC: Instruct: query CRAIC first
-    CC->>MCP: craic_query(domain=["api","payments","stripe"])
+    Skill->>CC: Instruct: query cq first
+    CC->>MCP: cq_query(domain=["api","payments","stripe"])
     MCP->>Local: Search local store
     Local-->>MCP: 0 results
     MCP->>Team: GET /query?domain=api,payments,stripe
@@ -78,7 +78,7 @@ sequenceDiagram
 
     Note over CC: Later, discovers novel behaviour...
 
-    CC->>MCP: craic_propose(summary="...", domain=["api","webhooks"])
+    CC->>MCP: cq_propose(summary="...", domain=["api","webhooks"])
     MCP->>Local: Store locally
     MCP->>Team: POST /propose (insight is generic)
     MCP-->>CC: Stored as ku_abc123
@@ -88,7 +88,7 @@ sequenceDiagram
 
 ## Knowledge Unit Schema (PoC)
 
-Minimal version of the full CRAIC knowledge unit spec. Enough to prove the concept; designed to extend toward the full schema without breaking changes.
+Minimal version of the full cq knowledge unit spec. Enough to prove the concept; designed to extend toward the full schema without breaking changes.
 
 ```json
 {
@@ -137,7 +137,7 @@ Minimal version of the full CRAIC knowledge unit spec. Enough to prove the conce
 
 Five tools exposed by the MCP server:
 
-### `craic_query`
+### `cq_query`
 
 Search for relevant knowledge units.
 
@@ -152,7 +152,7 @@ Returns `{ results: KnowledgeUnit[], source: "local" | "team" | "both" }`.
 
 Searches local store first, then team store. Merges and deduplicates by `id`. Returns top N ranked by relevance * confidence.
 
-### `craic_propose`
+### `cq_propose`
 
 Submit a new knowledge unit.
 
@@ -168,7 +168,7 @@ Returns `{ id: string, tier: "local", message: string }`.
 
 Creates a knowledge unit in the local store. If the MCP server determines the insight is generic (no org-specific references), it also pushes to the team store.
 
-### `craic_confirm`
+### `cq_confirm`
 
 Confirm a knowledge unit proved correct.
 
@@ -178,7 +178,7 @@ Confirm a knowledge unit proved correct.
 
 Returns `{ id: string, new_confidence: float, confirmations: int }`.
 
-### `craic_flag`
+### `cq_flag`
 
 Flag a knowledge unit as problematic.
 
@@ -189,7 +189,7 @@ Flag a knowledge unit as problematic.
 
 Returns `{ id: string, new_confidence: float, message: string }`.
 
-### `craic_reflect`
+### `cq_reflect`
 
 Retrospectively analyse session context for shareable learnings.
 
@@ -199,17 +199,17 @@ Retrospectively analyse session context for shareable learnings.
 
 Returns `{ candidates: [{ summary, detail, action, domain, estimated_relevance }] }`.
 
-The agent (via `/craic:reflect`) passes its session context. The server analyses it for patterns worth sharing and returns candidates. The agent presents them to the user for approval before calling `craic_propose` on each.
+The agent (via `/cq:reflect`) passes its session context. The server analyses it for patterns worth sharing and returns candidates. The agent presents them to the user for approval before calling `cq_propose` on each.
 
 ---
 
-## CRAIC Skill Design
+## cq Skill Design
 
-The Skill is the behavioural layer that gives the agent judgement about when to use CRAIC tools. Without it, the MCP tools are passive and may never be called.
+The Skill is the behavioural layer that gives the agent judgement about when to use cq tools. Without it, the MCP tools are passive and may never be called.
 
 ### Query Triggers
 
-The agent should call `craic_query` when:
+The agent should call `cq_query` when:
 
 - About to make an API call to an external service.
 - Working with a library or framework it hasn't used in this session.
@@ -218,7 +218,7 @@ The agent should call `craic_query` when:
 
 ### Propose Triggers
 
-The agent should call `craic_propose` when:
+The agent should call `cq_propose` when:
 
 - It discovers undocumented behaviour (e.g. API returned unexpected response).
 - It finds a workaround for a known issue.
@@ -227,8 +227,8 @@ The agent should call `craic_propose` when:
 
 ### Confirm/Flag Triggers
 
-- Call `craic_confirm` when a knowledge unit proved correct during the session.
-- Call `craic_flag` when a knowledge unit is wrong, outdated, or misleading.
+- Call `cq_confirm` when a knowledge unit proved correct during the session.
+- Call `cq_flag` when a knowledge unit is wrong, outdated, or misleading.
 
 ---
 
@@ -236,22 +236,22 @@ The agent should call `craic_propose` when:
 
 ### Post-Error Hook
 
-Implemented as a Skill instruction rather than a shell hook. The Skill tells the agent: when you encounter an error, call `craic_query` with the error context before attempting a fix.
+Implemented as a Skill instruction rather than a shell hook. The Skill tells the agent: when you encounter an error, call `cq_query` with the error context before attempting a fix.
 
-### `/craic:status`
+### `/cq:status`
 
-Displays local store statistics: knowledge unit count, domain breakdown, most recent additions, confidence distribution. Calls `craic_query` with no filter and formats the output.
+Displays local store statistics: knowledge unit count, domain breakdown, most recent additions, confidence distribution. Calls `cq_query` with no filter and formats the output.
 
-### `/craic:reflect`
+### `/cq:reflect`
 
 Session mining command:
 
 1. Gathers session conversation context.
-2. Calls `craic_reflect` with the context.
+2. Calls `cq_reflect` with the context.
 3. Presents candidate knowledge units to the user.
-4. For each approved candidate, calls `craic_propose`.
+4. For each approved candidate, calls `cq_propose`.
 
-This is the "demo moment" — at end of session, the developer runs `/craic:reflect` and the agent identifies learnings worth sharing.
+This is the "demo moment" — at end of session, the developer runs `/cq:reflect` and the agent identifies learnings worth sharing.
 
 ---
 
@@ -272,17 +272,17 @@ This is the "demo moment" — at end of session, the developer runs `/craic:refl
 
 ```yaml
 services:
-  craic-team:
+  cq-team:
     build: ./team-api
     ports:
       - "8742:8742"
     volumes:
-      - craic-data:/data
+      - cq-data:/data
     environment:
-      - CRAIC_DB_PATH=/data/team.db
+      - cq_DB_PATH=/data/team.db
 
 volumes:
-  craic-data:
+  cq-data:
 ```
 
 One container, one volume, one port. The MCP server connects to `http://localhost:8742` by default (configurable via environment variable).
@@ -292,20 +292,20 @@ One container, one volume, one port. The MCP server connects to `http://localhos
 ## Plugin File Structure
 
 ```
-craic-plugin/
+cq-plugin/
 ├── .claude-plugin/
 │   └── plugin.json
 ├── skills/
-│   └── craic/
+│   └── cq/
 │       └── SKILL.md
 ├── commands/
-│   ├── craic-status.md
-│   └── craic-reflect.md
+│   ├── cq-status.md
+│   └── cq-reflect.md
 ├── hooks/
 │   └── hooks.json
 ├── server/
 │   ├── pyproject.toml
-│   ├── craic_mcp/
+│   ├── cq_mcp/
 │   │   ├── __init__.py
 │   │   ├── server.py
 │   │   ├── local_store.py
@@ -337,7 +337,7 @@ The following are intentionally excluded from the PoC. Each is a real feature fo
 - **any-guardrail integration** — no guardrails filtering.
 - **Time-based staleness decay** — knowledge does not expire.
 - **Multi-tenant team stores** — single team, no auth.
-- **HITL graduation dashboard** — graduation is manual via `/craic:reflect`.
+- **HITL graduation dashboard** — graduation is manual via `/cq:reflect`.
 
 ---
 
@@ -345,7 +345,7 @@ The following are intentionally excluded from the PoC. Each is a real feature fo
 
 ### Adjacent Projects
 
-Three projects are relevant to CRAIC's broader "agent social platform" vision:
+Three projects are relevant to cq's broader "agent social platform" vision:
 
 **AAF (Agent Accessibility Framework)** — Makes web interfaces agent-readable via semantic HTML attributes and capability manifests. The WebMCP bridge auto-registers page actions as MCP tools. Relevant as the "agent-readable web surface" layer.
 
@@ -353,4 +353,4 @@ Three projects are relevant to CRAIC's broader "agent social platform" vision:
 
 **Harbor** — Browser extension implementing the Web Agent API (`window.ai`, `window.agent`). MCP tool discovery, provider-agnostic LLM access, and a scoped permission model. The most directly relevant to agent-to-agent communication infrastructure.
 
-These projects address complementary layers: Harbor provides runtime and transport, AAF provides semantic interface discovery, and Morph provides accountability and provenance. A future CRAIC design should consider how these layers compose with the knowledge commons.
+These projects address complementary layers: Harbor provides runtime and transport, AAF provides semantic interface discovery, and Morph provides accountability and provenance. A future cq design should consider how these layers compose with the knowledge commons.

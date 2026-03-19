@@ -28,7 +28,7 @@ export function LoginPage() {
         className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 w-full max-w-sm"
       >
         <h1 className="text-3xl font-bold mb-6 text-center text-indigo-600">
-          CRAIC
+          cq
         </h1>
         {error && (
           <p className="text-red-600 text-sm mb-4 text-center">{error}</p>

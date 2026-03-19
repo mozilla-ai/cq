@@ -1,4 +1,4 @@
-"""Pydantic models for CRAIC knowledge units."""
+"""Pydantic models for cq knowledge units."""
 
 import uuid
 from datetime import UTC, datetime

@@ -1,6 +1,6 @@
-"""Local SQLite knowledge store for CRAIC.
+"""Local SQLite knowledge store for cq.
 
-Stores knowledge units in a SQLite database at ~/.craic/local.db.
+Stores knowledge units in a SQLite database at ~/.cq/local.db.
 Auto-creates the database directory and schema on first use.
 Implements the context manager protocol for deterministic resource cleanup.
 """
@@ -27,7 +27,7 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
     (float("inf"), "0.7-1.0"),
 ]
 
-DEFAULT_DB_PATH = Path.home() / ".craic" / "local.db"
+DEFAULT_DB_PATH = Path.home() / ".cq" / "local.db"
 
 
 class StoreStats(BaseModel):
@@ -81,7 +81,7 @@ class LocalStore:
         """Initialise the store, creating the database and schema if needed.
 
         Args:
-            db_path: Path to the SQLite database file. Defaults to ~/.craic/local.db.
+            db_path: Path to the SQLite database file. Defaults to ~/.cq/local.db.
         """
         self._db_path = db_path or DEFAULT_DB_PATH
         self._db_path.parent.mkdir(parents=True, exist_ok=True)

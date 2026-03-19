@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load seed knowledge units into the CRAIC team store.
+"""Load seed knowledge units into the cq team store.
 
 Reads scripts/seed/knowledge_units.json and POSTs each unit to the running
 team API. After creation, approves most units via the review API, then calls
@@ -89,10 +89,7 @@ def load(base_url: str, token: str) -> None:
     units = json.loads(SEED_FILE.read_text())
     total = len(units)
     approve_count = total - PENDING_COUNT
-    print(
-        f"Loading {total} seed units "
-        f"({approve_count} approved, {PENDING_COUNT} pending)\n"
-    )
+    print(f"Loading {total} seed units ({approve_count} approved, {PENDING_COUNT} pending)\n")
 
     for i, unit in enumerate(units, 1):
         target = unit.get("_target_confidence", 0.5)
@@ -130,6 +127,7 @@ def load(base_url: str, token: str) -> None:
 
 
 def main() -> None:
+    """Load seed knowledge units into the cq team store."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--url",

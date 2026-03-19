@@ -1,16 +1,16 @@
-# CRAIC Contributor Agreement
+# cq Contributor Agreement
 
 Version 1.0 — Draft
 
 ## Purpose
 
-This agreement governs contributions of **knowledge units** to the Collective Reciprocal Agent Intelligence Commons (CRAIC). It applies to any person or organisation that submits knowledge units for inclusion in the shared commons (team or global scope).
+This agreement governs contributions of **knowledge units** to the cq (shared agent knowledge commons). It applies to any person or organisation that submits knowledge units for inclusion in the shared commons (team or global scope).
 
-Code contributions to the CRAIC software itself are governed by the project's Apache 2.0 licence and standard open-source contribution practices. This document covers knowledge contributions only.
+Code contributions to the cq software itself are governed by the project's Apache 2.0 licence and standard open-source contribution practices. This document covers knowledge contributions only.
 
 ## Definitions
 
-- **Knowledge Unit (KU):** A structured piece of agent learning submitted to CRAIC, represented as a learning record with associated metadata (such as context, classification, and reliability information), whose exact schema is defined in the CRAIC documentation and may evolve over time.
+- **Knowledge Unit (KU):** A structured piece of agent learning submitted to cq, represented as a learning record with associated metadata (such as context, classification, and reliability information), whose exact schema is defined in the cq documentation and may evolve over time.
 - **Contributor:** Any person or organisation that submits a knowledge unit, whether directly or via an agent acting on their behalf.
 - **Commons:** The shared knowledge store at team or global scope.
 - **Graduation:** The process by which a knowledge unit moves from a lower scope (local or team) to a higher scope (team or global), subject to review.
@@ -29,13 +29,13 @@ By submitting a knowledge unit, you represent that:
 
 a. The contribution does not contain personal data (as defined in Article 4(1) of the EU General Data Protection Regulation) about any individual, including names, email addresses, employee identifiers, or other data that could directly or indirectly identify a natural person.
 b. Where the contribution references real systems, services, or APIs, it does so in a way that describes publicly observable behaviour rather than exposing internal or confidential details.
-c. You acknowledge that CRAIC applies automated guardrail filters to detect and reject personal data, but that these filters are a safety net, not a substitute for your own diligence.
+c. You acknowledge that cq applies automated guardrail filters to detect and reject personal data, but that these filters are a safety net, not a substitute for your own diligence.
 
 ## 3. Licence Grant
 
 By submitting a knowledge unit to the commons, you grant a perpetual, worldwide, non-exclusive, royalty-free licence to:
 
-a. Store, reproduce, and distribute the knowledge unit as part of the CRAIC commons.
+a. Store, reproduce, and distribute the knowledge unit as part of the cq commons.
 b. Allow agents and humans to query, retrieve, and incorporate the knowledge unit into their work.
 c. Allow derivative works that build on, summarise, or combine the knowledge unit with other units.
 
@@ -49,7 +49,7 @@ a. The knowledge unit is accurate, complete, or current.
 b. The knowledge unit is suitable for any particular purpose.
 c. Reliance on the knowledge unit will produce correct results.
 
-The CRAIC system's confidence scoring, confirmation mechanisms, and staleness decay exist to help consumers assess reliability. They do not constitute a guarantee.
+The cq system's confidence scoring, confirmation mechanisms, and staleness decay exist to help consumers assess reliability. They do not constitute a guarantee.
 
 ## 5. Limitation of Liability
 
@@ -71,19 +71,19 @@ c. The presence of automated filters does not reduce the contributor's obligatio
 
 ## 8. Attribution and Provenance
 
-a. CRAIC records provenance metadata for each knowledge unit, including a contributor identifier, timestamps, and confirmation history.
+a. cq records provenance metadata for each knowledge unit, including a contributor identifier, timestamps, and confirmation history.
 b. In the current implementation, contributor identifiers are opaque agent or session identifiers. Future versions may use decentralised identifiers (DIDs) for verifiable attribution.
 c. Contributors consent to this provenance tracking as a condition of participation.
 
 ## 9. Amendments
 
-This agreement may be updated as the CRAIC project evolves. Material changes will be communicated through the project's standard channels. Continued contribution after notice of changes constitutes acceptance of the updated terms.
+This agreement may be updated as the cq project evolves. Material changes will be communicated through the project's standard channels. Continued contribution after notice of changes constitutes acceptance of the updated terms.
 
 ## 10. Acceptance
 
-By submitting a knowledge unit to a CRAIC commons (team or global scope), you indicate your acceptance of this agreement.
+By submitting a knowledge unit to a cq commons (team or global scope), you indicate your acceptance of this agreement.
 
 ---
 
-*This document is part of the CRAIC project. The CRAIC software codebase is licensed under the Apache License 2.0; this contributor agreement separately governs knowledge contributions as described above.*
-*For questions or concerns, open an issue at github.com/mozilla-ai/craic.*
+*This document is part of the cq project. The cq software codebase is licensed under the Apache License 2.0; this contributor agreement separately governs knowledge contributions as described above.*
+*For questions or concerns, open an issue at github.com/mozilla-ai/cq.*

@@ -64,14 +64,14 @@ def _get_jwt_secret() -> str:
     """Return the JWT secret, failing if unset.
 
     Returns:
-        The value of the CRAIC_JWT_SECRET environment variable.
+        The value of the CQ_JWT_SECRET environment variable.
 
     Raises:
         RuntimeError: If the environment variable is not set.
     """
-    secret = os.environ.get("CRAIC_JWT_SECRET")
+    secret = os.environ.get("CQ_JWT_SECRET")
     if not secret:
-        raise RuntimeError("CRAIC_JWT_SECRET environment variable is required")
+        raise RuntimeError("CQ_JWT_SECRET environment variable is required")
     return secret
 
 

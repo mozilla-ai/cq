@@ -1,6 +1,6 @@
-# CRAIC
+# cq
 
-## Collective Reciprocal Agent Intelligence Commons
+## Shared Agent Knowledge Commons
 
 **An Open Standard for Shared Agent Learning**
 
@@ -31,7 +31,7 @@ This is analogous to the early web, where browsers existed but no one was champi
 
 ## 2. The Vision
 
-We propose **CRAIC** — the Collective Reciprocal Agent Intelligence Commons — an open, model-agnostic, standards-based system that enables AI agents to share learned knowledge with each other safely and efficiently. The name reflects the core mechanic: reciprocity. Agents give back to get back. The commons only works if contribution is mutual. (It also happens to be the Irish word for good times, great conversation, and the energy of people coming together — which captures the spirit of the project rather well.)
+We propose **cq** — an open, model-agnostic, standards-based system that enables AI agents to share learned knowledge with each other safely and efficiently. The name is derived from *colloquy* — a structured exchange of ideas where understanding emerges through dialogue rather than one-way output. It reflects a focus on reciprocal knowledge sharing; systems that improve through participation, not passive use. In radio, **CQ** is a general call ("any station, respond"), capturing the same model: open invitation, response, and collective signal built through interaction.
 
 Think of it as StackOverflow, but written by agents, for agents, consumed by agents — with humans in the loop for governance and quality assurance.
 
@@ -84,21 +84,21 @@ For cross-agent interoperability, shared knowledge needs a standard format. A le
 
 ### 3.5 The Guardrails Layer
 
-Shared knowledge is only valuable if it is safe, accurate, and free from manipulation. CRAIC integrates guardrails at every stage of the knowledge lifecycle — not as an afterthought, but as a core architectural component.
+Shared knowledge is only valuable if it is safe, accurate, and free from manipulation. cq integrates guardrails at every stage of the knowledge lifecycle — not as an afterthought, but as a core architectural component.
 
-Mozilla.ai's **any-guardrail** is a natural fit here. any-guardrail provides a unified, model-agnostic interface for applying safety and quality checks across different LLM providers and guardrail implementations. In the context of CRAIC, it serves multiple roles:
+Mozilla.ai's **any-guardrail** is a natural fit here. any-guardrail provides a unified, model-agnostic interface for applying safety and quality checks across different LLM providers and guardrail implementations. In the context of cq, it serves multiple roles:
 
 - **Ingestion filtering (the primary PII control):** When an agent proposes a new learning unit, any-guardrail checks for harmful content, prompt injection attempts, vendor bias signals, and PII leakage before the knowledge enters even the local store. This automated filtering is the primary defence against PII entering the commons — not human review. Regulators (particularly under GDPR) do not consider humans to be reliable determinants of what constitutes personal data, especially when rapidly processing information at scale. Automated guardrails handle PII detection; human reviewers focus on what humans are good at: accuracy, relevance, quality, and generalisability.
 - **Graduation gates:** When knowledge is nominated for promotion (local → team, team → global), guardrails run a more thorough assessment — checking for factual consistency, potential security implications (e.g. knowledge that could expose infrastructure details), and alignment with the commons' quality standards.
 - **Retrieval-time validation:** When an agent queries the commons, guardrails can flag knowledge that has been disputed, is approaching staleness thresholds, or has low confidence relative to the agent's domain.
 
-Because any-guardrail is model-agnostic and extensible, it allows the CRAIC ecosystem to incorporate guardrail implementations from other providers too — including open-source alternatives and enterprise-specific rulesets. Organisations can layer their own compliance rules (e.g. industry-specific regulations, internal policies) on top of the commons' baseline quality checks without forking the system.
+Because any-guardrail is model-agnostic and extensible, it allows the cq ecosystem to incorporate guardrail implementations from other providers too — including open-source alternatives and enterprise-specific rulesets. Organisations can layer their own compliance rules (e.g. industry-specific regulations, internal policies) on top of the commons' baseline quality checks without forking the system.
 
-The broader guardrails ecosystem is also relevant here. Projects like Guardrails AI, NeMo Guardrails, and LlamaGuard provide complementary capabilities that could plug into CRAIC's guardrails layer via any-guardrail's unified interface. The goal is not to mandate a single guardrails implementation but to ensure that every knowledge flow — in, between, and out of the commons — passes through appropriate safety and quality checks.
+The broader guardrails ecosystem is also relevant here. Projects like Guardrails AI, NeMo Guardrails, and LlamaGuard provide complementary capabilities that could plug into cq's guardrails layer via any-guardrail's unified interface. The goal is not to mandate a single guardrails implementation but to ensure that every knowledge flow — in, between, and out of the commons — passes through appropriate safety and quality checks.
 
 ### 3.6 The Tiered Architecture in Detail
 
-The local → team → global layering is central to CRAIC's design. It deserves a closer look, because the tiers are not just a filtering mechanism — they create distinct value at each level, and the relationship between tiers is what makes the system commercially viable while remaining open at its core.
+The local → team → global layering is central to cq's design. It deserves a closer look, because the tiers are not just a filtering mechanism — they create distinct value at each level, and the relationship between tiers is what makes the system commercially viable while remaining open at its core.
 
 **Tier 1: Local (Agent-level)**
 
@@ -161,79 +161,79 @@ Meanwhile, Vercel launched **skills.sh** in January 2026 — an open-source pack
 
 All of the major coding agents also now support **plugins** as a distribution format — bundles that package skills, MCP server configurations, hooks, sub-agents, and slash commands into a single installable unit. Claude Code's plugin system (launched October 2025, now with over 9,000 plugins available) uses a `.claude-plugin/plugin.json` manifest. OpenCode — the open-source, model-agnostic coding agent that has rapidly gained adoption — supports the same skill format and its own plugin ecosystem with compatible structures. Cursor and Codex support equivalent bundling through their respective configuration systems.
 
-This convergence is exactly what CRAIC needs. We are not asking developers to adopt a new protocol. We are packaging a knowledge commons into the distribution formats they already use.
+This convergence is exactly what cq needs. We are not asking developers to adopt a new protocol. We are packaging a knowledge commons into the distribution formats they already use.
 
 **What You Actually Install**
 
-CRAIC ships as three things, layered for different adoption paths:
+cq ships as three things, layered for different adoption paths:
 
-**1. The CRAIC Plugin** (for Claude Code, OpenCode, and any plugin-compatible agent)
+**1. The cq Plugin** (for Claude Code, OpenCode, and any plugin-compatible agent)
 
 This is the one-command install. For Claude Code:
 
 ```
-/plugin install craic@mozilla-ai-plugins
+/plugin install cq@mozilla-ai-plugins
 ```
 
 For OpenCode, the equivalent plugin install. The plugin bundles everything:
 
 ```
-craic-plugin/
+cq-plugin/
 ├── .claude-plugin/
 │   └── plugin.json          # Plugin manifest
 ├── skills/
-│   └── craic/
+│   └── cq/
 │       └── SKILL.md          # When to query, propose, confirm, flag
 ├── agents/
-│   └── craic-reviewer.md     # Sub-agent for HITL graduation review
+│   └── cq-reviewer.md     # Sub-agent for HITL graduation review
 ├── hooks/
 │   └── hooks.json            # Post-error hook: auto-query commons on failure
 ├── commands/
-│   ├── craic-status.md       # /craic:status — show local store stats
-│   └── craic-reflect.md      # /craic:reflect — mine session for shareable learnings
-├── .mcp.json                 # CRAIC MCP server configuration
+│   ├── cq-status.md       # /cq:status — show local store stats
+│   └── cq-reflect.md      # /cq:reflect — mine session for shareable learnings
+├── .mcp.json                 # cq MCP server configuration
 └── README.md
 ```
 
 One install gives the developer: the MCP server connection (plumbing), the Skill that teaches the agent when and how to use the commons (judgement), a sub-agent for reviewing graduation candidates, a hook that automatically queries the commons when the agent encounters errors, and slash commands for inspecting the local store and retrospectively mining sessions for shareable knowledge. Because Claude Code and OpenCode both follow the Agent Skills standard, the same `SKILL.md` works across both platforms without modification.
 
-**The `/craic:reflect` command** deserves its own explanation, because it solves a subtle but important problem. During a normal coding session, the CRAIC skill teaches the agent to query the commons before acting and to propose learnings in real time when it encounters something novel. But agents don't always *know* something is interesting in the moment. A developer might spend 40 minutes debugging an obscure configuration issue, and the agent's real-time focus is on solving the problem — not on cataloguing the solution for posterity. The insight only becomes visible in retrospect, when you look at the full arc of what happened.
+**The `/cq:reflect` command** deserves its own explanation, because it solves a subtle but important problem. During a normal coding session, the cq skill teaches the agent to query the commons before acting and to propose learnings in real time when it encounters something novel. But agents don't always *know* something is interesting in the moment. A developer might spend 40 minutes debugging an obscure configuration issue, and the agent's real-time focus is on solving the problem — not on cataloguing the solution for posterity. The insight only becomes visible in retrospect, when you look at the full arc of what happened.
 
-`/craic:reflect` triggers a retrospective pass. The agent reviews its own session context — conversation history, tool calls, errors encountered, solutions found, dead ends abandoned — and identifies patterns that might be worth proposing to the commons. It looks for things like: repeated failures that eventually led to a non-obvious fix, workarounds for undocumented behaviour, configuration combinations that only work in specific environments, and knowledge that contradicts or refines existing commons entries.
+`/cq:reflect` triggers a retrospective pass. The agent reviews its own session context — conversation history, tool calls, errors encountered, solutions found, dead ends abandoned — and identifies patterns that might be worth proposing to the commons. It looks for things like: repeated failures that eventually led to a non-obvious fix, workarounds for undocumented behaviour, configuration combinations that only work in specific environments, and knowledge that contradicts or refines existing commons entries.
 
 The output is a structured summary: here are N potential knowledge units I've identified from this session, ranked by estimated generalisability. The developer reviews them, edits if needed, and approves submission — or dismisses. This is HITL at the point of creation, not just at the point of graduation.
 
 This matters for two reasons. First, it catches the long-tail knowledge that real-time hooks miss — the stuff that only makes sense after the fact. Second, it gives developers an explicit, low-friction moment to contribute. Instead of hoping developers will remember to manually propose learnings, the agent does the synthesis work and presents candidates. The developer just says yes or no. Before proposing approved candidates, the system checks the commons for existing coverage — if a knowledge unit already captures the same insight, it is surfaced rather than duplicated. This is how you get contribution volume without contribution fatigue.
 
-**2. The CRAIC Skill** (for any of 30+ agents via skills.sh)
+**2. The cq Skill** (for any of 30+ agents via skills.sh)
 
 For agents that support skills but not the full plugin format — or for developers who want a lighter-weight integration:
 
 ```
-npx skills add mozilla-ai/craic --skill craic
+npx skills add mozilla-ai/cq --skill cq
 ```
 
-This installs just the CRAIC `SKILL.md` and the MCP server configuration. It works across Claude Code, Codex, Cursor, OpenCode, Gemini CLI, GitHub Copilot, and any other agent that supports the open Agent Skills standard. The skill teaches the agent to query the commons before executing unfamiliar API calls, propose learnings when it discovers novel patterns, and flag graduation candidates for human review.
+This installs just the cq `SKILL.md` and the MCP server configuration. It works across Claude Code, Codex, Cursor, OpenCode, Gemini CLI, GitHub Copilot, and any other agent that supports the open Agent Skills standard. The skill teaches the agent to query the commons before executing unfamiliar API calls, propose learnings when it discovers novel patterns, and flag graduation candidates for human review.
 
-For **Cursor** specifically, the skill translates to a `.cursor/rules/craic.mdc` rule file with glob-scoped activation (e.g. always-on for backend code, opt-in for frontend). For **OpenAI Codex**, it lives in `.agents/skills/craic/SKILL.md` alongside an optional `AGENTS.md` entry. Codex's hierarchical instruction discovery (global → project root → subdirectory) maps naturally to CRAIC's tiered architecture.
+For **Cursor** specifically, the skill translates to a `.cursor/rules/cq.mdc` rule file with glob-scoped activation (e.g. always-on for backend code, opt-in for frontend). For **OpenAI Codex**, it lives in `.agents/skills/cq/SKILL.md` alongside an optional `AGENTS.md` entry. Codex's hierarchical instruction discovery (global → project root → subdirectory) maps naturally to cq's tiered architecture.
 
-**3. The CRAIC MCP Server** (for any MCP-compatible client)
+**3. The cq MCP Server** (for any MCP-compatible client)
 
 The universal integration point. A standalone MCP server — deployable as a local stdio process or a remote streamable HTTP endpoint — that exposes a small set of tools:
 
-- `craic_query` — Search local → team → global stores for relevant knowledge
-- `craic_propose` — Submit a new knowledge unit (enters local store immediately)
-- `craic_confirm` — Confirm an existing knowledge unit (increases confidence)
-- `craic_flag` — Flag a unit as stale, incorrect, or a graduation candidate
-- `craic_reflect` — Retrospectively analyse session context and return candidate knowledge units
+- `cq_query` — Search local → team → global stores for relevant knowledge
+- `cq_propose` — Submit a new knowledge unit (enters local store immediately)
+- `cq_confirm` — Confirm an existing knowledge unit (increases confidence)
+- `cq_flag` — Flag a unit as stale, incorrect, or a graduation candidate
+- `cq_reflect` — Retrospectively analyse session context and return candidate knowledge units
 
-The server handles authentication (via the agent's DID), routing across tiers, guardrails checks (via any-guardrail), and knowledge format validation. Because MCP is the universal agent connectivity standard, any agent with MCP support can use CRAIC — even agents that don't support skills or plugins. The MCP server is the floor; the Skill and Plugin are the ceiling.
+The server handles authentication (via the agent's DID), routing across tiers, guardrails checks (via any-guardrail), and knowledge format validation. Because MCP is the universal agent connectivity standard, any agent with MCP support can use cq — even agents that don't support skills or plugins. The MCP server is the floor; the Skill and Plugin are the ceiling.
 
 **Why This Matters for Adoption**
 
-The CRAIC plugin appearing on skills.sh and in Claude Code's plugin marketplace is not just a distribution convenience — it is the adoption strategy. Developers discover skills and plugins through the same registries they already browse. A CRAIC skill sitting alongside "Next.js Best Practices" and "Stripe Integration" in skills.sh normalises the concept. Installation is one command. The skill activates automatically based on context. The developer doesn't need to understand knowledge commons architecture to benefit from it — their agent just starts getting things right more often.
+The cq plugin appearing on skills.sh and in Claude Code's plugin marketplace is not just a distribution convenience — it is the adoption strategy. Developers discover skills and plugins through the same registries they already browse. A cq skill sitting alongside "Next.js Best Practices" and "Stripe Integration" in skills.sh normalises the concept. Installation is one command. The skill activates automatically based on context. The developer doesn't need to understand knowledge commons architecture to benefit from it — their agent just starts getting things right more often.
 
-This is also how the commons gets seeded. Every agent running the CRAIC skill is a potential contributor. The skill teaches agents to propose knowledge; the HITL pipeline filters it; the commons grows. The distribution format *is* the growth mechanism.
+This is also how the commons gets seeded. Every agent running the cq skill is a potential contributor. The skill teaches agents to propose knowledge; the HITL pipeline filters it; the commons grows. The distribution format *is* the growth mechanism.
 
 **The Knowledge Unit Schema (the contract)**
 
@@ -241,7 +241,7 @@ Every piece of shared knowledge flows through a common structured format. This i
 
 ```json
 {
-  "$schema": "https://craic.mozilla.ai/schemas/knowledge-unit/v1.json",
+  "$schema": "https://cq.mozilla.ai/schemas/knowledge-unit/v1.json",
   "id": "ku_a1b2c3d4e5f6",
   "version": "1.0.0",
   "domain": ["api", "payments", "error-handling"],
@@ -276,7 +276,7 @@ Every piece of shared knowledge flows through a common structured format. This i
       {
         "from": "team",
         "to": "global",
-        "approved_by": "human:reviewer_7f2a@craic.mozilla.ai",
+        "approved_by": "human:reviewer_7f2a@cq.mozilla.ai",
         "timestamp": "2025-02-01T16:45:00Z"
       }
     ]
@@ -301,7 +301,7 @@ The schema is deliberately opinionated about a few things:
 
 **`evidence` separates confidence from confirmations:** A knowledge unit confirmed by 3 agents from 3 independent organisations might have higher effective confidence than one confirmed by 800 agents from 2 organisations. The `contributing_orgs` count is a diversity signal that feeds into the anti-poisoning reputation system.
 
-**`provenance` is the audit trail:** Every graduation step records who approved it (human, always — this is the HITL guarantee) and when. The proposer's DID ties back to the Veridian identity layer. This is what makes CRAIC EU AI Act compliant by design — the audit trail is a byproduct of normal operation, not a retrofit.
+**`provenance` is the audit trail:** Every graduation step records who approved it (human, always — this is the HITL guarantee) and when. The proposer's DID ties back to the Veridian identity layer. This is what makes cq EU AI Act compliant by design — the audit trail is a byproduct of normal operation, not a retrofit.
 
 **`lifecycle` handles staleness:** Knowledge units decay if not re-confirmed within a configurable window. APIs change, libraries update, best practices evolve. A `staleness_policy` of `confirm_or_decay_after_90d` means that after 90 days without fresh confirmation, the confidence score begins to decrease. Knowledge can also be explicitly superseded — when Stripe fixes their rate-limiting status codes, a new knowledge unit replaces the old one via `superseded_by`.
 
@@ -313,7 +313,7 @@ The schema is deliberately opinionated about a few things:
 
 The tiered architecture implies different storage characteristics at each level, and the choice of backing store has significant implications for privacy, performance, latency, and the commercial model. Rather than prescribing a single solution, the specification should define storage interfaces while allowing implementations to vary. That said, the likely candidates at each tier are worth outlining:
 
-**Local (Tier 1)** is agent-side and should be fast, offline-capable, and private by default. The most natural fit is an embedded store on the developer's machine — SQLite, a local JSON file store, or an embedded vector database (for semantic retrieval). Some agents already maintain local persistence: Claude Code's memory system, Cursor's indexed codebase, Codex's session resume. The CRAIC local store could integrate with or sit alongside these existing mechanisms. The key constraint is that local data never leaves the machine unless explicitly graduated.
+**Local (Tier 1)** is agent-side and should be fast, offline-capable, and private by default. The most natural fit is an embedded store on the developer's machine — SQLite, a local JSON file store, or an embedded vector database (for semantic retrieval). Some agents already maintain local persistence: Claude Code's memory system, Cursor's indexed codebase, Codex's session resume. The cq local store could integrate with or sit alongside these existing mechanisms. The key constraint is that local data never leaves the machine unless explicitly graduated.
 
 **Team/Organisation (Tier 2)** needs multi-user access, access controls, and query performance across potentially thousands of knowledge units. This is where a hosted service makes sense — a managed database (Postgres with pgvector for hybrid keyword+semantic search, for instance), behind an API with organisation-level tenancy and RBAC. This is also the natural home for the enterprise SaaS offering described in section 3.6: hosted team stores with configurable sub-tenants, audit logging, and integration with existing identity providers (SSO, SCIM).
 
@@ -323,15 +323,15 @@ The specification should define the API contract (how agents read and write know
 
 **What an integration looks like end-to-end:**
 
-1. Developer installs the CRAIC plugin (`/plugin install craic@mozilla-ai-plugins`) or skill (`npx skills add mozilla-ai/craic`).
+1. Developer installs the cq plugin (`/plugin install cq@mozilla-ai-plugins`) or skill (`npx skills add mozilla-ai/cq`).
 2. Developer runs their agent and asks it to integrate Stripe payments.
-3. The CRAIC Skill recognises "API integration" as a trigger context.
-4. The agent calls `craic_query` via the MCP server with domain tags `["api", "payments", "stripe"]` and the current language context.
+3. The cq Skill recognises "API integration" as a trigger context.
+4. The agent calls `cq_query` via the MCP server with domain tags `["api", "payments", "stripe"]` and the current language context.
 5. The MCP server searches local store → team store → global commons, applies any-guardrail checks on retrieved units, and returns ranked matches.
 6. The agent incorporates high-confidence knowledge into its plan *before writing code*.
-7. During execution, if the agent encounters a novel issue (e.g. a new undocumented behaviour), it calls `craic_propose` with a draft knowledge unit.
+7. During execution, if the agent encounters a novel issue (e.g. a new undocumented behaviour), it calls `cq_propose` with a draft knowledge unit.
 8. The proposed unit enters the local store immediately. If the Skill identifies it as a graduation candidate (generic, not company-specific), it flags it for HITL review.
-9. A human reviewer on the team's CRAIC dashboard sees the proposal, approves or edits it, and it enters the team store.
+9. A human reviewer on the team's cq dashboard sees the proposal, approves or edits it, and it enters the team store.
 10. Over time, if multiple organisations' agents independently confirm the same insight, it becomes a candidate for global graduation.
 
 The entire flow uses existing infrastructure: MCP for transport, Agent Skills for agent behaviour, JSON schema for data format, DIDs for identity, any-guardrail for safety, skills.sh/plugin marketplaces for distribution. No new protocols. No new runtimes. Just a knowledge layer that plugs into the stack developers already have.
@@ -355,9 +355,9 @@ The commons is not just a knowledge store — it is a data source about the agen
 
 **Why this matters:**
 
-This is a differentiator from adjacent systems like Memco/Spark, which treat shared agent memory as a flat knowledge store. CRAIC treats the commons as ecosystem intelligence: which tools are working well, where tools are missing, and where investment is needed. When you see 50 agents across 12 organisations all learning the same workaround, that is not a knowledge problem — it is a missing tool. The commons surfaces that signal with quantitative evidence.
+This is a differentiator from adjacent systems like Memco/Spark, which treat shared agent memory as a flat knowledge store. cq treats the commons as ecosystem intelligence: which tools are working well, where tools are missing, and where investment is needed. When you see 50 agents across 12 organisations all learning the same workaround, that is not a knowledge problem — it is a missing tool. The commons surfaces that signal with quantitative evidence.
 
-For Mozilla.ai specifically, this aligns with the mission: CRAIC generates open, public intelligence about where the agent tooling ecosystem needs to improve. That is the kind of structural contribution a foundation can make and a startup cannot. Any agent platform with a feature request or tool-building pipeline could consume these signals to prioritise what tools to build next — closing the loop between "agents are struggling" and "the ecosystem builds the right tools."
+For Mozilla.ai specifically, this aligns with the mission: cq generates open, public intelligence about where the agent tooling ecosystem needs to improve. That is the kind of structural contribution a foundation can make and a startup cannot. Any agent platform with a feature request or tool-building pipeline could consume these signals to prioritise what tools to build next — closing the loop between "agents are struggling" and "the ecosystem builds the right tools."
 
 ### 3.9 Graduation Nomination Lifecycle
 
@@ -382,7 +382,7 @@ Although this section focuses on the team-to-global boundary (the most complex c
 
 **The Synthesis Case**
 
-Synthesis is the most interesting outcome and represents one of CRAIC's most powerful capabilities. Consider three organisations that have each independently discovered aspects of the same underlying truth:
+Synthesis is the most interesting outcome and represents one of cq's most powerful capabilities. Consider three organisations that have each independently discovered aspects of the same underlying truth:
 
 - **Org A** nominates: *"Our payment webhook handler needs idempotency keys because Stripe retries on timeout."*
 - **Org B** nominates: *"Webhook endpoints must handle duplicate deliveries; we saw triple-delivery from Stripe during their October incident."*
@@ -418,11 +418,11 @@ This bidirectional awareness is what makes graduation safe for contributors. Tea
 
 ## 4. What This Looks Like in Practice
 
-To make CRAIC tangible, here are three user journeys showing how it works at different levels.
+To make cq tangible, here are three user journeys showing how it works at different levels.
 
 ### 4.1 A Developer's Coding Agent Hits a Known Pitfall
 
-A developer asks their coding agent to integrate a payment API. The agent begins writing code and, before executing, queries the CRAIC local store. No relevant knowledge exists locally. It queries the global commons and retrieves a learning unit: *"Stripe API v2024-12 returns 200 with error body for rate-limited requests instead of 429. Check response body for `error` field regardless of status code. Confirmed by 847 agents across 312 organisations. Confidence: high."*
+A developer asks their coding agent to integrate a payment API. The agent begins writing code and, before executing, queries the cq local store. No relevant knowledge exists locally. It queries the global commons and retrieves a learning unit: *"Stripe API v2024-12 returns 200 with error body for rate-limited requests instead of 429. Check response body for `error` field regardless of status code. Confirmed by 847 agents across 312 organisations. Confidence: high."*
 
 The agent incorporates this knowledge, writes correct error handling on the first attempt, and avoids the 3–4 failed iterations that would otherwise have been needed. The developer never notices — the agent simply got it right. Total tokens saved: approximately 12,000. Time saved: approximately 4 minutes. One less wasted API call hitting Stripe's servers.
 
@@ -430,7 +430,7 @@ The agent incorporates this knowledge, writes correct error handling on the firs
 
 A fintech company's team of agents have been working with an internal risk scoring service for six months. Multiple agents have independently logged that the service's timeout needs to be set to 15 seconds (not the documented 5 seconds) during batch processing windows. This knowledge lives in the team-level store.
 
-A team lead reviews the CRAIC team dashboard weekly. They notice this insight has been confirmed by 12 agents across 4 teams internally. They flag it for graduation review. Before submitting to the global commons, the agent categorises and abstracts it: the company-specific service name is stripped, and the insight becomes *"Internal microservices performing batch operations may require 3x the documented timeout during peak processing. Validate timeout assumptions during batch windows."* A human reviewer approves the generalised version. It enters the global commons tagged with `domain: microservices, pattern: timeout, context: batch-processing`.
+A team lead reviews the cq team dashboard weekly. They notice this insight has been confirmed by 12 agents across 4 teams internally. They flag it for graduation review. Before submitting to the global commons, the agent categorises and abstracts it: the company-specific service name is stripped, and the insight becomes *"Internal microservices performing batch operations may require 3x the documented timeout during peak processing. Validate timeout assumptions during batch windows."* A human reviewer approves the generalised version. It enters the global commons tagged with `domain: microservices, pattern: timeout, context: batch-processing`.
 
 ### 4.3 An Agent Identifies Its Own Knowledge Gap
 
@@ -445,7 +445,7 @@ These journeys suggest a natural MVP progression:
 - **MVP 1 — Local store and query:** A single agent can persist learnings across sessions and query them. No sharing, no trust layer. Proves the knowledge format works.
 - **MVP 2 — Team sharing:** Multiple agents within one organisation share a knowledge store. HITL dashboard for review. Proves the graduation and curation mechanics.
 - **MVP 3 — Global commons (read-only):** Agents can query a curated, bootstrapped global commons (seeded with documentation and synthetic traces, similar to Spark's approach). Proves cross-agent value.
-- **MVP 4 — Global commons (read-write with trust):** Agents contribute to and consume from the global commons with identity verification, reputation scoring, and HITL graduation. The full CRAIC loop.
+- **MVP 4 — Global commons (read-write with trust):** Agents contribute to and consume from the global commons with identity verification, reputation scoring, and HITL graduation. The full cq loop.
 
 ---
 
@@ -464,7 +464,7 @@ Several adjacent efforts exist, but none deliver the full vision described above
 
 **The key observation:** the infrastructure pieces exist (identity, privacy, transactions, academic theory) but nobody is building the knowledge commons layer itself, and nobody is doing it as an open standard. This is the gap.
 
-There is a second, subtler gap. All of the systems above — including Memco/Spark — treat shared agent memory as a flat knowledge store. None of them treat the aggregate patterns in the data as ecosystem intelligence: which tools are working well, where tools are missing, where investment is needed. CRAIC's knowledge unit lifecycle model (section 3.8) enables this: the commons doesn't just make agents smarter, it reveals where the tooling ecosystem has structural gaps. That meta-level insight is unique to CRAIC's approach.
+There is a second, subtler gap. All of the systems above — including Memco/Spark — treat shared agent memory as a flat knowledge store. None of them treat the aggregate patterns in the data as ecosystem intelligence: which tools are working well, where tools are missing, where investment is needed. cq's knowledge unit lifecycle model (section 3.8) enables this: the commons doesn't just make agents smarter, it reveals where the tooling ecosystem has structural gaps. That meta-level insight is unique to cq's approach.
 
 ---
 
@@ -482,27 +482,27 @@ Mozilla has a unique position and credibility to lead this effort, for several r
 
 ## 7. Regulatory Alignment: EU AI Act
 
-The EU AI Act becomes fully enforceable for high-risk AI systems on 2 August 2026. Its requirements around transparency, human oversight, data governance, and risk management are not optional — they carry significant penalties for non-compliance. CRAIC's architecture was not designed to satisfy regulation, but it turns out to align naturally with several core requirements. This is a significant selling point for enterprise adoption: organisations that use CRAIC are building compliance into their agent infrastructure rather than retrofitting it later.
+The EU AI Act becomes fully enforceable for high-risk AI systems on 2 August 2026. Its requirements around transparency, human oversight, data governance, and risk management are not optional — they carry significant penalties for non-compliance. cq's architecture was not designed to satisfy regulation, but it turns out to align naturally with several core requirements. This is a significant selling point for enterprise adoption: organisations that use cq are building compliance into their agent infrastructure rather than retrofitting it later.
 
 ### 7.1 Human Oversight (Article 14)
 
-The EU AI Act requires that high-risk AI systems be designed to allow effective human oversight, including the ability to understand the system's capabilities and limitations and to intervene or interrupt as necessary. CRAIC's HITL graduation pipeline directly satisfies this: humans review and approve knowledge before it moves from local to team scope, and from team to global scope. Agents propose, humans decide. This is not a bolted-on compliance checkbox — it is a core architectural feature that simultaneously improves knowledge quality and satisfies regulatory requirements.
+The EU AI Act requires that high-risk AI systems be designed to allow effective human oversight, including the ability to understand the system's capabilities and limitations and to intervene or interrupt as necessary. cq's HITL graduation pipeline directly satisfies this: humans review and approve knowledge before it moves from local to team scope, and from team to global scope. Agents propose, humans decide. This is not a bolted-on compliance checkbox — it is a core architectural feature that simultaneously improves knowledge quality and satisfies regulatory requirements.
 
 ### 7.2 Transparency and Record-Keeping (Articles 11, 12, 13)
 
-The Act requires detailed technical documentation, automatic logging of relevant events, and transparency to downstream deployers. CRAIC's knowledge format includes provenance tracking (contributing agent DID, timestamps, confirmation history), versioning, and structured metadata. Every learning unit in the commons has a verifiable chain of attribution — who contributed it, who confirmed it, when it was last validated. This creates an audit trail that is native to the system rather than a separate compliance layer.
+The Act requires detailed technical documentation, automatic logging of relevant events, and transparency to downstream deployers. cq's knowledge format includes provenance tracking (contributing agent DID, timestamps, confirmation history), versioning, and structured metadata. Every learning unit in the commons has a verifiable chain of attribution — who contributed it, who confirmed it, when it was last validated. This creates an audit trail that is native to the system rather than a separate compliance layer.
 
 ### 7.3 Risk Management (Article 9)
 
-Providers must establish a documented risk management system that identifies, analyses, and mitigates risks throughout the AI system's lifecycle. CRAIC's anti-poisoning safeguards (anomaly detection, diversity requirements, reputation scoring) and its integration with guardrails tooling (such as any-guardrail) constitute a risk management layer for shared knowledge. The layered architecture itself is a risk mitigation: sensitive knowledge stays in the local/team layer, and only validated, generic insights reach the global commons.
+Providers must establish a documented risk management system that identifies, analyses, and mitigates risks throughout the AI system's lifecycle. cq's anti-poisoning safeguards (anomaly detection, diversity requirements, reputation scoring) and its integration with guardrails tooling (such as any-guardrail) constitute a risk management layer for shared knowledge. The layered architecture itself is a risk mitigation: sensitive knowledge stays in the local/team layer, and only validated, generic insights reach the global commons.
 
 ### 7.4 Data Governance (Article 10)
 
-The Act requires that training, validation, and testing datasets be relevant, representative, and free of errors to the best extent possible. While CRAIC is not a training dataset in the traditional sense, the same principles apply to a knowledge commons. The HITL review process, multi-factor reputation scoring, and staleness detection mechanisms are all data governance controls applied to shared agent knowledge. The privacy layer (Midnight/ZK proofs) ensures that no PII or company-specific data enters the commons, addressing data protection obligations.
+The Act requires that training, validation, and testing datasets be relevant, representative, and free of errors to the best extent possible. While cq is not a training dataset in the traditional sense, the same principles apply to a knowledge commons. The HITL review process, multi-factor reputation scoring, and staleness detection mechanisms are all data governance controls applied to shared agent knowledge. The privacy layer (Midnight/ZK proofs) ensures that no PII or company-specific data enters the commons, addressing data protection obligations.
 
 ### 7.5 Accuracy and Robustness (Article 15)
 
-High-risk AI systems must achieve appropriate levels of accuracy and robustness. CRAIC's confirmation mechanism — where knowledge gains confidence as independent agents verify it — is a built-in accuracy measure. Stale or incorrect knowledge decays in confidence over time and can be flagged or deprecated. This means agents drawing on the commons are consuming knowledge with quantifiable confidence levels, not unvetted assertions.
+High-risk AI systems must achieve appropriate levels of accuracy and robustness. cq's confirmation mechanism — where knowledge gains confidence as independent agents verify it — is a built-in accuracy measure. Stale or incorrect knowledge decays in confidence over time and can be flagged or deprecated. This means agents drawing on the commons are consuming knowledge with quantifiable confidence levels, not unvetted assertions.
 
 ### 7.6 Contributor Liability and the Contributor Agreement
 
@@ -510,7 +510,7 @@ A key question under the EU AI Act is whether knowledge unit contributors are "d
 
 The position: no. Contributing a knowledge unit is providing information, not deploying an AI system. The analogy is StackOverflow: answerers are not liable when someone copies their code into a production system that fails. The Act's liability framework is aimed at deployers and providers, not upstream data contributors. Causal opacity — the knowledge unit passes through an LLM's interpretation before affecting agent behaviour — further weakens any causal chain from contributor to harm.
 
-That said, this assumption must be explicit, not assumed. CRAIC requires an explicit **contributor agreement** for knowledge unit contributions (distinct from the Apache 2.0 licence governing code contributions). The agreement establishes:
+That said, this assumption must be explicit, not assumed. cq requires an explicit **contributor agreement** for knowledge unit contributions (distinct from the Apache 2.0 licence governing code contributions). The agreement establishes:
 
 - **Originality and rights:** Contributors represent that submissions are their own work and do not contain proprietary third-party information.
 - **No PII:** Contributors represent that submissions do not contain personally identifiable information. Automated guardrails are a safety net, not a substitute for contributor diligence.
@@ -523,7 +523,7 @@ This is similar to how npm package authors are not liable for downstream use, bu
 
 ### 7.7 The Compliance Narrative for Enterprises
 
-For organisations evaluating CRAIC, the regulatory message is straightforward: adopting CRAIC does not just make your agents smarter and more efficient — it gives you auditable provenance on the knowledge your agents use, human oversight checkpoints at every scope boundary, built-in risk management through trust and reputation mechanisms, and data governance by design with privacy-preserving sharing. In a regulatory environment where "no documentation equals failed audit," a system that generates documentation and audit trails as a byproduct of normal operation is a significant advantage.
+For organisations evaluating cq, the regulatory message is straightforward: adopting cq does not just make your agents smarter and more efficient — it gives you auditable provenance on the knowledge your agents use, human oversight checkpoints at every scope boundary, built-in risk management through trust and reputation mechanisms, and data governance by design with privacy-preserving sharing. In a regulatory environment where "no documentation equals failed audit," a system that generates documentation and audit trails as a byproduct of normal operation is a significant advantage.
 
 ---
 

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "craic-mcp-server"
+name = "cq-mcp-server"
 version = "0.3.3"
-description = "CRAIC MCP server — shared agent knowledge commons"
+description = "cq MCP server — shared agent knowledge commons"
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.25",
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-craic-mcp-server = "craic_mcp.server:main"
+cq-mcp-server = "cq_mcp.server:main"
 
 [dependency-groups]
 dev = [
@@ -33,7 +33,7 @@ tests = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["craic_mcp"]
+packages = ["cq_mcp"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

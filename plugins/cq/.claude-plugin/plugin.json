@@ -1,0 +1,13 @@
+{
+  "name": "cq",
+  "version": "0.3.3",
+  "description": "Shared agent knowledge commons derived from colloquy — reciprocal knowledge sharing through dialogue",
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "mcpServers": {
+    "cq": {
+      "command": "uv",
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}/server", "cq-mcp-server"]
+    }
+  }
+}

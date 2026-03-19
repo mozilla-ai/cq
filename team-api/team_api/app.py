@@ -1,4 +1,4 @@
-"""CRAIC team knowledge store API."""
+"""cq team knowledge store API."""
 
 import os
 from collections.abc import AsyncIterator
@@ -60,17 +60,17 @@ def _get_store() -> TeamStore:
 async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     """Manage the store lifecycle."""
     global _store  # noqa: PLW0603
-    jwt_secret = os.environ.get("CRAIC_JWT_SECRET")
+    jwt_secret = os.environ.get("CQ_JWT_SECRET")
     if not jwt_secret:
-        raise RuntimeError("CRAIC_JWT_SECRET environment variable is required")
-    db_path = Path(os.environ.get("CRAIC_DB_PATH", "/data/team.db"))
+        raise RuntimeError("CQ_JWT_SECRET environment variable is required")
+    db_path = Path(os.environ.get("CQ_DB_PATH", "/data/team.db"))
     _store = TeamStore(db_path=db_path)
     app_instance.state.store = _store
     yield
     _store.close()
 
 
-app = FastAPI(title="CRAIC Team API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="cq Team API", version="0.1.0", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(review_router)
 
@@ -148,5 +148,5 @@ def stats() -> StatsResponse:
 
 
 def main() -> None:
-    """Start the CRAIC team API server."""
+    """Start the cq team API server."""
     uvicorn.run(app, host="0.0.0.0", port=8742)

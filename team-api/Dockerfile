@@ -23,4 +23,4 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 EXPOSE 8742
 
-CMD ["/app/.venv/bin/craic-team-api"]
+CMD ["/app/.venv/bin/cq-team-api"]

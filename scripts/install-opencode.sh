@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install or uninstall CRAIC for OpenCode.
+# Install or uninstall cq for OpenCode.
 #
 # Usage:
 #   install-opencode.sh install [--project <path>]
@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PLUGIN_DIR="${REPO_ROOT}/plugins/craic"
+PLUGIN_DIR="${REPO_ROOT}/plugins/cq"
 SERVER_DIR="${PLUGIN_DIR}/server"
 
 # -- Dependencies. --
@@ -125,18 +125,18 @@ remove_commands() {
 }
 
 # -- AGENTS.md rules. --
-# Adds a CRAIC section between markers so it can be cleanly removed without
+# Adds a CQ section between markers so it can be cleanly removed without
 # disturbing other content the user or other tools may have added.
 
-CRAIC_MARKER_START="<!-- craic:start -->"
-CRAIC_MARKER_END="<!-- craic:end -->"
+CQ_MARKER_START="<!-- cq:start -->"
+CQ_MARKER_END="<!-- cq:end -->"
 
-CRAIC_AGENTS_BLOCK="$(cat <<'BLOCK'
-<!-- craic:start -->
-## CRAIC
+CQ_AGENTS_BLOCK="$(cat <<'BLOCK'
+<!-- cq:start -->
+## CQ
 
-Before starting any implementation task, load the `craic` skill and follow its Core Protocol.
-<!-- craic:end -->
+Before starting any implementation task, load the `cq` skill and follow its Core Protocol.
+<!-- cq:end -->
 BLOCK
 )"
 
@@ -144,16 +144,16 @@ configure_agents_md() {
     local agents_file="${TARGET}/AGENTS.md"
 
     if [[ -f "${agents_file}" ]]; then
-        if grep -qF "${CRAIC_MARKER_START}" "${agents_file}"; then
-            echo "  CRAIC section already present in ${agents_file}"
+        if grep -qF "${CQ_MARKER_START}" "${agents_file}"; then
+            echo "  CQ section already present in ${agents_file}"
         else
-            printf '\n%s\n' "${CRAIC_AGENTS_BLOCK}" >> "${agents_file}"
-            echo "  Appended CRAIC section to ${agents_file}"
+            printf '\n%s\n' "${CQ_AGENTS_BLOCK}" >> "${agents_file}"
+            echo "  Appended CQ section to ${agents_file}"
         fi
     else
         mkdir -p "$(dirname "${agents_file}")"
-        printf '%s\n' "${CRAIC_AGENTS_BLOCK}" > "${agents_file}"
-        echo "  Created ${agents_file} with CRAIC section"
+        printf '%s\n' "${CQ_AGENTS_BLOCK}" > "${agents_file}"
+        echo "  Created ${agents_file} with CQ section"
     fi
 }
 
@@ -161,18 +161,18 @@ remove_agents_md() {
     local agents_file="${TARGET}/AGENTS.md"
     [[ -f "${agents_file}" ]] || return 0
 
-    if ! grep -qF "${CRAIC_MARKER_START}" "${agents_file}"; then
+    if ! grep -qF "${CQ_MARKER_START}" "${agents_file}"; then
         return 0
     fi
 
-    if ! grep -qF "${CRAIC_MARKER_END}" "${agents_file}"; then
+    if ! grep -qF "${CQ_MARKER_END}" "${agents_file}"; then
         echo "  Warning: ${agents_file} has start marker but no end marker — skipping" >&2
         return 0
     fi
 
-    # Remove the CRAIC section and any trailing blank lines it left behind.
+    # Remove the CQ section and any trailing blank lines it left behind.
     local tmp
-    tmp=$(awk -v start="${CRAIC_MARKER_START}" -v end="${CRAIC_MARKER_END}" '
+    tmp=$(awk -v start="${CQ_MARKER_START}" -v end="${CQ_MARKER_END}" '
         $0 == start { skip=1; next }
         $0 == end   { skip=0; next }
         skip { next }
@@ -190,7 +190,7 @@ remove_agents_md() {
         echo "  Removed ${agents_file} (no other content)"
     else
         printf '%s\n' "${tmp}" > "${agents_file}"
-        echo "  Removed CRAIC section from ${agents_file}"
+        echo "  Removed CQ section from ${agents_file}"
     fi
 }
 
@@ -201,26 +201,26 @@ configure_mcp() {
     local server_path
     server_path="$(cd "${SERVER_DIR}" && pwd)"
 
-    local craic_entry
-    craic_entry=$(jq -n \
+    local cq_entry
+    cq_entry=$(jq -n \
         --arg dir "${server_path}" \
-        '{ type: "local", command: ["uv", "run", "--directory", $dir, "craic-mcp-server"] }')
+        '{ type: "local", command: ["uv", "run", "--directory", $dir, "cq-mcp-server"] }')
 
     if [[ -f "${config_file}" ]]; then
-        if jq -e '.mcp.craic' "${config_file}" &>/dev/null; then
+        if jq -e '.mcp.cq' "${config_file}" &>/dev/null; then
             echo "  MCP server already configured in ${config_file}"
         else
             local tmp
-            tmp=$(jq --argjson entry "${craic_entry}" '.mcp.craic = $entry' "${config_file}")
+            tmp=$(jq --argjson entry "${cq_entry}" '.mcp.cq = $entry' "${config_file}")
             printf '%s\n' "${tmp}" > "${config_file}"
-            echo "  Added CRAIC MCP server to ${config_file}"
+            echo "  Added CQ MCP server to ${config_file}"
         fi
     else
         mkdir -p "$(dirname "${config_file}")"
-        jq -n --argjson entry "${craic_entry}" \
-            '{ "$schema": "https://opencode.ai/config.json", mcp: { craic: $entry } }' \
+        jq -n --argjson entry "${cq_entry}" \
+            '{ "$schema": "https://opencode.ai/config.json", mcp: { cq: $entry } }' \
             > "${config_file}"
-        echo "  Created ${config_file} with CRAIC MCP server"
+        echo "  Created ${config_file} with CQ MCP server"
     fi
 }
 
@@ -229,16 +229,16 @@ remove_mcp() {
     [[ -f "${config_file}" ]] || return 0
 
     local tmp
-    tmp=$(jq 'del(.mcp.craic) | if .mcp == {} then del(.mcp) else . end' "${config_file}")
+    tmp=$(jq 'del(.mcp.cq) | if .mcp == {} then del(.mcp) else . end' "${config_file}")
     printf '%s\n' "${tmp}" > "${config_file}"
-    echo "  Removed CRAIC MCP server from ${config_file}"
+    echo "  Removed CQ MCP server from ${config_file}"
 }
 
 # -- Dispatch. --
 
 case "${ACTION}" in
     install)
-        echo "Installing CRAIC for OpenCode (${TARGET})..."
+        echo "Installing cq for OpenCode (${TARGET})..."
         apply install "${TARGET}/skills" "skill" "" "${PLUGIN_DIR}"/skills/*/
         generate_commands "${TARGET}/commands"
         configure_mcp
@@ -247,7 +247,7 @@ case "${ACTION}" in
         echo "Done. Restart OpenCode to pick up the changes."
         ;;
     uninstall)
-        echo "Removing CRAIC for OpenCode (${TARGET})..."
+        echo "Removing cq for OpenCode (${TARGET})..."
         apply uninstall "${TARGET}/skills" "skill" "" "${PLUGIN_DIR}"/skills/*/
         remove_commands "${TARGET}/commands"
         remove_mcp

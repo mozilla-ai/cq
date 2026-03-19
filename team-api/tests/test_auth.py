@@ -13,8 +13,8 @@ from team_api.auth import create_token, hash_password, verify_password, verify_t
 
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setenv("CRAIC_DB_PATH", str(tmp_path / "test.db"))
-    monkeypatch.setenv("CRAIC_JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("CQ_JWT_SECRET", "test-secret")
     with TestClient(app) as c:
         yield c
 
@@ -42,31 +42,38 @@ class TestPasswordHashing:
 
 class TestJWT:
     def test_create_and_verify_token(self) -> None:
-        token = create_token("peter", secret="test-secret", ttl_hours=24)
-        payload = verify_token(token, secret="test-secret")
+        test_secret = "test-secret"  # pragma: allowlist secret
+        token = create_token("peter", secret=test_secret, ttl_hours=24)
+        payload = verify_token(token, secret=test_secret)
         assert payload["sub"] == "peter"
 
     def test_expired_token_rejected(self) -> None:
-        token = create_token("peter", secret="test-secret", ttl_hours=0)
+        test_secret = "test-secret"  # pragma: allowlist secret
+        token = create_token("peter", secret=test_secret, ttl_hours=0)
         time.sleep(1)
         with pytest.raises(jwt.ExpiredSignatureError):
-            verify_token(token, secret="test-secret")
+            verify_token(token, secret=test_secret)
 
     def test_invalid_token_rejected(self) -> None:
+        test_secret = "test-secret"  # pragma: allowlist secret
         with pytest.raises(jwt.DecodeError):
-            verify_token("not.a.token", secret="test-secret")
+            verify_token("not.a.token", secret=test_secret)
 
     def test_wrong_secret_rejected(self) -> None:
-        token = create_token("peter", secret="secret-a")
+        secret_a = "secret-a"  # pragma: allowlist secret
+        secret_b = "secret-b"  # pragma: allowlist secret
+        token = create_token("peter", secret=secret_a)
         with pytest.raises(jwt.InvalidSignatureError):
-            verify_token(token, secret="secret-b")
+            verify_token(token, secret=secret_b)
 
 
 class TestLoginEndpoint:
+    test_password = "secret123"  # pragma: allowlist secret
+
     def test_login_success(self, client: TestClient) -> None:
         _seed_user(client)
         resp = client.post(
-            "/auth/login", json={"username": "peter", "password": "secret123"}
+            "/auth/login", json={"username": "peter", "password": self.test_password}
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -76,22 +83,25 @@ class TestLoginEndpoint:
     def test_login_wrong_password(self, client: TestClient) -> None:
         _seed_user(client)
         resp = client.post(
-            "/auth/login", json={"username": "peter", "password": "wrong"}
+            "/auth/login",
+            json={"username": "peter", "password": "wrong"},  # pragma: allowlist secret
         )
         assert resp.status_code == 401
 
     def test_login_unknown_user(self, client: TestClient) -> None:
         resp = client.post(
-            "/auth/login", json={"username": "nobody", "password": "secret123"}
+            "/auth/login", json={"username": "nobody", "password": self.test_password}
         )
         assert resp.status_code == 401
 
 
 class TestAuthMe:
+    test_password = "secret123"  # pragma: allowlist secret
+
     def test_me_with_valid_token(self, client: TestClient) -> None:
         _seed_user(client)
         login = client.post(
-            "/auth/login", json={"username": "peter", "password": "secret123"}
+            "/auth/login", json={"username": "peter", "password": self.test_password}
         )
         token = login.json()["token"]
         resp = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})

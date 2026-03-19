@@ -1,7 +1,7 @@
-"""CRAIC MCP server — shared agent knowledge commons.
+"""cq MCP server — shared agent knowledge commons.
 
 Exposes six tools via the Model Context Protocol:
-craic_query, craic_propose, craic_confirm, craic_flag, craic_reflect, craic_status.
+cq_query, cq_propose, cq_confirm, cq_flag, cq_reflect, cq_status.
 
 Searches local store first, then the team API. Degrades gracefully
 to local-only mode when the team API is unreachable.
@@ -51,7 +51,7 @@ def _get_store() -> LocalStore:
     """
     global _store  # noqa: PLW0603
     if _store is None:
-        db_path_str = os.environ.get("CRAIC_LOCAL_DB_PATH")
+        db_path_str = os.environ.get("CQ_LOCAL_DB_PATH")
         db_path = Path(db_path_str) if db_path_str else None
         _store = LocalStore(db_path=db_path)
     return _store
@@ -73,7 +73,7 @@ _team_client: TeamClient | object | None = None
 def _get_team_client() -> TeamClient | None:
     """Return the team API client, creating it on first access.
 
-    Returns None when CRAIC_TEAM_ADDR is empty or unset (local-only mode).
+    Returns None when CQ_TEAM_ADDR is empty or unset (local-only mode).
     Called from the event loop thread only — no locking required.
     """
     global _team_client  # noqa: PLW0603
@@ -81,7 +81,7 @@ def _get_team_client() -> TeamClient | None:
         return None
     if isinstance(_team_client, TeamClient):
         return _team_client
-    url = os.environ.get("CRAIC_TEAM_ADDR", _DEFAULT_TEAM_ADDR)
+    url = os.environ.get("CQ_TEAM_ADDR", _DEFAULT_TEAM_ADDR)
     if not url:
         _team_client = _DISABLED_SENTINEL
         return None
@@ -97,15 +97,15 @@ async def _close_team_client() -> None:
     _team_client = None
 
 
-# Tracks how many KUs were promoted at startup for craic_status reporting.
-# None means no drain has run (CRAIC_TEAM_ADDR not configured).
+# Tracks how many KUs were promoted at startup for cq_status reporting.
+# None means no drain has run (CQ_TEAM_ADDR not configured).
 _drain_promoted_count: int | None = None
 
 
 async def _drain_local_to_team() -> None:
     """Promote locally-stored fallback KUs to the team API.
 
-    Runs once at MCP server startup when CRAIC_TEAM_ADDR is configured.
+    Runs once at MCP server startup when CQ_TEAM_ADDR is configured.
     KUs that were stored locally as a fallback (e.g. when the team API
     was temporarily unreachable) are proposed to team concurrently.
     Successfully promoted KUs are deleted from local store; failures
@@ -179,17 +179,17 @@ async def _lifespan(_server: FastMCP) -> AsyncIterator[None]:
 
 
 mcp = FastMCP(
-    "craic",
+    "cq",
     instructions=(
-        "CRAIC — Collective Reciprocal Agent Intelligence Commons.\n"
+        "cq — shared agent knowledge commons.\n"
         "Shared knowledge store that helps agents avoid known pitfalls.\n"
         "\n"
         "Environment variables:\n"
-        "  CRAIC_LOCAL_DB_PATH  Path to the local SQLite database.\n"
-        "                       Default: ~/.craic/local.db.\n"
-        "  CRAIC_TEAM_ADDR      URL of the team knowledge API for shared sync.\n"
-        "                       Disabled by default. Set to enable team sync,\n"
-        "                       e.g. http://localhost:8742."
+        "  CQ_LOCAL_DB_PATH  Path to the local SQLite database.\n"
+        "                    Default: ~/.cq/local.db.\n"
+        "  CQ_TEAM_ADDR      URL of the team knowledge API for shared sync.\n"
+        "                    Disabled by default. Set to enable team sync,\n"
+        "                    e.g. http://localhost:8742."
     ),
     lifespan=_lifespan,
 )
@@ -267,7 +267,7 @@ def _merge_results(
 
 
 @mcp.tool()
-async def craic_query(
+async def cq_query(
     domain: list[str],
     language: str | None = None,
     framework: str | None = None,
@@ -336,12 +336,12 @@ async def craic_query(
     )
     for result in results:
         unit_id = result["id"]
-        result["action_required"] = f'If you verify this, call craic_confirm(unit_id="{unit_id}").'
+        result["action_required"] = f'If you verify this, call cq_confirm(unit_id="{unit_id}").'
     return {"results": results, "source": source, "team": team_status}
 
 
 @mcp.tool()
-async def craic_propose(
+async def cq_propose(
     summary: str,
     detail: str,
     action: str,
@@ -423,7 +423,7 @@ async def craic_propose(
 
 
 @mcp.tool()
-async def craic_confirm(unit_id: str) -> dict:
+async def cq_confirm(unit_id: str) -> dict:
     """Confirm a knowledge unit proved correct, boosting its confidence.
 
     Checks the local store first, then the team API. If found in both,
@@ -472,7 +472,7 @@ async def craic_confirm(unit_id: str) -> dict:
 
 
 @mcp.tool()
-async def craic_flag(unit_id: str, reason: str) -> dict:
+async def cq_flag(unit_id: str, reason: str) -> dict:
     """Flag a knowledge unit as problematic, reducing its confidence.
 
     Checks the local store first, then the team API. If found in both,
@@ -529,15 +529,15 @@ async def craic_flag(unit_id: str, reason: str) -> dict:
 
 
 @mcp.tool()
-def craic_reflect(session_context: str) -> dict:
+def cq_reflect(session_context: str) -> dict:
     """Analyse session context for candidate knowledge units worth sharing.
 
     The agent passes its session conversation context. Returns candidates
     that may be worth proposing as knowledge units. Submit approved
-    candidates individually via craic_propose.
+    candidates individually via cq_propose.
 
     This tool is a stub in the PoC. Session mining intelligence lives in
-    the /craic:reflect slash command (issue #9).
+    the /cq:reflect slash command (issue #9).
 
     Args:
         session_context: The session conversation context to analyse.
@@ -553,13 +553,13 @@ def craic_reflect(session_context: str) -> dict:
         }
     return {
         "candidates": [],
-        "message": "Session context received. Identify candidate knowledge units and submit each via craic_propose.",
+        "message": "Session context received. Identify candidate knowledge units and submit each via cq_propose.",
         "status": "stub",
     }
 
 
 @mcp.tool()
-async def craic_status() -> dict:
+async def cq_status() -> dict:
     """Return knowledge store statistics and team API connectivity.
 
     Provides an overview of the local store: total knowledge unit count,
@@ -590,5 +590,5 @@ async def craic_status() -> dict:
 
 
 def main() -> None:
-    """Start the CRAIC MCP server."""
+    """Start the cq MCP server."""
     mcp.run()

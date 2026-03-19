@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from craic_mcp.knowledge_unit import (
+from cq_mcp.knowledge_unit import (
     Context,
     Evidence,
     FlagReason,
@@ -14,8 +14,8 @@ from craic_mcp.knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
-from craic_mcp.local_store import LocalStore
-from craic_mcp.scoring import apply_confirmation, apply_flag
+from cq_mcp.local_store import LocalStore
+from cq_mcp.scoring import apply_confirmation, apply_flag
 
 
 def _make_insight(**overrides: Any) -> Insight:

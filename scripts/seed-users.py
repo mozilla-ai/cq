@@ -1,4 +1,4 @@
-"""Seed a user into the CRAIC team database."""
+"""Seed a user into the cq team database."""
 
 import argparse
 import sqlite3
@@ -9,7 +9,8 @@ import bcrypt
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed a CRAIC team user.")
+    """Seed a user into the cq team database."""
+    parser = argparse.ArgumentParser(description="Seed a cq team user.")
     parser.add_argument("--username", required=True)
     parser.add_argument("--password", required=True)
     parser.add_argument("--db", default="/data/team.db")

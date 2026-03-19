@@ -1,15 +1,15 @@
 ---
-name: craic:status
-description: Display local CRAIC knowledge store statistics — unit count, domains, recent additions, and confidence distribution.
+name: cq:status
+description: Display local cq knowledge store statistics — unit count, domains, recent additions, and confidence distribution.
 ---
 
-# /craic:status
+# /cq:status
 
-Display a summary of the local CRAIC knowledge store.
+Display a summary of the local cq knowledge store.
 
 ## Instructions
 
-1. Call the `craic_status` MCP tool (no arguments needed).
+1. Call the `cq_status` MCP tool (no arguments needed).
 2. Format the response as a readable summary using the sections below.
 
 ## Output Format
@@ -17,7 +17,7 @@ Display a summary of the local CRAIC knowledge store.
 Present the results using this structure:
 
 ```
-## CRAIC Local Store
+## cq Local Store
 
 **{total_count} knowledge units**
 
@@ -46,4 +46,4 @@ Promoted {promoted_to_team} knowledge units to team at startup.
 When `total_count` is 0:
 
 - **With `promoted_to_team`:** Show the header, total count line, and promotion line. Omit Domains, Recent Additions, and Confidence sections (there is no data to display).
-- **Without `promoted_to_team`:** Display only: "The local CRAIC store is empty. Knowledge units are added via `craic_propose` or the `/craic:reflect` command."
+- **Without `promoted_to_team`:** Display only: "The local cq store is empty. Knowledge units are added via `cq_propose` or the `/cq:reflect` command."

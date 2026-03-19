@@ -1,12 +1,12 @@
-# CRAIC Architecture
+# cq Architecture
 
-This document describes the architecture of CRAIC (Collective Reciprocal Agent Intelligence Commons) through a series of diagrams covering system boundaries, knowledge flow, tiered storage, plugin structure, and ecosystem integration.
+This document describes the architecture of cq (shared agent knowledge commons) through a series of diagrams covering system boundaries, knowledge flow, tiered storage, plugin structure, and ecosystem integration.
 
 ---
 
 ## 1. System Overview
 
-CRAIC runs across three distinct runtime boundaries. Claude Code loads the plugin configuration files that shape agent behaviour. A local MCP server process handles all CRAIC logic and owns the private knowledge store. A Docker container runs the Team API independently for shared organisational knowledge.
+cq runs across three distinct runtime boundaries. Claude Code loads the plugin configuration files that shape agent behaviour. A local MCP server process handles all cq logic and owns the private knowledge store. A Docker container runs the Team API independently for shared organisational knowledge.
 
 ```mermaid
 flowchart TB
@@ -14,14 +14,14 @@ flowchart TB
         direction TB
         skill["SKILL.md\nBehavioural instructions"]
         hook["hooks.json\nPost-error auto-query"]
-        cmd_status["/craic:status\nStore statistics"]
-        cmd_reflect["/craic:reflect\nSession mining"]
+        cmd_status["/cq:status\nStore statistics"]
+        cmd_reflect["/cq:reflect\nSession mining"]
     end
 
     subgraph mcp["Local MCP Server Process"]
         direction TB
-        server["CRAIC MCP Server\nPython / FastMCP"]
-        local_db[("Local Store\n~/.craic/local.db\nSQLite")]
+        server["cq MCP Server\nPython / FastMCP"]
+        local_db[("Local Store\n~/.cq/local.db\nSQLite")]
         server --> local_db
     end
 
@@ -46,9 +46,9 @@ flowchart TB
     class local_db,team_db dbStyle
 ```
 
-**Claude Code** loads markdown and JSON configuration files. No CRAIC code runs inside the agent process itself.
+**Claude Code** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
 
-**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store at `~/.craic/local.db`.
+**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store at `~/.cq/local.db`.
 
 **Docker Container** runs the Team API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
 
@@ -56,22 +56,22 @@ flowchart TB
 
 ## 2. Knowledge Flow
 
-The core CRAIC loop: an agent queries shared knowledge before acting, incorporates what it finds, and proposes new knowledge when it discovers something novel.
+The core cq loop: an agent queries shared knowledge before acting, incorporates what it finds, and proposes new knowledge when it discovers something novel.
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
     participant CC as Claude Code
-    participant Skill as CRAIC Skill
+    participant Skill as cq Skill
     participant MCP as MCP Server
     participant Local as Local Store
     participant Team as Team API
 
     Dev->>CC: "Integrate Stripe payments"
     CC->>Skill: Recognises trigger context (API integration)
-    Skill->>CC: Instruct: query CRAIC before acting
+    Skill->>CC: Instruct: query cq before acting
 
-    CC->>MCP: craic_query(domain=["api","payments","stripe"])
+    CC->>MCP: cq_query(domain=["api","payments","stripe"])
     MCP->>Local: Search local store
     Local-->>MCP: 0 results
     MCP->>Team: GET /query?domain=api,payments,stripe
@@ -82,7 +82,7 @@ sequenceDiagram
 
     Note over CC,MCP: Later, agent discovers undocumented behaviour...
 
-    CC->>MCP: craic_propose(summary="...", domain=["api","webhooks"])
+    CC->>MCP: cq_propose(summary="...", domain=["api","webhooks"])
     MCP->>MCP: Guardrails check (PII, prompt injection, quality)
     MCP->>Local: Store as ku_abc123 (confidence: 0.5)
     MCP-->>CC: Stored locally as ku_abc123
@@ -105,7 +105,7 @@ Knowledge graduates upward through three tiers, each with increasing scope and t
 flowchart TB
     subgraph local["Tier 1: Local"]
         direction TB
-        l_desc["Private to agent/machine\nSession learnings, error workarounds\nSQLite at ~/.craic/local.db"]
+        l_desc["Private to agent/machine\nSession learnings, error workarounds\nSQLite at ~/.cq/local.db"]
         l_conf["Confidence starts at 0.5\nNo sharing — agent's personal notebook"]
     end
 
@@ -186,12 +186,12 @@ flowchart LR
 
 ## 3b. Guardrails Layer
 
-Guardrails are a core architectural component, not an afterthought. CRAIC integrates safety and quality checks at every stage of the knowledge lifecycle through three integration points.
+Guardrails are a core architectural component, not an afterthought. cq integrates safety and quality checks at every stage of the knowledge lifecycle through three integration points.
 
 ```mermaid
 flowchart LR
     subgraph ingestion["Ingestion Filtering"]
-        ing["On craic_propose:\nPII detection\nPrompt injection filtering\nVendor bias signals\nContent quality checks"]
+        ing["On cq_propose:\nPII detection\nPrompt injection filtering\nVendor bias signals\nContent quality checks"]
     end
 
     subgraph graduation["Graduation Gates"]
@@ -199,7 +199,7 @@ flowchart LR
     end
 
     subgraph retrieval["Retrieval Validation"]
-        ret["On craic_query:\nDisputed KU flagging\nStaleness threshold alerts\nLow-confidence warnings"]
+        ret["On cq_query:\nDisputed KU flagging\nStaleness threshold alerts\nLow-confidence warnings"]
     end
 
     any["any-guardrail\nModel-agnostic interface"]
@@ -264,7 +264,7 @@ Every piece of shared knowledge flows through a common structured format — `kn
       },
       {
         "from": "team", "to": "global",
-        "approved_by": "human:reviewer_7f2a@craic.mozilla.ai",
+        "approved_by": "human:reviewer_7f2a@cq.mozilla.ai",
         "timestamp": "2025-02-01T16:45:00Z"
       }
     ]
@@ -285,7 +285,7 @@ Key design decisions:
 
 - **`insight` is tripartite:** `summary` for fast scanning, `detail` for explanation, `action` for what to do. Agents need actionable guidance, not just observations.
 - **`evidence` separates confidence from confirmations:** `contributing_orgs` is a diversity signal that feeds into anti-poisoning. Confirmation metadata includes model family; per-family breakdowns are exposed at retrieval time.
-- **`provenance` is the audit trail:** Every graduation step records the human reviewer's DID and timestamp. This makes CRAIC EU AI Act compliant by design.
+- **`provenance` is the audit trail:** Every graduation step records the human reviewer's DID and timestamp. This makes cq EU AI Act compliant by design.
 - **`lifecycle.kind`** classifies knowledge units as `pitfall`, `workaround`, or `tool-recommendation`. This drives the Level 1–4 lifecycle described in section 3d.
 - **`lifecycle.related`** supports typed relationships: `supersedes`, `contradicts`, `extends`, `requires`.
 - **`last_queried_at` and `last_confirmed_at`** enable unused KU eviction. Knowledge units that are neither queried nor confirmed within a configurable retention window are soft-deleted (tombstoned), keeping the commons clean without destroying provenance.
@@ -346,23 +346,23 @@ The API contract — how agents read and write knowledge units via MCP tools —
 
 ## 4. Plugin Anatomy
 
-The CRAIC plugin bundles everything an agent needs into a single installable unit. Each component serves a distinct role.
+The cq plugin bundles everything an agent needs into a single installable unit. Each component serves a distinct role.
 
 ```mermaid
 flowchart LR
-    subgraph plugin["CRAIC Plugin"]
+    subgraph plugin["cq Plugin"]
         direction TB
         manifest["plugin.json\nWires everything together"]
         skill["SKILL.md\nTeaches agent when to\nquery, propose, confirm, flag"]
-        reviewer["craic-reviewer.md\nSub-agent for reviewing\ngraduation candidates"]
+        reviewer["cq-reviewer.md\nSub-agent for reviewing\ngraduation candidates"]
         mcp_cfg[".mcp.json\nMCP server configuration"]
         hooks["hooks.json\nPost-error: auto-query\ncommons on failure"]
-        commands["Commands\n/craic:status — store stats\n/craic:reflect — session mining"]
+        commands["Commands\n/cq:status — store stats\n/cq:reflect — session mining"]
     end
 
     subgraph server["MCP Server"]
         direction TB
-        tools["Tools\ncraic_query\ncraic_propose\ncraic_confirm\ncraic_flag\ncraic_reflect"]
+        tools["Tools\ncq_query\ncq_propose\ncq_confirm\ncq_flag\ncq_reflect"]
     end
 
     manifest -.->|"declares"| skill
@@ -380,13 +380,13 @@ flowchart LR
     class tools serverStyle
 ```
 
-**SKILL.md** is the behavioural layer. It teaches the agent *when* to use CRAIC tools: query before unfamiliar API calls, propose when discovering undocumented behaviour, confirm when knowledge proves correct, flag when it is wrong or stale.
+**SKILL.md** is the behavioural layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behaviour, confirm when knowledge proves correct, flag when it is wrong or stale.
 
 **MCP Server** exposes five tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, team API communication, confidence scoring, and query matching.
 
-**Hooks** trigger automatically. The post-error hook instructs the agent to call `craic_query` with the error context before attempting a fix.
+**Hooks** trigger automatically. The post-error hook instructs the agent to call `cq_query` with the error context before attempting a fix.
 
-**Commands** are developer-facing. `/craic:status` shows store statistics. `/craic:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalisability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
+**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalisability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
 
 **plugin.json** is the manifest that declares all components and wires them together for one-command installation.
 
@@ -394,7 +394,7 @@ flowchart LR
 
 ## 5. MCP Ecosystem Integration
 
-CRAIC is built entirely on existing open standards. It does not introduce new protocols or runtimes — it packages a knowledge commons into the distribution formats that developers already use.
+cq is built entirely on existing open standards. It does not introduce new protocols or runtimes — it packages a knowledge commons into the distribution formats that developers already use.
 
 ```mermaid
 flowchart TB
@@ -404,14 +404,14 @@ flowchart TB
     end
 
     subgraph distribution["Distribution"]
-        skills_sh["skills.sh\nPackage manager for agent skills\nnpx skills add craic"]
+        skills_sh["skills.sh\nPackage manager for agent skills\nnpx skills add cq"]
         plugins["Agent Plugin Systems\nClaude Code, OpenCode\nOne-command install"]
     end
 
-    subgraph craic["CRAIC"]
-        craic_skill["CRAIC Skill\nWorks across all skill-compatible agents"]
-        craic_mcp["CRAIC MCP Server\nWorks with any MCP client"]
-        craic_plugin["CRAIC Plugin\nBundled distribution for\nClaude Code and OpenCode"]
+    subgraph cq_graph["cq"]
+        cq_skill["cq Skill\nWorks across all skill-compatible agents"]
+        cq_mcp["cq MCP Server\nWorks with any MCP client"]
+        cq_plugin["cq Plugin\nBundled distribution for\nClaude Code and OpenCode"]
     end
 
     subgraph agents["Agent Platforms"]
@@ -422,35 +422,35 @@ flowchart TB
         others["Gemini CLI, Copilot,\nAmp, Goose, 20+ more"]
     end
 
-    skills_std --> craic_skill
-    mcp_proto --> craic_mcp
-    craic_skill --> skills_sh
-    craic_skill -->|"bundles"| craic_plugin
-    craic_mcp -->|"bundles"| craic_plugin
-    craic_plugin --> plugins
+    skills_std --> cq_skill
+    mcp_proto --> cq_mcp
+    cq_skill --> skills_sh
+    cq_skill -->|"bundles"| cq_plugin
+    cq_mcp -->|"bundles"| cq_plugin
+    cq_plugin --> plugins
     skills_sh --> agents
     plugins --> agents
-    craic_mcp --> agents
+    cq_mcp --> agents
 
     classDef standardsStyle fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a
     classDef distStyle fill:#fef7e0,stroke:#f9ab00,color:#1a1a1a
-    classDef craicStyle fill:#e6f4ea,stroke:#34a853,color:#1a1a1a
+    classDef cqStyle fill:#e6f4ea,stroke:#34a853,color:#1a1a1a
     classDef agentStyle fill:#f3e8fd,stroke:#9334e6,color:#1a1a1a
 
     class mcp_proto,skills_std standardsStyle
     class skills_sh,plugins distStyle
-    class craic_skill,craic_mcp,craic_plugin craicStyle
+    class cq_skill,cq_mcp,cq_plugin cqStyle
     class cc,codex,cursor,opencode,others agentStyle
 ```
 
 **Three integration paths** serve different adoption levels:
 
-1. **MCP Server only** — any MCP-compatible agent can connect to the CRAIC MCP server and use the knowledge tools directly. This is the universal floor.
+1. **MCP Server only** — any MCP-compatible agent can connect to the cq MCP server and use the knowledge tools directly. This is the universal floor.
 
 2. **Skill via skills.sh** — installs `SKILL.md` and MCP configuration. Works across 30+ agents that support the Agent Skills standard. The Skill adds judgement: it teaches the agent *when* and *why* to call the tools.
 
 3. **Full Plugin** — bundles the Skill, MCP server, hooks, commands, and manifest into a one-command install for Claude Code, OpenCode, and other plugin-compatible agents. This is the richest experience.
 
-The ecosystem convergence on MCP and Agent Skills means CRAIC does not need to convince developers to adopt new protocols. It plugs into the infrastructure they already have.
+The ecosystem convergence on MCP and Agent Skills means cq does not need to convince developers to adopt new protocols. It plugs into the infrastructure they already have.
 
 > **Domain scope:** The initial implementation targets coding agents — the domain where agent tooling is most mature and adoption is fastest. The underlying mechanism (structured knowledge sharing via MCP with tiered trust) generalises to arbitrary domains: DevOps, security, data engineering, and beyond.

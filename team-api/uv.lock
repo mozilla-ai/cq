@@ -143,7 +143,7 @@ wheels = [
 ]
 
 [[package]]
-name = "craic-team-api"
+name = "cq-team-api"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

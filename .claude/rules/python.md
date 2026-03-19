@@ -4,7 +4,7 @@
 
 ---
 paths:
-  - "plugins/craic/server/**/*.py"
+  - "plugins/cq/server/**/*.py"
   - "team-api/**/*.py"
 ---
 

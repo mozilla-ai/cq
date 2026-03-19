@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "craic-team-api"
+name = "cq-team-api"
 version = "0.1.0"
-description = "CRAIC team knowledge store API"
+description = "cq team knowledge store API"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-craic-team-api = "team_api.app:main"
+cq-team-api = "team_api.app:main"
 
 [dependency-groups]
 dev = [

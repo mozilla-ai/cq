@@ -2,11 +2,11 @@
 
 .PHONY: help
 help:
-	@echo "craic - Collective Reciprocal Agent Intelligence Commons"
+	@echo "cq - shared agent knowledge commons"
 	@echo ""
 	@echo "Claude Code (recommended):"
-	@echo "  claude plugin marketplace add mozilla-ai/craic"
-	@echo "  claude plugin install craic"
+	@echo "  claude plugin marketplace add mozilla-ai/cq"
+	@echo "  claude plugin install cq"
 	@echo ""
 	@echo "OpenCode:"
 	@echo "  make install-opencode                        Install globally (~/.config/opencode/)"
@@ -62,7 +62,7 @@ endif
 ifndef PASS
 	$(error PASS is required. Usage: make seed-users USER=peter PASS=changeme)
 endif
-	docker compose exec craic-team-api /app/.venv/bin/python /app/scripts/seed-users.py --username "$(USER)" --password "$(PASS)"
+	docker compose exec cq-team-api /app/.venv/bin/python /app/scripts/seed-users.py --username "$(USER)" --password "$(PASS)"
 
 .PHONY: seed-kus
 seed-kus:
@@ -72,7 +72,7 @@ endif
 ifndef PASS
 	$(error PASS is required. Usage: make seed-kus USER=demo PASS=demo123)
 endif
-	docker compose exec craic-team-api /app/.venv/bin/python /app/scripts/seed/load.py --user "$(USER)" --pass "$(PASS)" --url http://localhost:8742
+	docker compose exec cq-team-api /app/.venv/bin/python /app/scripts/seed/load.py --user "$(USER)" --pass "$(PASS)" --url http://localhost:8742
 
 .PHONY: seed-all
 seed-all:
@@ -87,7 +87,7 @@ endif
 
 .PHONY: dev-api
 dev-api:
-	cd team-api && CRAIC_DB_PATH=./dev.db CRAIC_JWT_SECRET=dev-secret uv run craic-team-api
+	cd team-api && CQ_DB_PATH=./dev.db CQ_JWT_SECRET=dev-secret uv run cq-team-api
 
 .PHONY: dev-ui
 dev-ui:
@@ -95,8 +95,8 @@ dev-ui:
 
 .PHONY: lint
 lint:
-	cd plugins/craic/server && uv run ruff check .
-	cd plugins/craic/server && uv run ruff format --check .
+	cd plugins/cq/server && uv run ruff check .
+	cd plugins/cq/server && uv run ruff format --check .
 	cd team-api && uv run ruff check .
 	cd team-api && uv run ruff format --check .
 	cd team-ui && pnpm tsc -b
@@ -104,23 +104,23 @@ lint:
 
 .PHONY: format
 format:
-	cd plugins/craic/server && uv run ruff format .
+	cd plugins/cq/server && uv run ruff format .
 	cd team-api && uv run ruff format .
 
 .PHONY: format-check
 format-check:
-	cd plugins/craic/server && uv run ruff format --check .
+	cd plugins/cq/server && uv run ruff format --check .
 	cd team-api && uv run ruff format --check .
 
 .PHONY: typecheck
 typecheck:
-	cd plugins/craic/server && uv sync --group dev && uvx ty check craic_mcp --python .venv
+	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
 	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
 	cd team-ui && pnpm tsc -b
 
 .PHONY: test
 test:
-	cd plugins/craic/server && uv sync --group dev && uvx ty check craic_mcp --python .venv
+	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
 	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
-	cd plugins/craic/server && uv run pytest
+	cd plugins/cq/server && uv run pytest
 	cd team-api && uv run pytest
