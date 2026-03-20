@@ -30,14 +30,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: team-ui/pnpm-lock.yaml
 
-      - name: Sync dependencies
-        run: |
-          cd plugins/cq/server && uv sync --group dev
-          cd ../../../team-api && uv sync --group dev
-          cd ../team-ui && pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: make lint
+      - name: Setup and lint
+        run: make setup lint
 
   test:
     name: Test
@@ -53,10 +47,10 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Sync dependencies
+      - name: Sync Python dependencies
         run: |
-          cd plugins/cq/server && uv sync --group dev
-          cd ../../../team-api && uv sync --group dev
+          (cd plugins/cq/server && uv sync --group dev)
+          (cd team-api && uv sync --group dev)
 
       - name: Test
         run: make test

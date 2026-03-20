@@ -60,7 +60,7 @@ Add variables to `~/.claude/settings.json` under the `env` key:
 
 ### OpenCode
 
-Add an `env` key to the cq MCP server entry in your OpenCode config (`~/.config/opencode/opencode.json` or `<project>/.opencode/opencode.json`):
+Add an `environment` key to the cq MCP server entry in your OpenCode config (`~/.config/opencode/opencode.json` or `<project>/.opencode/opencode.json`):
 
 ```json
 {
@@ -68,7 +68,7 @@ Add an `env` key to the cq MCP server entry in your OpenCode config (`~/.config/
     "cq": {
       "type": "local",
       "command": ["uv", "run", "--directory", "/path/to/cq/plugins/cq/server", "cq-mcp-server"],
-      "env": {
+      "environment": {
         "CQ_TEAM_ADDR": "http://localhost:8742",
         "CQ_TEAM_API_KEY": "your-api-key"  # pragma: allowlist secret
       }
@@ -126,6 +126,10 @@ See [`docs/architecture.md`](docs/architecture.md) for the full set of architect
 ## Status
 
 Exploratory. See [`docs/`](docs/) for the proposal and PoC design.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, [DEVELOPMENT.md](DEVELOPMENT.md) for dev environment setup, and [SECURITY.md](SECURITY.md) for our security policy.
 
 ## License
 

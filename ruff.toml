@@ -1,5 +1,5 @@
 target-version = "py311"
-src = ["server/cq_mcp", "team-api/team_api"]
+src = ["plugins/cq/server/cq_mcp", "team-api/team_api"]
 line-length = 120
 include = ["*.py", "*.pyi"]
 fix = true

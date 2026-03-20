@@ -5,8 +5,7 @@ help:
 	@echo "cq - shared agent knowledge commons"
 	@echo ""
 	@echo "Claude Code (recommended):"
-	@echo "  claude plugin marketplace add mozilla-ai/cq"
-	@echo "  claude plugin install cq"
+	@echo "  make install-claude                          Install cq plugin"
 	@echo ""
 	@echo "OpenCode:"
 	@echo "  make install-opencode                        Install globally (~/.config/opencode/)"
@@ -14,9 +13,9 @@ help:
 	@echo "  make uninstall-opencode                      Remove OpenCode install"
 	@echo ""
 	@echo "Development:"
-	@echo "  make test       Run all tests"
-	@echo "  make lint       Run linters"
-	@echo "  make format     Format code"
+	@echo "  make setup     Install all dependencies"
+	@echo "  make test      Run all tests"
+	@echo "  make lint      Format, lint, and type-check all components"
 	@echo ""
 	@echo "Docker Compose:"
 	@echo "  make compose-up                              Build and start services"
@@ -25,6 +24,17 @@ help:
 	@echo "  make seed-users USER=demo PASS=demo123       Create a user"
 	@echo "  make seed-kus   USER=demo PASS=demo123       Load sample knowledge units"
 	@echo "  make seed-all   USER=demo PASS=demo123       Create user + load KUs"
+
+.PHONY: setup
+setup:
+	(cd plugins/cq/server && uv sync --group dev)
+	(cd team-api && uv sync --group dev)
+	(cd team-ui && pnpm install $(if $(CI),--frozen-lockfile,))
+
+.PHONY: install-claude
+install-claude:
+	claude plugin marketplace add mozilla-ai/cq
+	claude plugin install cq
 
 .PHONY: install-opencode
 install-opencode:
@@ -95,12 +105,8 @@ dev-ui:
 
 .PHONY: lint
 lint:
-	cd plugins/cq/server && uv run ruff check .
-	cd plugins/cq/server && uv run ruff format --check .
-	cd team-api && uv run ruff check .
-	cd team-api && uv run ruff format --check .
-	cd team-ui && pnpm tsc -b
-	cd team-ui && pnpm lint
+	cd plugins/cq/server && uv run pre-commit run --all-files --config "$(CURDIR)/.pre-commit-config.yaml"
+	bash scripts/lint-frontend.sh
 
 .PHONY: format
 format:

@@ -23,11 +23,11 @@ repos:
     hooks:
       - id: ty-check-server
         name: ty (server)
-        entry: bash -c 'cd server && uvx ty check cq_mcp --python .venv'
+        entry: bash -c 'cd plugins/cq/server && uvx ty check cq_mcp --python .venv'
         language: system
         pass_filenames: false
         types: [python]
-        files: ^server/
+        files: ^plugins/cq/server/
       - id: ty-check-team-api
         name: ty (team-api)
         entry: bash -c 'cd team-api && uvx ty check team_api --python .venv'
