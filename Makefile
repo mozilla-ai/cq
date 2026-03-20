@@ -29,7 +29,7 @@ help:
 setup:
 	(cd plugins/cq/server && uv sync --group dev)
 	(cd team-api && uv sync --group dev)
-	(cd team-ui && pnpm install)
+	(cd team-ui && pnpm install $(if $(CI),--frozen-lockfile,))
 
 .PHONY: install-claude
 install-claude:
@@ -105,7 +105,7 @@ dev-ui:
 
 .PHONY: lint
 lint:
-	uv run pre-commit run --all-files
+	cd plugins/cq/server && uv run pre-commit run --all-files --config "$(CURDIR)/.pre-commit-config.yaml"
 	bash scripts/lint-frontend.sh
 
 .PHONY: format

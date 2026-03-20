@@ -34,7 +34,7 @@ Export the required secret first:
 export CQ_JWT_SECRET=dev-secret
 ```
 
-Start all services (runs in foreground with watch mode):
+Start all services (runs in the foreground):
 
 ```bash
 make compose-up

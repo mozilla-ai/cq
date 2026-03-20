@@ -47,5 +47,10 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Setup and test
-        run: make setup test
+      - name: Sync Python dependencies
+        run: |
+          (cd plugins/cq/server && uv sync --group dev)
+          (cd team-api && uv sync --group dev)
+
+      - name: Test
+        run: make test
