@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cq-mcp-server"
-version = "0.3.3"
+version = "0.4.0"
 description = "cq MCP server — shared agent knowledge commons"
 requires-python = ">=3.11"
 dependencies = [
