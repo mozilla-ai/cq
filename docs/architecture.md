@@ -362,7 +362,7 @@ flowchart LR
 
     subgraph server["MCP Server"]
         direction TB
-        tools["Tools\nquery\npropose\nconfirm\nflag\nreflect"]
+        tools["Tools\nquery\npropose\nconfirm\nflag\nreflect\nstatus"]
     end
 
     manifest -.->|"declares"| skill
@@ -382,7 +382,7 @@ flowchart LR
 
 **SKILL.md** is the behavioural layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behaviour, confirm when knowledge proves correct, flag when it is wrong or stale.
 
-**MCP Server** exposes five tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, team API communication, confidence scoring, and query matching.
+**MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, team API communication, confidence scoring, and query matching.
 
 **Hooks** trigger automatically. The post-error hook instructs the agent to call `query` with the error context before attempting a fix.
 

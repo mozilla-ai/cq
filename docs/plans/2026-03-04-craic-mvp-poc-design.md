@@ -135,7 +135,7 @@ Minimal version of the full cq knowledge unit spec. Enough to prove the concept;
 
 ## MCP Tool Interface
 
-Five tools exposed by the MCP server:
+Six tools exposed by the MCP server:
 
 ### `query`
 

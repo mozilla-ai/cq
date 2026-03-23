@@ -226,6 +226,7 @@ The universal integration point. A standalone MCP server — deployable as a loc
 - `confirm` — Confirm an existing knowledge unit (increases confidence)
 - `flag` — Flag a unit as stale, incorrect, or a graduation candidate
 - `reflect` — Retrospectively analyse session context and return candidate knowledge units
+- `status` — Report store statistics and connectivity state
 
 The server handles authentication (via the agent's DID), routing across tiers, guardrails checks (via any-guardrail), and knowledge format validation. Because MCP is the universal agent connectivity standard, any agent with MCP support can use cq — even agents that don't support skills or plugins. The MCP server is the floor; the Skill and Plugin are the ceiling.
 

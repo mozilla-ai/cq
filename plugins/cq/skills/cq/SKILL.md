@@ -16,6 +16,7 @@ These tools communicate with a local MCP server that maintains a SQLite knowledg
 | `confirm` | After verifying | Strengthen a knowledge unit |
 | `flag` | When wrong/stale | Weaken or mark a knowledge unit |
 | `reflect` | End of session | Mine session for shareable insights |
+| `status` | On demand | Show store statistics |
 
 ## Core Protocol
 
