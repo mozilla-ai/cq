@@ -71,7 +71,7 @@ sequenceDiagram
     CC->>Skill: Recognises trigger context (API integration)
     Skill->>CC: Instruct: query cq before acting
 
-    CC->>MCP: cq_query(domain=["api","payments","stripe"])
+    CC->>MCP: query(domain=["api","payments","stripe"])
     MCP->>Local: Search local store
     Local-->>MCP: 0 results
     MCP->>Team: GET /query?domain=api,payments,stripe
@@ -82,7 +82,7 @@ sequenceDiagram
 
     Note over CC,MCP: Later, agent discovers undocumented behaviour...
 
-    CC->>MCP: cq_propose(summary="...", domain=["api","webhooks"])
+    CC->>MCP: propose(summary="...", domain=["api","webhooks"])
     MCP->>MCP: Guardrails check (PII, prompt injection, quality)
     MCP->>Local: Store as ku_abc123 (confidence: 0.5)
     MCP-->>CC: Stored locally as ku_abc123
@@ -191,7 +191,7 @@ Guardrails are a core architectural component, not an afterthought. cq integrate
 ```mermaid
 flowchart LR
     subgraph ingestion["Ingestion Filtering"]
-        ing["On cq_propose:\nPII detection\nPrompt injection filtering\nVendor bias signals\nContent quality checks"]
+        ing["On propose:\nPII detection\nPrompt injection filtering\nVendor bias signals\nContent quality checks"]
     end
 
     subgraph graduation["Graduation Gates"]
@@ -199,7 +199,7 @@ flowchart LR
     end
 
     subgraph retrieval["Retrieval Validation"]
-        ret["On cq_query:\nDisputed KU flagging\nStaleness threshold alerts\nLow-confidence warnings"]
+        ret["On query:\nDisputed KU flagging\nStaleness threshold alerts\nLow-confidence warnings"]
     end
 
     any["any-guardrail\nModel-agnostic interface"]
@@ -362,7 +362,7 @@ flowchart LR
 
     subgraph server["MCP Server"]
         direction TB
-        tools["Tools\ncq_query\ncq_propose\ncq_confirm\ncq_flag\ncq_reflect"]
+        tools["Tools\nquery\npropose\nconfirm\nflag\nreflect"]
     end
 
     manifest -.->|"declares"| skill
@@ -384,7 +384,7 @@ flowchart LR
 
 **MCP Server** exposes five tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, team API communication, confidence scoring, and query matching.
 
-**Hooks** trigger automatically. The post-error hook instructs the agent to call `cq_query` with the error context before attempting a fix.
+**Hooks** trigger automatically. The post-error hook instructs the agent to call `query` with the error context before attempting a fix.
 
 **Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalisability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
 

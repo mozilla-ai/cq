@@ -23,12 +23,12 @@ Before calling any tool, construct a compact session summary covering:
 
 The summary should be dense prose — enough for a reader with no prior context to reconstruct the session's technical events. Omit routine file edits, standard library calls, and anything already well-documented.
 
-### Step 2 — Call `cq_reflect`
+### Step 2 — Call `reflect`
 
-Call the `cq_reflect` MCP tool, passing the session summary as `session_context`.
+Call the `reflect` MCP tool, passing the session summary as `session_context`.
 
 ```
-cq_reflect(session_context="<your session summary>")
+reflect(session_context="<your session summary>")
 ```
 
 The tool may return a `candidates` list or may return an empty list with `status: "stub"`. In both cases, proceed to Step 3.
@@ -37,7 +37,7 @@ If the tool call fails (MCP server unavailable, timeout, or any error), note thi
 
 ### Step 3 — Identify candidate knowledge units
 
-Using your own reasoning, scan the session for insights worth sharing. Use any candidates returned by `cq_reflect` as a starting point; if none were returned, identify candidates independently.
+Using your own reasoning, scan the session for insights worth sharing. Use any candidates returned by `reflect` as a starting point; if none were returned, identify candidates independently.
 
 A candidate is worth sharing if it meets **all** of these criteria:
 
@@ -59,7 +59,7 @@ Do **not** include:
 
 - Standard usage of a well-documented API.
 - Project-specific business logic or implementation details that cannot be generalised.
-- Insights already surfaced and confirmed during the session (i.e. knowledge units you retrieved via `cq_query` and subsequently called `cq_confirm` on to record that they proved correct).
+- Insights already surfaced and confirmed during the session (i.e. knowledge units you retrieved via `query` and subsequently called `confirm` on to record that they proved correct).
 
 For each candidate, assign:
 
@@ -107,10 +107,10 @@ If the user requests an edit, show the current field values and ask which field 
 
 ### Step 6 — Propose approved candidates
 
-For each approved candidate, call `cq_propose`:
+For each approved candidate, call `propose`:
 
 ```
-cq_propose(
+propose(
   summary=<summary>,
   detail=<detail>,
   action=<action>,
@@ -150,5 +150,5 @@ No shareable learnings identified in this session. Sessions with debugging, work
 
 - **Empty session** — If the session contained only routine tasks, say so and stop after Step 3.
 - **All candidates skipped** — Display the summary with 0 proposed.
-- **`cq_propose` error** — Report the error inline for that candidate and continue with the next one. Do not abort.
-- **`cq_reflect` returns candidates** — Present them alongside any additional candidates you identified. Deduplicate by summary similarity before presenting.
+- **`propose` error** — Report the error inline for that candidate and continue with the next one. Do not abort.
+- **`reflect` returns candidates** — Present them alongside any additional candidates you identified. Deduplicate by summary similarity before presenting.

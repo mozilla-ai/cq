@@ -1,7 +1,7 @@
 """cq MCP server — shared agent knowledge commons.
 
 Exposes six tools via the Model Context Protocol:
-cq_query, cq_propose, cq_confirm, cq_flag, cq_reflect, cq_status.
+query, propose, confirm, flag, reflect, status.
 
 Searches local store first, then the team API. Degrades gracefully
 to local-only mode when the team API is unreachable.
@@ -97,7 +97,7 @@ async def _close_team_client() -> None:
     _team_client = None
 
 
-# Tracks how many KUs were promoted at startup for cq_status reporting.
+# Tracks how many KUs were promoted at startup for status reporting.
 # None means no drain has run (CQ_TEAM_ADDR not configured).
 _drain_promoted_count: int | None = None
 
@@ -266,8 +266,8 @@ def _merge_results(
     return [u.model_dump(mode="json") for u in top], source
 
 
-@mcp.tool()
-async def cq_query(
+@mcp.tool(name="query")
+async def query(
     domain: list[str],
     language: str | None = None,
     framework: str | None = None,
@@ -336,12 +336,12 @@ async def cq_query(
     )
     for result in results:
         unit_id = result["id"]
-        result["action_required"] = f'If you verify this, call cq_confirm(unit_id="{unit_id}").'
+        result["action_required"] = f'If you verify this, call confirm(unit_id="{unit_id}").'
     return {"results": results, "source": source, "team": team_status}
 
 
-@mcp.tool()
-async def cq_propose(
+@mcp.tool(name="propose")
+async def propose(
     summary: str,
     detail: str,
     action: str,
@@ -422,8 +422,8 @@ async def cq_propose(
     }
 
 
-@mcp.tool()
-async def cq_confirm(unit_id: str) -> dict:
+@mcp.tool(name="confirm")
+async def confirm(unit_id: str) -> dict:
     """Confirm a knowledge unit proved correct, boosting its confidence.
 
     Checks the local store first, then the team API. If found in both,
@@ -471,8 +471,8 @@ async def cq_confirm(unit_id: str) -> dict:
     return {"error": f"Knowledge unit not found: {unit_id}"}
 
 
-@mcp.tool()
-async def cq_flag(unit_id: str, reason: str) -> dict:
+@mcp.tool(name="flag")
+async def flag(unit_id: str, reason: str) -> dict:
     """Flag a knowledge unit as problematic, reducing its confidence.
 
     Checks the local store first, then the team API. If found in both,
@@ -528,13 +528,13 @@ async def cq_flag(unit_id: str, reason: str) -> dict:
     return {"error": f"Knowledge unit not found: {unit_id}"}
 
 
-@mcp.tool()
-def cq_reflect(session_context: str) -> dict:
+@mcp.tool(name="reflect")
+def reflect(session_context: str) -> dict:
     """Analyse session context for candidate knowledge units worth sharing.
 
     The agent passes its session conversation context. Returns candidates
     that may be worth proposing as knowledge units. Submit approved
-    candidates individually via cq_propose.
+    candidates individually via propose.
 
     This tool is a stub in the PoC. Session mining intelligence lives in
     the /cq:reflect slash command (issue #9).
@@ -553,13 +553,13 @@ def cq_reflect(session_context: str) -> dict:
         }
     return {
         "candidates": [],
-        "message": "Session context received. Identify candidate knowledge units and submit each via cq_propose.",
+        "message": "Session context received. Identify candidate knowledge units and submit each via propose.",
         "status": "stub",
     }
 
 
-@mcp.tool()
-async def cq_status() -> dict:
+@mcp.tool(name="status")
+async def status() -> dict:
     """Return knowledge store statistics and team API connectivity.
 
     Provides an overview of the local store: total knowledge unit count,

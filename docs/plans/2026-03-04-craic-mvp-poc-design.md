@@ -68,7 +68,7 @@ sequenceDiagram
     Dev->>CC: "Integrate Stripe payments"
     CC->>Skill: Recognises trigger: API integration
     Skill->>CC: Instruct: query cq first
-    CC->>MCP: cq_query(domain=["api","payments","stripe"])
+    CC->>MCP: query(domain=["api","payments","stripe"])
     MCP->>Local: Search local store
     Local-->>MCP: 0 results
     MCP->>Team: GET /query?domain=api,payments,stripe
@@ -78,7 +78,7 @@ sequenceDiagram
 
     Note over CC: Later, discovers novel behaviour...
 
-    CC->>MCP: cq_propose(summary="...", domain=["api","webhooks"])
+    CC->>MCP: propose(summary="...", domain=["api","webhooks"])
     MCP->>Local: Store locally
     MCP->>Team: POST /propose (insight is generic)
     MCP-->>CC: Stored as ku_abc123
@@ -137,7 +137,7 @@ Minimal version of the full cq knowledge unit spec. Enough to prove the concept;
 
 Five tools exposed by the MCP server:
 
-### `cq_query`
+### `query`
 
 Search for relevant knowledge units.
 
@@ -152,7 +152,7 @@ Returns `{ results: KnowledgeUnit[], source: "local" | "team" | "both" }`.
 
 Searches local store first, then team store. Merges and deduplicates by `id`. Returns top N ranked by relevance * confidence.
 
-### `cq_propose`
+### `propose`
 
 Submit a new knowledge unit.
 
@@ -168,7 +168,7 @@ Returns `{ id: string, tier: "local", message: string }`.
 
 Creates a knowledge unit in the local store. If the MCP server determines the insight is generic (no org-specific references), it also pushes to the team store.
 
-### `cq_confirm`
+### `confirm`
 
 Confirm a knowledge unit proved correct.
 
@@ -178,7 +178,7 @@ Confirm a knowledge unit proved correct.
 
 Returns `{ id: string, new_confidence: float, confirmations: int }`.
 
-### `cq_flag`
+### `flag`
 
 Flag a knowledge unit as problematic.
 
@@ -189,7 +189,7 @@ Flag a knowledge unit as problematic.
 
 Returns `{ id: string, new_confidence: float, message: string }`.
 
-### `cq_reflect`
+### `reflect`
 
 Retrospectively analyse session context for shareable learnings.
 
@@ -199,7 +199,7 @@ Retrospectively analyse session context for shareable learnings.
 
 Returns `{ candidates: [{ summary, detail, action, domain, estimated_relevance }] }`.
 
-The agent (via `/cq:reflect`) passes its session context. The server analyses it for patterns worth sharing and returns candidates. The agent presents them to the user for approval before calling `cq_propose` on each.
+The agent (via `/cq:reflect`) passes its session context. The server analyses it for patterns worth sharing and returns candidates. The agent presents them to the user for approval before calling `propose` on each.
 
 ---
 
@@ -209,7 +209,7 @@ The Skill is the behavioural layer that gives the agent judgement about when to 
 
 ### Query Triggers
 
-The agent should call `cq_query` when:
+The agent should call `query` when:
 
 - About to make an API call to an external service.
 - Working with a library or framework it hasn't used in this session.
@@ -218,7 +218,7 @@ The agent should call `cq_query` when:
 
 ### Propose Triggers
 
-The agent should call `cq_propose` when:
+The agent should call `propose` when:
 
 - It discovers undocumented behaviour (e.g. API returned unexpected response).
 - It finds a workaround for a known issue.
@@ -227,8 +227,8 @@ The agent should call `cq_propose` when:
 
 ### Confirm/Flag Triggers
 
-- Call `cq_confirm` when a knowledge unit proved correct during the session.
-- Call `cq_flag` when a knowledge unit is wrong, outdated, or misleading.
+- Call `confirm` when a knowledge unit proved correct during the session.
+- Call `flag` when a knowledge unit is wrong, outdated, or misleading.
 
 ---
 
@@ -236,20 +236,20 @@ The agent should call `cq_propose` when:
 
 ### Post-Error Hook
 
-Implemented as a Skill instruction rather than a shell hook. The Skill tells the agent: when you encounter an error, call `cq_query` with the error context before attempting a fix.
+Implemented as a Skill instruction rather than a shell hook. The Skill tells the agent: when you encounter an error, call `query` with the error context before attempting a fix.
 
 ### `/cq:status`
 
-Displays local store statistics: knowledge unit count, domain breakdown, most recent additions, confidence distribution. Calls `cq_query` with no filter and formats the output.
+Displays local store statistics: knowledge unit count, domain breakdown, most recent additions, confidence distribution. Calls `query` with no filter and formats the output.
 
 ### `/cq:reflect`
 
 Session mining command:
 
 1. Gathers session conversation context.
-2. Calls `cq_reflect` with the context.
+2. Calls `reflect` with the context.
 3. Presents candidate knowledge units to the user.
-4. For each approved candidate, calls `cq_propose`.
+4. For each approved candidate, calls `propose`.
 
 This is the "demo moment" — at end of session, the developer runs `/cq:reflect` and the agent identifies learnings worth sharing.
 

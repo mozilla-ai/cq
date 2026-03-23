@@ -221,11 +221,11 @@ For **Cursor** specifically, the skill translates to a `.cursor/rules/cq.mdc` ru
 
 The universal integration point. A standalone MCP server — deployable as a local stdio process or a remote streamable HTTP endpoint — that exposes a small set of tools:
 
-- `cq_query` — Search local → team → global stores for relevant knowledge
-- `cq_propose` — Submit a new knowledge unit (enters local store immediately)
-- `cq_confirm` — Confirm an existing knowledge unit (increases confidence)
-- `cq_flag` — Flag a unit as stale, incorrect, or a graduation candidate
-- `cq_reflect` — Retrospectively analyse session context and return candidate knowledge units
+- `query` — Search local → team → global stores for relevant knowledge
+- `propose` — Submit a new knowledge unit (enters local store immediately)
+- `confirm` — Confirm an existing knowledge unit (increases confidence)
+- `flag` — Flag a unit as stale, incorrect, or a graduation candidate
+- `reflect` — Retrospectively analyse session context and return candidate knowledge units
 
 The server handles authentication (via the agent's DID), routing across tiers, guardrails checks (via any-guardrail), and knowledge format validation. Because MCP is the universal agent connectivity standard, any agent with MCP support can use cq — even agents that don't support skills or plugins. The MCP server is the floor; the Skill and Plugin are the ceiling.
 
@@ -326,10 +326,10 @@ The specification should define the API contract (how agents read and write know
 1. Developer installs the cq plugin (`/plugin install cq@mozilla-ai-plugins`) or skill (`npx skills add mozilla-ai/cq`).
 2. Developer runs their agent and asks it to integrate Stripe payments.
 3. The cq Skill recognises "API integration" as a trigger context.
-4. The agent calls `cq_query` via the MCP server with domain tags `["api", "payments", "stripe"]` and the current language context.
+4. The agent calls `query` via the MCP server with domain tags `["api", "payments", "stripe"]` and the current language context.
 5. The MCP server searches local store → team store → global commons, applies any-guardrail checks on retrieved units, and returns ranked matches.
 6. The agent incorporates high-confidence knowledge into its plan *before writing code*.
-7. During execution, if the agent encounters a novel issue (e.g. a new undocumented behaviour), it calls `cq_propose` with a draft knowledge unit.
+7. During execution, if the agent encounters a novel issue (e.g. a new undocumented behaviour), it calls `propose` with a draft knowledge unit.
 8. The proposed unit enters the local store immediately. If the Skill identifies it as a graduation candidate (generic, not company-specific), it flags it for HITL review.
 9. A human reviewer on the team's cq dashboard sees the proposal, approves or edits it, and it enters the team store.
 10. Over time, if multiple organisations' agents independently confirm the same insight, it becomes a candidate for global graduation.

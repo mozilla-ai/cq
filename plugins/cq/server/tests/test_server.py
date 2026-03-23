@@ -16,12 +16,12 @@ from cq_mcp.knowledge_unit import (
 )
 from cq_mcp.server import (
     _MAX_QUERY_LIMIT,
-    cq_confirm,
-    cq_flag,
-    cq_propose,
-    cq_query,
-    cq_reflect,
-    cq_status,
+    confirm,
+    flag,
+    propose,
+    query,
+    reflect,
+    status,
 )
 from cq_mcp.team_client import TeamQueryResult, TeamRejectedError
 
@@ -50,7 +50,7 @@ async def _propose_unit(
     framework: str | None = None,
 ) -> dict:
     """Helper to propose a knowledge unit and return the result."""
-    return await cq_propose(
+    return await propose(
         summary=summary,
         detail=detail,
         action=action,
@@ -80,74 +80,74 @@ def _make_team_unit(
 
 class TestCqQuery:
     async def test_query_returns_empty_for_no_data(self) -> None:
-        result = await cq_query(domain=["databases"])
+        result = await query(domain=["databases"])
         assert result["results"] == []
         assert result["source"] == "local"
         assert result["team"] == {"status": "not_configured"}
 
     async def test_query_returns_matching_units(self) -> None:
         await _propose_unit(domain=["databases"])
-        result = await cq_query(domain=["databases"])
+        result = await query(domain=["databases"])
         assert len(result["results"]) == 1
         assert "databases" in result["results"][0]["domain"]
 
     async def test_query_results_include_confirm_reminder(self) -> None:
         proposed = await _propose_unit(domain=["databases"])
-        result = await cq_query(domain=["databases"])
+        result = await query(domain=["databases"])
         returned = result["results"][0]
         assert "action_required" in returned
         assert proposed["id"] in returned["action_required"]
-        assert "cq_confirm" in returned["action_required"]
+        assert "confirm" in returned["action_required"]
 
     async def test_query_boosts_matching_language(self) -> None:
         await _propose_unit(domain=["web"], language="python")
         await _propose_unit(domain=["web"], language="go")
-        result = await cq_query(domain=["web"], language="python")
+        result = await query(domain=["web"], language="python")
         assert len(result["results"]) == 2
         assert "python" in result["results"][0]["context"]["languages"]
 
     async def test_query_boosts_matching_framework(self) -> None:
         await _propose_unit(domain=["web"], framework="fastapi")
         await _propose_unit(domain=["web"], framework="django")
-        result = await cq_query(domain=["web"], framework="fastapi")
+        result = await query(domain=["web"], framework="fastapi")
         assert len(result["results"]) == 2
         assert "fastapi" in result["results"][0]["context"]["frameworks"]
 
     async def test_query_respects_limit(self) -> None:
         for _ in range(3):
             await _propose_unit(domain=["api"])
-        result = await cq_query(domain=["api"], limit=2)
+        result = await query(domain=["api"], limit=2)
         assert len(result["results"]) == 2
 
     async def test_query_no_match_returns_empty(self) -> None:
         await _propose_unit(domain=["databases"])
-        result = await cq_query(domain=["networking"])
+        result = await query(domain=["networking"])
         assert result["results"] == []
 
     async def test_query_empty_domain_returns_error(self) -> None:
-        result = await cq_query(domain=[])
+        result = await query(domain=[])
         assert "error" in result
 
     async def test_query_zero_limit_returns_error(self) -> None:
-        result = await cq_query(domain=["api"], limit=0)
+        result = await query(domain=["api"], limit=0)
         assert "error" in result
 
     async def test_query_negative_limit_returns_error(self) -> None:
-        result = await cq_query(domain=["api"], limit=-1)
+        result = await query(domain=["api"], limit=-1)
         assert "error" in result
 
     async def test_query_exceeding_max_limit_returns_error(self) -> None:
-        result = await cq_query(domain=["api"], limit=_MAX_QUERY_LIMIT + 1)
+        result = await query(domain=["api"], limit=_MAX_QUERY_LIMIT + 1)
         assert "error" in result
         assert str(_MAX_QUERY_LIMIT) in result["error"]
 
     async def test_query_whitespace_only_domains_returns_error(self) -> None:
-        result = await cq_query(domain=["", "  "])
+        result = await query(domain=["", "  "])
         assert "error" in result
 
     async def test_query_strips_whitespace_from_domains(self) -> None:
         await _propose_unit(domain=["databases"])
-        result = await cq_query(domain=["  databases  "])
+        result = await query(domain=["  databases  "])
         assert len(result["results"]) == 1
 
 
@@ -164,7 +164,7 @@ class TestCqQueryWithTeam:
         )
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_query(domain=["api"])
+        result = await query(domain=["api"])
         assert len(result["results"]) == 2
         assert result["source"] == "both"
         assert result["team"] == {"status": "ok"}
@@ -185,7 +185,7 @@ class TestCqQueryWithTeam:
         )
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_query(domain=["api"])
+        result = await query(domain=["api"])
         assert len(result["results"]) == 1
         # Local version takes precedence.
         assert result["results"][0]["tier"] == "local"
@@ -203,7 +203,7 @@ class TestCqQueryWithTeam:
         )
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_query(domain=["api"])
+        result = await query(domain=["api"])
         assert len(result["results"]) == 1
         assert result["source"] == "team"
         assert result["team"] == {"status": "ok"}
@@ -219,7 +219,7 @@ class TestCqQueryWithTeam:
         )
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_query(domain=["api"])
+        result = await query(domain=["api"])
         assert len(result["results"]) == 1
         assert result["source"] == "local"
         assert result["team"]["status"] == "error"
@@ -241,7 +241,7 @@ class TestCqQueryWithTeam:
         )
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_query(domain=["api"], limit=3)
+        result = await query(domain=["api"], limit=3)
         assert len(result["results"]) == 3
 
 
@@ -254,14 +254,14 @@ class TestCqPropose:
 
     async def test_propose_with_context(self) -> None:
         result = await _propose_unit(language="python", framework="fastapi")
-        stored = await cq_query(domain=["databases"], language="python")
+        stored = await query(domain=["databases"], language="python")
         assert len(stored["results"]) == 1
         assert "python" in stored["results"][0]["context"]["languages"]
         assert "fastapi" in stored["results"][0]["context"]["frameworks"]
         assert result["tier"] == "local"
 
     async def test_propose_blank_summary_returns_error(self) -> None:
-        result = await cq_propose(
+        result = await propose(
             summary="   ",
             detail="some detail",
             action="do something",
@@ -270,7 +270,7 @@ class TestCqPropose:
         assert "error" in result
 
     async def test_propose_blank_detail_returns_error(self) -> None:
-        result = await cq_propose(
+        result = await propose(
             summary="summary",
             detail="",
             action="do something",
@@ -279,7 +279,7 @@ class TestCqPropose:
         assert "error" in result
 
     async def test_propose_whitespace_only_domains_returns_error(self) -> None:
-        result = await cq_propose(
+        result = await propose(
             summary="summary",
             detail="detail",
             action="action",
@@ -289,24 +289,24 @@ class TestCqPropose:
 
     async def test_propose_strips_whitespace_from_language(self) -> None:
         await _propose_unit(domain=["web"], language="  python  ")
-        result = await cq_query(domain=["web"], language="python")
+        result = await query(domain=["web"], language="python")
         assert len(result["results"]) == 1
         assert "python" in result["results"][0]["context"]["languages"]
 
     async def test_propose_strips_whitespace_from_framework(self) -> None:
         await _propose_unit(domain=["web"], framework="  fastapi  ")
-        result = await cq_query(domain=["web"], framework="fastapi")
+        result = await query(domain=["web"], framework="fastapi")
         assert len(result["results"]) == 1
         assert "fastapi" in result["results"][0]["context"]["frameworks"]
 
     async def test_propose_treats_whitespace_only_language_as_none(self) -> None:
         await _propose_unit(domain=["web"], language="   ")
-        result = await cq_query(domain=["web"])
+        result = await query(domain=["web"])
         assert result["results"][0]["context"]["languages"] == []
 
     async def test_propose_stores_retrievable_unit(self) -> None:
         result = await _propose_unit(domain=["testing"])
-        confirmed = await cq_confirm(unit_id=result["id"])
+        confirmed = await confirm(unit_id=result["id"])
         assert confirmed["id"] == result["id"]
 
 
@@ -339,7 +339,7 @@ class TestCqProposeWithTeam:
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
         await _propose_unit(domain=["api"])
-        local_results = await cq_query(domain=["api"])
+        local_results = await query(domain=["api"])
         assert len(local_results["results"]) == 0
 
     async def test_propose_returns_error_when_team_rejects(
@@ -356,7 +356,7 @@ class TestCqProposeWithTeam:
         result = await _propose_unit(domain=["api"])
         assert "error" in result
         assert "rejected" in result["error"].lower()
-        local_results = await cq_query(domain=["api"])
+        local_results = await query(domain=["api"])
         assert len(local_results["results"]) == 0
 
     async def test_propose_falls_back_to_local_when_team_unreachable(
@@ -374,19 +374,19 @@ class TestCqProposeWithTeam:
         assert result["id"].startswith("ku_")
         assert result["tier"] == "local"
         assert "stored locally" in result["message"]
-        local_results = await cq_query(domain=["api"])
+        local_results = await query(domain=["api"])
         assert len(local_results["results"]) == 1
 
 
 class TestCqConfirm:
     async def test_confirm_boosts_confidence(self) -> None:
         proposed = await _propose_unit()
-        result = await cq_confirm(unit_id=proposed["id"])
+        result = await confirm(unit_id=proposed["id"])
         assert result["new_confidence"] == pytest.approx(0.6)
         assert result["confirmations"] == 2
 
     async def test_confirm_missing_unit_returns_error(self) -> None:
-        result = await cq_confirm(unit_id="ku_nonexistent")
+        result = await confirm(unit_id="ku_nonexistent")
         assert "error" in result
         assert "not found" in result["error"].lower()
 
@@ -402,7 +402,7 @@ class TestCqConfirmWithTeam:
         mock_client.confirm = AsyncMock(return_value=team_unit)
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_confirm(unit_id=proposed["id"])
+        result = await confirm(unit_id=proposed["id"])
         assert result["source"] == "both"
         mock_client.confirm.assert_called_once_with(proposed["id"])
 
@@ -415,7 +415,7 @@ class TestCqConfirmWithTeam:
         mock_client.confirm = AsyncMock(return_value=None)
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_confirm(unit_id=proposed["id"])
+        result = await confirm(unit_id=proposed["id"])
         assert result["source"] == "local"
 
     async def test_confirm_team_only_unit(
@@ -432,7 +432,7 @@ class TestCqConfirmWithTeam:
         mock_client.confirm = AsyncMock(return_value=confirmed_unit)
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_confirm(unit_id="ku_team_only")
+        result = await confirm(unit_id="ku_team_only")
         assert result["source"] == "team"
         assert result["new_confidence"] == pytest.approx(0.9)
 
@@ -444,34 +444,34 @@ class TestCqConfirmWithTeam:
         mock_client.confirm = AsyncMock(return_value=None)
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_confirm(unit_id="ku_nowhere")
+        result = await confirm(unit_id="ku_nowhere")
         assert "error" in result
 
 
 class TestCqFlag:
     async def test_flag_reduces_confidence(self) -> None:
         proposed = await _propose_unit()
-        result = await cq_flag(unit_id=proposed["id"], reason="stale")
+        result = await flag(unit_id=proposed["id"], reason="stale")
         assert result["new_confidence"] == pytest.approx(0.35)
         assert "flagged as stale" in result["message"]
 
     async def test_flag_missing_unit_returns_error(self) -> None:
-        result = await cq_flag(unit_id="ku_nonexistent", reason="stale")
+        result = await flag(unit_id="ku_nonexistent", reason="stale")
         assert "error" in result
 
     async def test_flag_normalises_reason_whitespace(self) -> None:
         proposed = await _propose_unit()
-        result = await cq_flag(unit_id=proposed["id"], reason="  stale  ")
+        result = await flag(unit_id=proposed["id"], reason="  stale  ")
         assert result["new_confidence"] == pytest.approx(0.35)
 
     async def test_flag_normalises_reason_case(self) -> None:
         proposed = await _propose_unit()
-        result = await cq_flag(unit_id=proposed["id"], reason="STALE")
+        result = await flag(unit_id=proposed["id"], reason="STALE")
         assert result["new_confidence"] == pytest.approx(0.35)
 
     async def test_flag_invalid_reason_returns_error(self) -> None:
         proposed = await _propose_unit()
-        result = await cq_flag(unit_id=proposed["id"], reason="invalid")
+        result = await flag(unit_id=proposed["id"], reason="invalid")
         assert "error" in result
         assert "Invalid reason" in result["error"]
 
@@ -487,7 +487,7 @@ class TestCqFlagWithTeam:
         mock_client.flag = AsyncMock(return_value=team_unit)
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_flag(unit_id=proposed["id"], reason="stale")
+        result = await flag(unit_id=proposed["id"], reason="stale")
         assert result["source"] == "both"
 
     async def test_flag_team_only_unit(
@@ -504,7 +504,7 @@ class TestCqFlagWithTeam:
         mock_client.flag = AsyncMock(return_value=flagged_unit)
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_flag(unit_id="ku_team_only", reason="stale")
+        result = await flag(unit_id="ku_team_only", reason="stale")
         assert result["source"] == "team"
         assert result["new_confidence"] == pytest.approx(0.65)
 
@@ -516,20 +516,20 @@ class TestCqFlagWithTeam:
         mock_client.flag = AsyncMock(return_value=None)
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_flag(unit_id="ku_nowhere", reason="stale")
+        result = await flag(unit_id="ku_nowhere", reason="stale")
         assert "error" in result
 
 
 class TestCqReflect:
     def test_reflect_returns_candidates_structure(self) -> None:
-        result = cq_reflect(session_context="I discovered a bug in the API.")
+        result = reflect(session_context="I discovered a bug in the API.")
         assert "candidates" in result
         assert isinstance(result["candidates"], list)
         assert "message" in result
         assert result["status"] == "stub"
 
     def test_reflect_empty_context_returns_message(self) -> None:
-        result = cq_reflect(session_context="   ")
+        result = reflect(session_context="   ")
         assert result["candidates"] == []
         assert "empty" in result["message"].lower()
         assert result["status"] == "stub"
@@ -537,7 +537,7 @@ class TestCqReflect:
 
 class TestCqStatus:
     async def test_status_empty_store(self) -> None:
-        result = await cq_status()
+        result = await status()
         assert result["total_count"] == 0
         assert result["domain_counts"] == {}
         assert result["recent"] == []
@@ -546,7 +546,7 @@ class TestCqStatus:
         await _propose_unit(domain=["api", "payments"])
         await _propose_unit(domain=["api", "databases"])
         await _propose_unit(domain=["databases"])
-        result = await cq_status()
+        result = await status()
         assert result["total_count"] == 3
         assert result["domain_counts"]["api"] == 2
         assert result["domain_counts"]["databases"] == 2
@@ -556,7 +556,7 @@ class TestCqStatus:
 
     async def test_status_returns_confidence_distribution(self) -> None:
         await _propose_unit(domain=["api"])
-        result = await cq_status()
+        result = await status()
         # Default confidence is 0.5, falls in "0.5-0.7" bucket.
         assert result["confidence_distribution"]["0.5-0.7"] == 1
 
@@ -564,7 +564,7 @@ class TestCqStatus:
 class TestEndToEnd:
     async def test_propose_query_confirm_flag_lifecycle(self) -> None:
         # Propose a unit.
-        proposed = await cq_propose(
+        proposed = await propose(
             summary="Stripe returns 200 for rate limits",
             detail="Response body contains error object despite 200 status.",
             action="Always parse response body for error field.",
@@ -574,25 +574,25 @@ class TestEndToEnd:
         unit_id = proposed["id"]
 
         # Query returns it.
-        results = await cq_query(domain=["api", "payments"], language="python")
+        results = await query(domain=["api", "payments"], language="python")
         assert len(results["results"]) == 1
         assert results["results"][0]["evidence"]["confidence"] == 0.5
 
         # Confirm boosts confidence.
-        confirmed = await cq_confirm(unit_id=unit_id)
+        confirmed = await confirm(unit_id=unit_id)
         assert confirmed["new_confidence"] == pytest.approx(0.6)
         assert confirmed["confirmations"] == 2
 
         # Verify boosted confidence in query results.
-        results = await cq_query(domain=["api", "payments"])
+        results = await query(domain=["api", "payments"])
         assert results["results"][0]["evidence"]["confidence"] == pytest.approx(0.6)
 
         # Flag reduces confidence.
-        flagged = await cq_flag(unit_id=unit_id, reason="stale")
+        flagged = await flag(unit_id=unit_id, reason="stale")
         assert flagged["new_confidence"] == pytest.approx(0.45)
 
         # Verify flag in query results.
-        results = await cq_query(domain=["api", "payments"])
+        results = await query(domain=["api", "payments"])
         result = results["results"][0]
         assert result["evidence"]["confidence"] == pytest.approx(0.45)
         assert len(result["flags"]) == 1
@@ -705,11 +705,11 @@ class TestCqStatusWithDrain:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(server, "_drain_promoted_count", 3)
-        result = await cq_status()
+        result = await status()
         assert result["promoted_to_team"] == 3
 
     async def test_status_omits_promotion_count_when_zero(self) -> None:
-        result = await cq_status()
+        result = await status()
         assert "promoted_to_team" not in result
 
     async def test_status_omits_promotion_count_when_none(
@@ -717,13 +717,13 @@ class TestCqStatusWithDrain:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(server, "_drain_promoted_count", None)
-        result = await cq_status()
+        result = await status()
         assert "promoted_to_team" not in result
 
 
 class TestCqStatusTeamField:
     async def test_status_team_not_configured(self) -> None:
-        result = await cq_status()
+        result = await status()
         assert result["team"] == {"status": "not_configured"}
 
     async def test_status_team_ok(
@@ -735,7 +735,7 @@ class TestCqStatusTeamField:
         mock_client.base_url = "http://localhost:8742"
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_status()
+        result = await status()
         assert result["team"] == {
             "status": "ok",
             "url": "http://localhost:8742",
@@ -750,7 +750,7 @@ class TestCqStatusTeamField:
         mock_client.base_url = "http://localhost:8742"
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        result = await cq_status()
+        result = await status()
         assert result["team"] == {
             "status": "unreachable",
             "url": "http://localhost:8742",
