@@ -1,27 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useOutletContext } from "react-router";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { api } from "../api";
 import { StatusBadge } from "../components/StatusBadge";
 import { KnowledgeUnitModal } from "../components/KnowledgeUnitModal";
 import { FilteredListModal, type ListFilter } from "../components/FilteredListModal";
 import { timeAgo } from "../utils";
-import type { ReviewStatsResponse, DailyCount } from "../types";
+import type { ReviewStatsResponse } from "../types";
 
-function useCumulativeTotals(daily: DailyCount[]) {
-  return useMemo(() => {
-    const data = daily.reduce<Array<DailyCount & { total: number }>>((acc, d) => {
-      const total = (acc.length > 0 ? acc[acc.length - 1].total : 0) + d.proposed;
-      acc.push({ ...d, total });
-      return acc;
-    }, []);
-    // Prepend an origin point so a single day draws a line from zero.
-    if (data.length > 0) {
-      data.unshift({ date: "", proposed: 0, total: 0 });
-    }
-    return data;
-  }, [daily]);
-}
 
 const CONFIDENCE_COLORS: Record<string, string> = {
   "0.0-0.3": "bg-red-200",
@@ -57,7 +43,7 @@ export function DashboardPage() {
     return () => clearInterval(interval);
   }, [setPendingCount]);
 
-  const trendData = useCumulativeTotals(stats?.trends.daily ?? []);
+  const trendData = stats?.trends.daily ?? [];
 
   if (!stats && !error) {
     return (
@@ -193,22 +179,30 @@ export function DashboardPage() {
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                   <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Line
                     type="monotone"
                     dataKey="proposed"
-                    stroke="#6366f1"
+                    stroke="#eab308"
                     strokeWidth={2}
                     dot={trendData.length <= 7}
-                    name="Daily proposals"
+                    name="Submitted"
                   />
                   <Line
                     type="monotone"
-                    dataKey="total"
-                    stroke="#9ca3af"
-                    strokeWidth={1.5}
-                    strokeDasharray="5 5"
+                    dataKey="approved"
+                    stroke="#22c55e"
+                    strokeWidth={2}
                     dot={trendData.length <= 7}
-                    name="Cumulative total"
+                    name="Approved"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="rejected"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    dot={trendData.length <= 7}
+                    name="Rejected"
                   />
                 </LineChart>
               </ResponsiveContainer>

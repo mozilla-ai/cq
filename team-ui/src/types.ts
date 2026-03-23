@@ -62,6 +62,8 @@ export interface ActivityEvent {
 export interface DailyCount {
   date: string;
   proposed: number;
+  approved: number;
+  rejected: number;
 }
 
 export interface ReviewStatsResponse {

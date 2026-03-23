@@ -2,6 +2,7 @@
 
 import sqlite3
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -268,6 +269,95 @@ class TestReviewQueue:
         assert len(counts) >= 1
         total = sum(row["proposed"] for row in counts)
         assert total == 2
+
+    def test_daily_counts_gap_fills_to_today(self, store: TeamStore) -> None:
+        """daily_counts should return contiguous dates from the earliest entry to today."""
+        three_days_ago = datetime.now(UTC) - timedelta(days=3)
+        unit = _make_unit(domain=["a"])
+        unit.evidence.first_observed = three_days_ago
+        unit.evidence.last_confirmed = three_days_ago
+        store.insert(unit)
+
+        counts = store.daily_counts(days=30)
+
+        dates = [row["date"] for row in counts]
+        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+        three_days_ago_str = three_days_ago.strftime("%Y-%m-%d")
+
+        # Should include every date from the earliest entry through today.
+        assert dates[0] == three_days_ago_str
+        assert dates[-1] == today_str
+        assert len(dates) == 4  # 3 days ago, 2 days ago, yesterday, today
+
+        # Only the first date has a proposal; rest should be zero.
+        assert counts[0]["proposed"] == 1
+        for row in counts[1:]:
+            assert row["proposed"] == 0
+
+    def test_daily_counts_includes_approved(self, store: TeamStore) -> None:
+        """daily_counts should include approved counts grouped by reviewed_at date."""
+        three_days_ago = datetime.now(UTC) - timedelta(days=3)
+        one_day_ago = datetime.now(UTC) - timedelta(days=1)
+
+        u1 = _make_unit(domain=["a"])
+        u1.evidence.first_observed = three_days_ago
+        u1.evidence.last_confirmed = three_days_ago
+        store.insert(u1)
+
+        u2 = _make_unit(domain=["b"])
+        u2.evidence.first_observed = three_days_ago
+        u2.evidence.last_confirmed = three_days_ago
+        store.insert(u2)
+
+        store.set_review_status(u1.id, "approved", "reviewer")
+        # Backdate reviewed_at to 1 day ago.
+        with store._lock, store._conn:
+            store._conn.execute(
+                "UPDATE knowledge_units SET reviewed_at = ? WHERE id = ?",
+                (one_day_ago.isoformat(), u1.id),
+            )
+
+        counts = store.daily_counts(days=30)
+        by_date = {row["date"]: row for row in counts}
+
+        three_days_ago_str = three_days_ago.strftime("%Y-%m-%d")
+        one_day_ago_str = one_day_ago.strftime("%Y-%m-%d")
+
+        # Both units were proposed 3 days ago.
+        assert by_date[three_days_ago_str]["proposed"] == 2
+        # One was approved 1 day ago.
+        assert by_date[one_day_ago_str]["approved"] == 1
+        # No approvals on the proposal date.
+        assert by_date[three_days_ago_str]["approved"] == 0
+
+    def test_daily_counts_includes_rejected(self, store: TeamStore) -> None:
+        """daily_counts should include rejected counts grouped by reviewed_at date."""
+        two_days_ago = datetime.now(UTC) - timedelta(days=2)
+
+        unit = _make_unit(domain=["a"])
+        unit.evidence.first_observed = two_days_ago
+        unit.evidence.last_confirmed = two_days_ago
+        store.insert(unit)
+
+        store.set_review_status(unit.id, "rejected", "reviewer")
+        # Backdate reviewed_at to today.
+        today = datetime.now(UTC)
+        with store._lock, store._conn:
+            store._conn.execute(
+                "UPDATE knowledge_units SET reviewed_at = ? WHERE id = ?",
+                (today.isoformat(), unit.id),
+            )
+
+        counts = store.daily_counts(days=30)
+        by_date = {row["date"]: row for row in counts}
+
+        today_str = today.strftime("%Y-%m-%d")
+        two_days_ago_str = two_days_ago.strftime("%Y-%m-%d")
+
+        assert by_date[two_days_ago_str]["proposed"] == 1
+        assert by_date[two_days_ago_str]["rejected"] == 0
+        assert by_date[today_str]["rejected"] == 1
+        assert by_date[today_str]["proposed"] == 0
 
     def test_daily_counts_rejects_non_positive_days(self, store: TeamStore) -> None:
         with pytest.raises(ValueError, match="days must be positive"):

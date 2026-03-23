@@ -7,7 +7,7 @@ Implements the context manager protocol for deterministic resource cleanup.
 
 import sqlite3
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -578,15 +578,18 @@ class TeamStore:
         return activity[:limit]
 
     def daily_counts(self, *, days: int = 30) -> list[dict[str, Any]]:
-        """Return daily proposal counts for the last N days.
+        """Return daily proposal and approval counts with contiguous dates.
 
-        Pre-migration rows with NULL created_at are excluded from counts.
+        Returns one entry per day from the earliest activity (within the
+        lookback window) through today, filling gaps with zero counts.
+        Pre-migration rows with NULL created_at are excluded.
 
         Args:
             days: Number of days to look back.
 
         Returns:
-            List of dicts with date and proposed count, ordered ascending.
+            List of dicts with date, proposed, approved, and rejected
+            counts, ordered ascending.
 
         Raises:
             ValueError: If days is not positive.
@@ -594,12 +597,50 @@ class TeamStore:
         if days <= 0:
             raise ValueError("days must be positive")
         self._check_open()
+        cutoff = f"-{days} days"
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT date(created_at) as day, COUNT(*) as proposed "
+            proposed_rows = self._conn.execute(
+                "SELECT date(created_at) as day, COUNT(*) as cnt "
                 "FROM knowledge_units "
                 "WHERE created_at >= date('now', ?) "
-                "GROUP BY day ORDER BY day ASC",
-                (f"-{days} days",),
+                "GROUP BY day",
+                (cutoff,),
             ).fetchall()
-        return [{"date": row[0], "proposed": row[1]} for row in rows]
+            approved_rows = self._conn.execute(
+                "SELECT date(reviewed_at) as day, COUNT(*) as cnt "
+                "FROM knowledge_units "
+                "WHERE status = 'approved' "
+                "AND reviewed_at >= date('now', ?) "
+                "GROUP BY day",
+                (cutoff,),
+            ).fetchall()
+            rejected_rows = self._conn.execute(
+                "SELECT date(reviewed_at) as day, COUNT(*) as cnt "
+                "FROM knowledge_units "
+                "WHERE status = 'rejected' "
+                "AND reviewed_at >= date('now', ?) "
+                "GROUP BY day",
+                (cutoff,),
+            ).fetchall()
+        proposed = {row[0]: row[1] for row in proposed_rows}
+        approved = {row[0]: row[1] for row in approved_rows}
+        rejected = {row[0]: row[1] for row in rejected_rows}
+        all_dates = set(proposed) | set(approved) | set(rejected)
+        if not all_dates:
+            return []
+        start = min(datetime.strptime(d, "%Y-%m-%d").date() for d in all_dates)
+        end = datetime.now(UTC).date()
+        result: list[dict[str, Any]] = []
+        current = start
+        while current <= end:
+            key = current.isoformat()
+            result.append(
+                {
+                    "date": key,
+                    "proposed": proposed.get(key, 0),
+                    "approved": approved.get(key, 0),
+                    "rejected": rejected.get(key, 0),
+                }
+            )
+            current += timedelta(days=1)
+        return result

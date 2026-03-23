@@ -37,10 +37,12 @@ class ReviewDecisionResponse(BaseModel):
 
 
 class DailyCount(BaseModel):
-    """Daily proposal count."""
+    """Daily proposal, approval, and rejection counts."""
 
     date: str
     proposed: int
+    approved: int
+    rejected: int
 
 
 class TrendsResponse(BaseModel):
