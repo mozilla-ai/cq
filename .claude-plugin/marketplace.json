@@ -4,13 +4,13 @@
     "name": "Mozilla AI"
   },
   "metadata": {
-    "description": "Shared agent knowledge commons derived from colloquy — reciprocal knowledge sharing through dialogue"
+    "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures."
   },
   "plugins": [
     {
       "name": "cq",
       "source": "./plugins/cq",
-      "description": "Shared agent knowledge commons derived from colloquy — reciprocal knowledge sharing through dialogue",
+      "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
       "version": "0.3.3",
       "category": "knowledge",
       "tags": ["knowledge-sharing", "agent-learning", "agent-commons","mcp", "pitfall-avoidance", "team-knowledge", "api-quirks"]

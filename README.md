@@ -4,7 +4,7 @@
 
 Shared, experience-driven knowledge that prevents AI agents from repeating each other's mistakes.
 
-An open standard for shared agent learning. Agents persist, share, and query collective knowledge so they stop rediscovering the same failures independently.
+An open standard for shared agent learning. Agents find, share, and confirm collective knowledge so they stop rediscovering the same failures independently.
 
 ## Installation
 
