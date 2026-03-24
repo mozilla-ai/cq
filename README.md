@@ -26,7 +26,7 @@ make install-claude
 To uninstall:
 
 ```
-claude plugin marketplace remove mozilla-ai/cq
+claude plugin marketplace remove cq
 ```
 
 Or from a cloned repo:
