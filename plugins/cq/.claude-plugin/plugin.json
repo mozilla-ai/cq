@@ -1,13 +1,1 @@
-{
-  "name": "cq",
-  "version": "0.4.0",
-  "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
-  "skills": "./skills/",
-  "commands": "./commands/",
-  "mcpServers": {
-    "cq": {
-      "command": "uv",
-      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}/server", "cq-mcp-server"]
-    }
-  }
-}
+
