@@ -356,7 +356,11 @@ class LocalStore:
                 try:
                     fts_rows = self._conn.execute(fts_sql, (fts_terms,)).fetchall()
                 except sqlite3.OperationalError:
-                    logger.warning("FTS query failed for expression: %s", fts_terms)
+                    logger.warning(
+                        "FTS query failed (expression length=%d chars)",
+                        len(fts_terms),
+                        exc_info=True,
+                    )
 
         # Merge and deduplicate by ID.
         seen: set[str] = set()

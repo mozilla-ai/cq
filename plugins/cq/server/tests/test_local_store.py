@@ -41,7 +41,7 @@ def _make_unit(**overrides: Any) -> KnowledgeUnit:
 
 
 def _inspect_connection(db_path: Path) -> sqlite3.Connection:
-    """Open a test inspection connection with production-matching pragmas."""
+    """Open a test inspection connection with foreign key enforcement enabled."""
     conn = sqlite3.connect(str(db_path))
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
