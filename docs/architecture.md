@@ -21,7 +21,7 @@ flowchart TB
     subgraph mcp["Local MCP Server Process"]
         direction TB
         server["cq MCP Server\nPython / FastMCP"]
-        local_db[("Local Store\n~/.cq/local.db\nSQLite")]
+        local_db[("Local Store\n~/.local/share/cq/local.db\nSQLite")]
         server --> local_db
     end
 
@@ -48,7 +48,7 @@ flowchart TB
 
 **Claude Code** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
 
-**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store at `~/.cq/local.db`.
+**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store at `~/.local/share/cq/local.db`.
 
 **Docker Container** runs the Team API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
 
@@ -105,7 +105,7 @@ Knowledge graduates upward through three tiers, each with increasing scope and t
 flowchart TB
     subgraph local["Tier 1: Local"]
         direction TB
-        l_desc["Private to agent/machine\nSession learnings, error workarounds\nSQLite at ~/.cq/local.db"]
+        l_desc["Private to agent/machine\nSession learnings, error workarounds\nSQLite at ~/.local/share/cq/local.db"]
         l_conf["Confidence starts at 0.5\nNo sharing — agent's personal notebook"]
     end
 

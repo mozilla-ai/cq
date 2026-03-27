@@ -69,7 +69,7 @@ cq works out of the box in **local-only mode** with no configuration. Set enviro
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `CQ_LOCAL_DB_PATH` | No | `~/.cq/local.db` | Path to the local SQLite database |
+| `CQ_LOCAL_DB_PATH` | No | `~/.local/share/cq/local.db` | Path to the local SQLite database (follows [XDG Base Directory spec](https://specifications.freedesktop.org/basedir/latest/); respects `$XDG_DATA_HOME`) |
 | `CQ_TEAM_ADDR` | No | *(disabled)* | Team API URL. Set to enable team sync (e.g. `http://localhost:8742`) |
 | `CQ_TEAM_API_KEY` | When team configured | — | API key for team API authentication |
 
@@ -126,7 +126,7 @@ flowchart TB
     subgraph mcp["Local MCP Server Process"]
         direction TB
         server["cq MCP Server\nPython / FastMCP"]
-        local_db[("Local Store\n~/.cq/local.db\nSQLite")]
+        local_db[("Local Store\n~/.local/share/cq/local.db\nSQLite")]
         server --> local_db
     end
 

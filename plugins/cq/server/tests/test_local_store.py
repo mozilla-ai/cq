@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from cq_mcp.knowledge_unit import (
@@ -19,6 +20,8 @@ from cq_mcp.local_store import (
     _FTS_MAX_TERMS,
     LocalStore,
     _build_fts_match_expr,
+    _default_db_path,
+    _migrate_legacy_db,
 )
 from cq_mcp.scoring import apply_confirmation, apply_flag
 
@@ -870,3 +873,100 @@ class TestDelete:
         store.close()
         with pytest.raises(RuntimeError, match="closed"):
             store.delete("ku_any")
+
+
+class TestDefaultDbPath:
+    """Tests for XDG Base Directory spec compliance."""
+
+    def test_uses_xdg_data_home_when_set(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "custom-data"))
+        result = _default_db_path()
+        assert result == tmp_path / "custom-data" / "cq" / "local.db"
+
+    def test_falls_back_to_dot_local_share(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+        result = _default_db_path()
+        assert result == Path.home() / ".local" / "share" / "cq" / "local.db"
+
+
+class TestMigrateLegacyDb:
+    """Tests for automatic migration from ~/.cq/local.db."""
+
+    def test_migrates_legacy_db_to_new_path(self, tmp_path: Path) -> None:
+        legacy_dir = tmp_path / ".cq"
+        legacy_dir.mkdir()
+        legacy_db = legacy_dir / "local.db"
+        legacy_db.write_text("fake-db")
+
+        new_path = tmp_path / "share" / "cq" / "local.db"
+
+        with patch("cq_mcp.local_store._LEGACY_DB_PATH", legacy_db):
+            _migrate_legacy_db(new_path)
+
+        assert new_path.exists()
+        assert new_path.read_text() == "fake-db"
+        assert not legacy_db.exists()
+        # Legacy directory removed because it was empty.
+        assert not legacy_dir.exists()
+
+    def test_migrates_wal_and_shm_files(self, tmp_path: Path) -> None:
+        legacy_dir = tmp_path / ".cq"
+        legacy_dir.mkdir()
+        legacy_db = legacy_dir / "local.db"
+        legacy_db.write_text("fake-db")
+        (legacy_dir / "local.db-wal").write_text("wal-data")
+        (legacy_dir / "local.db-shm").write_text("shm-data")
+
+        new_path = tmp_path / "share" / "cq" / "local.db"
+
+        with patch("cq_mcp.local_store._LEGACY_DB_PATH", legacy_db):
+            _migrate_legacy_db(new_path)
+
+        assert new_path.exists()
+        assert Path(str(new_path) + "-wal").read_text() == "wal-data"
+        assert Path(str(new_path) + "-shm").read_text() == "shm-data"
+
+    def test_no_op_when_legacy_does_not_exist(self, tmp_path: Path) -> None:
+        legacy_db = tmp_path / ".cq" / "local.db"
+        new_path = tmp_path / "share" / "cq" / "local.db"
+
+        with patch("cq_mcp.local_store._LEGACY_DB_PATH", legacy_db):
+            _migrate_legacy_db(new_path)
+
+        assert not new_path.exists()
+
+    def test_prefers_xdg_when_both_exist(self, tmp_path: Path) -> None:
+        legacy_dir = tmp_path / ".cq"
+        legacy_dir.mkdir()
+        legacy_db = legacy_dir / "local.db"
+        legacy_db.write_text("old-db")
+
+        new_dir = tmp_path / "share" / "cq"
+        new_dir.mkdir(parents=True)
+        new_path = new_dir / "local.db"
+        new_path.write_text("new-db")
+
+        with patch("cq_mcp.local_store._LEGACY_DB_PATH", legacy_db):
+            _migrate_legacy_db(new_path)
+
+        # XDG path is unchanged; legacy is not deleted.
+        assert new_path.read_text() == "new-db"
+        assert legacy_db.read_text() == "old-db"
+
+    def test_keeps_legacy_dir_when_not_empty(self, tmp_path: Path) -> None:
+        legacy_dir = tmp_path / ".cq"
+        legacy_dir.mkdir()
+        legacy_db = legacy_dir / "local.db"
+        legacy_db.write_text("fake-db")
+        (legacy_dir / "other-file.txt").write_text("keep me")
+
+        new_path = tmp_path / "share" / "cq" / "local.db"
+
+        with patch("cq_mcp.local_store._LEGACY_DB_PATH", legacy_db):
+            _migrate_legacy_db(new_path)
+
+        assert new_path.exists()
+        assert not legacy_db.exists()
+        # Directory kept because it still has other files.
+        assert legacy_dir.exists()
+        assert (legacy_dir / "other-file.txt").exists()

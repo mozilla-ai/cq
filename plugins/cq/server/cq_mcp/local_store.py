@@ -1,11 +1,15 @@
 """Local SQLite knowledge store for cq.
 
-Stores knowledge units in a SQLite database at ~/.cq/local.db.
+Stores knowledge units in a SQLite database following the XDG Base Directory
+spec. Default location: $XDG_DATA_HOME/cq/local.db (~/.local/share/cq/local.db).
 Auto-creates the database directory and schema on first use.
 Implements the context manager protocol for deterministic resource cleanup.
 """
 
+import contextlib
 import logging
+import os
+import shutil
 import sqlite3
 import threading
 from datetime import UTC, datetime
@@ -31,7 +35,39 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
     (float("inf"), "0.7-1.0"),
 ]
 
-DEFAULT_DB_PATH = Path.home() / ".cq" / "local.db"
+_LEGACY_DB_PATH = Path.home() / ".cq" / "local.db"
+
+
+def _default_db_path() -> Path:
+    """Return the default database path per the XDG Base Directory spec."""
+    xdg = os.environ.get("XDG_DATA_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
+    return base / "cq" / "local.db"
+
+
+def _migrate_legacy_db(new_path: Path) -> None:
+    """Migrate the legacy ~/.cq/local.db to the XDG path if needed."""
+    if not _LEGACY_DB_PATH.exists():
+        return
+    if new_path.exists():
+        logger.warning(
+            "Database exists at both legacy path %s and XDG path %s; using XDG path.",
+            _LEGACY_DB_PATH,
+            new_path,
+        )
+        return
+
+    new_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(_LEGACY_DB_PATH), str(new_path))
+    # Move WAL and SHM journal files if present.
+    for suffix in ("-wal", "-shm"):
+        legacy_extra = Path(str(_LEGACY_DB_PATH) + suffix)
+        if legacy_extra.exists():
+            shutil.move(str(legacy_extra), str(new_path) + suffix)
+    # Clean up empty legacy directory.
+    with contextlib.suppress(OSError):
+        _LEGACY_DB_PATH.parent.rmdir()
+    logger.info("Migrated database from %s to %s.", _LEGACY_DB_PATH, new_path)
 
 
 class StoreStats(BaseModel):
@@ -115,9 +151,13 @@ class LocalStore:
         """Initialise the store, creating the database and schema if needed.
 
         Args:
-            db_path: Path to the SQLite database file. Defaults to ~/.cq/local.db.
+            db_path: Path to the SQLite database file.
+                     Defaults to $XDG_DATA_HOME/cq/local.db.
         """
-        self._db_path = db_path or DEFAULT_DB_PATH
+        if db_path is None:
+            db_path = _default_db_path()
+            _migrate_legacy_db(db_path)
+        self._db_path = db_path
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._closed = False

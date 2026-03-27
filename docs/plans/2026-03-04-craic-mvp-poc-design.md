@@ -31,7 +31,7 @@ flowchart TB
     subgraph mcp["Local Process (spawned via stdio)"]
         direction TB
         server["cq MCP Server<br/><i>Python / FastMCP</i><br/><i>uv run cq-mcp-server</i>"]
-        local_db[("Local Store<br/>~/.cq/local.db<br/><i>SQLite — private to machine</i>")]
+        local_db[("Local Store<br/>~/.local/share/cq/local.db<br/><i>SQLite — private to machine</i>")]
         server --> local_db
     end
 
