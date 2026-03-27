@@ -37,6 +37,38 @@ make uninstall-claude
 
 If you configured team sync, you may also want to remove `CQ_TEAM_ADDR` and `CQ_TEAM_API_KEY` from `~/.claude/settings.json`.
 
+### Cursor (MCP server + skill + rule)
+
+Also requires: `jq`
+
+```bash
+git clone https://github.com/mozilla-ai/cq.git
+cd cq
+make install-cursor
+```
+
+Or for a specific project:
+
+```bash
+make install-cursor PROJECT=/path/to/your/project
+```
+
+This installs:
+- **MCP server** — registered in `.cursor/mcp.json`
+- **cq skill** — symlinked into `.cursor/skills/cq/`
+- **Cursor rule** — `.cursor/rules/cq.mdc` (agent-decided, prompts skill loading)
+- **Session start hook** — `.cursor/hooks.json` (pre-syncs Python dependencies)
+
+To uninstall:
+
+```bash
+make uninstall-cursor
+# or for a specific project:
+make uninstall-cursor PROJECT=/path/to/your/project
+```
+
+If you configured team sync, you may also want to remove `CQ_TEAM_ADDR` and `CQ_TEAM_API_KEY` from `.cursor/mcp.json` env.
+
 ### OpenCode (MCP server)
 
 Also requires: `jq`
@@ -87,6 +119,27 @@ Add variables to `~/.claude/settings.json` under the `env` key:
   }
 }
 ```
+
+### Cursor
+
+Add an `env` key to the cq MCP server entry in `.cursor/mcp.json` (global `~/.cursor/mcp.json` or project-level `<project>/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "cq": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/cq/plugins/cq/server", "cq-mcp-server"],
+      "env": {
+        "CQ_TEAM_ADDR": "http://localhost:8742",
+        "CQ_TEAM_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+Alternatively, export the variables in your shell before launching Cursor.
 
 ### OpenCode
 

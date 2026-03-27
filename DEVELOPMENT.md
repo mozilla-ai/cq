@@ -6,7 +6,7 @@
 - [uv](https://docs.astral.sh/uv/)
 - [pnpm](https://pnpm.io/)
 - Docker and Docker Compose
-- jq (only needed for `make install-opencode`)
+- jq (only needed for `make install-cursor` / `make install-opencode`)
 
 ## Repository Structure
 
@@ -62,6 +62,24 @@ Add to `~/.claude/settings.json` under the `env` key:
 {
   "env": {
     "CQ_TEAM_ADDR": "http://localhost:8742"
+  }
+}
+```
+
+### Cursor
+
+Add to `.cursor/mcp.json` (global `~/.cursor/mcp.json` or project-level), inside the cq server's `env` key:
+
+```json
+{
+  "mcpServers": {
+    "cq": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/cq/plugins/cq/server", "cq-mcp-server"],
+      "env": {
+        "CQ_TEAM_ADDR": "http://localhost:8742"
+      }
+    }
   }
 }
 ```
