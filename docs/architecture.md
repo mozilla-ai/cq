@@ -48,7 +48,7 @@ flowchart TB
 
 **Claude Code** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
 
-**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store at `~/.local/share/cq/local.db`.
+**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
 
 **Docker Container** runs the Team API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
 

@@ -888,6 +888,11 @@ class TestDefaultDbPath:
         result = _default_db_path()
         assert result == Path.home() / ".local" / "share" / "cq" / "local.db"
 
+    def test_ignores_relative_xdg_data_home(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("XDG_DATA_HOME", "./relative/path")
+        result = _default_db_path()
+        assert result == Path.home() / ".local" / "share" / "cq" / "local.db"
+
 
 class TestMigrateLegacyDb:
     """Tests for automatic migration from ~/.cq/local.db."""
@@ -952,6 +957,24 @@ class TestMigrateLegacyDb:
         # XDG path is unchanged; legacy is not deleted.
         assert new_path.read_text() == "new-db"
         assert legacy_db.read_text() == "old-db"
+
+    def test_migration_failure_does_not_crash(self, tmp_path: Path) -> None:
+        legacy_dir = tmp_path / ".cq"
+        legacy_dir.mkdir()
+        legacy_db = legacy_dir / "local.db"
+        legacy_db.write_text("fake-db")
+
+        new_path = tmp_path / "share" / "cq" / "local.db"
+
+        with (
+            patch("cq_mcp.local_store._LEGACY_DB_PATH", legacy_db),
+            patch("cq_mcp.local_store.shutil.move", side_effect=OSError("cross-device link")),
+        ):
+            _migrate_legacy_db(new_path)
+
+        # Legacy DB untouched; no crash.
+        assert legacy_db.read_text() == "fake-db"
+        assert not new_path.exists()
 
     def test_keeps_legacy_dir_when_not_empty(self, tmp_path: Path) -> None:
         legacy_dir = tmp_path / ".cq"

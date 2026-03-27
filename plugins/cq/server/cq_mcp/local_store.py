@@ -41,8 +41,14 @@ _LEGACY_DB_PATH = Path.home() / ".cq" / "local.db"
 def _default_db_path() -> Path:
     """Return the default database path per the XDG Base Directory spec."""
     xdg = os.environ.get("XDG_DATA_HOME")
-    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
-    return base / "cq" / "local.db"
+    if xdg and Path(xdg).is_absolute():
+        return Path(xdg) / "cq" / "local.db"
+    if xdg:
+        logger.warning(
+            "Ignoring non-absolute XDG_DATA_HOME=%r; falling back to default.",
+            xdg,
+        )
+    return Path.home() / ".local" / "share" / "cq" / "local.db"
 
 
 def _migrate_legacy_db(new_path: Path) -> None:
@@ -57,17 +63,25 @@ def _migrate_legacy_db(new_path: Path) -> None:
         )
         return
 
-    new_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(_LEGACY_DB_PATH), str(new_path))
-    # Move WAL and SHM journal files if present.
-    for suffix in ("-wal", "-shm"):
-        legacy_extra = Path(str(_LEGACY_DB_PATH) + suffix)
-        if legacy_extra.exists():
-            shutil.move(str(legacy_extra), str(new_path) + suffix)
-    # Clean up empty legacy directory.
-    with contextlib.suppress(OSError):
-        _LEGACY_DB_PATH.parent.rmdir()
-    logger.info("Migrated database from %s to %s.", _LEGACY_DB_PATH, new_path)
+    try:
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(_LEGACY_DB_PATH), str(new_path))
+        # Move WAL and SHM journal files if present.
+        for suffix in ("-wal", "-shm"):
+            legacy_extra = Path(str(_LEGACY_DB_PATH) + suffix)
+            if legacy_extra.exists():
+                shutil.move(str(legacy_extra), str(new_path) + suffix)
+        # Clean up empty legacy directory.
+        with contextlib.suppress(OSError):
+            _LEGACY_DB_PATH.parent.rmdir()
+        logger.info("Migrated database from %s to %s.", _LEGACY_DB_PATH, new_path)
+    except OSError as exc:
+        logger.warning(
+            "Failed to migrate database from %s to %s: %s",
+            _LEGACY_DB_PATH,
+            new_path,
+            exc,
+        )
 
 
 class StoreStats(BaseModel):
