@@ -1,0 +1,85 @@
+name: Bug Report
+description: Report a bug or an unexpected behavior
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report!
+        Please read the [Contributing Guidelines](CONTRIBUTING.md) before submitting.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug here.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to Reproduce
+      description: |
+        Provide clear steps to reproduce the behavior.
+        Please include code snippets, configurations, or detailed commands if relevant.
+      placeholder: |
+        1. Go to '...'
+        2. Run cmd '....'
+        3. View file '....'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: A clear and concise description of what actually happened.
+      placeholder: What actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide details about your environment.
+      value: |
+        - **OS:** [e.g. macOS, Linux] (and version)
+        - **cq binary version:** [e.g. v0.1.0] (cq --version)
+        - **cq plugin version**
+        - **Other relevant libraries/versions:**
+      render: markdown
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output
+      description: |
+        If applicable, paste any relevant log and terminal output, error messages, or screenshots.
+        Please wrap code blocks in triple backticks (```).
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: self-checklist
+    attributes:
+      label: Self-Checklist
+      options:
+        - label: I have read the [Contributing Guidelines](CONTRIBUTING.md).
+          required: true
+        - label: I have searched the existing issues and found no duplicate.
+          required: true
+        - label: I have provided a clear and concise description of the bug.
+          required: true
+        - label: I have provided clear steps to reproduce the bug.
+          required: true
+        - label: I have provided details about my environment.
+          required: true

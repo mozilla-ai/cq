@@ -1,0 +1,54 @@
+name: Feature Request
+description: Suggest an idea or enhancement for the project.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an idea!
+        Please read the [Contributing Guidelines](CONTRIBUTING.md) before submitting.
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: Is your feature request related to a problem? Please describe.
+      description: A clear and concise description of the problem you're trying to solve. e.g. "I'm always frustrated when [...]"
+      placeholder: Describe the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: solution-description
+    attributes:
+      label: Describe the solution you'd like
+      description: A clear and concise description of what you want to happen.
+      placeholder: Describe the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Describe alternatives you've considered
+      description: A clear and concise description of any alternative solutions or features you've considered.
+      placeholder: Describe alternatives.
+    validations:
+      required: false
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context or screenshots about the feature request here.
+      placeholder: Any additional information.
+    validations:
+      required: false
+  - type: checkboxes
+    id: self-checklist
+    attributes:
+      label: Self-Checklist
+      options:
+        - label: I have read the [Contributing Guidelines](CONTRIBUTING.md).
+          required: true
+        - label: I have searched the existing issues and found no duplicate.
+          required: true
+        - label: I have provided a clear and concise description of the problem.
+          required: true
+        - label: I have provided a clear and concise description of the proposed solution.
+          required: true
