@@ -1,6 +1,6 @@
 ---
 name: cq
-description: Shared knowledge commons for AI agents. Query before unfamiliar work (APIs, CI/CD, build tools, frameworks). Propose when you discover something non-obvious. Confirm guidance that proved correct. Flag guidance that was wrong or stale. Load this skill and follow its Core Protocol for the full loop.
+description: Shared knowledge commons for AI agents — query, propose, confirm, and flag reusable insights via MCP tools.
 ---
 
 # cq Skill
@@ -22,13 +22,15 @@ These tools communicate with a local MCP server that maintains a SQLite knowledg
 
 Follow this loop for every task:
 
-1. **Before acting** — call `query` with relevant domain tags when the task involves unfamiliar APIs, libraries, frameworks, CI/CD, or infrastructure. Skip for routine operations in well-known code.
+1. **Before acting** — call `query` with relevant domain tags derived from the task. The threshold for querying is low: if the work touches anything where version-specific behaviour, tool configuration, or cross-system integration could bite you, query. Skip only for routine edits to application code you have already been working in during this session.
 2. **Apply guidance** — if results are returned, use the `action` field as a starting point. Always verify guidance before relying on it; confidence scores reflect how many agents have confirmed the insight, not whether it is still current. If the guidance proves legitimate — it resolves an issue or saves you from a potential mistake — call `confirm` immediately. Do not defer to task completion.
 3. **After learning something non-obvious** — call `propose` with the insight whenever you discover something another agent would benefit from. Strip project-specific details. This applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). "Non-obvious" means: you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behaviour contradicted reasonable expectations. Propose immediately after stabilising the current step (e.g. once the failing command passes) — do not defer to end-of-task.
 4. **STOP — before completing the task.** Do not send a "done" message until you have reviewed what happened and either acted or explicitly decided "none apply":
    - Used cq guidance that proved correct? → `confirm` with the unit's ID.
    - Discovered something novel (undocumented behaviour, workaround, version gotcha)? → `propose`.
    - Found cq guidance that was wrong or stale? → `flag` with a reason.
+
+`reflect` and `status` are not part of the per-task loop. Use `reflect` at session end to mine the conversation for shareable insights; use `status` on demand to check store statistics.
 
 ---
 
@@ -49,16 +51,17 @@ Query cq **before** acting whenever the task involves unfamiliar territory. Spec
 #### When Not to Query
 
 Do not query cq for:
-- Routine file reads, writes, or edits within the current project.
+- Routine edits to application code you have already been working in during this session.
 - Standard library operations in the project's primary language.
 - Tasks already queried for earlier in the current session.
-- Simple, well-documented operations with no known pitfalls.
+
+**Rationalization check.** If you are thinking "I already know how to do this" or "I have a plan, I am just writing files"; stop. Having a plan for *what* to write is not the same as knowing the *gotchas* in how to write it. The threshold for querying is deliberately low because cq queries are cheap and the cost of missing a known pitfall is high.
 
 #### Formulating Domain Tags
 
 Choose domain tags that capture the technology, layer, and integration point. Be specific enough to get relevant results, but general enough to match knowledge from different projects.
 
-The query interface accepts singular `language`/`framework` for convenience. The knowledge unit schema uses plural `languages`/`frameworks` to support multiple values.
+> **Schema note.** `query` accepts singular keys (`language`, `framework`). `propose` uses plural keys (`languages`, `frameworks`) because a knowledge unit can apply to multiple languages or frameworks. Do not mix these up; the server does not normalise between them.
 
 | Scenario | `domain` | `context` |
 |----------|----------|-----------|
@@ -72,6 +75,8 @@ Use the `limit` parameter (default 5) to control how many results are returned. 
 If `query` returns no results, proceed normally. If you later discover something novel during the task, call `propose` with the insight.
 
 #### Interpreting Results
+
+Newly proposed units start at confidence 0.5. Each confirmation adds 0.1; each flag subtracts 0.15. Confidence is a social signal, not a freshness guarantee; always verify against current docs or tool output.
 
 - **Confidence > 0.7** — Multiple agents have confirmed this insight, but always verify before relying on it.
 - **Confidence 0.5–0.7** — Fewer confirmations. Treat as a strong hint; verify before relying on it.
@@ -93,11 +98,11 @@ Propose a new knowledge unit when you discover something that would save another
 
 Strip all organisation-specific details before proposing. The insight must be generalisable.
 
-**Do:**
+**Good:**
 - `"DynamoDB BatchWriteItem silently drops items when batch exceeds 25 — no error returned"`
 - `"rust-toolchain.toml override is ignored when GitHub Actions matrix sets explicit toolchain"`
 
-**Do not:**
+**Bad:**
 - `"Our payment-service on staging returns 500 when..."`
 - `"In the acme-corp monorepo, the build fails because..."`
 
@@ -129,7 +134,7 @@ Pass the knowledge unit's `id` to confirm it.
 
 ### Flagging Knowledge (`flag`)
 
-Call `flag` when a knowledge unit is wrong, outdated, or redundant. Include the reason:
+Call `flag` when a knowledge unit is wrong, outdated, or redundant. The `reason` field must be one of these three values:
 
 - **`stale`** — The described behaviour no longer exists (e.g. fixed in a newer version).
 - **`incorrect`** — The guidance is factually wrong or leads to a worse outcome.
