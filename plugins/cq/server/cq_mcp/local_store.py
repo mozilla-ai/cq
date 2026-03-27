@@ -5,16 +5,20 @@ Auto-creates the database directory and schema on first use.
 Implements the context manager protocol for deterministic resource cleanup.
 """
 
+import logging
 import sqlite3
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from .knowledge_unit import KnowledgeUnit
 from .scoring import calculate_relevance
+
+logger = logging.getLogger(__name__)
 
 # Sort fallback for knowledge units with no last_confirmed timestamp.
 _EPOCH_UTC = datetime.min.replace(tzinfo=UTC)
@@ -67,6 +71,36 @@ def _normalise_domains(domains: list[str]) -> list[str]:
     return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
 
 
+_FTS_MAX_TERMS = 20
+_FTS_MAX_TERM_LENGTH = 200
+
+
+def _build_fts_match_expr(terms: list[str]) -> str:
+    r"""Build a safe FTS5 MATCH expression from untrusted search terms.
+
+    FTS5 MATCH accepts a mini query language where double quotes delimit
+    phrase queries. Characters like /, \\, *, +, -, ^, etc. are all
+    harmless *inside* a quoted phrase. The only character that can break
+    a quoted phrase is an unescaped double quote.
+
+    This function strips double quotes from each term, truncates to
+    ``_FTS_MAX_TERM_LENGTH`` characters, wraps each surviving term in
+    double quotes, and joins with OR. At most ``_FTS_MAX_TERMS`` terms
+    are included. Returns an empty string when no usable terms remain.
+
+    The result is intended for use as the value of a parameterised
+    ``MATCH ?`` query, never for string interpolation into SQL.
+    """
+    safe: list[str] = []
+    for term in terms:
+        cleaned = term.replace('"', "").strip()[:_FTS_MAX_TERM_LENGTH]
+        if cleaned:
+            safe.append(f'"{cleaned}"')
+        if len(safe) >= _FTS_MAX_TERMS:
+            break
+    return " OR ".join(safe)
+
+
 class LocalStore:
     """SQLite-backed local knowledge store.
 
@@ -95,6 +129,9 @@ class LocalStore:
         # Allow access from asyncio.to_thread() executor threads.
         conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
         conn.execute("PRAGMA foreign_keys = ON")
+        fk_enabled = conn.execute("PRAGMA foreign_keys").fetchone()
+        if not fk_enabled or fk_enabled[0] != 1:
+            raise RuntimeError("SQLite foreign key enforcement is not available")
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
         conn.execute("PRAGMA busy_timeout = 5000")
@@ -205,20 +242,18 @@ class LocalStore:
         with self._lock:
             self._check_open()
             with self._conn:
+                # Delete FTS first (virtual tables have no CASCADE).
+                # Domain rows are handled by ON DELETE CASCADE.
+                self._conn.execute(
+                    "DELETE FROM knowledge_units_fts WHERE id = ?",
+                    (unit_id,),
+                )
                 cursor = self._conn.execute(
                     "DELETE FROM knowledge_units WHERE id = ?",
                     (unit_id,),
                 )
                 if cursor.rowcount == 0:
                     raise KeyError(f"Knowledge unit not found: {unit_id}")
-                self._conn.execute(
-                    "DELETE FROM knowledge_unit_domains WHERE unit_id = ?",
-                    (unit_id,),
-                )
-                self._conn.execute(
-                    "DELETE FROM knowledge_units_fts WHERE id = ?",
-                    (unit_id,),
-                )
 
     def update(self, unit: KnowledgeUnit) -> None:
         """Replace an existing knowledge unit in the store.
@@ -306,8 +341,7 @@ class LocalStore:
                 WHERE domain IN ({placeholders})
             )
         """
-        # Also search FTS5 for units matching query terms in their text.
-        fts_terms = " OR ".join(f'"{term}"' for term in normalised)
+        fts_terms = _build_fts_match_expr(normalised)
         fts_sql = """
             SELECT ku.data
             FROM knowledge_units_fts fts
@@ -317,10 +351,16 @@ class LocalStore:
         with self._lock:
             self._check_open()
             rows = self._conn.execute(sql, normalised).fetchall()
-            try:
-                fts_rows = self._conn.execute(fts_sql, (fts_terms,)).fetchall()
-            except sqlite3.OperationalError:
-                fts_rows = []
+            fts_rows: list[tuple[Any, ...]] = []
+            if fts_terms:
+                try:
+                    fts_rows = self._conn.execute(fts_sql, (fts_terms,)).fetchall()
+                except sqlite3.OperationalError:
+                    logger.warning(
+                        "FTS query failed (expression length=%d chars)",
+                        len(fts_terms),
+                        exc_info=True,
+                    )
 
         # Merge and deduplicate by ID.
         seen: set[str] = set()

@@ -14,7 +14,12 @@ from cq_mcp.knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
-from cq_mcp.local_store import LocalStore
+from cq_mcp.local_store import (
+    _FTS_MAX_TERM_LENGTH,
+    _FTS_MAX_TERMS,
+    LocalStore,
+    _build_fts_match_expr,
+)
 from cq_mcp.scoring import apply_confirmation, apply_flag
 
 
@@ -35,9 +40,16 @@ def _make_unit(**overrides: Any) -> KnowledgeUnit:
     return create_knowledge_unit(**{**defaults, **overrides})
 
 
+def _inspect_connection(db_path: Path) -> sqlite3.Connection:
+    """Open a test inspection connection with foreign key enforcement enabled."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
 def _inspect_domains(db_path: Path, unit_id: str) -> list[str]:
     """Read domain tags directly from SQLite for test assertions."""
-    conn = sqlite3.connect(str(db_path))
+    conn = _inspect_connection(db_path)
     try:
         rows = conn.execute(
             "SELECT domain FROM knowledge_unit_domains WHERE unit_id = ? ORDER BY domain",
@@ -50,7 +62,7 @@ def _inspect_domains(db_path: Path, unit_id: str) -> list[str]:
 
 def _inspect_tables(db_path: Path) -> list[str]:
     """List user tables in the SQLite database."""
-    conn = sqlite3.connect(str(db_path))
+    conn = _inspect_connection(db_path)
     try:
         rows = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
@@ -65,6 +77,110 @@ def store(tmp_path: Path) -> Iterator[LocalStore]:
     s = LocalStore(db_path=tmp_path / "test.db")
     yield s
     s.close()
+
+
+class TestBuildFtsMatchExpr:
+    """Tests for the isolated FTS5 expression builder.
+
+    This function is the sole boundary between untrusted input and the
+    FTS5 MATCH query engine. Every term must be wrapped in double quotes
+    and any embedded double quotes must be stripped, so no input can
+    alter the structure of the expression.
+    """
+
+    def test_single_clean_term(self) -> None:
+        assert _build_fts_match_expr(["databases"]) == '"databases"'
+
+    def test_multiple_terms_joined_with_or(self) -> None:
+        result = _build_fts_match_expr(["api", "payments"])
+        assert result == '"api" OR "payments"'
+
+    def test_hyphens_preserved(self) -> None:
+        assert _build_fts_match_expr(["setup-uv"]) == '"setup-uv"'
+
+    def test_slashes_preserved(self) -> None:
+        assert _build_fts_match_expr(["path/to/file"]) == '"path/to/file"'
+
+    def test_backslashes_preserved(self) -> None:
+        assert _build_fts_match_expr(["back\\slash"]) == '"back\\slash"'
+
+    def test_double_quotes_stripped(self) -> None:
+        assert _build_fts_match_expr(['bad"term']) == '"badterm"'
+
+    def test_only_quotes_yields_empty(self) -> None:
+        assert _build_fts_match_expr(['"""']) == ""
+
+    def test_interspersed_quotes_stripped(self) -> None:
+        assert _build_fts_match_expr(['a"b"c']) == '"abc"'
+
+    def test_whitespace_stripped(self) -> None:
+        assert _build_fts_match_expr(["  spaced  "]) == '"spaced"'
+
+    def test_quotes_and_whitespace_stripped(self) -> None:
+        assert _build_fts_match_expr(['" spaced "']) == '"spaced"'
+
+    def test_empty_list_yields_empty(self) -> None:
+        assert _build_fts_match_expr([]) == ""
+
+    def test_all_terms_empty_after_cleaning(self) -> None:
+        assert _build_fts_match_expr(['""', '"', "  "]) == ""
+
+    def test_mixed_clean_and_dirty_terms(self) -> None:
+        result = _build_fts_match_expr(["api", '"""', "payments"])
+        assert result == '"api" OR "payments"'
+
+    def test_wildcards_preserved(self) -> None:
+        assert _build_fts_match_expr(["term*"]) == '"term*"'
+
+    def test_braces_preserved(self) -> None:
+        assert _build_fts_match_expr(["{near}"]) == '"{near}"'
+
+    def test_colons_preserved(self) -> None:
+        assert _build_fts_match_expr(["col:filter"]) == '"col:filter"'
+
+    @pytest.mark.parametrize(
+        "malicious",
+        [
+            'term"OR"1"OR"',  # OR injection attempt.
+            '") OR (id:',  # Column filter injection attempt.
+            '" OR ""',  # Quote-escape injection attempt.
+        ],
+        ids=["or_injection", "column_filter", "quote_escape"],
+    )
+    def test_injection_attempts_produce_safe_output(self, malicious: str) -> None:
+        result = _build_fts_match_expr([malicious])
+        if not result:
+            return
+        # The output must have balanced quotes.
+        assert result.count('"') % 2 == 0, "Unbalanced quotes in output"
+        # The output must start and end with a double quote,
+        # proving it is wrapped in a phrase delimiter.
+        assert result[0] == '"', f"Output does not start with quote: {result}"
+        assert result[-1] == '"', f"Output does not end with quote: {result}"
+
+    @pytest.mark.parametrize(
+        ("malicious", "expected"),
+        [
+            ('term"OR"1"OR"', '"termOR1OR"'),
+            ('") OR (id:', '") OR (id:"'),
+            ('" OR ""', '"OR"'),
+        ],
+        ids=["or_injection", "column_filter", "quote_escape"],
+    )
+    def test_injection_attempts_exact_output(self, malicious: str, expected: str) -> None:
+        """Pin the exact output for injection attempts to catch regressions."""
+        assert _build_fts_match_expr([malicious]) == expected
+
+    def test_truncates_excess_terms(self) -> None:
+        terms = [f"term{i}" for i in range(_FTS_MAX_TERMS + 10)]
+        result = _build_fts_match_expr(terms)
+        assert result.count(" OR ") == _FTS_MAX_TERMS - 1
+
+    def test_truncates_long_terms(self) -> None:
+        long_term = "a" * (_FTS_MAX_TERM_LENGTH + 50)
+        result = _build_fts_match_expr([long_term])
+        # Quoted term plus two quotes.
+        assert len(result) == _FTS_MAX_TERM_LENGTH + 2
 
 
 class TestAutoCreateSchema:
@@ -364,6 +480,111 @@ class TestFTS:
 
         results = store.query(["github-actions"])
         assert len(results) == 1
+
+    def test_fts_query_with_double_quote_in_domain(self, store: LocalStore):
+        """A double quote in a query domain must not poison the FTS path.
+
+        When one query term contains a double quote, the entire FTS MATCH
+        expression becomes malformed. Units only discoverable via FTS text
+        search (not domain-tag match) are silently lost.
+        """
+        unit = _make_unit(
+            domain=["ci"],
+            insight=Insight(
+                summary="The stripe-mock server requires Docker",
+                detail="Run stripe-mock in Docker for integration tests.",
+                action="Use docker compose.",
+            ),
+        )
+        store.insert(unit)
+
+        # Baseline: FTS finds "stripe-mock" via summary text.
+        results = store.query(["stripe-mock"])
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
+        # A term with a double quote must not poison the FTS MATCH.
+        results = store.query(["stripe-mock", 'bad"term'])
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
+    def test_fts_query_with_only_double_quote_domain(self, store: LocalStore):
+        """A domain that is only a double quote should not crash FTS."""
+        unit = _make_unit(
+            domain=["ci"],
+            insight=Insight(
+                summary="The stripe-mock server requires Docker",
+                detail="Run stripe-mock in Docker for integration tests.",
+                action="Use docker compose.",
+            ),
+        )
+        store.insert(unit)
+
+        # A lone double-quote normalises to '"' after strip/lower.
+        # Must not crash, and FTS-discoverable results must still appear.
+        results = store.query(['"', "stripe-mock"])
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
+    @pytest.mark.parametrize(
+        "malicious_domain",
+        [
+            '"""',  # Multiple consecutive quotes.
+            'term"OR"1"OR"',  # Attempt to inject FTS OR operator.
+            'a\\"b',  # Backslash before quote.
+            '") OR (id:',  # Attempt column filter injection.
+            "term*",  # FTS5 prefix wildcard.
+            "{near term}",  # FTS5 NEAR syntax.
+            "^boost",  # FTS5 boost operator.
+            "",  # Empty after normalisation.
+        ],
+        ids=[
+            "consecutive_quotes",
+            "or_injection",
+            "backslash_quote",
+            "column_filter_injection",
+            "prefix_wildcard",
+            "near_syntax",
+            "boost_operator",
+            "empty_string",
+        ],
+    )
+    def test_fts_query_with_malicious_domain(self, store: LocalStore, malicious_domain: str):
+        """FTS-only results must not be lost when a query includes a hostile term."""
+        unit = _make_unit(
+            domain=["ci"],
+            insight=Insight(
+                summary="The stripe-mock server requires Docker",
+                detail="Run stripe-mock in Docker for integration tests.",
+                action="Use docker compose.",
+            ),
+        )
+        store.insert(unit)
+
+        results = store.query(["stripe-mock", malicious_domain])
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
+    def test_fts_query_empty_match_expr_does_not_crash(self, store: LocalStore):
+        """Query where all terms produce an empty FTS expression must not crash.
+
+        Domain normalisation passes these terms through (they are non-empty
+        after strip/lower), but _build_fts_match_expr strips the quotes and
+        produces an empty expression. The query should return empty (no domain
+        or FTS match), not crash.
+        """
+        unit = _make_unit(
+            domain=["ci"],
+            insight=Insight(
+                summary="Docker required",
+                detail="Detail.",
+                action="Action.",
+            ),
+        )
+        store.insert(unit)
+
+        results = store.query(['"', '""'])
+        assert results == []
 
     def test_fts_updated_after_unit_update(self, store: LocalStore):
         unit = _make_unit(
