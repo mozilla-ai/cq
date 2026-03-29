@@ -82,6 +82,23 @@ class TestPropose:
         assert resp.status_code == 201
         assert resp.json()["domain"] == ["api", "databases"]
 
+    def test_propose_preserves_client_supplied_id_and_evidence(self, client: TestClient) -> None:
+        payload = _propose_payload(
+            id="ku_supplied_id",
+            evidence={
+                "confidence": 0.7,
+                "confirmations": 3,
+                "first_observed": "2026-03-29T00:00:00Z",
+                "last_confirmed": "2026-03-29T00:00:00Z",
+            },
+        )
+        resp = client.post("/propose", json=payload)
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["id"] == "ku_supplied_id"
+        assert body["evidence"]["confidence"] == 0.7
+        assert body["tier"] == "team"
+
 
 class TestQuery:
     def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:

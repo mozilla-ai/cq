@@ -73,7 +73,17 @@ cq works out of the box in **local-only mode** with no configuration. Set enviro
 | `CQ_TEAM_ADDR` | No | *(disabled)* | Team API URL. Set to enable team sync (e.g. `http://localhost:8742`) |
 | `CQ_TEAM_API_KEY` | When team configured | — | API key for team API authentication |
 
-When `CQ_TEAM_ADDR` is unset or empty, cq runs in local-only mode — knowledge stays on your machine. Set it to a team API URL to enable shared knowledge across your team.
+When `CQ_TEAM_ADDR` is unset or empty, cq runs in local-only mode and knowledge stays on your machine. Set it to a team API URL to enable shared knowledge across your team while keeping a durable local copy.
+
+## Storage Semantics
+
+cq always keeps a machine-local knowledge store. Team sync adds a shared store; it does not replace the local one.
+
+- `query` reads the local store first and, when `CQ_TEAM_ADDR` is configured and reachable, also queries the team API. Results are merged, deduplicated by knowledge-unit ID, and returned with a `source` value showing whether they came from `local`, `team`, or `both`.
+- `propose` stores the new knowledge unit locally first. If team sync is configured, cq then submits the same knowledge unit to the team API using the same ID.
+- If the team API is unreachable, the local copy remains stored and is marked for retry.
+- If the team API rejects the shared submission, the local copy still remains stored; rejection affects team sharing, not machine-local durability.
+- Team query visibility depends on the team review workflow. A proposal can be submitted to the team API immediately but may not appear in team query results until it is approved there.
 
 ### Claude Code
 

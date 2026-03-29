@@ -12,6 +12,7 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -24,7 +25,7 @@ from .knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
-from .local_store import LocalStore
+from .local_store import LocalStore, TeamSyncStatus
 from .scoring import apply_confirmation, apply_flag, calculate_relevance
 from .team_client import TeamClient, TeamRejectedError
 
@@ -103,14 +104,14 @@ _drain_promoted_count: int | None = None
 
 
 async def _drain_local_to_team() -> None:
-    """Promote locally-stored fallback KUs to the team API.
+    """Retry team sync for locally-stored KUs still marked pending.
 
     Runs once at MCP server startup when CQ_TEAM_ADDR is configured.
-    KUs that were stored locally as a fallback (e.g. when the team API
-    was temporarily unreachable) are proposed to team concurrently.
-    Successfully promoted KUs are deleted from local store; failures
-    (transport errors or rejections) are left in place for retry on
-    the next startup.
+    Only KUs explicitly marked as pending sync are retried.
+    Successfully synced KUs remain in the local store and have their
+    sync metadata updated in place. Rejections are marked rejected so
+    they are not retried indefinitely. Transport failures remain pending
+    for the next startup repair pass.
     """
     global _drain_promoted_count  # noqa: PLW0603
     team_client = _get_team_client()
@@ -118,7 +119,7 @@ async def _drain_local_to_team() -> None:
         return
 
     store = _get_store()
-    units = await asyncio.to_thread(store.all)
+    units = await asyncio.to_thread(store.pending_sync_units)
     if not units:
         _drain_promoted_count = 0
         return
@@ -127,20 +128,42 @@ async def _drain_local_to_team() -> None:
 
     async def _promote(unit: KnowledgeUnit) -> bool:
         async with sem:
+            attempted_at = datetime.now(UTC)
             try:
                 result = await team_client.propose(unit)
-            except TeamRejectedError:
+            except TeamRejectedError as exc:
+                await asyncio.to_thread(
+                    store.update_team_sync_status,
+                    unit.id,
+                    TeamSyncStatus.REJECTED,
+                    error=exc.detail,
+                    attempted_at=attempted_at,
+                )
                 logger.warning(
-                    "Team API rejected local KU %s; will retry next startup.",
+                    "Team API rejected local KU %s; marked rejected locally.",
                     unit.id,
                 )
                 return False
             if result is None:
+                await asyncio.to_thread(
+                    store.update_team_sync_status,
+                    unit.id,
+                    TeamSyncStatus.PENDING,
+                    error="Team API unreachable during startup sync.",
+                    attempted_at=attempted_at,
+                )
                 logger.warning(
                     "Team API unreachable for local KU %s; will retry next startup.",
                     unit.id,
                 )
                 return False
+            await asyncio.to_thread(
+                store.update_team_sync_status,
+                unit.id,
+                TeamSyncStatus.SYNCED,
+                error=None,
+                attempted_at=attempted_at,
+            )
             return True
 
     # Process in fixed-size batches to bound the number of in-flight tasks.
@@ -156,18 +179,17 @@ async def _drain_local_to_team() -> None:
                     result,
                 )
             elif result is True:
-                await asyncio.to_thread(store.delete, unit.id)
                 promoted += 1
 
     _drain_promoted_count = promoted
-    logger.info("Promoted %d/%d local KUs to team.", promoted, len(units))
+    logger.info("Synced %d/%d pending local KUs to team.", promoted, len(units))
 
 
 @asynccontextmanager
 async def _lifespan(_server: FastMCP) -> AsyncIterator[None]:
     """Manage MCP server startup and shutdown.
 
-    On startup: drains locally-stored fallback KUs to team API (if configured).
+    On startup: retries pending local-to-team sync work (if configured).
     On shutdown: closes the team client and local store.
     """
     await _drain_local_to_team()
@@ -225,19 +247,20 @@ def _merge_results(
             "local",
         )
 
-    seen_ids: set[str] = set()
+    local_by_id = {unit.id: unit for unit in local_units}
+    team_by_id = {unit.id: unit for unit in team_units}
     merged: list[KnowledgeUnit] = []
 
-    # Local results take precedence for duplicate IDs.
-    for unit in local_units:
-        if unit.id not in seen_ids:
-            seen_ids.add(unit.id)
-            merged.append(unit)
-
-    for unit in team_units:
-        if unit.id not in seen_ids:
-            seen_ids.add(unit.id)
-            merged.append(unit)
+    for unit_id in dict.fromkeys([*local_by_id.keys(), *team_by_id.keys()]):
+        local_unit = local_by_id.get(unit_id)
+        team_unit = team_by_id.get(unit_id)
+        if local_unit is None:
+            merged.append(team_unit)
+            continue
+        if team_unit is None:
+            merged.append(local_unit)
+            continue
+        merged.append(_prefer_merged_unit(local_unit, team_unit))
 
     # Source reflects which stores were consulted and returned data.
     has_local = len(local_units) > 0
@@ -265,6 +288,22 @@ def _merge_results(
     top = [unit for _, unit in scored[:limit]]
 
     return [u.model_dump(mode="json") for u in top], source
+
+
+def _prefer_merged_unit(local_unit: KnowledgeUnit, team_unit: KnowledgeUnit) -> KnowledgeUnit:
+    """Choose the best representation for a KU present in both stores."""
+    local_last = local_unit.evidence.last_confirmed or local_unit.evidence.first_observed
+    team_last = team_unit.evidence.last_confirmed or team_unit.evidence.first_observed
+    if local_last and team_last:
+        if team_last > local_last:
+            return team_unit
+        if local_last > team_last:
+            return local_unit
+    elif team_last is not None:
+        return team_unit
+    elif local_last is not None:
+        return local_unit
+    return team_unit
 
 
 @mcp.tool(name="query")
@@ -354,9 +393,9 @@ async def propose(
     """Propose a new knowledge unit.
 
     Propose flow scenarios:
-    - Team configured and reachable: proposal goes to team only, nothing stored locally.
-    - Team configured but unreachable: falls back to local storage.
-    - Team configured but rejects the proposal: returns error, nothing stored locally.
+    - Team configured and reachable: store locally, then submit the same KU to team.
+    - Team configured but unreachable: store locally and leave the KU pending sync.
+    - Team configured but rejects the proposal: store locally and mark team sync rejected.
     - No team configured: always stores locally.
 
     Args:
@@ -369,8 +408,9 @@ async def propose(
         pattern: Optional pattern name.
 
     Returns:
-        Dict with ``id``, ``tier``, ``message``, and ``team_id``
-        (if pushed to team), or ``error`` if inputs are invalid.
+        Dict with ``id``, ``tier``, ``source``, ``sync_status``, and
+        ``message``. Includes ``team`` status details when team sync is
+        configured, or ``error`` if inputs are invalid.
     """
     cleaned_summary = summary.strip()
     cleaned_detail = detail.strip()
@@ -400,27 +440,71 @@ async def propose(
         tier=Tier.LOCAL,
     )
 
-    team_client = _get_team_client()
-    if team_client is not None:
-        try:
-            team_unit = await team_client.propose(unit)
-        except TeamRejectedError as exc:
-            return {"error": f"Team API rejected proposal: {exc.detail}"}
-        if team_unit is not None:
-            return {
-                "id": team_unit.id,
-                "tier": team_unit.tier.value,
-                "message": f"Knowledge unit proposed to team as {team_unit.id}.",
-            }
-        logger.warning("Team API unreachable; falling back to local storage.")
-
     store = _get_store()
-    await asyncio.to_thread(store.insert, unit)
-    return {
+    team_client = _get_team_client()
+    initial_sync_status = (
+        TeamSyncStatus.NOT_APPLICABLE if team_client is None else TeamSyncStatus.PENDING
+    )
+    await asyncio.to_thread(store.insert, unit, team_sync_status=initial_sync_status)
+
+    result = {
         "id": unit.id,
         "tier": unit.tier.value,
+        "source": "local",
+        "sync_status": initial_sync_status.value,
         "message": f"Knowledge unit {unit.id} stored locally.",
     }
+    if team_client is None:
+        return result
+
+    attempted_at = datetime.now(UTC)
+    try:
+        team_unit = await team_client.propose(unit)
+    except TeamRejectedError as exc:
+        await asyncio.to_thread(
+            store.update_team_sync_status,
+            unit.id,
+            TeamSyncStatus.REJECTED,
+            error=exc.detail,
+            attempted_at=attempted_at,
+        )
+        result["sync_status"] = TeamSyncStatus.REJECTED.value
+        result["message"] = (
+            f"Knowledge unit {unit.id} stored locally; team rejected the shared submission."
+        )
+        result["team"] = {"status": "rejected", "error": exc.detail}
+        return result
+
+    if team_unit is None:
+        logger.warning("Team API unreachable after local write; leaving KU pending sync.")
+        await asyncio.to_thread(
+            store.update_team_sync_status,
+            unit.id,
+            TeamSyncStatus.PENDING,
+            error="Team API unreachable during propose.",
+            attempted_at=attempted_at,
+        )
+        result["sync_status"] = TeamSyncStatus.PENDING.value
+        result["team"] = {"status": "error", "error": "Team API unreachable during propose."}
+        result["message"] = (
+            f"Knowledge unit {unit.id} stored locally; team sync is pending retry."
+        )
+        return result
+
+    await asyncio.to_thread(
+        store.update_team_sync_status,
+        unit.id,
+        TeamSyncStatus.SYNCED,
+        error=None,
+        attempted_at=attempted_at,
+    )
+    result["source"] = "both"
+    result["sync_status"] = TeamSyncStatus.SYNCED.value
+    result["team"] = {"status": "ok"}
+    result["message"] = (
+        f"Knowledge unit {unit.id} stored locally and submitted to team."
+    )
+    return result
 
 
 @mcp.tool(name="confirm")
@@ -571,7 +655,7 @@ async def status() -> dict:
         Dict with ``total_count``, ``domain_counts``, ``recent``
         (serialised knowledge units), ``confidence_distribution``, and
         ``team`` (connectivity status). Includes ``promoted_to_team``
-        when KUs were drained at startup.
+        when pending KUs were synced at startup.
     """
     store = _get_store()
     stats = await asyncio.to_thread(store.stats)

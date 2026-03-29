@@ -85,15 +85,14 @@ sequenceDiagram
     CC->>MCP: propose(summary="...", domain=["api","webhooks"])
     MCP->>MCP: Guardrails check (PII, prompt injection, quality)
     MCP->>Local: Store as ku_abc123 (confidence: 0.5)
-    MCP-->>CC: Stored locally as ku_abc123
-
-    Note over CC,Team: Graduation to team requires human approval...
-
-    MCP->>Team: POST /propose (flagged for HITL review)
+    MCP->>Team: POST /propose with ku_abc123
     Team-->>MCP: Queued for review
+    MCP-->>CC: Stored locally; team submission queued
+
+    Note over CC,Team: Team visibility requires human approval...
 ```
 
-The agent queries before writing code, avoiding repeated failures. When it discovers something novel, it proposes a new knowledge unit. The proposal passes through guardrails (PII detection, prompt injection filtering, quality checks) before entering the local store. Graduation to the team store is not automatic — it requires human approval through a review process. In the enterprise path, a team reviewer approves promotion; in the individual path, the contributor nominates local knowledge directly for global graduation.
+The agent queries before writing code, avoiding repeated failures. When it discovers something novel, it proposes a new knowledge unit. The proposal passes through guardrails (PII detection, prompt injection filtering, quality checks) before entering the local store. When team sync is configured, cq then submits the same knowledge unit to the team API using the same ID. Human review governs whether that proposal becomes visible through team query results; it does not determine whether the local copy persists. In the enterprise path, a team reviewer approves shared visibility; in the individual path, the contributor nominates local knowledge directly for global graduation.
 
 ---
 
@@ -336,7 +335,7 @@ The tiered architecture implies different storage characteristics at each level.
 
 | Tier | Backing Store | Characteristics |
 |------|--------------|-----------------|
-| **Tier 1: Local** | SQLite / embedded | Fast, offline-capable, private. Data never leaves the machine unless explicitly graduated. |
+| **Tier 1: Local** | SQLite / embedded | Fast, offline-capable, private by default. This is the durable machine-scoped store even when team sync is enabled. |
 | **Tier 2: Team** | Postgres + pgvector | Multi-user access, RBAC, hybrid keyword + semantic search. Natural home for the enterprise SaaS offering. |
 | **Tier 3: Global** | Federated / decentralised | Publicly readable, highly available, resistant to single points of failure. Content-addressed storage for immutability and provenance. |
 

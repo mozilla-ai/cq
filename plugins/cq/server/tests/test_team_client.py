@@ -175,6 +175,25 @@ class TestTeamClientPropose:
         assert result is not None
         assert result.id == "ku_team_new"
 
+    async def test_propose_sends_id_and_evidence(
+        self,
+        client: TeamClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+        unit = _sample_unit(unit_id="ku_supplied")
+
+        async def handler(*_args: object, **kwargs: object) -> httpx.Response:
+            captured.update(kwargs)
+            return _mock_response(201, unit.model_dump(mode="json"))
+
+        monkeypatch.setattr(client._client, "post", handler)
+
+        await client.propose(unit)
+
+        assert captured["json"]["id"] == "ku_supplied"
+        assert captured["json"]["evidence"]["confidence"] == unit.evidence.confidence
+
 
 class TestTeamClientConfirm:
     async def test_confirm_returns_none_on_connection_error(

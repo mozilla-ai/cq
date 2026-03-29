@@ -38,12 +38,12 @@ Present the results using this structure:
 If the response includes `promoted_to_team`, add this line after the total count:
 
 ```
-Promoted {promoted_to_team} knowledge units to team at startup.
+Synced {promoted_to_team} pending local knowledge units to team at startup.
 ```
 
 ## Empty Store
 
 When `total_count` is 0:
 
-- **With `promoted_to_team`:** Show the header, total count line, and promotion line. Omit Domains, Recent Additions, and Confidence sections (there is no data to display).
-- **Without `promoted_to_team`:** Display only: "The local cq store is empty. Knowledge units are added via `propose` or the `/cq:reflect` command."
+- Display the header and total count line, then: "The local cq store is empty. Knowledge units are added via `propose` or the `/cq:reflect` command."
+- If `promoted_to_team` is present, add the startup sync line after the empty-store message.

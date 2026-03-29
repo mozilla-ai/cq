@@ -19,6 +19,7 @@ from cq_mcp.local_store import (
     _FTS_MAX_TERM_LENGTH,
     _FTS_MAX_TERMS,
     LocalStore,
+    TeamSyncStatus,
     _build_fts_match_expr,
     _default_db_path,
     _migrate_legacy_db,
@@ -71,6 +72,26 @@ def _inspect_tables(db_path: Path) -> list[str]:
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
         ).fetchall()
         return [r[0] for r in rows]
+    finally:
+        conn.close()
+
+
+def _inspect_sync_metadata(db_path: Path, unit_id: str) -> dict[str, str | None] | None:
+    """Read team sync metadata directly from SQLite for test assertions."""
+    conn = _inspect_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT team_sync_status, team_sync_attempted_at, team_sync_error "
+            "FROM knowledge_units WHERE id = ?",
+            (unit_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "status": row[0],
+            "attempted_at": row[1],
+            "error": row[2],
+        }
     finally:
         conn.close()
 
@@ -201,6 +222,16 @@ class TestAutoCreateSchema:
         tables = _inspect_tables(store.db_path)
         assert "knowledge_unit_domains" in tables
 
+    def test_creates_team_sync_columns(self, store: LocalStore):
+        unit = _make_unit(domain=["api"])
+        store.insert(unit)
+        metadata = _inspect_sync_metadata(store.db_path, unit.id)
+        assert metadata == {
+            "status": TeamSyncStatus.NOT_APPLICABLE.value,
+            "attempted_at": None,
+            "error": None,
+        }
+
     def test_idempotent_schema_creation(self, tmp_path: Path):
         db_path = tmp_path / "test.db"
         store1 = LocalStore(db_path=db_path)
@@ -258,6 +289,19 @@ class TestInsert:
         with pytest.raises(ValueError, match="At least one non-empty domain"):
             store.insert(unit)
 
+    def test_insert_persists_team_sync_metadata(self, store: LocalStore):
+        unit = _make_unit(domain=["api"])
+        store.insert(
+            unit,
+            team_sync_status=TeamSyncStatus.PENDING,
+            team_sync_error="Team API unreachable during propose.",
+        )
+        metadata = _inspect_sync_metadata(store.db_path, unit.id)
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.PENDING.value
+        assert metadata["attempted_at"] is None
+        assert metadata["error"] == "Team API unreachable during propose."
+
 
 class TestGet:
     def test_returns_none_for_missing_id(self, store: LocalStore):
@@ -279,6 +323,9 @@ class TestGet:
         assert retrieved.created_by == unit.created_by
         assert retrieved.evidence == unit.evidence
         assert retrieved.insight == unit.insight
+
+    def test_team_sync_status_returns_none_for_missing_id(self, store: LocalStore):
+        assert store.team_sync_status("ku_nonexistent") is None
 
 
 class TestUpdate:
@@ -328,6 +375,26 @@ class TestUpdate:
         assert retrieved is not None
         assert retrieved.evidence.confidence == pytest.approx(0.35)
         assert len(retrieved.flags) == 1
+
+    def test_update_team_sync_status_persists_metadata(self, store: LocalStore):
+        unit = _make_unit(domain=["api"])
+        store.insert(unit, team_sync_status=TeamSyncStatus.PENDING)
+
+        store.update_team_sync_status(
+            unit.id,
+            TeamSyncStatus.SYNCED,
+            attempted_at=datetime.now(UTC),
+        )
+
+        metadata = store.team_sync_status(unit.id)
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.SYNCED.value
+        assert metadata["attempted_at"] is not None
+        assert metadata["error"] is None
+
+    def test_update_team_sync_status_missing_unit_raises(self, store: LocalStore):
+        with pytest.raises(KeyError, match="Knowledge unit not found"):
+            store.update_team_sync_status("ku_missing", TeamSyncStatus.PENDING)
 
 
 class TestQuery:
@@ -841,6 +908,23 @@ class TestAll:
         store.close()
         with pytest.raises(RuntimeError, match="closed"):
             store.all()
+
+
+class TestPendingSyncUnits:
+    def test_returns_only_pending_units(self, store: LocalStore) -> None:
+        pending = _make_unit(domain=["api"])
+        synced = _make_unit(domain=["databases"])
+        store.insert(pending, team_sync_status=TeamSyncStatus.PENDING)
+        store.insert(synced, team_sync_status=TeamSyncStatus.SYNCED)
+
+        results = store.pending_sync_units()
+
+        assert [unit.id for unit in results] == [pending.id]
+
+    def test_pending_sync_units_raises_when_store_closed(self, store: LocalStore) -> None:
+        store.close()
+        with pytest.raises(RuntimeError, match="closed"):
+            store.pending_sync_units()
 
 
 class TestDelete:

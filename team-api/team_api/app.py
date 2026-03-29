@@ -14,6 +14,7 @@ from .auth import router as auth_router
 from .review import router as review_router
 from .knowledge_unit import (
     Context,
+    Evidence,
     FlagReason,
     Insight,
     KnowledgeUnit,
@@ -27,9 +28,11 @@ from .store import TeamStore, normalise_domains
 class ProposeRequest(BaseModel):
     """Request body for proposing a new knowledge unit."""
 
+    id: str | None = None
     domain: list[str] = Field(min_length=1)
     insight: Insight
     context: Context = Field(default_factory=Context)
+    evidence: Evidence | None = None
     created_by: str = ""
 
 
@@ -102,13 +105,24 @@ def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
         raise HTTPException(
             status_code=422, detail="At least one non-empty domain is required"
         )
-    unit = create_knowledge_unit(
-        domain=domains,
-        insight=request.insight,
-        context=request.context,
-        tier=Tier.TEAM,
-        created_by=request.created_by,
-    )
+    if request.id is None and request.evidence is None:
+        unit = create_knowledge_unit(
+            domain=domains,
+            insight=request.insight,
+            context=request.context,
+            tier=Tier.TEAM,
+            created_by=request.created_by,
+        )
+    else:
+        unit = KnowledgeUnit(
+            id=request.id or create_knowledge_unit(domain=domains, insight=request.insight).id,
+            domain=domains,
+            insight=request.insight,
+            context=request.context,
+            evidence=request.evidence or Evidence(),
+            tier=Tier.TEAM,
+            created_by=request.created_by,
+        )
     store.insert(unit)
     return unit
 

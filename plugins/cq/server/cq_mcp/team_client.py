@@ -144,9 +144,11 @@ class TeamClient:
                 proposal with an HTTP 4xx/5xx status.
         """
         body = {
+            "id": unit.id,
             "domain": unit.domain,
             "insight": unit.insight.model_dump(mode="json"),
             "context": unit.context.model_dump(mode="json"),
+            "evidence": unit.evidence.model_dump(mode="json"),
             "created_by": unit.created_by,
         }
         try:

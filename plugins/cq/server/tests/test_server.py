@@ -23,6 +23,7 @@ from cq_mcp.server import (
     reflect,
     status,
 )
+from cq_mcp.local_store import TeamSyncStatus
 from cq_mcp.team_client import TeamQueryResult, TeamRejectedError
 
 
@@ -187,8 +188,8 @@ class TestCqQueryWithTeam:
 
         result = await query(domain=["api"])
         assert len(result["results"]) == 1
-        # Local version takes precedence.
-        assert result["results"][0]["tier"] == "local"
+        # Team version takes precedence when evidence freshness is equal.
+        assert result["results"][0]["tier"] == "team"
         # Source reflects that both stores were consulted.
         assert result["source"] == "both"
 
@@ -321,12 +322,14 @@ class TestCqProposeWithTeam:
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
         result = await _propose_unit(domain=["api"])
-        assert result["id"] == "ku_team_pushed"
-        assert result["tier"] == "team"
-        assert "proposed to team" in result["message"]
+        assert result["id"].startswith("ku_")
+        assert result["tier"] == "local"
+        assert result["source"] == "both"
+        assert result["sync_status"] == TeamSyncStatus.SYNCED.value
+        assert "submitted to team" in result["message"]
         mock_client.propose.assert_called_once()
 
-    async def test_propose_skips_local_store_when_team_succeeds(
+    async def test_propose_keeps_local_store_when_team_succeeds(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -338,11 +341,18 @@ class TestCqProposeWithTeam:
         )
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
-        await _propose_unit(domain=["api"])
+        proposed = await _propose_unit(domain=["api"])
         local_results = await query(domain=["api"])
-        assert len(local_results["results"]) == 0
+        assert len(local_results["results"]) == 1
+        assert local_results["results"][0]["id"] == proposed["id"]
+        store = server._get_store()
+        metadata = store.team_sync_status(proposed["id"])
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.SYNCED.value
+        assert metadata["attempted_at"] is not None
+        assert metadata["error"] is None
 
-    async def test_propose_returns_error_when_team_rejects(
+    async def test_propose_keeps_local_store_when_team_rejects(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -354,10 +364,17 @@ class TestCqProposeWithTeam:
         monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
 
         result = await _propose_unit(domain=["api"])
-        assert "error" in result
-        assert "rejected" in result["error"].lower()
+        assert result["source"] == "local"
+        assert result["sync_status"] == TeamSyncStatus.REJECTED.value
+        assert result["team"]["status"] == "rejected"
         local_results = await query(domain=["api"])
-        assert len(local_results["results"]) == 0
+        assert len(local_results["results"]) == 1
+        assert local_results["results"][0]["id"] == result["id"]
+        store = server._get_store()
+        metadata = store.team_sync_status(result["id"])
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.REJECTED.value
+        assert metadata["error"] == "Invalid domain"
 
     async def test_propose_falls_back_to_local_when_team_unreachable(
         self,
@@ -373,9 +390,15 @@ class TestCqProposeWithTeam:
         result = await _propose_unit(domain=["api"])
         assert result["id"].startswith("ku_")
         assert result["tier"] == "local"
-        assert "stored locally" in result["message"]
+        assert result["source"] == "local"
+        assert result["sync_status"] == TeamSyncStatus.PENDING.value
+        assert "pending retry" in result["message"]
         local_results = await query(domain=["api"])
         assert len(local_results["results"]) == 1
+        store = server._get_store()
+        metadata = store.team_sync_status(result["id"])
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.PENDING.value
 
 
 class TestCqConfirm:
@@ -610,14 +633,14 @@ def _make_local_unit(*, domain: list[str] | None = None) -> KnowledgeUnit:
 
 
 class TestDrainLocalToTeam:
-    async def test_drain_promotes_local_kus_to_team(
+    async def test_drain_syncs_pending_local_kus_to_team(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Local KUs are proposed to team and deleted from local store."""
+        """Pending local KUs are proposed to team and kept locally."""
         store = server._get_store()
         unit = _make_local_unit(domain=["api"])
-        store.insert(unit)
+        store.insert(unit, team_sync_status=TeamSyncStatus.PENDING)
 
         team_unit = _make_team_unit(unit_id="ku_team_promoted")
         mock_client = AsyncMock()
@@ -626,14 +649,19 @@ class TestDrainLocalToTeam:
 
         await server._drain_local_to_team()
 
-        assert store.all() == []
+        remaining = store.all()
+        assert len(remaining) == 1
+        assert remaining[0].id == unit.id
+        metadata = store.team_sync_status(unit.id)
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.SYNCED.value
         assert server._drain_promoted_count == 1
 
     async def test_drain_skips_when_no_team_client(self) -> None:
         """Drain does nothing when team is not configured."""
         store = server._get_store()
         unit = _make_local_unit(domain=["api"])
-        store.insert(unit)
+        store.insert(unit, team_sync_status=TeamSyncStatus.PENDING)
 
         await server._drain_local_to_team()
 
@@ -646,7 +674,7 @@ class TestDrainLocalToTeam:
         """KU stays local when team API is unreachable."""
         store = server._get_store()
         unit = _make_local_unit(domain=["api"])
-        store.insert(unit)
+        store.insert(unit, team_sync_status=TeamSyncStatus.PENDING)
 
         mock_client = AsyncMock()
         mock_client.propose.return_value = None
@@ -655,16 +683,19 @@ class TestDrainLocalToTeam:
         await server._drain_local_to_team()
 
         assert len(store.all()) == 1
+        metadata = store.team_sync_status(unit.id)
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.PENDING.value
         assert server._drain_promoted_count == 0
 
     async def test_drain_keeps_unit_on_rejection(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """KU stays local when team API rejects it."""
+        """Rejected KUs stay local and stop retrying."""
         store = server._get_store()
         unit = _make_local_unit(domain=["api"])
-        store.insert(unit)
+        store.insert(unit, team_sync_status=TeamSyncStatus.PENDING)
 
         mock_client = AsyncMock()
         mock_client.propose.side_effect = TeamRejectedError(422, "bad")
@@ -673,18 +704,22 @@ class TestDrainLocalToTeam:
         await server._drain_local_to_team()
 
         assert len(store.all()) == 1
+        metadata = store.team_sync_status(unit.id)
+        assert metadata is not None
+        assert metadata["status"] == TeamSyncStatus.REJECTED.value
+        assert metadata["error"] == "bad"
         assert server._drain_promoted_count == 0
 
     async def test_drain_handles_mixed_results(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Some KUs promote, some fail — only promoted ones are deleted."""
+        """Some KUs sync, some fail — all remain local with updated status."""
         store = server._get_store()
         u1 = _make_local_unit(domain=["api"])
         u2 = _make_local_unit(domain=["databases"])
-        store.insert(u1)
-        store.insert(u2)
+        store.insert(u1, team_sync_status=TeamSyncStatus.PENDING)
+        store.insert(u2, team_sync_status=TeamSyncStatus.PENDING)
 
         team_unit = _make_team_unit(unit_id="ku_team_ok")
         mock_client = AsyncMock()
@@ -695,8 +730,35 @@ class TestDrainLocalToTeam:
         await server._drain_local_to_team()
 
         remaining = store.all()
-        assert len(remaining) == 1
+        assert len(remaining) == 2
+        statuses = {
+            store.team_sync_status(u1.id)["status"],
+            store.team_sync_status(u2.id)["status"],
+        }
+        assert statuses == {
+            TeamSyncStatus.SYNCED.value,
+            TeamSyncStatus.PENDING.value,
+        }
         assert server._drain_promoted_count == 1
+
+    async def test_drain_ignores_non_pending_units(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = server._get_store()
+        pending = _make_local_unit(domain=["api"])
+        synced = _make_local_unit(domain=["databases"])
+        store.insert(pending, team_sync_status=TeamSyncStatus.PENDING)
+        store.insert(synced, team_sync_status=TeamSyncStatus.SYNCED)
+
+        mock_client = AsyncMock()
+        mock_client.propose.return_value = _make_team_unit(unit_id=pending.id, domain=["api"])
+        monkeypatch.setattr(server, "_get_team_client", lambda: mock_client)
+
+        await server._drain_local_to_team()
+
+        mock_client.propose.assert_called_once_with(pending)
+        assert store.team_sync_status(synced.id)["status"] == TeamSyncStatus.SYNCED.value
 
 
 class TestCqStatusWithDrain:
