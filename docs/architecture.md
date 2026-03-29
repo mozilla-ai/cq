@@ -356,7 +356,7 @@ flowchart LR
         skill["SKILL.md\nTeaches agent when to\nquery, propose, confirm, flag"]
         reviewer["cq-reviewer.md\nSub-agent for reviewing\ngraduation candidates"]
         mcp_cfg[".mcp.json\nMCP server configuration"]
-        hooks["hooks.json\nPost-error: auto-query\ncommons on failure"]
+        hooks["hooks.json\nSession start sync +\nfailed-tool follow-up"]
         commands["Commands\n/cq:status — store stats\n/cq:reflect — session mining"]
     end
 
@@ -384,7 +384,7 @@ flowchart LR
 
 **MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, team API communication, confidence scoring, and query matching.
 
-**Hooks** trigger automatically. The post-error hook instructs the agent to call `query` with the error context before attempting a fix.
+**Hooks** trigger automatically. In Cursor, the session-start hook pre-syncs the cq MCP server environment and sets per-session hook state. A `postToolUseFailure` hook records the last failed tool call, and a `stop` hook can auto-submit a cq follow-up when the agent loop ends immediately after that failure. This mirrors the "query before retrying" intent without relying on unsupported output fields from Cursor's failure hook.
 
 **Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalisability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
 

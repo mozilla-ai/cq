@@ -59,7 +59,11 @@ This installs:
 - **MCP server** — registered in `.cursor/mcp.json`
 - **cq skill** — symlinked into `.cursor/skills/cq/`
 - **Cursor rule** — `.cursor/rules/cq.mdc` (agent-decided, prompts skill loading)
-- **Session start hook** — `.cursor/hooks.json` (pre-syncs Python dependencies)
+- **Cursor hooks** — `.cursor/hooks.json` with:
+  - `sessionStart` to pre-sync Python dependencies and set per-session hook state
+  - `postToolUseFailure` to record the last failed tool call
+  - `postToolUse` to clear stale failure state once the agent recovers
+  - `stop` to auto-submit a cq follow-up when the agent loop ends immediately after a tool failure
 
 To uninstall:
 

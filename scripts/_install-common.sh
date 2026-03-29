@@ -3,7 +3,7 @@
 # Sourced by install-cursor.sh and install-opencode.sh.
 #
 # Provides: SCRIPT_DIR, REPO_ROOT, PLUGIN_DIR, SERVER_DIR, ACTION, PROJECT,
-#           apply(), usage(), and jq dependency check.
+#           UV_BIN, apply(), usage(), and dependency checks.
 #
 # The sourcing script must set TARGET after sourcing this file.
 
@@ -18,6 +18,12 @@ SERVER_DIR="${PLUGIN_DIR}/server"
 
 if ! command -v jq &>/dev/null; then
     echo "Error: jq is required. Install with: brew install jq" >&2
+    exit 1
+fi
+
+UV_BIN="$(command -v uv || true)"
+if [[ -z "${UV_BIN}" ]]; then
+    echo "Error: uv is required. Install from: https://docs.astral.sh/uv/" >&2
     exit 1
 fi
 
