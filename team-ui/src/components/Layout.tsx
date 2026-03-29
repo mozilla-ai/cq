@@ -8,6 +8,7 @@ export function Layout() {
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
   const onDashboard = location.pathname === "/dashboard";
+  const onReview = location.pathname === "/review";
 
   useEffect(() => {
     if (onDashboard) return;
@@ -41,8 +42,12 @@ export function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
-      <nav className="bg-white border-b border-gray-200">
+    <div
+      className={`bg-gray-50 overflow-x-hidden ${
+        onReview ? "flex h-dvh flex-col overflow-y-hidden" : "min-h-dvh"
+      }`}
+    >
+      <nav className="shrink-0 bg-white border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3 md:gap-6">
             <span className="text-lg font-bold text-indigo-600">cq</span>
@@ -60,7 +65,13 @@ export function Layout() {
           </div>
         </div>
       </nav>
-      <main className="max-w-2xl mx-auto py-8 px-4">
+      <main
+        className={`max-w-2xl mx-auto w-full px-4 ${
+          onReview
+            ? "flex flex-1 min-h-0 flex-col overflow-hidden py-4 md:py-8"
+            : "py-8"
+        }`}
+      >
         <Outlet context={{ setPendingCount }} />
       </main>
     </div>
