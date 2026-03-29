@@ -20,6 +20,10 @@ fi
 # -- MCP configuration. --
 # Cursor uses .cursor/mcp.json with a top-level "mcpServers" key.
 
+_shell_quote() {
+    printf '%q' "$1"
+}
+
 configure_mcp() {
     local config_file="${TARGET}/mcp.json"
     local server_path
@@ -27,8 +31,9 @@ configure_mcp() {
 
     local cq_entry
     cq_entry=$(jq -n \
+        --arg uv "${UV_BIN}" \
         --arg dir "${server_path}" \
-        '{ command: "uv", args: ["run", "--directory", $dir, "cq-mcp-server"] }')
+        '{ command: $uv, args: ["run", "--directory", $dir, "cq-mcp-server"] }')
 
     if [[ -f "${config_file}" ]]; then
         if jq -e '.mcpServers.cq' "${config_file}" &>/dev/null; then
@@ -59,66 +64,101 @@ remove_mcp() {
 }
 
 # -- Hooks configuration. --
-# Cursor hooks use { "version": 1, "hooks": { "sessionStart": [...] } }.
-# We add a sessionStart hook to pre-sync the MCP server's Python dependencies.
+# Cursor hooks use { "version": 1, "hooks": { ... } }.
+# We install a sessionStart hook that syncs the MCP server environment and
+# sets session-scoped state, a postToolUseFailure hook that records the last
+# failed tool, a postToolUse hook that clears stale failures after recovery,
+# and a stop hook that auto-submits a cq follow-up when the agent loop ends
+# immediately after a tool failure.
+
+_hook_script() {
+    local hook_dir
+    hook_dir="$(cd "${PLUGIN_DIR}/hooks/cursor" && pwd)"
+    printf '%s' "${hook_dir}/cq_cursor_hook.py"
+}
 
 _hook_cmd() {
+    local mode="$1"
+    local server_path script_path
+    server_path="$(cd "${SERVER_DIR}" && pwd)"
+    script_path="$(_hook_script)"
+    printf '%s --mode %s' \
+        "$(_shell_quote "${script_path}")" \
+        "$(_shell_quote "${mode}")"
+    if [[ "${mode}" == "session-start" ]]; then
+        printf ' --server-dir %s --uv-bin %s' \
+            "$(_shell_quote "${server_path}")" \
+            "$(_shell_quote "${UV_BIN}")"
+    fi
+}
+
+_legacy_session_start_cmd() {
     local server_path
     server_path="$(cd "${SERVER_DIR}" && pwd)"
-    echo "uv sync --directory ${server_path} --quiet"
+    printf 'uv sync --directory %s --quiet' "${server_path}"
+}
+
+_ensure_hook() {
+    local config_file="$1" hook_name="$2" command="$3" label="$4"
+    local hook_entry
+    hook_entry=$(jq -n --arg cmd "${command}" '{ command: $cmd }')
+
+    if jq -e --arg hook "${hook_name}" --arg cmd "${command}" \
+        '.hooks[$hook][]? | select(.command == $cmd)' "${config_file}" &>/dev/null; then
+        echo "  ${label} already configured in ${config_file}"
+        return 0
+    fi
+
+    local tmp
+    tmp=$(jq --arg hook "${hook_name}" --argjson entry "${hook_entry}" '
+        .version //= 1 |
+        .hooks //= {} |
+        .hooks[$hook] //= [] |
+        .hooks[$hook] += [$entry]
+    ' "${config_file}")
+    printf '%s\n' "${tmp}" > "${config_file}"
+    echo "  Added ${label} to ${config_file}"
+}
+
+_remove_hook() {
+    local config_file="$1" hook_name="$2" command="$3" label="$4"
+    local tmp
+    tmp=$(jq --arg hook "${hook_name}" --arg cmd "${command}" '
+        if .hooks[$hook] then
+            .hooks[$hook] |= map(select(.command != $cmd))
+        else . end |
+        if (.hooks[$hook] // []) == [] then del(.hooks[$hook]) else . end |
+        if .hooks == {} then del(.hooks) else . end
+    ' "${config_file}")
+    printf '%s\n' "${tmp}" > "${config_file}"
+    echo "  Removed ${label} from ${config_file}"
 }
 
 configure_hooks() {
     local config_file="${TARGET}/hooks.json"
-    local hook_cmd
-    hook_cmd="$(_hook_cmd)"
-
-    local cq_hook
-    cq_hook=$(jq -n --arg cmd "${hook_cmd}" '{ command: $cmd }')
-
-    if [[ -f "${config_file}" ]]; then
-        if jq -e --arg cmd "${hook_cmd}" '.hooks.sessionStart[]? | select(.command == $cmd)' "${config_file}" &>/dev/null; then
-            echo "  Session start hook already configured in ${config_file}"
-        else
-            local tmp
-            tmp=$(jq --argjson entry "${cq_hook}" '
-                .version //= 1 |
-                .hooks //= {} |
-                .hooks.sessionStart //= [] |
-                .hooks.sessionStart += [$entry]
-            ' "${config_file}")
-            printf '%s\n' "${tmp}" > "${config_file}"
-            echo "  Added session start hook to ${config_file}"
-        fi
-    else
+    if [[ ! -f "${config_file}" ]]; then
         mkdir -p "$(dirname "${config_file}")"
-        jq -n --argjson entry "${cq_hook}" '{
-            version: 1,
-            hooks: {
-                sessionStart: [$entry]
-            }
-        }' > "${config_file}"
-        echo "  Created ${config_file} with session start hook"
+        jq -n '{ version: 1, hooks: {} }' > "${config_file}"
+        echo "  Created ${config_file}"
     fi
+
+    _remove_hook "${config_file}" "sessionStart" "$(_legacy_session_start_cmd)" "legacy session start hook"
+
+    _ensure_hook "${config_file}" "sessionStart" "$(_hook_cmd session-start)" "session start hook"
+    _ensure_hook "${config_file}" "postToolUseFailure" "$(_hook_cmd post-tool-use-failure)" "postToolUseFailure hook"
+    _ensure_hook "${config_file}" "postToolUse" "$(_hook_cmd post-tool-use)" "postToolUse hook"
+    _ensure_hook "${config_file}" "stop" "$(_hook_cmd stop)" "stop hook"
 }
 
 remove_hooks() {
     local config_file="${TARGET}/hooks.json"
     [[ -f "${config_file}" ]] || return 0
 
-    local hook_cmd
-    hook_cmd="$(_hook_cmd)"
-
-    local tmp
-    tmp=$(jq --arg cmd "${hook_cmd}" '
-        if .hooks.sessionStart then
-            .hooks.sessionStart |= map(select(.command != $cmd))
-        else . end |
-        if (.hooks.sessionStart // []) == [] then del(.hooks.sessionStart) else . end |
-        if .hooks == {} then del(.hooks) else . end
-    ' "${config_file}")
-    printf '%s\n' "${tmp}" > "${config_file}"
-    echo "  Removed session start hook from ${config_file}"
+    _remove_hook "${config_file}" "sessionStart" "$(_legacy_session_start_cmd)" "legacy session start hook"
+    _remove_hook "${config_file}" "sessionStart" "$(_hook_cmd session-start)" "session start hook"
+    _remove_hook "${config_file}" "postToolUseFailure" "$(_hook_cmd post-tool-use-failure)" "postToolUseFailure hook"
+    _remove_hook "${config_file}" "postToolUse" "$(_hook_cmd post-tool-use)" "postToolUse hook"
+    _remove_hook "${config_file}" "stop" "$(_hook_cmd stop)" "stop hook"
 }
 
 # -- Rule configuration. --
