@@ -6,16 +6,16 @@ This document describes the architecture of cq (shared agent knowledge commons) 
 
 ## 1. System Overview
 
-cq runs across three distinct runtime boundaries. Claude Code loads the plugin configuration files that shape agent behaviour. A local MCP server process handles all cq logic and owns the private knowledge store. A Docker container runs the Team API independently for shared organisational knowledge.
+cq runs across three distinct runtime boundaries. A host agent loads the configuration files that shape agent behaviour. A local MCP server process handles all cq logic and owns the private knowledge store. A Docker container runs the Team API independently for shared organisational knowledge.
 
 ```mermaid
 flowchart TB
-    subgraph cc["Claude Code Process"]
+    subgraph cc["Host Agent Process"]
         direction TB
         skill["SKILL.md\nBehavioural instructions"]
-        hook["hooks.json\nPost-error auto-query"]
-        cmd_status["/cq:status\nStore statistics"]
-        cmd_reflect["/cq:reflect\nSession mining"]
+        hook["Host hooks / automation\nSession bootstrap +\nerror follow-up"]
+        cmd_status["Host commands / entrypoints\nStatus and reflection"]
+        cmd_reflect["Agent loop / UX surface"]
     end
 
     subgraph mcp["Local MCP Server Process"]
@@ -46,9 +46,9 @@ flowchart TB
     class local_db,team_db dbStyle
 ```
 
-**Claude Code** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
+**Host Agent** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
 
-**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
+**MCP Server** is spawned by the host agent via stdio. It runs FastMCP, exposes six tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
 
 **Docker Container** runs the Team API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
 
@@ -346,18 +346,18 @@ The API contract — how agents read and write knowledge units via MCP tools —
 
 ## 4. Plugin Anatomy
 
-The cq plugin bundles everything an agent needs into a single installable unit. Each component serves a distinct role.
+The cq distribution bundles the components an agent host needs into an installable unit. Different hosts may consume different subsets, but each component serves a distinct role.
 
 ```mermaid
 flowchart LR
     subgraph plugin["cq Plugin"]
         direction TB
-        manifest["plugin.json\nWires everything together"]
+        manifest["plugin.json / install scripts\nWire host integrations\ntogether"]
         skill["SKILL.md\nTeaches agent when to\nquery, propose, confirm, flag"]
         reviewer["cq-reviewer.md\nSub-agent for reviewing\ngraduation candidates"]
         mcp_cfg[".mcp.json\nMCP server configuration"]
-        hooks["hooks.json\nPost-error: auto-query\ncommons on failure"]
-        commands["Commands\n/cq:status — store stats\n/cq:reflect — session mining"]
+        hooks["Host hooks / automation\nBootstrap +\nfailed-tool follow-up"]
+        commands["Host commands / entrypoints\nStatus + reflection"]
     end
 
     subgraph server["MCP Server"]
@@ -384,11 +384,15 @@ flowchart LR
 
 **MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, team API communication, confidence scoring, and query matching.
 
-**Hooks** trigger automatically. The post-error hook instructs the agent to call `query` with the error context before attempting a fix.
+**Hooks** are the lifecycle automation layer when the host supports them. They bootstrap per-session state, capture tool-failure context, clear stale failure state after recovery, and can inject follow-up guidance when the agent loop ends immediately after an unrecovered failure.
 
-**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalisability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
+Host-specific implementations diverge:
+- **Cursor** uses `.cursor/hooks.json` with `sessionStart`, `postToolUseFailure`, `postToolUse`, and `stop` hooks. Together these pre-sync the cq MCP environment, record the last failed tool call, clear stale failure state after recovery, and auto-submit a cq follow-up when the agent loop ends immediately after a failure.
+- **Claude Code** in this repo does not ship a separate hook configuration file. The same "query before retrying" behaviour is primarily carried by `SKILL.md`, with plugin commands and MCP tools providing the agent-facing surfaces.
 
-**plugin.json** is the manifest that declares all components and wires them together for one-command installation.
+**Commands** are developer-facing entrypoints where the host exposes them. In Claude Code, `/cq:status` shows store statistics and `/cq:reflect` triggers retrospective session mining. Cursor currently relies on the MCP tools, Skill, rule, and hooks instead of installing equivalent slash commands from this repo.
+
+**plugin.json** is one host-specific packaging surface. Other hosts may be wired up by installation scripts and host-native configuration files instead of a plugin manifest.
 
 ---
 

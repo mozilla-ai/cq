@@ -8,6 +8,12 @@ help:
 	@echo "  make install-claude                          Install cq plugin"
 	@echo "  make uninstall-claude                        Remove cq plugin"
 	@echo ""
+	@echo "Cursor:"
+	@echo "  make install-cursor                          Install globally (~/.cursor/)"
+	@echo "  make install-cursor PROJECT=/path/to/app     Install into a specific project"
+	@echo "  make uninstall-cursor                        Remove global Cursor install"
+	@echo "  make uninstall-cursor PROJECT=/path/to/app   Remove from a specific project"
+	@echo ""
 	@echo "OpenCode:"
 	@echo "  make install-opencode                        Install globally (~/.config/opencode/)"
 	@echo "  make install-opencode PROJECT=/path/to/app   Install into a specific project"
@@ -41,6 +47,22 @@ install-claude:
 .PHONY: uninstall-claude
 uninstall-claude:
 	claude plugin marketplace remove mozilla-ai/cq
+
+.PHONY: install-cursor
+install-cursor:
+ifdef PROJECT
+	@bash "$(CURDIR)/scripts/install-cursor.sh" install --project "$(PROJECT)"
+else
+	@bash "$(CURDIR)/scripts/install-cursor.sh" install
+endif
+
+.PHONY: uninstall-cursor
+uninstall-cursor:
+ifdef PROJECT
+	@bash "$(CURDIR)/scripts/install-cursor.sh" uninstall --project "$(PROJECT)"
+else
+	@bash "$(CURDIR)/scripts/install-cursor.sh" uninstall
+endif
 
 .PHONY: install-opencode
 install-opencode:
