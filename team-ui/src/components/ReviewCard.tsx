@@ -2,14 +2,14 @@ import { forwardRef } from "react";
 import type { KnowledgeUnit, Selection } from "../types";
 import { DomainTags } from "./DomainTags";
 import { timeAgo } from "../utils";
-import type { DragState, PointerHandlers } from "../hooks/useCardDrag";
+import type { DragState, GestureHandlers } from "../hooks/useCardDrag";
 import { FLY_OFF_MS, MAX_ROTATION_DEG, SNAP_BACK_MS } from "../hooks/useCardDrag";
 
 interface Props {
   unit: KnowledgeUnit;
   selection: Selection;
   drag: DragState;
-  pointerHandlers: PointerHandlers;
+  pointerHandlers: GestureHandlers;
 }
 
 const CARD_STYLES: Record<string, string> = {
@@ -54,33 +54,38 @@ export const ReviewCard = forwardRef<HTMLDivElement, Props>(
     return (
       <div
         ref={ref}
-        className={`relative z-0 border-2 rounded-lg p-6 max-w-xl mx-auto select-none touch-none ${cardStyle}`}
+        className={`relative z-0 mx-auto flex h-full max-h-full w-full max-w-xl select-none flex-col overflow-hidden rounded-lg border-2 p-4 touch-pan-y sm:p-6 ${cardStyle}`}
         style={{ transform, transition, boxShadow: shadow }}
         {...pointerHandlers}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3 flex items-center justify-between">
           <DomainTags domains={unit.domain} variant={activeState} />
           <span className="text-xs text-gray-400">
             {timeAgo(unit.evidence.first_observed)}
           </span>
         </div>
 
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">
           {unit.insight.summary}
         </h2>
 
-        <p className="text-gray-600 mb-3 leading-relaxed">
-          {unit.insight.detail}
-        </p>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          data-scroll-region="true"
+        >
+          <p className="mb-3 leading-relaxed text-gray-600">
+            {unit.insight.detail}
+          </p>
 
-        <div className={`border-l-3 rounded-r-lg px-4 py-3 mb-6 ${actionBoxStyle}`}>
-          <span className="text-xs font-semibold uppercase tracking-wide">
-            Action
-          </span>
-          <p className="text-gray-800 text-sm mt-1">{unit.insight.action}</p>
+          <div className={`mb-6 rounded-r-lg border-l-3 px-4 py-3 ${actionBoxStyle}`}>
+            <span className="text-xs font-semibold uppercase tracking-wide">
+              Action
+            </span>
+            <p className="mt-1 text-sm text-gray-800">{unit.insight.action}</p>
+          </div>
         </div>
 
-        <div className="flex gap-4 text-sm text-gray-500">
+        <div className="flex gap-4 pt-3 text-sm text-gray-500">
           <span>
             Confidence: <strong className={confidenceColor(unit.evidence.confidence)}>{unit.evidence.confidence.toFixed(2)}</strong>
           </span>
