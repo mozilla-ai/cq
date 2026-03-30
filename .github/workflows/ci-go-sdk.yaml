@@ -1,0 +1,36 @@
+name: Go SDK CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["sdk/go/**", "schema/**"]
+  pull_request:
+    branches: [main]
+    paths: ["sdk/go/**", "schema/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: sdk/go/go.mod
+
+      - name: Sync skill prompt
+        working-directory: sdk/go
+        run: make sync-skill
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.10.1
+          working-directory: sdk/go
+
+      - name: Test
+        working-directory: sdk/go
+        run: go test ./... -v

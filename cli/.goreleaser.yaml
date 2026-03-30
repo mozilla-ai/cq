@@ -1,0 +1,45 @@
+version: 2
+
+project_name: cq
+
+before:
+  hooks:
+    - cd ../sdk/go && make sync-skill
+    - go mod tidy
+
+builds:
+  - id: cq
+    binary: cq
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X 'github.com/mozilla-ai/cq/cli/internal/version.version={{ envOrDefault "VERSION" .Version }}'
+      - -X 'github.com/mozilla-ai/cq/cli/internal/version.commit={{ .FullCommit }}'
+      - -X 'github.com/mozilla-ai/cq/cli/internal/version.date={{ .Date }}'
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: false
+  use: github
+
+release:
+  github:
+    owner: mozilla-ai
+    name: cq
+  name_template: "Go CLI {{ .Version }}"
