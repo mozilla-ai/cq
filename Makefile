@@ -17,6 +17,8 @@ help:
 	@echo "Development:"
 	@echo "  make setup     Install all dependencies"
 	@echo "  make test              Run all tests"
+	@echo "  make test-go-sdk       Run Go SDK tests"
+	@echo "  make test-go-cli       Run Go CLI tests"
 	@echo "  make lint              Format, lint, and type-check all components"
 	@echo "  make validate-schema   Validate JSON Schema fixtures"
 	@echo ""
@@ -30,7 +32,9 @@ help:
 
 .PHONY: setup
 setup:
+	(cd sdk/go && $(MAKE) sync-skill)
 	(cd sdk/python && uv sync --group dev)
+	(cd cli && go mod download)
 	(cd plugins/cq/server && uv sync --group dev)
 	(cd team-api && uv sync --group dev)
 	(cd team-ui && pnpm install $(if $(CI),--frozen-lockfile,))
@@ -117,6 +121,8 @@ validate-schema:
 
 .PHONY: lint
 lint:
+	cd sdk/go && $(MAKE) lint
+	cd cli && $(MAKE) lint
 	cd plugins/cq/server && uv run pre-commit run --all-files --config "$(CURDIR)/.pre-commit-config.yaml"
 	bash scripts/lint-frontend.sh
 
@@ -140,8 +146,16 @@ typecheck:
 test-python-sdk:
 	cd sdk/python && $(MAKE) test
 
+.PHONY: test-go-sdk
+test-go-sdk:
+	cd sdk/go && $(MAKE) test
+
+.PHONY: test-go-cli
+test-go-cli:
+	cd cli && $(MAKE) test
+
 .PHONY: test
-test: validate-schema test-python-sdk
+test: validate-schema test-python-sdk test-go-sdk test-go-cli
 	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
 	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
 	cd plugins/cq/server && uv run pytest
