@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/flag.json",
+  "title": "FlagRequest",
+  "description": "Request to flag a knowledge unit.",
+  "type": "object",
+  "required": ["unit_id", "reason"],
+  "properties": {
+    "unit_id": {
+      "type": "string",
+      "pattern": "^ku_[0-9a-f]{32}$",
+      "description": "ID of the knowledge unit to flag."
+    },
+    "reason": { "$ref": "knowledge_unit.json#/$defs/FlagReason" },
+    "detail": {
+      "type": "string",
+      "description": "Optional explanation when flagging. Server-side only; never returned to querying agents."
+    },
+    "duplicate_of": {
+      "type": "string",
+      "pattern": "^ku_[0-9a-f]{32}$",
+      "description": "ID of the knowledge unit this duplicates. Required when reason is duplicate."
+    }
+  },
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "reason": { "const": "duplicate" }
+    }
+  },
+  "then": {
+    "required": ["duplicate_of"]
+  }
+}

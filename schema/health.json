@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/health.json",
+  "title": "HealthResponse",
+  "description": "Health check response.",
+  "type": "object",
+  "required": ["status"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "description": "Health status of the service."
+    }
+  },
+  "additionalProperties": false
+}

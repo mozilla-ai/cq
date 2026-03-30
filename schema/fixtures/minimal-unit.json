@@ -1,0 +1,9 @@
+{
+  "id": "ku_00000000000000000000000000000001",
+  "domains": ["testing"],
+  "insight": {
+    "summary": "Minimal KU for validation.",
+    "detail": "Detail.",
+    "action": "Action."
+  }
+}

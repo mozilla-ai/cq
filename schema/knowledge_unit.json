@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/knowledge_unit.json",
+  "title": "KnowledgeUnit",
+  "description": "A single unit of shared agent knowledge.",
+  "type": "object",
+  "required": ["id", "domains", "insight"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ku_[0-9a-f]{32}$",
+      "description": "Prefixed UUID: ku_<hex>."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Schema version; server assumes 1 when unset."
+    },
+    "domains": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "At least one domain is required."
+    },
+    "insight": { "$ref": "#/$defs/Insight" },
+    "context": { "$ref": "#/$defs/Context" },
+    "evidence": { "$ref": "#/$defs/Evidence" },
+    "tier": { "$ref": "#/$defs/Tier" },
+    "created_by": {
+      "type": "string",
+      "description": "Identifier of the agent or user that created this unit."
+    },
+    "superseded_by": {
+      "type": "string",
+      "pattern": "^ku_[0-9a-f]{32}$",
+      "description": "ID of the replacing knowledge unit, if any."
+    },
+    "flags": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Flag" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Tier": {
+      "type": "string",
+      "enum": ["local", "private", "public"],
+      "description": "Storage tier for a knowledge unit."
+    },
+    "FlagReason": {
+      "type": "string",
+      "enum": ["stale", "incorrect", "duplicate"],
+      "description": "Reason for flagging a knowledge unit."
+    },
+    "Flag": {
+      "type": "object",
+      "description": "A recorded flag against a knowledge unit.",
+      "required": ["reason"],
+      "properties": {
+        "reason": { "$ref": "#/$defs/FlagReason" },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "detail": {
+          "type": "string",
+          "description": "Optional explanation when flagging. Server-side only; never returned to querying agents."
+        },
+        "duplicate_of": {
+          "type": "string",
+          "pattern": "^ku_[0-9a-f]{32}$",
+          "description": "ID of the knowledge unit this duplicates. Required when reason is duplicate."
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "reason": { "const": "duplicate" }
+        }
+      },
+      "then": {
+        "required": ["duplicate_of"]
+      }
+    },
+    "Insight": {
+      "type": "object",
+      "description": "Tripartite insight: what happened, why it matters, what to do.",
+      "required": ["summary", "detail", "action"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "What happened."
+        },
+        "detail": {
+          "type": "string",
+          "description": "Why it matters."
+        },
+        "action": {
+          "type": "string",
+          "description": "What to do."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Context": {
+      "type": "object",
+      "description": "Language, framework, and pattern context.",
+      "properties": {
+        "languages": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "frameworks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "pattern": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "description": "Confidence and confirmation metrics.",
+      "properties": {
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.5,
+          "description": "Confidence score; server assumes 0.5 when unset."
+        },
+        "confirmations": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "Confirmation count; server assumes 1 when unset."
+        },
+        "first_observed": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_confirmed": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

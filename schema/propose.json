@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/propose.json",
+  "title": "ProposeRequest",
+  "description": "Request to propose a new knowledge unit.",
+  "type": "object",
+  "required": ["domains", "insight"],
+  "properties": {
+    "domains": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "At least one domain is required."
+    },
+    "insight": { "$ref": "knowledge_unit.json#/$defs/Insight" },
+    "context": { "$ref": "knowledge_unit.json#/$defs/Context" },
+    "created_by": {
+      "type": "string",
+      "description": "Identifier of the agent or user proposing this unit."
+    }
+  },
+  "additionalProperties": false
+}

@@ -16,8 +16,9 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make setup     Install all dependencies"
-	@echo "  make test      Run all tests"
-	@echo "  make lint      Format, lint, and type-check all components"
+	@echo "  make test              Run all tests"
+	@echo "  make lint              Format, lint, and type-check all components"
+	@echo "  make validate-schema   Validate JSON Schema fixtures"
 	@echo ""
 	@echo "Docker Compose:"
 	@echo "  make compose-up                              Build and start services"
@@ -109,6 +110,10 @@ dev-api:
 dev-ui:
 	cd team-ui && pnpm dev
 
+.PHONY: validate-schema
+validate-schema:
+	cd schema && $(MAKE) validate
+
 .PHONY: lint
 lint:
 	cd plugins/cq/server && uv run pre-commit run --all-files --config "$(CURDIR)/.pre-commit-config.yaml"
@@ -131,7 +136,7 @@ typecheck:
 	cd team-ui && pnpm tsc -b
 
 .PHONY: test
-test:
+test: validate-schema
 	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
 	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
 	cd plugins/cq/server && uv run pytest
