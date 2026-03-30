@@ -10,6 +10,8 @@ An open standard for shared agent learning. Agents find, share, and confirm coll
 
 Requires: `uv`
 
+Optional (for Go SDK and Go CLI): `go` 1.26+
+
 ### Claude Code (plugin)
 
 ```
@@ -62,6 +64,40 @@ make uninstall-opencode PROJECT=/path/to/your/project
 ```
 
 If you configured team sync, you may also want to remove the `environment` block from the cq entry in your OpenCode config.
+
+### Go SDK
+
+```bash
+go get github.com/mozilla-ai/cq/sdk/go
+```
+
+```go
+import cq "github.com/mozilla-ai/cq/sdk/go"
+
+client, err := cq.NewClient()
+if err != nil {
+    panic(err)
+}
+defer client.Close()
+
+result, err := client.Query(ctx, cq.QueryParams{Domains: []string{"api", "stripe"}})
+if err != nil {
+    panic(err)
+}
+
+_ = result.Units
+```
+
+### Go CLI
+
+From source:
+
+```bash
+git clone https://github.com/mozilla-ai/cq.git
+cd cq/cli
+make build
+./cq --help
+```
 
 ## Configuration
 
