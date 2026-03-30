@@ -10,6 +10,17 @@ permissions:
   contents: read
 
 jobs:
+  schema:
+    name: Validate schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Validate fixtures against schemas
+        run: make validate-schema
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
