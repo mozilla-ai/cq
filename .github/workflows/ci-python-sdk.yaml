@@ -42,7 +42,7 @@ jobs:
           cache-dependency-path: team-ui/pnpm-lock.yaml
 
       - name: Setup and lint
-        run: make setup lint
+        run: make setup lint-sdk-python lint-server
 
   test:
     name: Test
@@ -66,4 +66,4 @@ jobs:
           (cd team-api && uv sync --group dev)
 
       - name: Test
-        run: make test
+        run: make test-sdk-python test-server
