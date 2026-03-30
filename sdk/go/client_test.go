@@ -101,7 +101,7 @@ func TestPropose(t *testing.T) {
 
 	ku, err := c.Propose(ctx, ProposeParams{
 		Summary: "Stripe 402", Detail: "Check error.code.", Action: "Handle card_declined.",
-		Domains: []string{"api", "stripe"}, Language: "go", Framework: "net/http",
+		Domains: []string{"api", "stripe"}, Languages: []string{"go"}, Frameworks: []string{"net/http"},
 		Pattern: "api-client", CreatedBy: "test-agent",
 	})
 	require.NoError(t, err)
@@ -473,4 +473,20 @@ func TestFlagRemoteUnit(t *testing.T) {
 	require.Equal(t, "ku_00000000000000000000000000000002", flagged.ID)
 	require.Equal(t, "stale", received["reason"])
 	require.Equal(t, "outdated info", received["detail"])
+}
+
+func TestQueryLimitCappedAt50(t *testing.T) {
+	t.Parallel()
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	_, err := c.Propose(ctx, ProposeParams{
+		Summary: "S", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	qr, err := c.Query(ctx, QueryParams{Domains: []string{"test"}, Limit: 200})
+	require.NoError(t, err)
+	// Should not error; limit is silently capped.
+	require.LessOrEqual(t, len(qr.Units), 50)
 }

@@ -15,7 +15,7 @@ const (
 	defaultRecentLimit = 5
 
 	// maxClientQueryLimit caps QueryParams.Limit to bound local/remote fan-out.
-	maxClientQueryLimit = 100
+	maxClientQueryLimit = 50
 
 	// defaultKnowledgeUnitVersion is the schema version assigned to new units.
 	defaultKnowledgeUnitVersion = 1
@@ -245,8 +245,8 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 			Action:  params.Action,
 		},
 		Context: Context{
-			Languages:  filterEmpty(params.Language),
-			Frameworks: filterEmpty(params.Framework),
+			Languages:  params.Languages,
+			Frameworks: params.Frameworks,
 			Pattern:    params.Pattern,
 		},
 		Evidence: Evidence{
@@ -306,12 +306,12 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 		qOpts = append(qOpts, withDomain(d))
 	}
 
-	if params.Language != "" {
-		qOpts = append(qOpts, withLanguage(params.Language))
+	for _, l := range params.Languages {
+		qOpts = append(qOpts, withLanguage(l))
 	}
 
-	if params.Framework != "" {
-		qOpts = append(qOpts, withFramework(params.Framework))
+	for _, f := range params.Frameworks {
+		qOpts = append(qOpts, withFramework(f))
 	}
 
 	storeResult, err := c.store.query(qOpts...)
@@ -329,7 +329,9 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 		}, nil
 	}
 
-	remoteResults := c.remote.query(ctx, params)
+	normalised := params
+	normalised.Limit = limit
+	remoteResults := c.remote.query(ctx, normalised)
 
 	source := "local"
 	if len(remoteResults) > 0 && len(localResults) > 0 {
@@ -381,15 +383,6 @@ func (c *Client) operationContext(ctx context.Context) (context.Context, context
 	}
 
 	return context.WithTimeout(ctx, c.timeout)
-}
-
-// filterEmpty returns a single-element slice if s is non-empty, nil otherwise.
-func filterEmpty(s string) []string {
-	if s == "" {
-		return nil
-	}
-
-	return []string{s}
 }
 
 // mergeResults deduplicates local and remote results by ID (local wins)

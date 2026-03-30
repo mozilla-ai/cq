@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultQueryLimit = 5
-	maxQueryLimit     = 100
+	maxQueryLimit     = 50
 )
 
 // QueryTool returns the MCP tool definition for query.
@@ -33,7 +33,7 @@ func QueryTool() mcp.Tool {
 			mcp.Description("Filter by framework."),
 		),
 		mcp.WithNumber("limit",
-			mcp.Description("Maximum results to return (default 5, max 100)."),
+			mcp.Description("Maximum results to return (default 5, max 50)."),
 		),
 	)
 }
@@ -58,12 +58,18 @@ func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		limit = maxQueryLimit
 	}
 
-	result, err := s.client.Query(ctx, cq.QueryParams{
-		Domains:   domains,
-		Language:  language,
-		Framework: framework,
-		Limit:     limit,
-	})
+	params := cq.QueryParams{
+		Domains: domains,
+		Limit:   limit,
+	}
+	if language != "" {
+		params.Languages = []string{language}
+	}
+	if framework != "" {
+		params.Frameworks = []string{framework}
+	}
+
+	result, err := s.client.Query(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("querying: %w", err)
 	}

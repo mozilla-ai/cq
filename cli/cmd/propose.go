@@ -12,14 +12,14 @@ import (
 // NewProposeCmd returns the propose command.
 func NewProposeCmd() *cobra.Command {
 	var (
-		summary   string
-		detail    string
-		action    string
-		domains   []string
-		language  string
-		framework string
-		pattern   string
-		format    string
+		summary    string
+		detail     string
+		action     string
+		domains    []string
+		languages  []string
+		frameworks []string
+		pattern    string
+		format     string
 	)
 
 	cmd := &cobra.Command{
@@ -40,13 +40,13 @@ func NewProposeCmd() *cobra.Command {
 			defer func() { _ = c.Close() }()
 
 			ku, err := c.Propose(ctx, cq.ProposeParams{
-				Summary:   summary,
-				Detail:    detail,
-				Action:    action,
-				Domains:   domains,
-				Language:  language,
-				Framework: framework,
-				Pattern:   pattern,
+				Summary:    summary,
+				Detail:     detail,
+				Action:     action,
+				Domains:    domains,
+				Languages:  languages,
+				Frameworks: frameworks,
+				Pattern:    pattern,
 			})
 			if err != nil {
 				return err
@@ -68,9 +68,9 @@ func NewProposeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&summary, "summary", "", "Brief summary of the insight (required)")
 	cmd.Flags().StringVar(&detail, "detail", "", "Detailed explanation (required)")
 	cmd.Flags().StringVar(&action, "action", "", "Recommended action (required)")
-	cmd.Flags().StringSliceVar(&domains, "domain", nil, "Domain tags (required, repeatable)")
-	cmd.Flags().StringVar(&language, "language", "", "Programming language context")
-	cmd.Flags().StringVar(&framework, "framework", "", "Framework context")
+	cmd.Flags().StringArrayVar(&domains, "domain", nil, "Domain tags (required, repeatable)")
+	cmd.Flags().StringArrayVar(&languages, "language", nil, "Programming language context (repeatable)")
+	cmd.Flags().StringArrayVar(&frameworks, "framework", nil, "Framework context (repeatable)")
 	cmd.Flags().StringVar(&pattern, "pattern", "", "Pattern context")
 	cmd.Flags().StringVar(&format, "format", "text", "Output format: text or json")
 	_ = cmd.MarkFlagRequired("summary")

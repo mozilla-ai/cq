@@ -57,22 +57,22 @@ type KnowledgeUnit struct {
 
 // ProposeParams describes a new knowledge unit to create.
 type ProposeParams struct {
-	Summary   string
-	Detail    string
-	Action    string
-	Domains   []string
-	Language  string // Optional.
-	Framework string // Optional.
-	Pattern   string // Optional.
-	CreatedBy string // Optional.
+	Summary    string
+	Detail     string
+	Action     string
+	Domains    []string
+	Languages  []string // Optional.
+	Frameworks []string // Optional.
+	Pattern    string   // Optional.
+	CreatedBy  string   // Optional.
 }
 
 // QueryParams configures a knowledge unit search.
 type QueryParams struct {
-	Domains   []string
-	Language  string // Optional.
-	Framework string // Optional.
-	Limit     int    // Default 5, max 100.
+	Domains    []string
+	Languages  []string // Optional.
+	Frameworks []string // Optional.
+	Limit      int      // Default 5, max 50.
 }
 
 // QueryResult holds query results alongside metadata about the query.

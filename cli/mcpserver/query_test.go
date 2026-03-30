@@ -41,8 +41,8 @@ func TestHandleQuery(t *testing.T) {
 		require.False(t, result.IsError)
 
 		require.Equal(t, []string{"api", "go"}, got.Domains)
-		require.Equal(t, "go", got.Language)
-		require.Equal(t, "cobra", got.Framework)
+		require.Equal(t, []string{"go"}, got.Languages)
+		require.Equal(t, []string{"cobra"}, got.Frameworks)
 		require.Equal(t, 7, got.Limit)
 
 		text := result.Content[0].(mcp.TextContent).Text

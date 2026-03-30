@@ -12,11 +12,11 @@ import (
 // NewQueryCmd returns the query command.
 func NewQueryCmd() *cobra.Command {
 	var (
-		domains   []string
-		language  string
-		framework string
-		limit     int
-		format    string
+		domains    []string
+		languages  []string
+		frameworks []string
+		limit      int
+		format     string
 	)
 
 	cmd := &cobra.Command{
@@ -36,12 +36,14 @@ func NewQueryCmd() *cobra.Command {
 			}
 			defer func() { _ = c.Close() }()
 
-			qr, err := c.Query(ctx, cq.QueryParams{
-				Domains:   domains,
-				Language:  language,
-				Framework: framework,
-				Limit:     limit,
-			})
+			params := cq.QueryParams{
+				Domains:    domains,
+				Languages:  languages,
+				Frameworks: frameworks,
+				Limit:      limit,
+			}
+
+			qr, err := c.Query(ctx, params)
 			if err != nil {
 				return err
 			}
@@ -70,9 +72,9 @@ func NewQueryCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringSliceVar(&domains, "domain", nil, "Domain tags to search (required, repeatable)")
-	cmd.Flags().StringVar(&language, "language", "", "Filter by programming language")
-	cmd.Flags().StringVar(&framework, "framework", "", "Filter by framework")
+	cmd.Flags().StringArrayVar(&domains, "domain", nil, "Domain tags to search (required, repeatable)")
+	cmd.Flags().StringArrayVar(&languages, "language", nil, "Filter by programming language (repeatable)")
+	cmd.Flags().StringArrayVar(&frameworks, "framework", nil, "Filter by framework (repeatable)")
 	cmd.Flags().IntVar(&limit, "limit", 5, "Maximum results")
 	cmd.Flags().StringVar(&format, "format", "text", "Output format: text or json")
 	_ = cmd.MarkFlagRequired("domain")

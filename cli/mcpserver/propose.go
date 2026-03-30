@@ -56,15 +56,24 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 		return mcp.NewToolResultError("domain is required (string array with at least one tag)"), nil
 	}
 
-	result, err := s.client.Propose(ctx, cq.ProposeParams{
-		Summary:   summary,
-		Detail:    detail,
-		Action:    action,
-		Domains:   domains,
-		Language:  req.GetString("language", ""),
-		Framework: req.GetString("framework", ""),
-		Pattern:   req.GetString("pattern", ""),
-	})
+	language := req.GetString("language", "")
+	framework := req.GetString("framework", "")
+
+	params := cq.ProposeParams{
+		Summary: summary,
+		Detail:  detail,
+		Action:  action,
+		Domains: domains,
+		Pattern: req.GetString("pattern", ""),
+	}
+	if language != "" {
+		params.Languages = []string{language}
+	}
+	if framework != "" {
+		params.Frameworks = []string{framework}
+	}
+
+	result, err := s.client.Propose(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("proposing: %w", err)
 	}

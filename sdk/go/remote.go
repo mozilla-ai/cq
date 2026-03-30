@@ -196,15 +196,15 @@ func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (Knowledge
 func (r *remoteClient) query(ctx context.Context, params QueryParams) []KnowledgeUnit {
 	qv := url.Values{}
 	for _, d := range params.Domains {
-		qv.Add("domain", d)
+		qv.Add("domains", d)
 	}
 
-	if params.Language != "" {
-		qv.Set("language", params.Language)
+	for _, l := range params.Languages {
+		qv.Add("languages", l)
 	}
 
-	if params.Framework != "" {
-		qv.Set("framework", params.Framework)
+	for _, f := range params.Frameworks {
+		qv.Add("frameworks", f)
 	}
 
 	if params.Limit > 0 {

@@ -178,6 +178,45 @@ func TestGenerateIDMatchesSchemaPattern(t *testing.T) {
 	require.Regexp(t, pattern, GenerateID())
 }
 
+func TestQueryParamsFieldsMatchSchema(t *testing.T) {
+	t.Parallel()
+
+	schemaData, err := os.ReadFile("../../schema/query.json")
+	require.NoError(t, err)
+
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal(schemaData, &schema))
+
+	props, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+
+	qp := QueryParams{
+		Domains:    []string{"test"},
+		Languages:  []string{"go"},
+		Frameworks: []string{"grpc"},
+		Limit:      5,
+	}
+
+	// Verify that each schema field name maps to a QueryParams field.
+	fieldMap := map[string]any{
+		"domains":    qp.Domains,
+		"languages":  qp.Languages,
+		"frameworks": qp.Frameworks,
+		"limit":      qp.Limit,
+	}
+
+	for field := range props {
+		_, exists := fieldMap[field]
+		require.True(t, exists, "QueryParams missing field for schema property %q", field)
+	}
+
+	// Verify no extra fields in fieldMap beyond what the schema declares.
+	for field := range fieldMap {
+		_, exists := props[field]
+		require.True(t, exists, "QueryParams has field %q not in schema", field)
+	}
+}
+
 func readTestSchema(t *testing.T) map[string]any {
 	t.Helper()
 
