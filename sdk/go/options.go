@@ -9,7 +9,9 @@ import (
 
 const defaultClientTimeout = 5 * time.Second
 
-// clientConfig holds resolved configuration for a Client.
+// ClientOption configures a Client.
+type ClientOption func(*clientConfig) error
+
 type clientConfig struct {
 	addr        string
 	apiKey      string
@@ -17,12 +19,21 @@ type clientConfig struct {
 	timeout     time.Duration
 }
 
-// ClientOption configures a Client.
-type ClientOption func(*clientConfig) error
-
 // DefaultTimeout is the default HTTP request timeout.
 func DefaultTimeout() time.Duration {
 	return defaultClientTimeout
+}
+
+// ResolvedLocalDBPath returns the local database path after applying
+// environment variable resolution.
+// Use this when you need the path without opening a full Client.
+func ResolvedLocalDBPath(opts ...ClientOption) (string, error) {
+	cfg, err := resolveConfig(opts...)
+	if err != nil {
+		return "", err
+	}
+
+	return cfg.localDBPath, nil
 }
 
 // WithAddr overrides the CQ_TEAM_ADDR / CQ_ADDR environment variable.
@@ -70,11 +81,39 @@ func WithTimeout(d time.Duration) ClientOption {
 	}
 }
 
-// defaultConfig returns a clientConfig with sensible defaults.
 func defaultConfig() clientConfig {
 	return clientConfig{
 		timeout: DefaultTimeout(),
 	}
+}
+
+func defaultLocalDBPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory for default DB path: %w", err)
+	}
+
+	var dataHome string
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" && filepath.IsAbs(xdg) {
+		dataHome = xdg
+	} else {
+		dataHome = filepath.Join(home, ".local", "share")
+	}
+
+	return filepath.Join(dataHome, "cq", "local.db"), nil
+}
+
+func expandHome(path string) (string, error) {
+	if len(path) == 0 || path[0] != '~' {
+		return path, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("expanding home directory: %w", err)
+	}
+
+	return filepath.Join(home, path[1:]), nil
 }
 
 // resolveConfig builds a clientConfig from defaults, env vars, and options.
@@ -124,47 +163,4 @@ func resolveConfig(opts ...ClientOption) (*clientConfig, error) {
 	}
 
 	return &cfg, nil
-}
-
-// expandHome expands a leading ~ to the user's home directory.
-func expandHome(path string) (string, error) {
-	if len(path) == 0 || path[0] != '~' {
-		return path, nil
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("expanding home directory: %w", err)
-	}
-
-	return filepath.Join(home, path[1:]), nil
-}
-
-// defaultLocalDBPath returns the XDG-compliant database path.
-func defaultLocalDBPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine home directory for default DB path: %w", err)
-	}
-
-	var dataHome string
-	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" && filepath.IsAbs(xdg) {
-		dataHome = xdg
-	} else {
-		dataHome = filepath.Join(home, ".local", "share")
-	}
-
-	return filepath.Join(dataHome, "cq", "local.db"), nil
-}
-
-// ResolvedLocalDBPath returns the local database path after applying
-// environment variable resolution.
-// Use this when you need the path without opening a full Client.
-func ResolvedLocalDBPath(opts ...ClientOption) (string, error) {
-	cfg, err := resolveConfig(opts...)
-	if err != nil {
-		return "", err
-	}
-
-	return cfg.localDBPath, nil
 }

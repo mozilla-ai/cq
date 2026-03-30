@@ -13,9 +13,43 @@ const (
 	flagPenalty       = 0.15
 
 	domainWeight    = 0.7
-	languageWeight  = 0.15
 	frameworkWeight = 0.15
+	languageWeight  = 0.15
 )
+
+// relevance scores how relevant ku is to the given query parameters.
+func (ku KnowledgeUnit) relevance(
+	queryDomains []string,
+	queryLanguages []string,
+	queryFrameworks []string,
+) float64 {
+	domainScore := jaccardSimilarity(ku.Domains, queryDomains)
+	var languageScore, frameworkScore float64
+	if anyMatch(ku.Context.Languages, queryLanguages) {
+		languageScore = 1.0
+	}
+	if anyMatch(ku.Context.Frameworks, queryFrameworks) {
+		frameworkScore = 1.0
+	}
+	score := domainWeight*domainScore + languageWeight*languageScore + frameworkWeight*frameworkScore
+	return min(max(score, confidenceFloor), confidenceCeiling)
+}
+
+func anyMatch(items []string, queries []string) bool {
+	if len(queries) == 0 {
+		return false
+	}
+	set := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		set[item] = struct{}{}
+	}
+	for _, q := range queries {
+		if _, ok := set[q]; ok {
+			return true
+		}
+	}
+	return false
+}
 
 // applyConfirmation returns a copy of ku with boosted confidence and incremented confirmation count.
 func applyConfirmation(ku KnowledgeUnit) KnowledgeUnit {
@@ -48,25 +82,6 @@ func applyFlag(ku KnowledgeUnit, reason FlagReason, cfg flagConfig) KnowledgeUni
 	return out
 }
 
-// relevance scores how relevant ku is to the given query parameters.
-func (ku KnowledgeUnit) relevance(
-	queryDomains []string,
-	queryLanguages []string,
-	queryFrameworks []string,
-) float64 {
-	domainScore := jaccardSimilarity(ku.Domains, queryDomains)
-	var languageScore, frameworkScore float64
-	if anyMatch(ku.Context.Languages, queryLanguages) {
-		languageScore = 1.0
-	}
-	if anyMatch(ku.Context.Frameworks, queryFrameworks) {
-		frameworkScore = 1.0
-	}
-	score := domainWeight*domainScore + languageWeight*languageScore + frameworkWeight*frameworkScore
-	return min(max(score, confidenceFloor), confidenceCeiling)
-}
-
-// jaccardSimilarity computes |A intersection B| / |A union B|.
 func jaccardSimilarity(a []string, b []string) float64 {
 	if len(a) == 0 && len(b) == 0 {
 		return 0.0
@@ -87,21 +102,4 @@ func jaccardSimilarity(a []string, b []string) float64 {
 	}
 	union := len(setA) + len(setB) - intersection
 	return float64(intersection) / float64(union)
-}
-
-// anyMatch reports whether any value in queries matches any value in items.
-func anyMatch(items []string, queries []string) bool {
-	if len(queries) == 0 {
-		return false
-	}
-	set := make(map[string]struct{}, len(items))
-	for _, item := range items {
-		set[item] = struct{}{}
-	}
-	for _, q := range queries {
-		if _, ok := set[q]; ok {
-			return true
-		}
-	}
-	return false
 }

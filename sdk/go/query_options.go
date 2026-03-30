@@ -5,20 +5,22 @@ import (
 	"strings"
 )
 
-// maxQueryDomains is the maximum number of domain tags in a single query.
-const maxQueryDomains = 50
+const (
+	// defaultStoreQueryLimit is used when no explicit limit option is provided.
+	defaultStoreQueryLimit = 100
 
-// maxQueryFrameworks is the maximum number of framework filters in a single query.
-const maxQueryFrameworks = 50
+	// maxQueryDomains is the maximum number of domain tags in a single query.
+	maxQueryDomains = 50
 
-// maxQueryLanguages is the maximum number of language filters in a single query.
-const maxQueryLanguages = 50
+	// maxQueryFrameworks is the maximum number of framework filters in a single query.
+	maxQueryFrameworks = 50
 
-// maxQueryLimit is the maximum number of results a query can return.
-const maxQueryLimit = 500
+	// maxQueryLanguages is the maximum number of language filters in a single query.
+	maxQueryLanguages = 50
 
-// defaultStoreQueryLimit is used when no explicit limit option is provided.
-const defaultStoreQueryLimit = 100
+	// maxQueryLimit is the maximum number of results a query can return.
+	maxQueryLimit = 500
+)
 
 // queryOptions configures a store query.
 type queryOptions struct {
