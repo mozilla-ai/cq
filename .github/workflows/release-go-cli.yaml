@@ -22,21 +22,11 @@ jobs:
         with:
           go-version-file: cli/go.mod
 
-      - name: Sync skill prompt
-        working-directory: sdk/go
-        run: make sync-skill
-
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#cli/}" >> "$GITHUB_OUTPUT"
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
-          distribution: goreleaser
           version: latest
           workdir: cli
           args: release --clean --config .goreleaser.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
