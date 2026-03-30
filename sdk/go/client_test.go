@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -281,11 +280,11 @@ func TestProposeRemoteReachable(t *testing.T) {
 		Summary: "Test", Detail: "D.", Action: "A.", Domains: []string{"api"},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "ku_00000000000000000000000000000001", ku.ID)
+	require.Equal(t, "ku_00000000000000000000000000000001", ku.ID)
 
 	// Not stored locally; remote accepted it.
 	stats, _ := c.Status(ctx)
-	assert.Equal(t, 0, stats.TotalCount)
+	require.Equal(t, 0, stats.TotalCount)
 }
 
 func TestProposeRemoteUnreachable(t *testing.T) {
@@ -303,7 +302,7 @@ func TestProposeRemoteUnreachable(t *testing.T) {
 
 	// Stored locally as fallback.
 	stats, _ := c.Status(context.Background())
-	assert.Equal(t, 1, stats.TotalCount)
+	require.Equal(t, 1, stats.TotalCount)
 }
 
 func TestProposeRemoteRejects(t *testing.T) {
@@ -319,7 +318,7 @@ func TestProposeRemoteRejects(t *testing.T) {
 	require.Error(t, err)
 	var remoteErr *RemoteError
 	require.ErrorAs(t, err, &remoteErr)
-	assert.Equal(t, 422, remoteErr.StatusCode)
+	require.Equal(t, 422, remoteErr.StatusCode)
 }
 
 func TestQueryMergesLocalAndRemote(t *testing.T) {
@@ -344,7 +343,7 @@ func TestQueryMergesLocalAndRemote(t *testing.T) {
 	// Query merges local + remote.
 	qr, err := c.Query(ctx, QueryParams{Domains: []string{"api"}})
 	require.NoError(t, err)
-	assert.Len(t, qr.Units, 2)
+	require.Len(t, qr.Units, 2)
 }
 
 func TestConfirmLocalUnit(t *testing.T) {
@@ -374,7 +373,7 @@ func TestConfirmLocalUnit(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, confirmed.Evidence.Confidence, ku.Evidence.Confidence)
 	// Local unit confirmed locally; should NOT hit remote.
-	assert.False(t, confirmedRemotely)
+	require.False(t, confirmedRemotely)
 }
 
 func TestConfirmRemoteUnit(t *testing.T) {
@@ -398,8 +397,8 @@ func TestConfirmRemoteUnit(t *testing.T) {
 	remoteUnit := KnowledgeUnit{ID: "ku_00000000000000000000000000000002", Tier: Private}
 	confirmed, err := c.Confirm(context.Background(), remoteUnit)
 	require.NoError(t, err)
-	assert.True(t, confirmedRemotely)
-	assert.Equal(t, "ku_00000000000000000000000000000002", confirmed.ID)
+	require.True(t, confirmedRemotely)
+	require.Equal(t, "ku_00000000000000000000000000000002", confirmed.ID)
 }
 
 func TestDrain(t *testing.T) {
@@ -436,13 +435,13 @@ func TestDrain(t *testing.T) {
 
 	dr, err := c.Drain(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, dr.Pushed)
-	assert.Empty(t, dr.Warnings)
-	assert.Equal(t, 1, pushCount)
+	require.Equal(t, 1, dr.Pushed)
+	require.Empty(t, dr.Warnings)
+	require.Equal(t, 1, pushCount)
 
 	// Local store should be empty after drain.
 	stats, _ := c.Status(context.Background())
-	assert.Equal(t, 0, stats.TotalCount)
+	require.Equal(t, 0, stats.TotalCount)
 }
 
 func TestDrainNoRemote(t *testing.T) {
@@ -471,7 +470,7 @@ func TestFlagRemoteUnit(t *testing.T) {
 	remoteUnit := KnowledgeUnit{ID: "ku_00000000000000000000000000000002", Tier: Private}
 	flagged, err := c.Flag(context.Background(), remoteUnit, Stale, WithDetail("outdated info"))
 	require.NoError(t, err)
-	assert.Equal(t, "ku_00000000000000000000000000000002", flagged.ID)
-	assert.Equal(t, "stale", received["reason"])
-	assert.Equal(t, "outdated info", received["detail"])
+	require.Equal(t, "ku_00000000000000000000000000000002", flagged.ID)
+	require.Equal(t, "stale", received["reason"])
+	require.Equal(t, "outdated info", received["detail"])
 }

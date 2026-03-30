@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,8 +26,8 @@ func TestRemoteQuery(t *testing.T) {
 	rc := newRemoteClient(srv.URL, "", 5*time.Second)
 	units := rc.query(context.Background(), QueryParams{Domains: []string{"api", "testing"}})
 	require.Len(t, units, 1)
-	assert.Equal(t, "ku_00000000000000000000000000000002", units[0].ID)
-	assert.Equal(t, "S", units[0].Insight.Summary)
+	require.Equal(t, "ku_00000000000000000000000000000002", units[0].ID)
+	require.Equal(t, "S", units[0].Insight.Summary)
 }
 
 func TestRemoteQueryWithAuth(t *testing.T) {
@@ -78,8 +77,8 @@ func TestRemotePropose(t *testing.T) {
 	}
 	result, err := rc.propose(context.Background(), ku)
 	require.NoError(t, err)
-	assert.Equal(t, "ku_00000000000000000000000000000005", result.ID)
-	assert.Equal(t, []any{"api"}, received["domains"])
+	require.Equal(t, "ku_00000000000000000000000000000005", result.ID)
+	require.Equal(t, []any{"api"}, received["domains"])
 }
 
 func TestRemoteProposeRejected(t *testing.T) {
@@ -97,7 +96,7 @@ func TestRemoteProposeRejected(t *testing.T) {
 
 	var remoteErr *RemoteError
 	require.ErrorAs(t, err, &remoteErr)
-	assert.Equal(t, 422, remoteErr.StatusCode)
+	require.Equal(t, 422, remoteErr.StatusCode)
 }
 
 func TestRemoteConfirm(t *testing.T) {
@@ -113,7 +112,7 @@ func TestRemoteConfirm(t *testing.T) {
 	rc := newRemoteClient(srv.URL, "", 5*time.Second)
 	ku, err := rc.confirm(context.Background(), "ku_00000000000000000000000000000005")
 	require.NoError(t, err)
-	assert.Equal(t, "ku_00000000000000000000000000000005", ku.ID)
+	require.Equal(t, "ku_00000000000000000000000000000005", ku.ID)
 }
 
 func TestRemoteFlag(t *testing.T) {
@@ -131,7 +130,7 @@ func TestRemoteFlag(t *testing.T) {
 	ku, err := rc.flag(context.Background(), "ku_00000000000000000000000000000005", Stale, flagConfig{})
 	require.NoError(t, err)
 	require.NotNil(t, ku)
-	assert.Equal(t, "stale", received["reason"])
+	require.Equal(t, "stale", received["reason"])
 }
 
 func TestRemoteFlagWithDetailAndDuplicate(t *testing.T) {
@@ -148,9 +147,9 @@ func TestRemoteFlagWithDetailAndDuplicate(t *testing.T) {
 	cfg := flagConfig{detail: "it is old", duplicateOf: "ku_00000000000000000000000000000002"}
 	_, err := rc.flag(context.Background(), "ku_00000000000000000000000000000005", Duplicate, cfg)
 	require.NoError(t, err)
-	assert.Equal(t, "duplicate", received["reason"])
-	assert.Equal(t, "it is old", received["detail"])
-	assert.Equal(t, "ku_00000000000000000000000000000002", received["duplicate_of"])
+	require.Equal(t, "duplicate", received["reason"])
+	require.Equal(t, "it is old", received["detail"])
+	require.Equal(t, "ku_00000000000000000000000000000002", received["duplicate_of"])
 }
 
 func TestRemoteFlagOmitsEmptyFields(t *testing.T) {
@@ -168,6 +167,6 @@ func TestRemoteFlagOmitsEmptyFields(t *testing.T) {
 	require.NoError(t, err)
 	_, hasDetail := received["detail"]
 	_, hasDup := received["duplicate_of"]
-	assert.False(t, hasDetail, "empty detail should not be sent")
-	assert.False(t, hasDup, "empty duplicate_of should not be sent")
+	require.False(t, hasDetail, "empty detail should not be sent")
+	require.False(t, hasDup, "empty duplicate_of should not be sent")
 }

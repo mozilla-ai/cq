@@ -3,7 +3,7 @@ package cq
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTierIsRemote(t *testing.T) {
@@ -25,7 +25,7 @@ func TestTierIsRemote(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.expected, tc.tier.IsRemote())
+			require.Equal(t, tc.expected, tc.tier.IsRemote())
 		})
 	}
 }
@@ -33,15 +33,15 @@ func TestTierIsRemote(t *testing.T) {
 func TestTierValues(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, Tier("local"), Local)
-	assert.Equal(t, Tier("private"), Private)
-	assert.Equal(t, Tier("public"), Public)
+	require.Equal(t, Tier("local"), Local)
+	require.Equal(t, Tier("private"), Private)
+	require.Equal(t, Tier("public"), Public)
 }
 
 func TestFlagReasonValues(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, FlagReason("stale"), Stale)
-	assert.Equal(t, FlagReason("incorrect"), Incorrect)
-	assert.Equal(t, FlagReason("duplicate"), Duplicate)
+	require.Equal(t, FlagReason("stale"), Stale)
+	require.Equal(t, FlagReason("incorrect"), Incorrect)
+	require.Equal(t, FlagReason("duplicate"), Duplicate)
 }

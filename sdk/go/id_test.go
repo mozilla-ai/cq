@@ -3,7 +3,6 @@ package cq
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,9 +49,9 @@ func TestValidateID(t *testing.T) {
 			t.Parallel()
 			err := ValidateID(tc.id)
 			if tc.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

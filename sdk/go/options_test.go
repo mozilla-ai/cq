@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -135,7 +134,7 @@ func TestExpandHome(t *testing.T) {
 
 			result, err := expandHome(tc.input)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, result)
+			require.Equal(t, tc.expected, result)
 		})
 	}
 }
@@ -148,7 +147,7 @@ func TestDefaultLocalDBPathUsesXDG(t *testing.T) {
 
 	path, err := defaultLocalDBPath()
 	require.NoError(t, err)
-	assert.Equal(t, "/custom/xdg/cq/local.db", path)
+	require.Equal(t, "/custom/xdg/cq/local.db", path)
 }
 
 func TestDefaultLocalDBPathIgnoresRelativeXDG(t *testing.T) {
@@ -159,7 +158,7 @@ func TestDefaultLocalDBPathIgnoresRelativeXDG(t *testing.T) {
 
 	// Should fall back to home-based path, not use relative XDG.
 	home, _ := os.UserHomeDir()
-	assert.Equal(t, filepath.Join(home, ".local", "share", "cq", "local.db"), path)
+	require.Equal(t, filepath.Join(home, ".local", "share", "cq", "local.db"), path)
 }
 
 func TestDefaultLocalDBPathFallsBackToHome(t *testing.T) {
@@ -169,7 +168,7 @@ func TestDefaultLocalDBPathFallsBackToHome(t *testing.T) {
 	require.NoError(t, err)
 
 	home, _ := os.UserHomeDir()
-	assert.Equal(t, filepath.Join(home, ".local", "share", "cq", "local.db"), path)
+	require.Equal(t, filepath.Join(home, ".local", "share", "cq", "local.db"), path)
 }
 
 func TestDefaultLocalDBPathNoLegacyNoXDG(t *testing.T) {
@@ -181,7 +180,7 @@ func TestDefaultLocalDBPathNoLegacyNoXDG(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := filepath.Join(tmpHome, ".local", "share", "cq", "local.db")
-	assert.Equal(t, expected, path)
+	require.Equal(t, expected, path)
 }
 
 func TestResolvedLocalDBPath(t *testing.T) {
@@ -192,7 +191,7 @@ func TestResolvedLocalDBPath(t *testing.T) {
 
 	path, err := ResolvedLocalDBPath()
 	require.NoError(t, err)
-	assert.Equal(t, "/explicit/path.db", path)
+	require.Equal(t, "/explicit/path.db", path)
 }
 
 func TestResolvedLocalDBPathWithOption(t *testing.T) {
@@ -203,5 +202,5 @@ func TestResolvedLocalDBPathWithOption(t *testing.T) {
 
 	path, err := ResolvedLocalDBPath(WithLocalDBPath("/from/option.db"))
 	require.NoError(t, err)
-	assert.Equal(t, "/from/option.db", path)
+	require.Equal(t, "/from/option.db", path)
 }
