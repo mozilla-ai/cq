@@ -1,0 +1,30 @@
+{
+  "id": "ku_852bdf49ee7b492080ad9ebbc2e9c88f",
+  "version": 1,
+  "domains": [
+    "python",
+    "pydantic",
+    "json",
+    "serialization"
+  ],
+  "insight": {
+    "summary": "Pydantic bytes fields silently fail JSON serialization for binary content",
+    "detail": "Pydantic v2 bytes fields serialize text-like content to JSON fine but raise PydanticSerializationError for actual binary data. Use pydantic.Base64Bytes instead.",
+    "action": "Use pydantic.Base64Bytes instead of bytes for any Pydantic field that may contain binary data and needs to round-trip through JSON."
+  },
+  "context": {
+    "languages": ["python"],
+    "frameworks": ["pydantic"],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.6,
+    "confirmations": 2,
+    "first_observed": "2026-03-20T11:06:16.919658Z",
+    "last_confirmed": "2026-03-20T17:52:15.717319Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

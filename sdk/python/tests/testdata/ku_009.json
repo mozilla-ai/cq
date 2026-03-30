@@ -1,0 +1,30 @@
+{
+  "id": "ku_fa444d3beb8b49a1af408dce31b53e92",
+  "version": 1,
+  "domains": [
+    "github",
+    "api",
+    "rest",
+    "code-review"
+  ],
+  "insight": {
+    "summary": "GitHub REST API: replying to PR review comments requires in_reply_to parameter, not a /replies sub-resource",
+    "detail": "When replying to a pull request review comment via the GitHub REST API, use POST /repos/{owner}/{repo}/pulls/{pr}/comments with the in_reply_to field set to the parent comment's database ID. Attempting POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/replies returns a 404. The in_reply_to approach is documented but the intuitive /replies sub-resource path does not exist.",
+    "action": "Use `gh api repos/{owner}/{repo}/pulls/{pr}/comments -F in_reply_to={comment_id} -f body=\"...\"` to reply to PR review comments via gh CLI."
+  },
+  "context": {
+    "languages": [],
+    "frameworks": [],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-20T13:05:35.326161Z",
+    "last_confirmed": "2026-03-20T13:05:35.326161Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

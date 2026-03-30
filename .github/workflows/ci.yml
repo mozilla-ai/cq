@@ -46,6 +46,7 @@ jobs:
 
   test:
     name: Test
+    needs: [schema, lint]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -60,6 +61,7 @@ jobs:
 
       - name: Sync Python dependencies
         run: |
+          (cd sdk/python && uv sync --group dev)
           (cd plugins/cq/server && uv sync --group dev)
           (cd team-api && uv sync --group dev)
 

@@ -1,0 +1,30 @@
+{
+  "id": "ku_e5081e21754c4ea4a551257cfbac3644",
+  "version": 1,
+  "domains": [
+    "github",
+    "api",
+    "graphql",
+    "code-review"
+  ],
+  "insight": {
+    "summary": "GitHub: resolving PR review threads requires GraphQL resolveReviewThread, not minimizeComment",
+    "detail": "The GitHub REST API has no endpoint to resolve review conversations/threads on a PR. The GraphQL `minimizeComment` mutation hides individual comments (collapsed with a reason) but does not mark the thread as resolved. To properly resolve a review thread, use the `resolveReviewThread` GraphQL mutation with the thread's node ID (obtainable from `repository.pullRequest.reviewThreads`).",
+    "action": "Use `gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"THREAD_NODE_ID\"}) { thread { isResolved } } }'` to resolve PR review threads programmatically."
+  },
+  "context": {
+    "languages": [],
+    "frameworks": [],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.6,
+    "confirmations": 2,
+    "first_observed": "2026-03-20T11:06:16.927716Z",
+    "last_confirmed": "2026-03-20T13:03:11.226979Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

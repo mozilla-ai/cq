@@ -30,6 +30,7 @@ help:
 
 .PHONY: setup
 setup:
+	(cd sdk/python && uv sync --group dev)
 	(cd plugins/cq/server && uv sync --group dev)
 	(cd team-api && uv sync --group dev)
 	(cd team-ui && pnpm install $(if $(CI),--frozen-lockfile,))
@@ -135,8 +136,12 @@ typecheck:
 	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
 	cd team-ui && pnpm tsc -b
 
+.PHONY: test-python-sdk
+test-python-sdk:
+	cd sdk/python && $(MAKE) test
+
 .PHONY: test
-test: validate-schema
+test: validate-schema test-python-sdk
 	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
 	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
 	cd plugins/cq/server && uv run pytest

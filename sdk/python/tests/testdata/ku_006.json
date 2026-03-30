@@ -1,0 +1,30 @@
+{
+  "id": "ku_e50f8665fd9f42eb91c46ea2cc7b2948",
+  "version": 1,
+  "domains": [
+    "api",
+    "microsoft-graph",
+    "onedrive",
+    "file-upload"
+  ],
+  "insight": {
+    "summary": "Microsoft Graph API: OneDrive upload-by-path creates files at root, not in-place",
+    "detail": "`PUT /me/drive/root:/{filename}:/content` always creates or overwrites a file at the drive root, regardless of where the original file lives. For download-modify-upload workflows (e.g. editing a PowerPoint in a subfolder), this silently creates a duplicate at root instead of updating the original. Use `PUT /me/drive/items/{item-id}/content` to update a file in place by its ID.",
+    "action": "When updating an existing OneDrive file's content, use the item ID endpoint (`/me/drive/items/{id}/content`) rather than the path-based endpoint (`/me/drive/root:/{path}:/content`)."
+  },
+  "context": {
+    "languages": [],
+    "frameworks": [],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-20T11:06:16.927918Z",
+    "last_confirmed": "2026-03-20T11:06:16.927918Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

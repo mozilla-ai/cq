@@ -1,0 +1,34 @@
+{
+  "id": "ku_71d83cdbfc5c4582b0af690a916b63b7",
+  "version": 1,
+  "domains": [
+    "python",
+    "python-pptx",
+    "type-checking",
+    "ty"
+  ],
+  "insight": {
+    "summary": "python-pptx Presentation is a factory function, not a class \u2014 type checkers disagree",
+    "detail": "`from pptx import Presentation` returns a factory function, not the class. The actual class at `pptx.presentation.Presentation` has a docstring explicitly stating \"Not intended to be constructed directly.\" Astral's `ty` type checker reports `invalid-type-form` when the factory function is used as a type annotation, and `invalid-argument-type` / `missing-argument` when checking calls because the class hierarchy's `__init__` signature doesn't match the factory's.",
+    "action": "Import `Presentation as NewPresentation` from `pptx` for construction and `Presentation` from `pptx.presentation` for type hints. Suppress remaining `ty` diagnostics from python-pptx internals with `# ty: ignore[missing-argument]`."
+  },
+  "context": {
+    "languages": [
+      "python"
+    ],
+    "frameworks": [
+      "python-pptx"
+    ],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-20T11:06:16.923532Z",
+    "last_confirmed": "2026-03-20T11:06:16.923532Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

@@ -34,3 +34,6 @@ htmlcov/
 .worktrees/
 CLAUDE.local.md
 opencode.json
+
+# Copied at build time from plugins/cq/skills/cq/SKILL.md.
+sdk/python/src/cq/protocol/skill.md

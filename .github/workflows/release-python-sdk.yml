@@ -1,0 +1,45 @@
+name: Release Python SDK
+
+on:
+  push:
+    tags:
+      - "sdk/python/[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Publish to PyPI
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#sdk/python/}" >> "$GITHUB_OUTPUT"
+
+      - name: Set package version
+        working-directory: sdk/python
+        run: sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Copy skill prompt into package
+        working-directory: sdk/python
+        run: make sync-skill
+
+      - name: Build package
+        working-directory: sdk/python
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/python/dist/

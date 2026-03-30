@@ -1,0 +1,30 @@
+{
+  "id": "ku_3298ba938b814440b7d9de07ae8c5880",
+  "version": 1,
+  "domains": [
+    "api",
+    "error-handling",
+    "cleanup",
+    "transactions"
+  ],
+  "insight": {
+    "summary": "Multi-step API flows need cleanup on all failure modes, not just non-2xx responses",
+    "detail": "When implementing multi-step API flows (e.g. upload then set permissions then insert), cleanup of earlier steps on later failure must cover three distinct failure modes: non-2xx HTTP responses (checked via resp.is_success), HTTP exceptions (timeouts, connection resets \u2014 raised as httpx.HTTPError), and mutation-level failures (e.g. GraphQL success: false without a top-level error). Initial implementations commonly only handle non-2xx responses, leaving orphaned artifacts on timeout or transport errors.",
+    "action": "Structure multi-step flows so cleanup runs on all failure paths: non-2xx check, except HTTPError, and mutation success flag. Use best-effort cleanup (suppress cleanup errors) to avoid masking the original failure."
+  },
+  "context": {
+    "languages": [],
+    "frameworks": [],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-20T18:07:57.266071Z",
+    "last_confirmed": "2026-03-20T18:07:57.266071Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

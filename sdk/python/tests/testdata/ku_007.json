@@ -1,0 +1,29 @@
+{
+  "id": "ku_2626fd6bfdef457b835142fc5745306c",
+  "version": 1,
+  "domains": [
+    "ci",
+    "github-actions",
+    "versioning"
+  ],
+  "insight": {
+    "summary": "GitHub Actions action versions in LLM training data are significantly behind current major releases",
+    "detail": "As of 2026-03, commonly used GitHub Actions are multiple major versions ahead of what LLM training data contains. For example, actions/checkout is at v6 and astral-sh/setup-uv is at v7, while training data may reference v4 and v5 respectively. Using outdated major versions can miss important features, performance improvements, and security fixes.",
+    "action": "Always verify current major versions of GitHub Actions before writing workflows. Use `gh api repos/{owner}/{repo}/releases/latest --jq '.tag_name'` to check the latest release for each action."
+  },
+  "context": {
+    "languages": [],
+    "frameworks": [],
+    "pattern": "ci-pipeline"
+  },
+  "evidence": {
+    "confidence": 0.7,
+    "confirmations": 3,
+    "first_observed": "2026-03-20T11:35:20.283829Z",
+    "last_confirmed": "2026-03-25T17:06:57.429071Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}
