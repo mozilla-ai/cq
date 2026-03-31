@@ -58,7 +58,7 @@ homebrew_casks:
     description: >
       cq is a shared knowledge store that helps agents avoid known pitfalls.
     directory: Casks
-    # Only build for macOS and Linux (Homebrew standard)
+    # Use artifacts from the default build (OS/arch configured in builds section).
     ids:
       - default
     hooks:

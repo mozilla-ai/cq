@@ -40,7 +40,7 @@ jobs:
           EXPECTED_PATH="${MODULE}/internal/version"
           echo "Expected ldflags path: $EXPECTED_PATH"
 
-          if ! grep -q "X '${EXPECTED_PATH}.version" .goreleaser.yaml; then
+          if ! grep -Fq "X '${EXPECTED_PATH}.version" .goreleaser.yaml; then
             echo "Error: .goreleaser.yaml ldflags don't reference correct module path"
             echo "Expected: -X '${EXPECTED_PATH}.version=...'"
             echo "Check ldflags in .goreleaser.yaml match go.mod module: $MODULE"

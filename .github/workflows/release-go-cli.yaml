@@ -36,6 +36,11 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
+          if [[ -z "$TAG" ]]; then
+            echo "::error::No tag provided"
+            exit 1
+          fi
+
           if [[ ! "$TAG" =~ ^cli/v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
             echo "::error::Tag '$TAG' does not match expected pattern cli/vX.Y.Z"
             exit 1
@@ -43,8 +48,18 @@ jobs:
 
           VERSION="${TAG#cli/}"
           echo "Releasing CLI $VERSION from tag $TAG"
-          echo "GORELEASER_CURRENT_TAG=$VERSION" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
+          {
+            echo "GORELEASER_CURRENT_TAG<<EOF"
+            echo "$VERSION"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "RELEASE_TAG<<EOF"
+            echo "$TAG"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Checkout
         uses: actions/checkout@v6
