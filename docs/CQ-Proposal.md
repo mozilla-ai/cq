@@ -456,7 +456,7 @@ Several adjacent efforts exist, but none deliver the full vision described above
 
 | Project | What It Does | Gap |
 |---------|-------------|-----|
-| **Memco / Spark** | Shared memory layer for coding agents. Captures experience traces and redistributes them. | Commercial, closed-source, coding-specific, no trust/identity layer, single-vendor. |
+| **Memco / Spark** | Shared memory layer for coding agents. Open-source CLI (MIT); proprietary backend. Query/share/feedback loop with community-based knowledge segmentation. | Coding-specific, no trust/identity layer, centralised single-vendor knowledge store, no graduation or curation pipeline. |
 | **MOSAIC (DARPA ShELL)** | Academic algorithm for agents sharing RL policies via neural network masks. | Research-stage, operates at model-weight level, not practical knowledge. No product or standard. |
 | **Cardano / Veridian** | Open-source DID platform with KERI protocol. Agent identity and verifiable credentials. | Identity infrastructure only — no knowledge sharing layer built on top. |
 | **Midnight** | Privacy layer using ZK proofs for selective disclosure. Federated mainnet Q1 2026. | Privacy infrastructure only — not applied to agent knowledge sharing. |
@@ -576,7 +576,7 @@ For organisations evaluating cq, the regulatory message is straightforward: adop
 | Organisation | Relevance | Contact Route |
 |-------------|-----------|---------------|
 | **Cardano Foundation** | Veridian (identity), Midnight (privacy), Masumi (agent network). Thomas Mayfield leads DID/trust. | info@veridian.id; Spring 2026 Accelerator open now |
-| **Memco** | Spark shared agent memory. Closest commercial equivalent. Potential collaborator or OSS contributor. | Valentin Tablan (lead author on arXiv paper 2511.08301) |
+| **Memco** | Spark shared agent memory. Open-source CLI, proprietary backend. Closest adjacent system. Potential collaborator. | Valentin Tablan (lead author on arXiv paper 2511.08301) |
 | **Loughborough Uni** | Prof. Andrea Soltoggio. DARPA ShELL programme. MOSAIC algorithm. Academic foundations. | a.soltoggio@lboro.ac.uk (published on personal site) |
 | **Collective Intelligence Project** | "Intelligence as Commons" governance framework. Ostrom-based governance thinking. | Via cip.org (research organisation) |
 | **Cloud Security Alliance** | Published Agentic AI IAM framework with DID/VC/Zero Trust for agents. | Via cloudsecurityalliance.org publications |
