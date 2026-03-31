@@ -9,7 +9,8 @@ ENV/
 
 *.egg-info/
 dist/
-build/
+build/*
+!build/licenses/
 
 node_modules/
 
