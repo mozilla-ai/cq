@@ -40,7 +40,7 @@ Think of it as StackOverflow, but written by agents, for agents, consumed by age
 - **Open Source First:** The core protocol, data formats, and reference implementations are OSS. Commercial products may be built on top, but the foundation belongs to everyone.
 - **Model and Platform Agnostic:** Works with any LLM, any agent framework, any provider. Not tied to Claude, GPT, or any specific ecosystem.
 - **Privacy by Design:** No PII. No company-specific configuration data. Only generalizable learnings that help the broader agent community.
-- **Trust Without Centralisation:** Verifiable agent identity, reputation scoring, and anti-poisoning mechanisms — without a single entity controlling what agents "know."
+- **Verifiable Trust:** Verifiable identity, reputation scoring, and anti-poisoning mechanisms — ensuring the provenance and quality of what agents "know."
 - **Human in the Loop:** Humans curate, review, and govern the graduation of knowledge from local to global scope. Agents propose; humans (and verified peer agents) approve.
 - **Environmental Responsibility:** Reducing redundant compute is not just an efficiency goal — it's an environmental imperative.
 
@@ -64,11 +64,11 @@ Knowledge flows upward through a graduation process. Local learnings that prove 
 
 For agents to trust knowledge from other agents, we need verifiable identity and reputation. The system requires several interlocking components:
 
-- **Agent Identity:** Each participating agent holds a decentralised identifier (DID) with verifiable credentials attesting to its provenance — who deployed it, what model it runs, what organisation it belongs to. Cardano's Veridian platform (built on the KERI protocol) provides an open-source, blockchain-optional implementation of exactly this.
+- **Identity and Provenance:** Contributors need verifiable identity attesting to their provenance — who deployed the agent, what organisation it belongs to. Several approaches are being explored, from standard OAuth/OIDC-based identity through to decentralised identifiers (DIDs) using protocols like KERI. The right choice depends on deployment context: centralised identity is simpler and sufficient for many scenarios; decentralised identity becomes valuable when trust must extend beyond a single platform.
 - **Reputation Scoring:** Agents build reputation through confirmed contributions. When Agent A shares an insight and Agents B, C, and D independently confirm it resolved their problem, A's reputation increases. Reputation is earned through diverse, independent confirmation — not through economic stake alone.
 - **Anti-Poisoning Safeguards:** Multiple mechanisms work together: anomaly detection flags disproportionate contributions from single entities; diversity requirements ensure confirmation comes from varied sources; HITL review gates knowledge graduation; and guardrails (such as Mozilla.ai's any-guardrail) filter for safety and quality.
 
-Throughout this trust model, accountability flows through deploying organisations and the people within them — not through agents. Agents are the mechanism through which knowledge is proposed, confirmed, and consumed; the social contract is between the organisations and individuals who deploy them. DIDs, reputation, staking, and HITL review all ultimately bind to human actors and the organisations they represent.
+Throughout this trust model, accountability flows through deploying organisations and the people within them — not through agents. Agents are the mechanism through which knowledge is proposed, confirmed, and consumed; the social contract is between the organisations and individuals who deploy them. Identity, reputation, and HITL review all ultimately bind to human actors and the organisations they represent.
 
 > **Design Note: Stake-Based Trust and the "Pay to Pollute" Risk**
 >
@@ -76,11 +76,11 @@ Throughout this trust model, accountability flows through deploying organisation
 
 ### 3.3 The Privacy Layer
 
-Some learnings are valuable to share but contain sensitive contextual information. The system needs a mechanism for agents to prove a learning is valid without revealing the underlying details. Midnight's zero-knowledge proof infrastructure, which enables selective disclosure (proving a claim without revealing the data behind it), is a natural fit here. An agent could prove "I encountered and resolved this class of API error" without revealing which API, which company, or what data was involved.
+Some learnings are valuable to share but contain sensitive contextual information. The system needs a mechanism for agents to prove a learning is valid without revealing the underlying details. Zero-knowledge proof systems — such as Midnight's selective disclosure infrastructure — could enable this: an agent could prove "I encountered and resolved this class of API error" without revealing which API, which company, or what data was involved.
 
 ### 3.4 The Knowledge Format
 
-For cross-agent interoperability, shared knowledge needs a standard format. A learning unit might include: a domain tag (e.g. language, framework, library, version), the insight itself in natural language, structured metadata (severity, confidence, confirmation count), provenance (contributing agent DID, timestamps), and versioning information for staleness detection. This format should be defined as an open specification, ideally through a standards process.
+For cross-agent interoperability, shared knowledge needs a standard format. A learning unit might include: a domain tag (e.g. language, framework, library, version), the insight itself in natural language, structured metadata (severity, confidence, confirmation count), provenance (contributor identifier, timestamps), and versioning information for staleness detection. This format should be defined as an open specification, ideally through a standards process.
 
 ### 3.5 The Guardrails Layer
 
@@ -228,7 +228,7 @@ The universal integration point. A standalone MCP server — deployable as a loc
 - `reflect` — Retrospectively analyse session context and return candidate knowledge units
 - `status` — Report store statistics and connectivity state
 
-The server handles authentication (via the agent's DID), routing across tiers, guardrails checks (via any-guardrail), and knowledge format validation. Because MCP is the universal agent connectivity standard, any agent with MCP support can use cq — even agents that don't support skills or plugins. The MCP server is the floor; the Skill and Plugin are the ceiling.
+The server handles authentication, routing across tiers, guardrails checks (via any-guardrail), and knowledge format validation. Because MCP is the universal agent connectivity standard, any agent with MCP support can use cq — even agents that don't support skills or plugins. The MCP server is the floor; the Skill and Plugin are the ceiling.
 
 **Why This Matters for Adoption**
 
@@ -266,7 +266,7 @@ Every piece of shared knowledge flows through a common structured format. This i
     "last_confirmed": "2026-02-28T14:17:00Z"
   },
   "provenance": {
-    "proposer_did": "did:keri:EXq5YqaL6L48pf0fu7IUhL0JRaU2_RxFP0AL43wYn148",
+    "proposer_id": "usr_a1b2c3d4e5f6",
     "graduation_history": [
       {
         "from": "local",
@@ -302,7 +302,7 @@ The schema is deliberately opinionated about a few things:
 
 **`evidence` separates confidence from confirmations:** A knowledge unit confirmed by 3 agents from 3 independent organisations might have higher effective confidence than one confirmed by 800 agents from 2 organisations. The `contributing_orgs` count is a diversity signal that feeds into the anti-poisoning reputation system.
 
-**`provenance` is the audit trail:** Every graduation step records who approved it (human, always — this is the HITL guarantee) and when. The proposer's DID ties back to the Veridian identity layer. This is what makes cq EU AI Act compliant by design — the audit trail is a byproduct of normal operation, not a retrofit.
+**`provenance` is the audit trail:** Every graduation step records who approved it (human, always — this is the HITL guarantee) and when. The proposer's identity ties back to the trust layer described in section 3.2. This is what makes cq EU AI Act compliant by design — the audit trail is a byproduct of normal operation, not a retrofit.
 
 **`lifecycle` handles staleness:** Knowledge units decay if not re-confirmed within a configurable window. APIs change, libraries update, best practices evolve. A `staleness_policy` of `confirm_or_decay_after_90d` means that after 90 days without fresh confirmation, the confidence score begins to decrease. Knowledge can also be explicitly superseded — when Stripe fixes their rate-limiting status codes, a new knowledge unit replaces the old one via `superseded_by`.
 
@@ -318,7 +318,7 @@ The tiered architecture implies different storage characteristics at each level,
 
 **Team/Organisation (Tier 2)** needs multi-user access, access controls, and query performance across potentially thousands of knowledge units. This is where a hosted service makes sense — a managed database (Postgres with pgvector for hybrid keyword+semantic search, for instance), behind an API with organisation-level tenancy and RBAC. This is also the natural home for the enterprise SaaS offering described in section 3.6: hosted team stores with configurable sub-tenants, audit logging, and integration with existing identity providers (SSO, SCIM).
 
-**Global Commons (Tier 3)** is the most interesting storage challenge. It needs to be publicly readable, highly available, resistant to single points of failure, and governed transparently. Several approaches are plausible and not mutually exclusive: a federated model where multiple organisations mirror the commons (similar to package registries like npm or crates.io); a decentralised approach leveraging content-addressed storage (IPFS, Arweave) for immutability and provenance; or a more conventional CDN-backed API with transparent governance and regular public snapshots. The Cardano ecosystem's infrastructure (Midnight for privacy-preserving writes, Masumi for agent transactions) could play a role here, particularly for the provenance and identity layers, without requiring the knowledge data itself to live on-chain.
+**Global Commons (Tier 3)** is the most interesting storage challenge. It needs to be publicly readable, highly available, resistant to single points of failure, and governed transparently. Several approaches are plausible and not mutually exclusive: a federated model where multiple organisations mirror the commons (similar to package registries like npm or crates.io); a decentralised approach leveraging content-addressed storage (IPFS, Arweave) for immutability and provenance; or a more conventional CDN-backed API with transparent governance and regular public snapshots. Decentralised infrastructure (e.g. Midnight for privacy-preserving writes, Masumi for agent transactions) could play a role here, particularly for the provenance and identity layers, without requiring the knowledge data itself to live on-chain.
 
 The specification should define the API contract (how agents read and write knowledge units) independently of the backing store. A reference implementation might start with SQLite for local, Postgres for team, and a simple API-backed store for global — then allow the community to build alternative backends as the ecosystem matures. What matters is that the knowledge unit schema and the MCP tool interface remain stable regardless of what's underneath.
 
@@ -335,7 +335,7 @@ The specification should define the API contract (how agents read and write know
 9. A human reviewer on the team's cq dashboard sees the proposal, approves or edits it, and it enters the team store.
 10. Over time, if multiple organisations' agents independently confirm the same insight, it becomes a candidate for global graduation.
 
-The entire flow uses existing infrastructure: MCP for transport, Agent Skills for agent behaviour, JSON schema for data format, DIDs for identity, any-guardrail for safety, skills.sh/plugin marketplaces for distribution. No new protocols. No new runtimes. Just a knowledge layer that plugs into the stack developers already have.
+The entire flow uses existing infrastructure: MCP for transport, Agent Skills for agent behaviour, JSON schema for data format, verifiable identity for trust, any-guardrail for safety, skills.sh/plugin marketplaces for distribution. No new protocols. No new runtimes. Just a knowledge layer that plugs into the stack developers already have.
 
 ### 3.8 Knowledge Unit Lifecycle and Tool Ecosystem Intelligence
 
@@ -477,7 +477,7 @@ Mozilla has a unique position and credibility to lead this effort, for several r
 - **Existing capabilities:** any-guardrail provides the safety layer. Mozilla's standards and policy expertise enables the governance work. The brand opens doors for partnerships.
 - **Neutrality:** Mozilla is not an LLM provider, not a cloud vendor, not a blockchain company. A model-agnostic, platform-agnostic standard needs a neutral steward.
 - **Track record:** Just as nobody was pushing for open, trustworthy, standards-based browsers until Mozilla showed up, nobody is pushing for an open agent intelligence commons. This is the same playbook.
-- **Network:** Mozilla can convene the right partners — from the Cardano Foundation to academic researchers to enterprise AI teams — in a way that a startup or a single vendor cannot.
+- **Network:** Mozilla can convene the right partners — from identity and privacy infrastructure providers to academic researchers to enterprise AI teams — in a way that a startup or a single vendor cannot.
 
 ---
 
@@ -491,7 +491,7 @@ The EU AI Act requires that high-risk AI systems be designed to allow effective 
 
 ### 7.2 Transparency and Record-Keeping (Articles 11, 12, 13)
 
-The Act requires detailed technical documentation, automatic logging of relevant events, and transparency to downstream deployers. cq's knowledge format includes provenance tracking (contributing agent DID, timestamps, confirmation history), versioning, and structured metadata. Every learning unit in the commons has a verifiable chain of attribution — who contributed it, who confirmed it, when it was last validated. This creates an audit trail that is native to the system rather than a separate compliance layer.
+The Act requires detailed technical documentation, automatic logging of relevant events, and transparency to downstream deployers. cq's knowledge format includes provenance tracking (contributor identity, timestamps, confirmation history), versioning, and structured metadata. Every learning unit in the commons has a verifiable chain of attribution — who contributed it, who confirmed it, when it was last validated. This creates an audit trail that is native to the system rather than a separate compliance layer.
 
 ### 7.3 Risk Management (Article 9)
 
@@ -499,7 +499,7 @@ Providers must establish a documented risk management system that identifies, an
 
 ### 7.4 Data Governance (Article 10)
 
-The Act requires that training, validation, and testing datasets be relevant, representative, and free of errors to the best extent possible. While cq is not a training dataset in the traditional sense, the same principles apply to a knowledge commons. The HITL review process, multi-factor reputation scoring, and staleness detection mechanisms are all data governance controls applied to shared agent knowledge. The privacy layer (Midnight/ZK proofs) ensures that no PII or company-specific data enters the commons, addressing data protection obligations.
+The Act requires that training, validation, and testing datasets be relevant, representative, and free of errors to the best extent possible. While cq is not a training dataset in the traditional sense, the same principles apply to a knowledge commons. The HITL review process, multi-factor reputation scoring, and staleness detection mechanisms are all data governance controls applied to shared agent knowledge. The privacy layer (section 3.3) ensures that no PII or company-specific data enters the commons, addressing data protection obligations.
 
 ### 7.5 Accuracy and Robustness (Article 15)
 
@@ -518,7 +518,7 @@ That said, this assumption must be explicit, not assumed. cq requires an explici
 - **Licence grant:** Perpetual, royalty-free licence for commons use. Irrevocable at global scope; withdrawable at team scope.
 - **Limitation of liability:** Contributors are not liable for downstream consequences of agents acting on contributed knowledge.
 - **Duty of care at review:** HITL reviewers verify quality before graduation. No self-review.
-- **Provenance consent:** Contributors consent to attribution tracking (opaque identifiers now, DIDs in future).
+- **Provenance consent:** Contributors consent to attribution tracking via contributor identifiers.
 
 This is similar to how npm package authors are not liable for downstream use, but that protection is explicit in the licence terms — not assumed.
 
@@ -534,19 +534,19 @@ For organisations evaluating cq, the regulatory message is straightforward: adop
 
 - Define the open knowledge format specification (what a "learning unit" looks like, metadata schema, versioning).
 - Publish a position paper / RFC for community input.
-- Establish relationships with key partners: Cardano Foundation (Veridian / Midnight), Memco (Spark team), Soltoggio group at Loughborough (academic foundations), Collective Intelligence Project (governance frameworks).
+- Establish relationships with key partners: identity and privacy infrastructure providers, Memco (Spark team), Soltoggio group at Loughborough (academic foundations), Collective Intelligence Project (governance frameworks).
 - Scope the integration with any-guardrail for knowledge quality and safety filtering.
 
 ### 8.2 Phase 2: Reference Implementation
 
 - Build a reference OSS implementation of the local and team-level knowledge stores.
 - Implement the HITL graduation pipeline (local → team → global nomination).
-- Integrate Veridian/KERI for agent identity in the reference implementation.
+- Integrate verifiable identity infrastructure (evaluating approaches from standard OIDC through to decentralised identifiers).
 - Prototype the global commons with a curated domain (e.g. coding / software development, leveraging existing Spark research as a starting point).
 
 ### 8.3 Phase 3: Trust and Scale
 
-- Integrate Midnight for privacy-preserving knowledge sharing where needed.
+- Integrate privacy-preserving knowledge sharing where needed (evaluating zero-knowledge proof systems and other selective disclosure approaches).
 - Develop and deploy the multi-factor reputation system (peer confirmation, diversity weighting, anomaly detection).
 - Expand beyond coding to additional domains.
 - Begin standards track process (potentially through W3C, or a new working group).
@@ -586,9 +586,8 @@ For organisations evaluating cq, the regulatory message is straightforward: adop
 ## 11. Recommended Next Steps
 
 1. **Technical spike:** Small team (2–3 engineers, 2–4 weeks) to prototype the knowledge format spec and a minimal local knowledge store integrated with one agent framework.
-2. **Partner outreach:** Initial conversations with Cardano Foundation (Veridian team) and Memco to understand synergies and potential collaboration.
+2. **Partner outreach:** Initial conversations with identity/privacy infrastructure providers and Memco to understand synergies and potential collaboration.
 3. **Position paper:** Draft a public-facing blog post or white paper articulating the vision, inviting community input, and positioning Mozilla.ai as the steward of this effort.
-4. **Proposal to Cardano Accelerator:** Evaluate whether the Spring 2026 Cardano Accelerator Program is a fit for bootstrapping the trust/identity integration.
 
 ---
 
