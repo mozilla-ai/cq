@@ -12,14 +12,14 @@ import (
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
-var flagReasonValues = map[string]cq.FlagReason{
-	"stale":     cq.Stale,
-	"incorrect": cq.Incorrect,
-	"duplicate": cq.Duplicate,
-}
-
 // FlagTool returns the MCP tool definition for flag.
 func FlagTool() mcp.Tool {
+	reasons := cq.AllFlagReasons()
+	enumValues := make([]string, len(reasons))
+	for i, r := range reasons {
+		enumValues[i] = string(r)
+	}
+
 	return mcp.NewTool("flag",
 		mcp.WithDescription("Flag a knowledge unit as problematic, reducing its confidence score."),
 		mcp.WithString("unit_id",
@@ -29,7 +29,7 @@ func FlagTool() mcp.Tool {
 		mcp.WithString("reason",
 			mcp.Required(),
 			mcp.Description("Flag reason."),
-			mcp.Enum("stale", "incorrect", "duplicate"),
+			mcp.Enum(enumValues...),
 		),
 		mcp.WithString("detail",
 			mcp.Description("Optional detail for this flag."),
@@ -51,10 +51,10 @@ func (s *Server) HandleFlag(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError("reason is required"), nil
 	}
 
-	flagReason, ok := flagReasonValues[strings.ToLower(reason)]
+	flagReason, ok := flagReasonFromString(reason)
 	if !ok {
 		return mcp.NewToolResultError(
-			fmt.Sprintf("invalid reason %s: must be stale, incorrect, or duplicate", reason),
+			fmt.Sprintf("invalid reason '%s': must be one of: %s", reason, cq.AllFlagReasons().String()),
 		), nil
 	}
 
@@ -82,4 +82,15 @@ func (s *Server) HandleFlag(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	}
 
 	return mcp.NewToolResultText(string(data)), nil
+}
+
+// flagReasonFromString converts a user-supplied string to a validated FlagReason.
+func flagReasonFromString(s string) (cq.FlagReason, bool) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	for _, r := range cq.AllFlagReasons() {
+		if string(r) == s {
+			return r, true
+		}
+	}
+	return "", false
 }

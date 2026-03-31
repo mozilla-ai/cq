@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testSetup configures env vars for an isolated test client and returns a cleanup function.
+// testSetup configures env vars for an isolated test client.
 func testSetup(t *testing.T) {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")

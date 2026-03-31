@@ -42,6 +42,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_units_fts
     USING fts5(id UNINDEXED, summary, detail, action);
 `
 
+// metadataDDL creates the metadata table used to track writer identity and timestamps.
 const metadataDDL = `
 CREATE TABLE IF NOT EXISTS metadata (
     key   TEXT PRIMARY KEY,
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS metadata (
 );
 `
 
+// Metadata keys stored in the metadata table.
 const (
 	keyLastWriter  = "last_writer"
 	keyLastWriteAt = "last_write_at"

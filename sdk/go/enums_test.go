@@ -45,3 +45,35 @@ func TestFlagReasonValues(t *testing.T) {
 	require.Equal(t, FlagReason("incorrect"), Incorrect)
 	require.Equal(t, FlagReason("duplicate"), Duplicate)
 }
+
+func TestFlagReasons(t *testing.T) {
+	t.Parallel()
+
+	reasons := AllFlagReasons()
+	require.Len(t, reasons, 3)
+	require.Equal(t, Duplicate, reasons[0])
+	require.Equal(t, Incorrect, reasons[1])
+	require.Equal(t, Stale, reasons[2])
+}
+
+func TestFlagReasonsString(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "duplicate, incorrect, stale", AllFlagReasons().String())
+}
+
+func TestTiers(t *testing.T) {
+	t.Parallel()
+
+	tiers := AllTiers()
+	require.Len(t, tiers, 3)
+	require.Equal(t, Local, tiers[0])
+	require.Equal(t, Private, tiers[1])
+	require.Equal(t, Public, tiers[2])
+}
+
+func TestTiersString(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "local, private, public", AllTiers().String())
+}

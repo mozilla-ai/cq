@@ -10,6 +10,7 @@ import (
 	"github.com/mozilla-ai/cq/cli/internal/version"
 )
 
+// main is the entrypoint for the cq CLI.
 func main() {
 	if err := execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -17,12 +18,14 @@ func main() {
 	}
 }
 
+// execute builds the command tree and runs the root command.
 func execute() error {
 	rootCmd := newRootCmd()
 
 	return rootCmd.Execute()
 }
 
+// newRootCmd constructs the top-level cobra command with all subcommands registered.
 func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:           "cq",

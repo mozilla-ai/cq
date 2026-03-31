@@ -2,7 +2,15 @@
 
 MODULE_PATH := github.com/mozilla-ai/cq/cli
 
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+DIR_NAME := $(notdir $(CURDIR))
+VERSION := $(shell \
+	tags=$$(git tag -l "$(DIR_NAME)/*"); \
+	if [ -n "$$tags" ]; then \
+		git describe --tags --always --dirty --match "$(DIR_NAME)/*" 2>/dev/null || echo "dev"; \
+	else \
+		echo "dev"; \
+	fi \
+)
 COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 

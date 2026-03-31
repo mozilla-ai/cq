@@ -10,6 +10,7 @@ import (
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
+// defaultMCPQueryLimit and maxMCPQueryLimit bound the number of results the MCP query tool returns.
 const (
 	defaultQueryLimit = 5
 	maxQueryLimit     = 50

@@ -59,7 +59,7 @@ func (r *remoteClient) confirm(ctx context.Context, unitID string) (KnowledgeUni
 
 	var result KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return KnowledgeUnit{}, errUnreachable
+		return KnowledgeUnit{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
 	}
 
 	return result, nil
@@ -128,7 +128,7 @@ func (r *remoteClient) flag(ctx context.Context, unitID string, reason FlagReaso
 
 	var result KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return KnowledgeUnit{}, errUnreachable
+		return KnowledgeUnit{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
 	}
 
 	return result, nil
@@ -185,7 +185,7 @@ func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (Knowledge
 
 	var result KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return KnowledgeUnit{}, errUnreachable
+		return KnowledgeUnit{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
 	}
 
 	return result, nil
@@ -228,6 +228,7 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) []Knowledg
 
 	var units []KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&units); err != nil {
+		// Query degrades gracefully; log-worthy but not a hard error.
 		return nil
 	}
 

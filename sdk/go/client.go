@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Client-level defaults and bounds for query parameters and new knowledge units.
 const (
 	// defaultQueryLimit is used when QueryParams.Limit is unset or invalid.
 	defaultQueryLimit = 5

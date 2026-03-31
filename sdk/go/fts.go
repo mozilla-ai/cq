@@ -3,7 +3,10 @@ package cq
 import "strings"
 
 const (
-	ftsMaxTerms      = 20
+	// ftsMaxTerms is the maximum number of search terms included in an FTS5 MATCH expression.
+	ftsMaxTerms = 20
+
+	// ftsMaxTermLength is the maximum rune length of a single search term after sanitisation.
 	ftsMaxTermLength = 200
 )
 

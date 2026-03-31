@@ -7,17 +7,19 @@ import (
 	"time"
 )
 
+// defaultClientTimeout is the HTTP request timeout used when no override is provided.
 const defaultClientTimeout = 5 * time.Second
 
-// ClientOption configures a Client.
-type ClientOption func(*clientConfig) error
-
+// clientConfig holds resolved configuration for a Client instance.
 type clientConfig struct {
 	addr        string
 	apiKey      string
 	localDBPath string
 	timeout     time.Duration
 }
+
+// ClientOption configures a Client.
+type ClientOption func(*clientConfig) error
 
 // DefaultTimeout is the default HTTP request timeout.
 func DefaultTimeout() time.Duration {
@@ -81,12 +83,14 @@ func WithTimeout(d time.Duration) ClientOption {
 	}
 }
 
+// defaultConfig returns a clientConfig populated with compile-time defaults.
 func defaultConfig() clientConfig {
 	return clientConfig{
 		timeout: DefaultTimeout(),
 	}
 }
 
+// defaultLocalDBPath returns the platform-appropriate default database path, respecting XDG_DATA_HOME.
 func defaultLocalDBPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -103,6 +107,7 @@ func defaultLocalDBPath() (string, error) {
 	return filepath.Join(dataHome, "cq", "local.db"), nil
 }
 
+// expandHome replaces a leading ~ in path with the user's home directory.
 func expandHome(path string) (string, error) {
 	if len(path) == 0 || path[0] != '~' {
 		return path, nil

@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Scoring weights and confidence bounds used to rank knowledge units.
 const (
 	confidenceCeiling = 1.0
 	confidenceFloor   = 0.0
@@ -35,6 +36,7 @@ func (ku KnowledgeUnit) relevance(
 	return min(max(score, confidenceFloor), confidenceCeiling)
 }
 
+// anyMatch reports whether any element in queries appears in items.
 func anyMatch(items []string, queries []string) bool {
 	if len(queries) == 0 {
 		return false
@@ -82,6 +84,7 @@ func applyFlag(ku KnowledgeUnit, reason FlagReason, cfg flagConfig) KnowledgeUni
 	return out
 }
 
+// jaccardSimilarity computes the Jaccard index (intersection over union) of two string slices.
 func jaccardSimilarity(a []string, b []string) float64 {
 	if len(a) == 0 && len(b) == 0 {
 		return 0.0

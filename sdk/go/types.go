@@ -90,6 +90,7 @@ type StoreStats struct {
 	ConfidenceDistribution map[string]int  `json:"confidence_distribution"`
 }
 
+// flagConfig holds optional parameters for a flag operation.
 type flagConfig struct {
 	detail      string
 	duplicateOf string

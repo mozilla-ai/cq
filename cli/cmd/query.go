@@ -24,7 +24,7 @@ func NewQueryCmd() *cobra.Command {
 		Short: "Search for relevant knowledge units by domain tags.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if format != "text" && format != "json" {
-				return fmt.Errorf("unsupported format %s: must be text or json", format)
+				return fmt.Errorf("unsupported format '%s': must be text or json", format)
 			}
 
 			ctx, cancel := cliContext()

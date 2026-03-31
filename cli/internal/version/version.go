@@ -3,6 +3,7 @@ package version
 
 import "fmt"
 
+// Build-time variables injected via ldflags; defaults are used for local development builds.
 var (
 	version = "dev"
 	commit  = "unknown"

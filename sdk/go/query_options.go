@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// Store-level query limits and filter bounds.
 const (
 	// defaultStoreQueryLimit is used when no explicit limit option is provided.
 	defaultStoreQueryLimit = 100
@@ -33,6 +34,7 @@ type queryOptions struct {
 // queryOption configures a store query.
 type queryOption func(*queryOptions) error
 
+// defaultQueryOptions returns queryOptions populated with compile-time defaults.
 func defaultQueryOptions() queryOptions {
 	return queryOptions{
 		domains:    make(map[string]struct{}),
@@ -42,6 +44,7 @@ func defaultQueryOptions() queryOptions {
 	}
 }
 
+// newQueryOptions applies the given options over defaults and returns the resolved queryOptions.
 func newQueryOptions(opt ...queryOption) (queryOptions, error) {
 	opts := defaultQueryOptions()
 

@@ -24,8 +24,8 @@ defer c.Close()
 
 // Query.
 result, _ := c.Query(ctx, cq.QueryParams{
-    Domains:  []string{"api", "stripe"},
-    Language: "go",
+    Domains:   []string{"api", "stripe"},
+    Languages: []string{"go"},
 })
 
 // Propose.

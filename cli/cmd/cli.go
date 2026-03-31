@@ -10,6 +10,7 @@ import (
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
+// defaultCLITimeout is the CLI operation timeout when CQ_TIMEOUT is not set.
 const defaultCLITimeout = 30 * time.Second
 
 // cliTimeout returns the CLI operation timeout from CQ_TIMEOUT env var or the default.
