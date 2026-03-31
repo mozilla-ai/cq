@@ -13,6 +13,9 @@ on:
       - cli/.goreleaser.yaml
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   validate-ldflags:
     runs-on: ubuntu-latest
