@@ -1,9 +1,25 @@
 name: Release Go CLI
 
 on:
-  push:
-    tags:
-      - "cli/v[0-9]+.[0-9]+.[0-9]+*"
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Prefixed tag to release (e.g. cli/v0.1.0)"
+        required: true
+      skip_publish:
+        description: "Skip binary publish"
+        required: false
+        default: "false"
+      skip_homebrew:
+        description: "Skip homebrew publish"
+        required: false
+        default: "false"
+      skip_validate:
+        description: "Skip GoReleaser validation"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -11,11 +27,55 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # Skip early for non-CLI releases (no runner cost).
+    if: >
+      github.event_name != 'release' ||
+      startsWith(github.event.release.tag_name, 'cli/v')
     steps:
+      - name: Validate tag
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+        run: |
+          if [[ -z "$TAG" ]]; then
+            echo "::error::No tag provided"
+            exit 1
+          fi
+
+          if [[ ! "$TAG" =~ ^cli/v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not match expected pattern cli/vX.Y.Z"
+            exit 1
+          fi
+
+          VERSION="${TAG#cli/}"
+          echo "Releasing CLI $VERSION from tag $TAG"
+
+          {
+            echo "GORELEASER_CURRENT_TAG<<EOF"
+            echo "$VERSION"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "RELEASE_TAG<<EOF"
+            echo "$TAG"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Checkout release tag
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          git fetch --tags
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag '$TAG' does not exist in the repository"
+            exit 1
+          fi
+          git checkout "$TAG"
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -27,6 +87,12 @@ jobs:
         with:
           version: latest
           workdir: cli
-          args: release --clean --config .goreleaser.yaml
+          args: >
+            release --clean
+            ${{ github.event.inputs.skip_publish == 'true' && ' --skip publish' || '' }}
+            ${{ github.event.inputs.skip_validate == 'true' && ' --skip validate' || '' }}
+            ${{ github.event.inputs.skip_homebrew == 'true' && ' --skip homebrew' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ env.GORELEASER_CURRENT_TAG }}
