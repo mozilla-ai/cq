@@ -4,7 +4,9 @@ repos:
     hooks:
       - id: check-merge-conflict
       - id: trailing-whitespace
+        exclude: '^(cli|sdk/go)/NOTICE$'
       - id: end-of-file-fixer
+        exclude: '^(cli|sdk/go)/NOTICE$'
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.4

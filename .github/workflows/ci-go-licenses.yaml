@@ -1,0 +1,55 @@
+name: Go License Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cli/go.mod"
+      - "cli/go.sum"
+      - "cli/NOTICE"
+      - "sdk/go/go.mod"
+      - "sdk/go/go.sum"
+      - "sdk/go/NOTICE"
+      - "build/licenses/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "cli/go.mod"
+      - "cli/go.sum"
+      - "cli/NOTICE"
+      - "sdk/go/go.mod"
+      - "sdk/go/go.sum"
+      - "sdk/go/NOTICE"
+      - "build/licenses/**"
+
+permissions:
+  contents: read
+
+jobs:
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses/v2@latest
+
+      - name: Check SDK licenses
+        working-directory: sdk/go
+        run: make check-licenses
+
+      - name: Check SDK NOTICE freshness
+        working-directory: sdk/go
+        run: make check-notice
+
+      - name: Check CLI licenses
+        working-directory: cli
+        run: make check-licenses
+
+      - name: Check CLI NOTICE freshness
+        working-directory: cli
+        run: make check-notice

@@ -30,6 +30,10 @@ builds:
 archives:
   - formats: [tar.gz]
     name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - NOTICE
+      - src: ../LICENSE
+        dst: .
 
 checksum:
   name_template: checksums.txt
