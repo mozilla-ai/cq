@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=48"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "cq-server"
@@ -35,8 +35,9 @@ tests = [
     "httpx",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/cq_server"]
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
 
 # Dynamic versioning via setuptools_scm is configured in the release
 # workflow. The tag pattern is server/X.Y.Z. During development,

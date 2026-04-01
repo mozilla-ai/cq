@@ -9,7 +9,7 @@ COPY pyproject.toml uv.lock ./
 # independently of application code changes.
 RUN uv sync --no-dev --frozen --no-install-project
 
-COPY team_api/ team_api/
+COPY src/ src/
 RUN uv sync --no-dev --frozen
 
 RUN addgroup --system app && adduser --system --ingroup app app \
@@ -23,4 +23,4 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 EXPOSE 8742
 
-CMD ["/app/.venv/bin/cq-team-api"]
+CMD ["/app/.venv/bin/cq-server"]
