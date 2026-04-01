@@ -83,8 +83,9 @@ type QueryResult struct {
 	Units []KnowledgeUnit `json:"units"`
 
 	// Source indicates whether the query consulted only the local store
-	// (SourceLocal) or also reached a remote API (SourceRemote). This is
-	// metadata about the query itself, not about individual units.
+	// (SourceLocal) or was configured to also consult a remote API
+	// (SourceRemote). This is metadata about the query itself, not about
+	// individual units.
 	Source QuerySource `json:"source"`
 
 	// Warnings collects non-fatal issues encountered during the query.

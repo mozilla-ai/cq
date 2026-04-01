@@ -376,6 +376,18 @@ func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
 	require.Equal(t, SourceRemote, qr.Source)
 }
 
+func TestQuerySourceRemoteWhenRemoteFails(t *testing.T) {
+	t.Parallel()
+	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+
+	qr, err := c.Query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.NoError(t, err)
+	require.Empty(t, qr.Units)
+	require.Equal(t, SourceRemote, qr.Source)
+}
+
 func TestConfirmLocalUnit(t *testing.T) {
 	t.Parallel()
 	var confirmedRemotely bool
