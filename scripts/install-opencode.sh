@@ -12,7 +12,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PLUGIN_DIR="${REPO_ROOT}/plugins/cq"
-SERVER_DIR="${PLUGIN_DIR}/server"
 
 # -- Dependencies. --
 
@@ -198,13 +197,12 @@ remove_agents_md() {
 
 configure_mcp() {
     local config_file="${TARGET}/opencode.json"
-    local server_path
-    server_path="$(cd "${SERVER_DIR}" && pwd)"
+    local bootstrap="${PLUGIN_DIR}/scripts/bootstrap.py"
 
     local cq_entry
     cq_entry=$(jq -n \
-        --arg dir "${server_path}" \
-        '{ type: "local", command: ["uv", "run", "--directory", $dir, "cq-mcp-server"] }')
+        --arg script "${bootstrap}" \
+        '{ type: "local", command: ["python3", $script] }')
 
     if [[ -f "${config_file}" ]]; then
         if jq -e '.mcp.cq' "${config_file}" &>/dev/null; then
