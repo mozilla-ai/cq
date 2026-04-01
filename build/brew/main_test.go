@@ -138,19 +138,14 @@ func TestRenderTemplate(t *testing.T) {
 
 	outputFile := filepath.Join(t.TempDir(), "cq.rb")
 
-	// Save and restore os.Args.
-	origArgs := os.Args
-	os.Args = []string{
-		"brew",
+	err := run([]string{
 		"-checksums", checksumFile,
 		"-base-url", "https://github.com/mozilla-ai/cq/releases/download/cli/v0.1.0",
 		"-version", "0.1.0",
 		"-template", "cq.rb.tpl",
 		"-output", outputFile,
-	}
-	defer func() { os.Args = origArgs }()
-
-	if err := run(); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("run() error: %s", err)
 	}
 

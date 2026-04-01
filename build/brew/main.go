@@ -5,7 +5,7 @@
 //
 // Usage:
 //
-//	go run ./build/brew -checksums checksums.txt -base-url <url> -version <ver>
+//	cd build/brew && go run . -checksums checksums.txt -base-url <url> -version <ver>
 package main
 
 import (
@@ -91,19 +91,22 @@ func parseFilename(filename string) (string, string) {
 	name = strings.TrimSuffix(name, ".zip")
 
 	parts := strings.SplitN(name, "_", 3)
-	if len(parts) != 3 {
+	if len(parts) != 3 || parts[0] != "cq" {
 		return "", ""
 	}
 	return parts[1], parts[2]
 }
 
-func run() error {
-	checksums := flag.String("checksums", "", "Path to checksums.txt file.")
-	baseURL := flag.String("base-url", "", "Base download URL for release artifacts.")
-	version := flag.String("version", "", "Release version (e.g. 0.1.0).")
-	tplPath := flag.String("template", "build/brew/cq.rb.tpl", "Path to cask template.")
-	output := flag.String("output", "", "Output file (default: stdout).")
-	flag.Parse()
+func run(args []string) error {
+	fs := flag.NewFlagSet("brew", flag.ContinueOnError)
+	checksums := fs.String("checksums", "", "Path to checksums.txt file.")
+	baseURL := fs.String("base-url", "", "Base download URL for release artifacts.")
+	version := fs.String("version", "", "Release version (e.g. 0.1.0).")
+	tplPath := fs.String("template", "cq.rb.tpl", "Path to cask template.")
+	output := fs.String("output", "", "Output file (default: stdout).")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	if *checksums == "" || *baseURL == "" || *version == "" {
 		return fmt.Errorf("required flags: -checksums, -base-url, -version")
@@ -115,6 +118,7 @@ func run() error {
 	}
 	defer f.Close()
 
+	base := strings.TrimRight(*baseURL, "/")
 	data := caskData{Version: *version}
 
 	scanner := bufio.NewScanner(f)
@@ -133,7 +137,7 @@ func run() error {
 		data.artifacts = append(data.artifacts, artifact{
 			OS:     osName,
 			Arch:   arch,
-			URL:    *baseURL + "/" + filename,
+			URL:    base + "/" + filename,
 			SHA256: sha,
 		})
 	}
@@ -159,7 +163,7 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}

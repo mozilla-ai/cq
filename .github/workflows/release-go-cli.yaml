@@ -109,7 +109,7 @@ jobs:
 
           if [[ "$GOOS" == "windows" ]]; then
             ARCHIVE="cq_${OS}_${ARCHIVE_ARCH}.zip"
-            zip "$ARCHIVE" cq.exe NOTICE README.md -j ../LICENSE
+            zip -j "$ARCHIVE" cq.exe NOTICE README.md ../LICENSE
           else
             ARCHIVE="cq_${OS}_${ARCHIVE_ARCH}.tar.gz"
             tar czf "$ARCHIVE" cq NOTICE README.md -C .. LICENSE
@@ -132,7 +132,7 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    if: inputs.skip_publish != 'true'
+    if: github.event.inputs.skip_publish != 'true'
     steps:
       - name: Resolve tag
         id: tag
@@ -162,6 +162,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ steps.tag.outputs.tag }}
           sparse-checkout: build/brew
           path: repo
 
