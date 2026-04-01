@@ -10,6 +10,9 @@ FLAG_PENALTY = 0.15
 _CONFIDENCE_CEILING = 1.0
 _CONFIDENCE_FLOOR = 0.0
 
+_RELEVANCE_CEILING = 1.0
+_RELEVANCE_FLOOR = 0.0
+
 _DOMAIN_WEIGHT = 0.7
 _LANGUAGE_WEIGHT = 0.15
 _FRAMEWORK_WEIGHT = 0.15
@@ -85,4 +88,4 @@ def calculate_relevance(
         framework_score = 1.0
 
     score = _DOMAIN_WEIGHT * domain_score + _LANGUAGE_WEIGHT * language_score + _FRAMEWORK_WEIGHT * framework_score
-    return min(max(score, _CONFIDENCE_FLOOR), _CONFIDENCE_CEILING)
+    return min(max(score, _RELEVANCE_FLOOR), _RELEVANCE_CEILING)
