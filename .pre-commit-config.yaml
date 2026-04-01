@@ -30,13 +30,13 @@ repos:
         pass_filenames: false
         types: [python]
         files: ^plugins/cq/server/
-      - id: ty-check-team-api
-        name: ty (team-api)
-        entry: bash -c 'cd team-api && uvx ty check team_api --python .venv'
+      - id: ty-check-server-backend
+        name: ty (server/backend)
+        entry: bash -c 'cd server/backend && uvx ty check src/cq_server --python .venv'
         language: system
         pass_filenames: false
         types: [python]
-        files: ^team-api/
+        files: ^server/backend/
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.10.7
