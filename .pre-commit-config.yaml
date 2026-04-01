@@ -23,13 +23,20 @@ repos:
 
   - repo: local
     hooks:
-      - id: ty-check-server
-        name: ty (server)
-        entry: bash -c 'cd plugins/cq/server && uvx ty check cq_mcp --python .venv'
+      - id: ty-check-plugin
+        name: ty (plugin)
+        entry: bash -c 'uvx ty check plugins/cq/scripts/'
         language: system
         pass_filenames: false
         types: [python]
-        files: ^plugins/cq/server/
+        files: ^plugins/cq/scripts/
+      - id: ty-check-sdk-python
+        name: ty (sdk/python)
+        entry: bash -c 'cd sdk/python && uvx ty check src/cq --python .venv'
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^sdk/python/
       - id: ty-check-server-backend
         name: ty (server/backend)
         entry: bash -c 'cd server/backend && uvx ty check src/cq_server --python .venv'
