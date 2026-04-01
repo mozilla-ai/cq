@@ -46,12 +46,6 @@ namespaces = false
 # root = "../.."
 # tag_regex = "^server/(?P<version>.+)$"
 
-[tool.ruff.lint]
-ignore = [
-    # FastAPI uses Depends() in function default arguments; this is intentional and idiomatic.
-    "B008",
-]
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

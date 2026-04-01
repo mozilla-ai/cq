@@ -1,5 +1,5 @@
 target-version = "py311"
-src = ["plugins/cq/server/cq_mcp"]
+src = ["src"]
 line-length = 120
 include = ["*.py", "*.pyi"]
 fix = true
@@ -42,7 +42,10 @@ select = [
     "D",    # pydocstyle (docstrings)
 ]
 
-ignore = []
+ignore = [
+    # FastAPI uses Depends() in function default arguments; this is intentional and idiomatic.
+    "B008",
+]
 
 unfixable = [
     "B",    # flake8-bugbear
