@@ -1,11 +1,11 @@
 """Review queue endpoints for the team API."""
 
+from cq.models import KnowledgeUnit
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from .auth import get_current_user
 from .deps import get_store
-from .knowledge_unit import KnowledgeUnit
 from .store import TeamStore
 
 

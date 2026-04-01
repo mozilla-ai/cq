@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from .knowledge_unit import Flag, FlagReason, KnowledgeUnit
+from cq.models import Flag, FlagReason, KnowledgeUnit
 
 CONFIRMATION_BOOST = 0.1
 FLAG_PENALTY = 0.15

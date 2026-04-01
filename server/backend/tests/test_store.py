@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from cq_server.knowledge_unit import (
+from cq.models import (
     Context,
     FlagReason,
     Insight,
@@ -16,6 +15,7 @@ from cq_server.knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
+
 from cq_server.scoring import apply_confirmation, apply_flag
 from cq_server.store import TeamStore
 
@@ -381,7 +381,7 @@ class TestEndToEnd:
             store,
             domains=["api", "payments"],
             context=Context(languages=["python"], frameworks=["fastapi"]),
-            tier=Tier.TEAM,
+            tier=Tier.PRIVATE,
         )
 
         results = store.query(["api", "payments"], language="python")

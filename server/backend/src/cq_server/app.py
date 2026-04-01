@@ -7,11 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
-
-from .auth import router as auth_router
-from .knowledge_unit import (
+from cq.models import (
     Context,
     FlagReason,
     Insight,
@@ -19,6 +15,10 @@ from .knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from .auth import router as auth_router
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
 from .store import TeamStore, normalize_domains
@@ -104,7 +104,7 @@ def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
         domains=normalized,
         insight=request.insight,
         context=request.context,
-        tier=Tier.TEAM,
+        tier=Tier.PRIVATE,
         created_by=request.created_by,
     )
     store.insert(unit)

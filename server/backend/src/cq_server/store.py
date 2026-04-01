@@ -12,7 +12,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
-from .knowledge_unit import KnowledgeUnit
+from cq.models import KnowledgeUnit
+
 from .scoring import calculate_relevance
 from .tables import ensure_review_columns, ensure_users_table
 
