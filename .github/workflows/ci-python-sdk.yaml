@@ -63,7 +63,7 @@ jobs:
         run: |
           (cd sdk/python && uv sync --group dev)
           (cd plugins/cq/server && uv sync --group dev)
-          (cd team-api && uv sync --group dev)
+          (cd server/backend && uv sync --group dev)
 
       - name: Test
         run: make test-sdk-python test-server
