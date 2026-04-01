@@ -191,7 +191,26 @@ See [`docs/architecture.md`](docs/architecture.md) for the full set of architect
 
 ## Status
 
-Exploratory. See [`docs/`](docs/) for the proposal and PoC design.
+Exploratory — this is a `0.x.x` project. Expect breaking changes to the database format and SDK interfaces before v1. We'll provide migration scripts where possible so your knowledge units survive upgrades.
+
+See [`docs/`](docs/) for the proposal and PoC design.
+
+### Migrating from earlier releases
+
+The local SQLite database format changed during the 0.x cycle (enum values, field names, ID format). If you have knowledge units from an earlier version, run the migration script to bring them up to date:
+
+```bash
+# Local SDK database (auto-detects path).
+./scripts/migrate-v1.sh
+
+# Explicit path.
+./scripts/migrate-v1.sh ~/.local/share/cq/local.db
+
+# Team server running in a container.
+docker compose exec cq-team-api bash /app/scripts/migrate-v1.sh
+```
+
+The script is idempotent — safe to run multiple times, on any 0.x database. It creates a backup before modifying anything. See the script header for full details.
 
 ## Contributing
 
