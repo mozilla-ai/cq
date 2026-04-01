@@ -1,5 +1,9 @@
 target-version = "py311"
-src = ["plugins/cq/server/cq_mcp"]
+src = [
+    "plugins/cq/scripts",
+    "sdk/python/src/cq",
+    "server/backend/src/cq_server",
+]
 line-length = 120
 include = ["*.py", "*.pyi"]
 fix = true

@@ -41,3 +41,6 @@ opencode.json
 sdk/python/src/cq/protocol/skill.md
 sdk/go/internal/protocol/skill.md
 cli/cq
+
+# Downloaded plugin binary.
+plugins/cq/bin/
