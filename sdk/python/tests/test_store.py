@@ -410,6 +410,40 @@ class TestQuery:
         assert len(results) == 2
         assert results[0].id == match.id
 
+    def test_bare_string_language_coerced_to_list(self, store: LocalStore):
+        # The matching unit has lower confidence; the boost must overcome it.
+        python_unit = _make_unit(
+            domains=["databases"],
+            context=Context(languages=["python"]),
+        )
+        go_unit = _make_unit(
+            domains=["databases"],
+            context=Context(languages=["go"]),
+        )
+        store.insert(python_unit)
+        boosted = apply_confirmation(go_unit)
+        store.insert(boosted)
+        results = store.query(["databases"], languages="python")  # type: ignore[arg-type]
+        assert len(results) == 2
+        assert results[0].id == python_unit.id
+
+    def test_bare_string_framework_coerced_to_list(self, store: LocalStore):
+        # The matching unit has lower confidence; the boost must overcome it.
+        django_unit = _make_unit(
+            domains=["web"],
+            context=Context(frameworks=["django"]),
+        )
+        flask_unit = _make_unit(
+            domains=["web"],
+            context=Context(frameworks=["flask"]),
+        )
+        store.insert(django_unit)
+        boosted = apply_confirmation(flask_unit)
+        store.insert(boosted)
+        results = store.query(["web"], frameworks="django")  # type: ignore[arg-type]
+        assert len(results) == 2
+        assert results[0].id == django_unit.id
+
     def test_higher_confidence_ranks_higher(self, store: LocalStore):
         low_conf = _make_unit(domains=["databases"])
         high_conf = _make_unit(domains=["databases"])

@@ -86,6 +86,17 @@ CREATE TABLE IF NOT EXISTS metadata (
 """
 
 
+def _as_list(value: list[str] | str) -> list[str]:
+    """Coerce a bare string to a single-item list.
+
+    Python iterates strings character-by-character, so passing ``"python"``
+    where ``["python"]`` is expected silently produces wrong results.
+    """
+    if isinstance(value, str):
+        return [value]
+    return value
+
+
 def _normalize_domains(domains: list[str]) -> list[str]:
     """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
     return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
@@ -347,6 +358,10 @@ class LocalStore:
         Raises:
             ValueError: If limit is not positive.
         """
+        if languages is not None:
+            languages = _as_list(languages)
+        if frameworks is not None:
+            frameworks = _as_list(frameworks)
         if limit <= 0:
             raise ValueError("limit must be positive")
         if not domains:
