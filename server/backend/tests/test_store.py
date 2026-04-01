@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from team_api.knowledge_unit import (
+from cq_server.knowledge_unit import (
     Context,
     FlagReason,
     Insight,
@@ -15,8 +15,8 @@ from team_api.knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
-from team_api.scoring import apply_confirmation, apply_flag
-from team_api.store import TeamStore
+from cq_server.scoring import apply_confirmation, apply_flag
+from cq_server.store import TeamStore
 
 
 def _make_insight(**overrides: Any) -> Insight:

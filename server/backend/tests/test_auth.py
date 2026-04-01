@@ -7,8 +7,8 @@ from pathlib import Path
 import jwt
 import pytest
 from fastapi.testclient import TestClient
-from team_api.app import app
-from team_api.auth import create_token, hash_password, verify_password, verify_token
+from cq_server.app import app
+from cq_server.auth import create_token, hash_password, verify_password, verify_token
 
 
 @pytest.fixture()
@@ -23,8 +23,8 @@ def _seed_user(
     client: TestClient, username: str = "peter", password: str = "secret123"
 ) -> None:
     """Seed a user directly via the store."""
-    from team_api.app import _get_store
-    from team_api.auth import hash_password
+    from cq_server.app import _get_store
+    from cq_server.auth import hash_password
 
     store = _get_store()
     store.create_user(username, hash_password(password))

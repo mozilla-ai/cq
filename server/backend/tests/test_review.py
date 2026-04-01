@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from team_api.app import app
+from cq_server.app import app
 
 
 @pytest.fixture()
@@ -21,8 +21,8 @@ def _login(
     client: TestClient, username: str = "reviewer", password: str = "pass123"
 ) -> str:
     """Seed a user, log in, return the JWT token."""
-    from team_api.app import _get_store
-    from team_api.auth import hash_password
+    from cq_server.app import _get_store
+    from cq_server.auth import hash_password
 
     store = _get_store()
     try:
