@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: team-ui/pnpm-lock.yaml
+          cache-dependency-path: server/frontend/pnpm-lock.yaml
 
       - name: Setup and lint
         run: make setup lint-sdk-python lint-server
