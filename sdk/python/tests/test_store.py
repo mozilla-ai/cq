@@ -380,6 +380,28 @@ class TestQuery:
         assert len(results) == 2
         assert results[0].id == python_unit.id
 
+    def test_multi_language_boosts_on_any_overlap(self, store: LocalStore):
+        python_unit = _make_unit(
+            domains=["databases"],
+            context=Context(languages=["python"]),
+        )
+        go_unit = _make_unit(
+            domains=["databases"],
+            context=Context(languages=["go"]),
+        )
+        other_unit = _make_unit(
+            domains=["databases"],
+            context=Context(languages=["rust"]),
+        )
+        store.insert(other_unit)
+        store.insert(python_unit)
+        store.insert(go_unit)
+        results = store.query(["databases"], languages=["python", "go"])
+        assert len(results) == 3
+        boosted_ids = {results[0].id, results[1].id}
+        assert python_unit.id in boosted_ids
+        assert go_unit.id in boosted_ids
+
     def test_framework_boosts_ranking_without_excluding(self, store: LocalStore):
         django_unit = _make_unit(
             domains=["web"],
@@ -394,6 +416,28 @@ class TestQuery:
         results = store.query(["web"], frameworks=["django"])
         assert len(results) == 2
         assert results[0].id == django_unit.id
+
+    def test_multi_framework_boosts_on_any_overlap(self, store: LocalStore):
+        django_unit = _make_unit(
+            domains=["web"],
+            context=Context(frameworks=["django"]),
+        )
+        flask_unit = _make_unit(
+            domains=["web"],
+            context=Context(frameworks=["flask"]),
+        )
+        other_unit = _make_unit(
+            domains=["web"],
+            context=Context(frameworks=["express"]),
+        )
+        store.insert(other_unit)
+        store.insert(django_unit)
+        store.insert(flask_unit)
+        results = store.query(["web"], frameworks=["django", "flask"])
+        assert len(results) == 3
+        boosted_ids = {results[0].id, results[1].id}
+        assert django_unit.id in boosted_ids
+        assert flask_unit.id in boosted_ids
 
     def test_combined_language_and_framework_boosts_ranking(self, store: LocalStore):
         match = _make_unit(
