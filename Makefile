@@ -18,7 +18,7 @@ help:
 	@echo "  make setup                Install all dependencies"
 	@echo "  make lint                   Lint all components"
 	@echo "    - make lint-cli             CLI"
-	@echo "    - make lint-plugin          Plugin scripts"
+	@echo "    - make lint-plugin          Plugin"
 	@echo "    - make lint-sdk-go          Go SDK"
 	@echo "    - make lint-sdk-python      Python SDK"
 	@echo "    - make lint-server          Server (backend + frontend)"
@@ -42,9 +42,10 @@ help:
 
 .PHONY: setup
 setup:
+	(cd cli && go mod download)
+	(cd plugins/cq && uv sync --group dev)
 	(cd sdk/go && $(MAKE) sync-skill)
 	(cd sdk/python && uv sync --group dev)
-	(cd cli && go mod download)
 	(cd server/backend && uv sync --group dev)
 	(cd server/frontend && pnpm install $(if $(CI),--frozen-lockfile,))
 
@@ -134,9 +135,7 @@ lint-cli:
 
 .PHONY: lint-plugin
 lint-plugin:
-	uv run pre-commit run ruff --files plugins/cq/scripts/*.py
-	uv run pre-commit run ruff-format --files plugins/cq/scripts/*.py
-	uv run pre-commit run ty-check-plugin --files plugins/cq/scripts/*.py
+	cd plugins/cq && uv run pre-commit run --files scripts/*.py
 
 .PHONY: lint-sdk-go
 lint-sdk-go:
@@ -144,13 +143,11 @@ lint-sdk-go:
 
 .PHONY: lint-sdk-python
 lint-sdk-python:
-	cd sdk/python && $(MAKE) lint
+	cd sdk/python && uv run pre-commit run --files src/**/*.py
 
 .PHONY: lint-server-backend
 lint-server-backend:
-	uv run pre-commit run ruff --files server/backend/src/**/*.py
-	uv run pre-commit run ruff-format --files server/backend/src/**/*.py
-	uv run pre-commit run ty-check-server-backend --files server/backend/src/**/*.py
+	cd server/backend && uv run pre-commit run --files src/**/*.py
 
 .PHONY: lint-server-frontend
 lint-server-frontend:

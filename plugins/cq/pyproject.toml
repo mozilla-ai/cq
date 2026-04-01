@@ -1,0 +1,15 @@
+[project]
+name = "cq-plugin"
+version = "0.5.0"
+description = "cq Plugin for coding agents (e.g. Claude Code, OpenCode) - shared agent knowledge commons"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+
+[dependency-groups]
+dev = [
+    { include-group = "lint" },
+]
+
+lint = [
+    "pre-commit>=4.5.1",
+]
