@@ -49,7 +49,7 @@ check_prerequisites() {
         exit 1
     fi
 
-    if ! sqlite3 :memory: "SELECT json('{}');" &>/dev/null; then
+    if ! sqlite3 :memory: "SELECT json_extract('{\"a\": 1}', '\$.a');" &>/dev/null; then
         echo "Error: sqlite3 does not support JSON functions (requires 3.38.0+)." >&2
         exit 1
     fi
@@ -117,10 +117,17 @@ create_backup() {
     echo "Backup created at ${backup_path}."
 }
 
+has_fts_table() {
+    local db_path="$1"
+    local count
+    count=$(sqlite3 "$db_path" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='knowledge_units_fts';")
+    [[ "$count" -gt 0 ]]
+}
+
 run_migration() {
     local db_path="$1"
 
-    sqlite3 "$db_path" <<'SQL'
+    sqlite3 -bail "$db_path" <<'SQL'
 PRAGMA foreign_keys = OFF;
 
 BEGIN TRANSACTION;
@@ -184,7 +191,15 @@ UPDATE knowledge_units
 SET data = json_set(data, '$.id', id)
 WHERE json_extract(data, '$.id') != id;
 
--- Rebuild the FTS index to reflect all changes.
+COMMIT;
+
+PRAGMA foreign_keys = ON;
+SQL
+
+    # Rebuild FTS index only if the table exists (local SDK databases have it;
+    # team-api databases do not).
+    if has_fts_table "$db_path"; then
+        sqlite3 -bail "$db_path" <<'SQL'
 DELETE FROM knowledge_units_fts;
 INSERT INTO knowledge_units_fts (id, summary, detail, action)
 SELECT id,
@@ -192,11 +207,8 @@ SELECT id,
        json_extract(data, '$.insight.detail'),
        json_extract(data, '$.insight.action')
 FROM knowledge_units;
-
-COMMIT;
-
-PRAGMA foreign_keys = ON;
 SQL
+    fi
 }
 
 verify_migration() {

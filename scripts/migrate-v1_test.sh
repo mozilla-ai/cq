@@ -93,12 +93,37 @@ CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_units_fts
     USING fts5(id UNINDEXED, summary, detail, action);
 '
 
+# Team-api schema: same tables but no FTS virtual table.
+CQ_TEAM_SCHEMA='
+CREATE TABLE IF NOT EXISTS knowledge_units (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS knowledge_unit_domains (
+    unit_id TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    FOREIGN KEY (unit_id) REFERENCES knowledge_units(id) ON DELETE CASCADE,
+    PRIMARY KEY (unit_id, domain)
+);
+CREATE INDEX IF NOT EXISTS idx_domains_domain
+    ON knowledge_unit_domains(domain);
+'
+
 # create_db sets up an empty cq database and prints its path.
 create_db() {
     local dir="$1"
     local db_path="${dir}/test.db"
 
     sqlite3 "$db_path" "$CQ_SCHEMA"
+    echo "$db_path"
+}
+
+# create_team_db sets up a database with the team-api schema (no FTS).
+create_team_db() {
+    local dir="$1"
+    local db_path="${dir}/team.db"
+
+    sqlite3 "$db_path" "$CQ_TEAM_SCHEMA"
     echo "$db_path"
 }
 
@@ -114,15 +139,20 @@ insert_ku() {
         sqlite3 "$db_path" "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES ('${id}', '${d}');"
     done
 
-    sqlite3 "$db_path" "
-        INSERT INTO knowledge_units_fts (id, summary, detail, action)
-        VALUES (
-            '${id}',
-            json_extract('${data}', '\$.insight.summary'),
-            json_extract('${data}', '\$.insight.detail'),
-            json_extract('${data}', '\$.insight.action')
-        );
-    "
+    # Only insert FTS entry if the table exists.
+    local has_fts
+    has_fts=$(sqlite3 "$db_path" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='knowledge_units_fts';")
+    if [[ "$has_fts" -gt 0 ]]; then
+        sqlite3 "$db_path" "
+            INSERT INTO knowledge_units_fts (id, summary, detail, action)
+            VALUES (
+                '${id}',
+                json_extract('${data}', '\$.insight.summary'),
+                json_extract('${data}', '\$.insight.detail'),
+                json_extract('${data}', '\$.insight.action')
+            );
+        "
+    fi
 }
 
 # read_field extracts a JSON field from the data column of a KU row.
@@ -493,6 +523,30 @@ test_missing_database() {
     assert_contains "$out" "database not found" "should report missing database"
 }
 
+test_no_fts_table() {
+    local dir="$1"
+    local db
+    db=$(create_team_db "$dir")
+
+    insert_ku "$db" "ku_00000000000000000000000000000001" \
+        '{"id":"ku_00000000000000000000000000000001","version":1,"domains":["api"],"tier":"TIER_LOCAL","insight":{"summary":"s","detail":"d","action":"a"},"context":{},"evidence":{"confidence":0.5},"flags":[{"reason":"FLAG_REASON_STALE"}]}' \
+        "api"
+
+    bash "$MIGRATE" "$db" >/dev/null
+
+    assert_eq "$(read_field "$db" "ku_00000000000000000000000000000001" '$.tier')" "local" "tier migrated without FTS"
+
+    local data
+    data=$(sqlite3 "$db" "SELECT data FROM knowledge_units WHERE id = 'ku_00000000000000000000000000000001';")
+    assert_contains "$data" '"stale"' "flag reason migrated without FTS"
+    assert_not_contains "$data" 'FLAG_REASON_' "no legacy flags remain"
+
+    # Confirm FTS table still does not exist.
+    local fts_count
+    fts_count=$(sqlite3 "$db" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='knowledge_units_fts';")
+    assert_eq "$fts_count" "0" "FTS table should not be created"
+}
+
 test_multiple_flags() {
     local dir="$1"
     local db
@@ -537,6 +591,7 @@ main() {
     run_test "backup: not overwritten on re-run"           test_backup_not_overwritten
     run_test "preserves existing v1 rows"                  test_preserves_v1_rows
     run_test "missing database: exits with error"          test_missing_database
+    run_test "no FTS table: team-api schema works"         test_no_fts_table
 
     echo ""
     echo "Results: ${PASS} passed, ${FAIL} failed"
