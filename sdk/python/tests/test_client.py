@@ -31,9 +31,11 @@ class TestLocalOnlyMode:
         )
         assert ku.id.startswith("ku_")
 
-        results = client.query(["databases"])
-        assert len(results) == 1
-        assert results[0].id == ku.id
+        result = client.query(["databases"])
+        assert result.source == "local"
+        assert result.warnings == []
+        assert len(result.units) == 1
+        assert result.units[0].id == ku.id
 
     def test_confirm_boosts_confidence(self, client: Client):
         ku = client.propose(
@@ -89,7 +91,7 @@ class TestLocalOnlyMode:
                 action="Action.",
                 domains=["testing"],
             )
-            assert c.query(["testing"])[0].id == ku.id
+            assert c.query(["testing"]).units[0].id == ku.id
 
     def test_propose_with_single_language_and_framework(self, client: Client):
         ku = client.propose(
@@ -130,8 +132,8 @@ class TestLocalOnlyMode:
             action="Action.",
             domains=["api"],
         )
-        results = client.query("api")  # type: ignore[arg-type]
-        assert len(results) == 1
+        result = client.query("api")  # type: ignore[arg-type]
+        assert len(result.units) == 1
 
     def test_query_bare_string_languages_coerced_to_list(self, client: Client):
         client.propose(
@@ -141,9 +143,9 @@ class TestLocalOnlyMode:
             domains=["api"],
             languages=["python"],
         )
-        results = client.query(["api"], languages="python")  # type: ignore[arg-type]
-        assert len(results) == 1
-        assert results[0].context.languages == ["python"]
+        result = client.query(["api"], languages="python")  # type: ignore[arg-type]
+        assert len(result.units) == 1
+        assert result.units[0].context.languages == ["python"]
 
     def test_query_bare_string_frameworks_coerced_to_list(self, client: Client):
         client.propose(
@@ -153,9 +155,9 @@ class TestLocalOnlyMode:
             domains=["web"],
             frameworks=["django"],
         )
-        results = client.query(["web"], frameworks="django")  # type: ignore[arg-type]
-        assert len(results) == 1
-        assert results[0].context.frameworks == ["django"]
+        result = client.query(["web"], frameworks="django")  # type: ignore[arg-type]
+        assert len(result.units) == 1
+        assert result.units[0].context.frameworks == ["django"]
 
     def test_propose_bare_string_domains_coerced_to_list(self, client: Client):
         ku = client.propose(
@@ -201,9 +203,9 @@ class TestLocalOnlyMode:
             domains=["api"],
             languages=["go"],
         )
-        results = client.query(["api"], languages=["python"])
-        assert len(results) == 2
-        assert results[0].context.languages == ["python"]
+        result = client.query(["api"], languages=["python"])
+        assert len(result.units) == 2
+        assert result.units[0].context.languages == ["python"]
 
 
 class TestFullLifecycle:
@@ -216,18 +218,18 @@ class TestFullLifecycle:
             languages=["python"],
         )
 
-        results = client.query(["api", "stripe"], languages=["python"])
-        assert len(results) == 1
-        assert results[0].evidence.confidence == 0.5
+        result = client.query(["api", "stripe"], languages=["python"])
+        assert len(result.units) == 1
+        assert result.units[0].evidence.confidence == 0.5
 
         client.confirm(ku.id)
-        results = client.query(["api", "stripe"])
-        assert results[0].evidence.confidence == pytest.approx(0.6)
+        result = client.query(["api", "stripe"])
+        assert result.units[0].evidence.confidence == pytest.approx(0.6)
 
         client.flag(ku.id, FlagReason.STALE)
-        results = client.query(["api", "stripe"])
-        assert results[0].evidence.confidence == pytest.approx(0.45)
-        assert len(results[0].flags) == 1
+        result = client.query(["api", "stripe"])
+        assert result.units[0].evidence.confidence == pytest.approx(0.45)
+        assert len(result.units[0].flags) == 1
 
 
 class TestRemoteConfig:
@@ -305,9 +307,11 @@ class TestRemoteIntegration:
             addr="http://test-remote",
             local_db_path=tmp_path / "test.db",
         )
-        results = c.query(["api"])
-        assert len(results) == 2
-        ids = {r.id for r in results}
+        result = c.query(["api"])
+        assert result.source == "remote"
+        assert result.warnings == []
+        assert len(result.units) == 2
+        ids = {r.id for r in result.units}
         assert "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01" in ids
         c.close()
 
@@ -328,9 +332,10 @@ class TestRemoteIntegration:
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
-        results = c.query(["api"], languages=["python"], frameworks=["django"])
-        assert len(results) == 1
-        assert results[0].id == "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01"
+        result = c.query(["api"], languages=["python"], frameworks=["django"])
+        assert result.source == "remote"
+        assert len(result.units) == 1
+        assert result.units[0].id == "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01"
         c.close()
 
     def test_propose_returns_server_response_when_remote_accepts(self, tmp_path: Path, httpx_mock):
@@ -385,9 +390,10 @@ class TestRemoteIntegration:
         # Now open with remote configured; mock accepts the push.
         httpx_mock.add_response(json={}, status_code=200)
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
-        pushed = c.drain()
+        result = c.drain()
 
-        assert pushed == 1
+        assert result.pushed == 1
+        assert result.warnings == []
         assert c._store.all() == []
         c.close()
 
@@ -399,9 +405,11 @@ class TestRemoteIntegration:
 
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
         c = Client(addr="http://unreachable", local_db_path=tmp_path / "test.db")
-        pushed = c.drain()
+        result = c.drain()
 
-        assert pushed == 0
+        assert result.pushed == 0
+        assert len(result.warnings) == 1
+        assert "Failed to drain unit" in result.warnings[0]
         assert len(c._store.all()) == 1
         c.close()
 
@@ -420,8 +428,11 @@ class TestRemoteIntegration:
             domains=["api"],
         )
 
-        results = c.query(["api"])
-        assert len(results) == 1
+        result = c.query(["api"])
+        assert result.source == "local"
+        assert len(result.warnings) == 1
+        assert "Remote query failed" in result.warnings[0]
+        assert len(result.units) == 1
         c.close()
 
     def test_confirm_routes_to_remote_for_non_local_tier(self, tmp_path: Path, httpx_mock):

@@ -6,6 +6,7 @@ Handles remote mode (HTTP calls to a cq API) and local mode
 
 import logging
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
@@ -26,6 +27,23 @@ from .store import LocalStore, StoreStats
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 5.0
+
+
+@dataclass(frozen=True, slots=True)
+class DrainResult:
+    """Result of a drain operation."""
+
+    pushed: int = 0
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class QueryResult:
+    """Result of a query operation."""
+
+    source: str
+    units: list["KnowledgeUnit"] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 class RemoteError(Exception):
@@ -99,24 +117,43 @@ class Client:
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
         limit: int = 5,
-    ) -> list[KnowledgeUnit]:
+    ) -> QueryResult:
         """Search for knowledge units by domain tags.
 
         Queries both the local store and remote API (if configured),
         merging and deduplicating results.
+
+        Returns:
+            A QueryResult with matched units, a source indicator
+            (``"local"`` or ``"remote"``), and any warnings.
         """
         domains = _as_list(domains)
         if languages is not None:
             languages = _as_list(languages)
         if frameworks is not None:
             frameworks = _as_list(frameworks)
+
+        source = "local"
+        warnings: list[str] = []
         local_results = self._store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
 
         if self._http is None:
-            return local_results
+            return QueryResult(units=local_results, source=source)
 
-        remote_results = self._remote_query(domains, languages=languages, frameworks=frameworks, limit=limit)
-        return _merge_results(local_results, remote_results, limit)
+        remote_results: list[KnowledgeUnit] = []
+        try:
+            remote_results = self._remote_query(
+                domains,
+                languages=languages,
+                frameworks=frameworks,
+                limit=limit,
+            )
+            source = "remote"
+        except (httpx.HTTPError, ValueError, ValidationError) as exc:
+            warnings.append(f"Remote query failed: {exc}")
+
+        merged = _merge_results(local_results, remote_results, limit)
+        return QueryResult(units=merged, source=source, warnings=warnings)
 
     def propose(
         self,
@@ -241,11 +278,11 @@ class Client:
 
         return _prompt()
 
-    def drain(self) -> int:
+    def drain(self) -> DrainResult:
         """Push all local-only units to the remote API.
 
         Returns:
-            The number of units successfully pushed.
+            A DrainResult with the number of units pushed and any warnings.
 
         Raises:
             RuntimeError: If no remote API is configured.
@@ -255,15 +292,19 @@ class Client:
 
         units = self._store.all()
         pushed = 0
+        warnings: list[str] = []
         for unit in units:
             if unit.tier == Tier.LOCAL:
                 try:
-                    if self._remote_propose(unit) is not None:
+                    result = self._remote_propose(unit)
+                    if result is not None:
                         self._store.delete(unit.id)
                         pushed += 1
-                except (httpx.HTTPError, RemoteError):
-                    logger.warning("Failed to drain unit %s", unit.id, exc_info=True)
-        return pushed
+                    else:
+                        warnings.append(f"Failed to drain unit {unit.id}: remote unreachable")
+                except (httpx.HTTPError, RemoteError) as exc:
+                    warnings.append(f"Failed to drain unit {unit.id}: {exc}")
+        return DrainResult(pushed=pushed, warnings=warnings)
 
     # -- Remote HTTP helpers (graceful degradation) --
 
@@ -275,7 +316,10 @@ class Client:
         frameworks: list[str] | None = None,
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
-        """Query the remote API, returning empty list on failure."""
+        """Query the remote API.
+
+        Raises on failure so the caller can decide how to handle it.
+        """
         assert self._http is not None
         params: dict[str, str | int | list[str]] = {
             "domains": domains,
@@ -285,13 +329,9 @@ class Client:
             params["languages"] = languages
         if frameworks:
             params["frameworks"] = frameworks
-        try:
-            resp = self._http.get("/query", params=params)
-            resp.raise_for_status()
-            return [KnowledgeUnit.model_validate(item) for item in resp.json()]
-        except (httpx.HTTPError, ValueError, ValidationError):
-            logger.warning("Remote query failed", exc_info=True)
-            return []
+        resp = self._http.get("/query", params=params)
+        resp.raise_for_status()
+        return [KnowledgeUnit.model_validate(item) for item in resp.json()]
 
     def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit | None:
         """Push a unit to the remote API.

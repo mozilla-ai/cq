@@ -1,6 +1,6 @@
 """cq — Python SDK for the shared agent knowledge commons."""
 
-from .client import Client, RemoteError
+from .client import Client, DrainResult, QueryResult, RemoteError
 from .models import (
     Context,
     Evidence,
@@ -20,12 +20,14 @@ __all__ = [
     "Client",
     "Context",
     "DefaultReflector",
+    "DrainResult",
     "Evidence",
     "Flag",
     "FlagReason",
     "Insight",
     "KnowledgeUnit",
     "LocalStore",
+    "QueryResult",
     "ReflectResult",
     "Reflector",
     "RemoteError",
