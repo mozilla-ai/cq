@@ -137,7 +137,7 @@ export function ReviewPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center mt-16">
+      <div className="flex flex-1 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
       </div>
     );
@@ -183,22 +183,24 @@ export function ReviewPage() {
   }
 
   return (
-    <div>
+    <div className="flex h-full flex-col overflow-hidden">
       {conflictMessage && (
-        <p className="text-center text-amber-600 text-sm font-medium mb-3">
+        <p className="mb-3 text-center text-sm font-medium text-amber-600">
           {conflictMessage}
         </p>
       )}
 
       <DragIndicators drag={drag.drag} />
 
-      <ReviewCard
-        ref={cardRef}
-        unit={current.knowledge_unit}
-        selection={selection}
-        drag={drag.drag}
-        pointerHandlers={drag.handlers}
-      />
+      <div className="flex-1 min-h-0">
+        <ReviewCard
+          ref={cardRef}
+          unit={current.knowledge_unit}
+          selection={selection}
+          drag={drag.drag}
+          pointerHandlers={drag.handlers}
+        />
+      </div>
 
       <ReviewActions
         selection={selection}
@@ -208,7 +210,7 @@ export function ReviewPage() {
       />
 
       {error && (
-        <p className="text-center text-red-600 text-sm mt-3">{error}</p>
+        <p className="mt-3 text-center text-sm text-red-600">{error}</p>
       )}
     </div>
   );
