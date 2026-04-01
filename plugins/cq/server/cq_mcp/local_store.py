@@ -13,6 +13,7 @@ import shutil
 import sqlite3
 import threading
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -36,6 +37,15 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
 ]
 
 _LEGACY_DB_PATH = Path.home() / ".cq" / "local.db"
+
+
+class TeamSyncStatus(StrEnum):
+    """Local sync status for propagating a KU to the team store."""
+
+    NOT_APPLICABLE = "not_applicable"
+    PENDING = "pending"
+    SYNCED = "synced"
+    REJECTED = "rejected"
 
 
 def _default_db_path() -> Path:
@@ -96,7 +106,10 @@ class StoreStats(BaseModel):
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS knowledge_units (
     id TEXT PRIMARY KEY,
-    data TEXT NOT NULL
+    data TEXT NOT NULL,
+    team_sync_status TEXT NOT NULL DEFAULT 'not_applicable',
+    team_sync_attempted_at TEXT,
+    team_sync_error TEXT
 );
 
 CREATE TABLE IF NOT EXISTS knowledge_unit_domains (
@@ -114,6 +127,12 @@ _FTS_SCHEMA_SQL = """
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_units_fts
     USING fts5(id UNINDEXED, summary, detail, action);
 """
+
+_SYNC_COLUMN_STATEMENTS = [
+    "ALTER TABLE knowledge_units ADD COLUMN team_sync_status TEXT NOT NULL DEFAULT 'not_applicable'",
+    "ALTER TABLE knowledge_units ADD COLUMN team_sync_attempted_at TEXT",
+    "ALTER TABLE knowledge_units ADD COLUMN team_sync_error TEXT",
+]
 
 
 def _normalise_domains(domains: list[str]) -> list[str]:
@@ -195,6 +214,19 @@ class LocalStore:
         """Create tables, indexes, and FTS virtual table if they do not exist."""
         self._conn.executescript(_SCHEMA_SQL)
         self._conn.executescript(_FTS_SCHEMA_SQL)
+        self._ensure_sync_columns()
+
+    def _ensure_sync_columns(self) -> None:
+        """Add team sync metadata columns if they do not exist."""
+        existing = {
+            row[1]
+            for row in self._conn.execute("PRAGMA table_info(knowledge_units)").fetchall()
+        }
+        for statement in _SYNC_COLUMN_STATEMENTS:
+            column = statement.split("COLUMN ")[1].split()[0]
+            if column not in existing:
+                self._conn.execute(statement)
+        self._conn.commit()
 
     def _check_open(self) -> None:
         """Raise if the store has been closed."""
@@ -227,7 +259,14 @@ class LocalStore:
         """Path to the SQLite database file."""
         return self._db_path
 
-    def insert(self, unit: KnowledgeUnit) -> None:
+    def insert(
+        self,
+        unit: KnowledgeUnit,
+        *,
+        team_sync_status: TeamSyncStatus = TeamSyncStatus.NOT_APPLICABLE,
+        team_sync_attempted_at: datetime | None = None,
+        team_sync_error: str | None = None,
+    ) -> None:
         """Insert a knowledge unit into the store.
 
         Args:
@@ -242,12 +281,21 @@ class LocalStore:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domain": domains})
         data = unit.model_dump_json()
+        attempted_at = team_sync_attempted_at.isoformat() if team_sync_attempted_at else None
         with self._lock:
             self._check_open()
             with self._conn:
                 self._conn.execute(
-                    "INSERT INTO knowledge_units (id, data) VALUES (?, ?)",
-                    (unit.id, data),
+                    "INSERT INTO knowledge_units "
+                    "(id, data, team_sync_status, team_sync_attempted_at, team_sync_error) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        unit.id,
+                        data,
+                        team_sync_status.value,
+                        attempted_at,
+                        team_sync_error,
+                    ),
                 )
                 self._conn.executemany(
                     "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
@@ -283,6 +331,35 @@ class LocalStore:
             self._check_open()
             rows = self._conn.execute("SELECT data FROM knowledge_units").fetchall()
         return [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
+
+    def pending_sync_units(self) -> list[KnowledgeUnit]:
+        """Return local KUs that still need propagation to the team store."""
+        with self._lock:
+            self._check_open()
+            rows = self._conn.execute(
+                "SELECT data FROM knowledge_units "
+                "WHERE team_sync_status = ? "
+                "ORDER BY COALESCE(team_sync_attempted_at, '') ASC, id ASC",
+                (TeamSyncStatus.PENDING.value,),
+            ).fetchall()
+        return [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
+
+    def team_sync_status(self, unit_id: str) -> dict[str, str | None] | None:
+        """Return local team sync metadata for a knowledge unit."""
+        with self._lock:
+            self._check_open()
+            row = self._conn.execute(
+                "SELECT team_sync_status, team_sync_attempted_at, team_sync_error "
+                "FROM knowledge_units WHERE id = ?",
+                (unit_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "status": row[0],
+            "attempted_at": row[1],
+            "error": row[2],
+        }
 
     def delete(self, unit_id: str) -> None:
         """Remove a knowledge unit by ID.
@@ -349,6 +426,28 @@ class LocalStore:
                     "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)",
                     (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
                 )
+
+    def update_team_sync_status(
+        self,
+        unit_id: str,
+        status: TeamSyncStatus,
+        *,
+        error: str | None = None,
+        attempted_at: datetime | None = None,
+    ) -> None:
+        """Update local team sync metadata for an existing knowledge unit."""
+        timestamp = attempted_at or datetime.now(UTC)
+        with self._lock:
+            self._check_open()
+            with self._conn:
+                cursor = self._conn.execute(
+                    "UPDATE knowledge_units "
+                    "SET team_sync_status = ?, team_sync_attempted_at = ?, team_sync_error = ? "
+                    "WHERE id = ?",
+                    (status.value, timestamp.isoformat(), error, unit_id),
+                )
+                if cursor.rowcount == 0:
+                    raise KeyError(f"Knowledge unit not found: {unit_id}")
 
     def query(
         self,
