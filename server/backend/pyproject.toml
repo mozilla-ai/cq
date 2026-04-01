@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cq-server"
-version = "0.1.0"
+version = "0.0.0.dev0"
 description = "cq team knowledge store server"
 requires-python = ">=3.11"
 dependencies = [
@@ -37,6 +37,13 @@ tests = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cq_server"]
+
+# Dynamic versioning via setuptools_scm is configured in the release
+# workflow. The tag pattern is server/X.Y.Z. During development,
+# the static version above is used.
+# [tool.setuptools_scm]
+# root = "../.."
+# tag_regex = "^server/(?P<version>.+)$"
 
 [tool.ruff.lint]
 ignore = [
