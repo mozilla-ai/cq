@@ -20,7 +20,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
 
 def _propose_payload(**overrides: Any) -> dict[str, Any]:
     defaults: dict[str, Any] = {
-        "domain": ["databases", "performance"],
+        "domains": ["databases", "performance"],
         "insight": {
             "summary": "Use connection pooling",
             "detail": "Database connections are expensive to create.",
@@ -51,7 +51,7 @@ class TestPropose:
         assert resp.status_code == 201
         body = resp.json()
         assert body["id"].startswith("ku_")
-        assert body["domain"] == ["databases", "performance"]
+        assert body["domains"] == ["databases", "performance"]
         assert body["insight"]["summary"] == "Use connection pooling"
         assert body["evidence"]["confidence"] == 0.5
 
@@ -65,21 +65,21 @@ class TestPropose:
         assert "python" in body["context"]["languages"]
         assert "fastapi" in body["context"]["frameworks"]
 
-    def test_propose_with_empty_domain_rejected(self, client: TestClient) -> None:
-        payload = _propose_payload(domain=[])
+    def test_propose_with_empty_domains_rejected(self, client: TestClient) -> None:
+        payload = _propose_payload(domains=[])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
 
     def test_propose_with_whitespace_only_domains_rejected(self, client: TestClient) -> None:
-        payload = _propose_payload(domain=["  ", ""])
+        payload = _propose_payload(domains=["  ", ""])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
 
-    def test_propose_normalises_domains(self, client: TestClient) -> None:
-        payload = _propose_payload(domain=["API", " Databases "])
+    def test_propose_normalizes_domains(self, client: TestClient) -> None:
+        payload = _propose_payload(domains=["API", " Databases "])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 201
-        assert resp.json()["domain"] == ["api", "databases"]
+        assert resp.json()["domains"] == ["api", "databases"]
 
 
 class TestQuery:
@@ -91,31 +91,31 @@ class TestQuery:
         return body
 
     def test_query_returns_matching_units(self, client: TestClient) -> None:
-        self._insert_unit(client, domain=["databases"])
-        resp = client.get("/query", params={"domain": ["databases"]})
+        self._insert_unit(client, domains=["databases"])
+        resp = client.get("/query", params={"domains": ["databases"]})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 1
-        assert results[0]["domain"] == ["databases"]
+        assert results[0]["domains"] == ["databases"]
 
     def test_query_returns_empty_for_no_match(self, client: TestClient) -> None:
-        self._insert_unit(client, domain=["databases"])
-        resp = client.get("/query", params={"domain": ["networking"]})
+        self._insert_unit(client, domains=["databases"])
+        resp = client.get("/query", params={"domains": ["networking"]})
         assert resp.status_code == 200
         assert resp.json() == []
 
     def test_query_boosts_matching_language(self, client: TestClient) -> None:
         self._insert_unit(
             client,
-            domain=["web"],
+            domains=["web"],
             context={"languages": ["python"], "frameworks": []},
         )
         self._insert_unit(
             client,
-            domain=["web"],
+            domains=["web"],
             context={"languages": ["go"], "frameworks": []},
         )
-        resp = client.get("/query", params={"domain": ["web"], "language": "python"})
+        resp = client.get("/query", params={"domains": ["web"], "language": "python"})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 2
@@ -123,13 +123,13 @@ class TestQuery:
 
     def test_query_respects_limit(self, client: TestClient) -> None:
         for _ in range(3):
-            self._insert_unit(client, domain=["api"])
-        resp = client.get("/query", params={"domain": ["api"], "limit": 2})
+            self._insert_unit(client, domains=["api"])
+        resp = client.get("/query", params={"domains": ["api"], "limit": 2})
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
     def test_query_rejects_zero_limit(self, client: TestClient) -> None:
-        resp = client.get("/query", params={"domain": ["api"], "limit": 0})
+        resp = client.get("/query", params={"domains": ["api"], "limit": 0})
         assert resp.status_code == 422
 
 
@@ -190,8 +190,8 @@ class TestStats:
     def test_stats_after_inserts(self, client: TestClient) -> None:
         from cq_server.app import _get_store
 
-        r1 = client.post("/propose", json=_propose_payload(domain=["api", "auth"]))
-        r2 = client.post("/propose", json=_propose_payload(domain=["api", "payments"]))
+        r1 = client.post("/propose", json=_propose_payload(domains=["api", "auth"]))
+        r2 = client.post("/propose", json=_propose_payload(domains=["api", "payments"]))
         store = _get_store()
         store.set_review_status(r1.json()["id"], "approved", "tester")
         store.set_review_status(r2.json()["id"], "approved", "tester")
@@ -227,12 +227,12 @@ class TestReviewLifecycleEndToEnd:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Agent proposes a KU.
-        propose_resp = client.post("/propose", json=_propose_payload(domain=["e2e-test"]))
+        propose_resp = client.post("/propose", json=_propose_payload(domains=["e2e-test"]))
         assert propose_resp.status_code == 201
         unit_id = propose_resp.json()["id"]
 
         # KU is not queryable yet (pending).
-        query_resp = client.get("/query", params={"domain": ["e2e-test"]})
+        query_resp = client.get("/query", params={"domains": ["e2e-test"]})
         assert len(query_resp.json()) == 0
 
         # KU appears in review queue.
@@ -245,7 +245,7 @@ class TestReviewLifecycleEndToEnd:
         assert approve_resp.json()["status"] == "approved"
 
         # KU is now queryable.
-        query_resp = client.get("/query", params={"domain": ["e2e-test"]})
+        query_resp = client.get("/query", params={"domains": ["e2e-test"]})
         assert len(query_resp.json()) == 1
 
         # Queue is empty.
@@ -269,7 +269,7 @@ class TestEndToEnd:
     def test_propose_confirm_flag_lifecycle(self, client: TestClient) -> None:
         # Propose a unit.
         payload = _propose_payload(
-            domain=["api", "payments"],
+            domains=["api", "payments"],
             context={"languages": ["python"], "frameworks": ["fastapi"]},
         )
         created = client.post("/propose", json=payload)
@@ -282,7 +282,7 @@ class TestEndToEnd:
         # Query returns the unit.
         resp = client.get(
             "/query",
-            params={"domain": ["api", "payments"], "language": "python"},
+            params={"domains": ["api", "payments"], "language": "python"},
         )
         assert len(resp.json()) == 1
         assert resp.json()[0]["evidence"]["confidence"] == 0.5
@@ -291,14 +291,14 @@ class TestEndToEnd:
         resp = client.post(f"/confirm/{unit_id}")
         assert resp.status_code == 200
 
-        resp = client.get("/query", params={"domain": ["api", "payments"]})
+        resp = client.get("/query", params={"domains": ["api", "payments"]})
         assert resp.json()[0]["evidence"]["confidence"] == pytest.approx(0.6)
 
         # Flag reduces confidence.
         resp = client.post(f"/flag/{unit_id}", json={"reason": "stale"})
         assert resp.status_code == 200
 
-        resp = client.get("/query", params={"domain": ["api", "payments"]})
+        resp = client.get("/query", params={"domains": ["api", "payments"]})
         result = resp.json()[0]
         assert result["evidence"]["confidence"] == pytest.approx(0.45)
         assert len(result["flags"]) == 1

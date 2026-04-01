@@ -80,7 +80,7 @@ class KnowledgeUnit(BaseModel):
 
     id: str
     version: int = 1
-    domain: list[str] = Field(min_length=1)
+    domains: list[str] = Field(min_length=1)
     insight: Insight
     context: Context = Field(default_factory=Context)
     evidence: Evidence = Field(default_factory=Evidence)
@@ -97,7 +97,7 @@ def _generate_ku_id() -> str:
 
 def create_knowledge_unit(
     *,
-    domain: list[str],
+    domains: list[str],
     insight: Insight,
     context: Context | None = None,
     tier: Tier = Tier.LOCAL,
@@ -106,7 +106,7 @@ def create_knowledge_unit(
     """Create a new knowledge unit with an auto-generated ID."""
     return KnowledgeUnit(
         id=_generate_ku_id(),
-        domain=domain,
+        domains=domains,
         insight=insight,
         context=context or Context(),
         tier=tier,

@@ -2,7 +2,7 @@
   {
     "_comment": "API quirks",
     "_target_confidence": 0.9,
-    "domain": ["api", "stripe", "rate-limiting"],
+    "domains": ["api", "stripe", "rate-limiting"],
     "insight": {
       "summary": "Stripe API returns HTTP 200 with an error body when a request is rate-limited",
       "detail": "When rate-limited, Stripe does not return a 429. Instead it returns a 200 response whose JSON body contains an error object with type 'invalid_request_error' and code 'rate_limit'. Checking only the HTTP status code will cause rate-limit errors to be silently ignored and treated as success.",
@@ -18,7 +18,7 @@
   {
     "_comment": "API quirks",
     "_target_confidence": 0.7,
-    "domain": ["api", "github", "search"],
+    "domains": ["api", "github", "search"],
     "insight": {
       "summary": "GitHub Search API returns 422 when query strings contain unquoted special characters such as colons or slashes",
       "detail": "The GitHub Search API parses query strings using its own qualifier syntax. Characters like ':', '/', and '.' have special meaning. Passing user-supplied strings without quoting them causes a 422 Unprocessable Entity with the message 'Validation Failed'. This is not documented clearly in the API reference.",
@@ -34,7 +34,7 @@
   {
     "_comment": "API quirks",
     "_target_confidence": 0.8,
-    "domain": ["api", "aws", "s3", "pagination"],
+    "domains": ["api", "aws", "s3", "pagination"],
     "insight": {
       "summary": "AWS S3 ListObjectsV2 silently truncates results at 1000 objects",
       "detail": "S3 ListObjectsV2 returns at most 1000 keys per call. If the bucket contains more objects, the response sets IsTruncated=true and provides a NextContinuationToken. Code that does not check IsTruncated will silently miss objects beyond the first 1000 with no error or warning.",
@@ -50,7 +50,7 @@
   {
     "_comment": "API quirks",
     "_target_confidence": 0.8,
-    "domain": ["api", "github", "github-actions", "tokens"],
+    "domains": ["api", "github", "github-actions", "tokens"],
     "insight": {
       "summary": "The GITHUB_TOKEN in GitHub Actions cannot trigger other workflow runs",
       "detail": "Workflows triggered by a GITHUB_TOKEN-authenticated push or tag creation do not fire other workflow triggers. This is a deliberate GitHub restriction to prevent recursive workflow loops. PATs or GitHub App tokens are required to trigger downstream workflows from within a workflow.",
@@ -66,7 +66,7 @@
   {
     "_comment": "Library gotchas",
     "_target_confidence": 0.7,
-    "domain": ["http", "python", "requests", "redirects"],
+    "domains": ["http", "python", "requests", "redirects"],
     "insight": {
       "summary": "Python requests changes POST to GET when following a 301 or 302 redirect",
       "detail": "RFC 2616 allows clients to change the method from POST to GET on 301/302 redirects, and requests follows this behaviour. A POST to an endpoint that redirects will silently become a GET, dropping the request body. This can result in data not being submitted without any error being raised.",
@@ -82,7 +82,7 @@
   {
     "_comment": "Library gotchas",
     "_target_confidence": 0.8,
-    "domain": ["python", "datetime", "timezone"],
+    "domains": ["python", "datetime", "timezone"],
     "insight": {
       "summary": "datetime.utcnow() returns a naive datetime with no timezone info and is deprecated in Python 3.12",
       "detail": "datetime.utcnow() returns a datetime object with no tzinfo, making it indistinguishable from a local time in arithmetic and comparisons. Python 3.12 deprecated it with a DeprecationWarning. Code using utcnow() mixed with timezone-aware datetimes raises TypeError.",
@@ -98,7 +98,7 @@
   {
     "_comment": "Library gotchas",
     "_target_confidence": 0.9,
-    "domain": ["python", "pydantic", "migration"],
+    "domains": ["python", "pydantic", "migration"],
     "insight": {
       "summary": "Pydantic v2 removed model.dict() and model.json(); use model.model_dump() and model.model_dump_json()",
       "detail": "Pydantic v2 is a near-complete rewrite with a breaking API. The dict() and json() instance methods were removed. In v2, use model.model_dump() and model.model_dump_json(). Additionally, validators use @field_validator instead of @validator, and model_config replaces the inner Config class. Importing from pydantic.v1 is available as a compatibility shim but should not be used in new code.",
@@ -114,7 +114,7 @@
   {
     "_comment": "Library gotchas",
     "_target_confidence": 0.7,
-    "domain": ["node", "npm", "ci", "lockfile"],
+    "domains": ["node", "npm", "ci", "lockfile"],
     "insight": {
       "summary": "npm ci fails if package-lock.json is absent or out of sync with package.json",
       "detail": "Unlike npm install, npm ci requires a package-lock.json to exist and will exit with an error if package.json dependencies do not exactly match the lockfile. It also deletes node_modules before installing. This makes CI builds reproducible but means any uncommitted lockfile change will break the build.",
@@ -130,7 +130,7 @@
   {
     "_comment": "CI/CD traps",
     "_target_confidence": 0.9,
-    "domain": ["ci", "github-actions", "secrets", "security"],
+    "domains": ["ci", "github-actions", "secrets", "security"],
     "insight": {
       "summary": "GitHub Actions secrets are not available in workflows triggered by pull requests from forks",
       "detail": "For security, GitHub does not pass repository secrets to workflow runs triggered by pull_request events from forked repositories. The secrets context is empty. This affects any CI step that needs an API key, deployment credential, or registry password. The workflow runs but silently uses empty strings, which can cause confusing authentication failures.",
@@ -146,7 +146,7 @@
   {
     "_comment": "CI/CD traps",
     "_target_confidence": 0.8,
-    "domain": ["ci", "docker", "layer-cache", "performance"],
+    "domains": ["ci", "docker", "layer-cache", "performance"],
     "insight": {
       "summary": "Placing COPY . . before dependency installation in a Dockerfile invalidates the layer cache on every code change",
       "detail": "Docker rebuilds all layers from the first changed layer onwards. If source code is copied before dependencies are installed, any code change triggers a full dependency reinstall. Since code changes far more often than dependency specs, this makes builds unnecessarily slow.",
@@ -162,7 +162,7 @@
   {
     "_comment": "CI/CD traps",
     "_target_confidence": 0.8,
-    "domain": ["ci", "rust", "github-actions", "toolchain"],
+    "domains": ["ci", "rust", "github-actions", "toolchain"],
     "insight": {
       "summary": "rust-toolchain.toml is silently ignored when a GitHub Actions matrix sets the toolchain via dtolnay/rust-toolchain",
       "detail": "When a workflow uses a matrix to test multiple Rust toolchain versions and passes the toolchain version as an input to dtolnay/rust-toolchain, that action overrides rust-toolchain.toml. The file is not read. This means the matrix-specified toolchain is used, not the pinned version in the file, leading to version inconsistencies between local and CI builds.",
@@ -178,7 +178,7 @@
   {
     "_comment": "CI/CD traps",
     "_target_confidence": 0.6,
-    "domain": ["ci", "github-actions", "git", "versioning"],
+    "domains": ["ci", "github-actions", "git", "versioning"],
     "insight": {
       "summary": "actions/checkout fetches only a single commit by default, breaking tag-based version detection",
       "detail": "By default, actions/checkout performs a shallow clone (fetch-depth: 1). Tools that compute versions from git tags (e.g. setuptools-scm, dunamai, git describe) cannot see any tags in a shallow clone and fall back to a default or raise an error. This produces incorrect version strings in release artefacts.",
@@ -194,7 +194,7 @@
   {
     "_comment": "Framework patterns",
     "_target_confidence": 0.7,
-    "domain": ["python", "fastapi", "async", "background-tasks"],
+    "domains": ["python", "fastapi", "async", "background-tasks"],
     "insight": {
       "summary": "FastAPI BackgroundTasks run after the response has been sent; the request context is no longer available",
       "detail": "Functions added via BackgroundTasks run in the same event loop but after the response is returned to the client. Any dependencies injected via Depends() that are scoped to the request have already been cleaned up. Attempting to use a request-scoped database session or auth context in a background task will raise errors or produce undefined behaviour.",
@@ -210,7 +210,7 @@
   {
     "_comment": "Framework patterns",
     "_target_confidence": 0.8,
-    "domain": ["database", "sqlite", "concurrency"],
+    "domains": ["database", "sqlite", "concurrency"],
     "insight": {
       "summary": "SQLite requires WAL journal mode for concurrent read access alongside writes",
       "detail": "In the default DELETE journal mode, SQLite acquires an exclusive lock during writes, blocking all readers. WAL (Write-Ahead Logging) mode allows concurrent reads during a write by separating the write-ahead log from the main database file. Without WAL, multi-threaded or multi-process applications see 'database is locked' errors under write load.",
@@ -226,7 +226,7 @@
   {
     "_comment": "Framework patterns",
     "_target_confidence": 0.7,
-    "domain": ["react", "javascript", "typescript", "hooks"],
+    "domains": ["react", "javascript", "typescript", "hooks"],
     "insight": {
       "summary": "Passing an async function directly to useEffect silently swallows the cleanup return value",
       "detail": "React expects useEffect to return either undefined or a synchronous cleanup function. An async function returns a Promise, not undefined or a function. React ignores the Promise, so cleanup never runs. This causes memory leaks, state updates on unmounted components, and missed cancellations of in-flight requests.",
@@ -243,7 +243,7 @@
     "_comment": "Low-confidence / disputed — stale guidance",
     "_target_confidence": 0.35,
     "_flag_reason": "stale",
-    "domain": ["aws", "lambda", "performance", "cold-start"],
+    "domains": ["aws", "lambda", "performance", "cold-start"],
     "insight": {
       "summary": "AWS Lambda cold start latency can be reduced by keeping functions warm with scheduled EventBridge pings",
       "detail": "Lambda functions that are not invoked for several minutes are de-provisioned, causing the next invocation to incur a cold start. A common workaround was to schedule CloudWatch Events/EventBridge rules to invoke the function every 5 minutes to keep execution environments alive.",
@@ -260,7 +260,7 @@
     "_comment": "Low-confidence / disputed — stale guidance",
     "_target_confidence": 0.2,
     "_flag_reason": "stale",
-    "domain": ["python", "pip", "packaging"],
+    "domains": ["python", "pip", "packaging"],
     "insight": {
       "summary": "Use pip install --user when system Python is read-only to install packages without root",
       "detail": "On systems where the system Python site-packages directory is not writable, pip install fails with a permission error. The --user flag installs packages into ~/.local/lib/pythonX.Y/site-packages, which is always user-writable.",

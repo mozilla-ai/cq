@@ -36,7 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_domains_domain
 """
 
 
-def normalise_domains(domains: list[str]) -> list[str]:
+def normalize_domains(domains: list[str]) -> list[str]:
     """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
     return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
 
@@ -116,13 +116,13 @@ class TeamStore:
 
         Raises:
             sqlite3.IntegrityError: If a unit with the same ID already exists.
-            ValueError: If domain normalisation results in no valid domains.
+            ValueError: If domain normalization results in no valid domains.
         """
         self._check_open()
-        domains = normalise_domains(unit.domain)
+        domains = normalize_domains(unit.domains)
         if not domains:
             raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domain": domains})
+        unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json()
         created_at = (
             unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else datetime.now(UTC).isoformat()
@@ -229,13 +229,13 @@ class TeamStore:
 
         Raises:
             KeyError: If no unit with the given ID exists.
-            ValueError: If domain normalisation results in no valid domains.
+            ValueError: If domain normalization results in no valid domains.
         """
         self._check_open()
-        domains = normalise_domains(unit.domain)
+        domains = normalize_domains(unit.domains)
         if not domains:
             raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domain": domains})
+        unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json()
         with self._lock, self._conn:
             cursor = self._conn.execute(
@@ -283,11 +283,11 @@ class TeamStore:
         if not domains:
             return []
 
-        normalised = normalise_domains(domains)
-        if not normalised:
+        normalized = normalize_domains(domains)
+        if not normalized:
             return []
         # Safe: placeholders is only '?' characters, never user input.
-        placeholders = ",".join("?" for _ in normalised)
+        placeholders = ",".join("?" for _ in normalized)
         sql = f"""
             SELECT ku.data
             FROM knowledge_units ku
@@ -299,7 +299,7 @@ class TeamStore:
             )
         """
         with self._lock:
-            rows = self._conn.execute(sql, normalised).fetchall()
+            rows = self._conn.execute(sql, normalized).fetchall()
 
         # PoC: all filtering and scoring is in-memory after deserialization.
         # For larger stores, push coarse filters into SQL.
@@ -309,7 +309,7 @@ class TeamStore:
         for unit in units:
             relevance = calculate_relevance(
                 unit,
-                normalised,
+                normalized,
                 query_language=language,
                 query_framework=framework,
             )
@@ -415,11 +415,11 @@ class TeamStore:
             params.append(status)
 
         if domain:
-            normalised = normalise_domains([domain])
-            if not normalised:
+            normalized = normalize_domains([domain])
+            if not normalized:
                 return []
             conditions.append("ku.id IN (  SELECT DISTINCT unit_id FROM knowledge_unit_domains WHERE domain = ?)")
-            params.append(normalised[0])
+            params.append(normalized[0])
 
         has_confidence_filter = confidence_min is not None or confidence_max is not None
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""

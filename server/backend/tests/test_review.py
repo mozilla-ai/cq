@@ -38,7 +38,7 @@ def _auth_header(token: str) -> dict[str, str]:
 
 def _propose(client: TestClient, **overrides: Any) -> dict[str, Any]:
     defaults: dict[str, Any] = {
-        "domain": ["api", "testing"],
+        "domains": ["api", "testing"],
         "insight": {
             "summary": "Test insight",
             "detail": "Detail here.",
@@ -96,9 +96,9 @@ class TestApprove:
 
     def test_approved_unit_appears_in_query(self, client: TestClient) -> None:
         token = _login(client)
-        unit = _propose(client, domain=["searchable"])
+        unit = _propose(client, domains=["searchable"])
         client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
-        resp = client.get("/query", params={"domain": ["searchable"]})
+        resp = client.get("/query", params={"domains": ["searchable"]})
         assert len(resp.json()) == 1
 
 
@@ -113,22 +113,22 @@ class TestReject:
 
     def test_rejected_unit_not_in_query(self, client: TestClient) -> None:
         token = _login(client)
-        unit = _propose(client, domain=["hidden"])
+        unit = _propose(client, domains=["hidden"])
         client.post(f"/review/{unit['id']}/reject", headers=_auth_header(token))
-        resp = client.get("/query", params={"domain": ["hidden"]})
+        resp = client.get("/query", params={"domains": ["hidden"]})
         assert len(resp.json()) == 0
 
 
 class TestListUnits:
     def test_filter_by_domain(self, client: TestClient) -> None:
         token = _login(client)
-        _propose(client, domain=["python"])
-        _propose(client, domain=["rust"])
+        _propose(client, domains=["python"])
+        _propose(client, domains=["rust"])
         resp = client.get("/review/units", params={"domain": "python"}, headers=_auth_header(token))
         assert resp.status_code == 200
         items = resp.json()
         assert len(items) == 1
-        assert "python" in items[0]["knowledge_unit"]["domain"]
+        assert "python" in items[0]["knowledge_unit"]["domains"]
 
     def test_filter_by_confidence_range(self, client: TestClient) -> None:
         """Default confidence from propose is 0.5; filter to include/exclude it."""
@@ -154,9 +154,9 @@ class TestListUnits:
 
     def test_includes_all_statuses(self, client: TestClient) -> None:
         token = _login(client)
-        u1 = _propose(client, domain=["mixed"])
-        u2 = _propose(client, domain=["mixed"])
-        _propose(client, domain=["mixed"])
+        u1 = _propose(client, domains=["mixed"])
+        u2 = _propose(client, domains=["mixed"])
+        _propose(client, domains=["mixed"])
         client.post(f"/review/{u1['id']}/approve", headers=_auth_header(token))
         client.post(f"/review/{u2['id']}/reject", headers=_auth_header(token))
         resp = client.get("/review/units", params={"domain": "mixed"}, headers=_auth_header(token))
@@ -168,8 +168,8 @@ class TestListUnits:
 
     def test_filter_by_status(self, client: TestClient) -> None:
         token = _login(client)
-        u1 = _propose(client, domain=["status-test"])
-        _propose(client, domain=["status-test"])
+        u1 = _propose(client, domains=["status-test"])
+        _propose(client, domains=["status-test"])
         client.post(f"/review/{u1['id']}/approve", headers=_auth_header(token))
         resp = client.get(
             "/review/units",
@@ -254,8 +254,8 @@ class TestReviewStats:
 
     def test_domains_count_approved_only(self, client: TestClient) -> None:
         token = _login(client)
-        u1 = _propose(client, domain=["only-approved"])
-        u2 = _propose(client, domain=["only-approved"])
+        u1 = _propose(client, domains=["only-approved"])
+        u2 = _propose(client, domains=["only-approved"])
         client.post(f"/review/{u1['id']}/approve", headers=_auth_header(token))
         client.post(f"/review/{u2['id']}/reject", headers=_auth_header(token))
         resp = client.get("/review/stats", headers=_auth_header(token))

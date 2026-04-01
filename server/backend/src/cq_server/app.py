@@ -21,13 +21,13 @@ from .knowledge_unit import (
 )
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
-from .store import TeamStore, normalise_domains
+from .store import TeamStore, normalize_domains
 
 
 class ProposeRequest(BaseModel):
     """Request body for proposing a new knowledge unit."""
 
-    domain: list[str] = Field(min_length=1)
+    domains: list[str] = Field(min_length=1)
     insight: Insight
     context: Context = Field(default_factory=Context)
     created_by: str = ""
@@ -83,25 +83,25 @@ def health() -> dict[str, str]:
 
 @app.get("/query")
 def query_units(
-    domain: Annotated[list[str], Query()],
+    domains: Annotated[list[str], Query()],
     language: Annotated[str | None, Query()] = None,
     framework: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(gt=0)] = 5,
 ) -> list[KnowledgeUnit]:
     """Search knowledge units by domain tags with relevance ranking."""
     store = _get_store()
-    return store.query(domain, language=language, framework=framework, limit=limit)
+    return store.query(domains, language=language, framework=framework, limit=limit)
 
 
 @app.post("/propose", status_code=201)
 def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
     """Submit a new knowledge unit to the team store."""
     store = _get_store()
-    domains = normalise_domains(request.domain)
-    if not domains:
+    normalized = normalize_domains(request.domains)
+    if not normalized:
         raise HTTPException(status_code=422, detail="At least one non-empty domain is required")
     unit = create_knowledge_unit(
-        domain=domains,
+        domains=normalized,
         insight=request.insight,
         context=request.context,
         tier=Tier.TEAM,

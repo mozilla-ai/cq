@@ -55,7 +55,7 @@ def calculate_relevance(
     framework_weight = 0.15
 
     # Domain overlap scored by Jaccard similarity.
-    unit_domains = set(unit.domain)
+    unit_domains = set(unit.domains)
     query_domain_set = set(query_domains)
     if unit_domains or query_domain_set:
         domain_score = len(unit_domains & query_domain_set) / len(unit_domains | query_domain_set)
