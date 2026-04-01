@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from cq_server.knowledge_unit import (
     Context,
     FlagReason,
@@ -122,18 +123,14 @@ class TestQuery:
         assert results[0].id == py.id
         assert results[1].id == go.id
 
-    def test_language_filter_includes_units_without_language(
-        self, store: TeamStore
-    ) -> None:
+    def test_language_filter_includes_units_without_language(self, store: TeamStore) -> None:
         """KUs with no language set should still appear when language filter is used."""
         no_lang = _insert_and_approve(store, domain=["ci"])
         results = store.query(["ci"], language="python")
         assert len(results) == 1
         assert results[0].id == no_lang.id
 
-    def test_framework_filter_includes_units_without_framework(
-        self, store: TeamStore
-    ) -> None:
+    def test_framework_filter_includes_units_without_framework(self, store: TeamStore) -> None:
         """KUs with no framework set should still appear when framework filter is used."""
         no_fw = _insert_and_approve(store, domain=["web"])
         results = store.query(["web"], framework="fastapi")
@@ -370,9 +367,7 @@ class TestReviewQueue:
         page2 = store.pending_queue(limit=2, offset=2)
         assert len(page1) == 2
         assert len(page2) == 1
-        ids = {r["knowledge_unit"].id for r in page1} | {
-            r["knowledge_unit"].id for r in page2
-        }
+        ids = {r["knowledge_unit"].id for r in page1} | {r["knowledge_unit"].id for r in page2}
         assert len(ids) == 3
 
     def test_counts_by_status_empty(self, store: TeamStore) -> None:

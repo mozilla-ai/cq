@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
 from cq_server.app import app
 
 
@@ -17,18 +18,16 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
         yield c
 
 
-def _login(
-    client: TestClient, username: str = "reviewer", password: str = "pass123"
-) -> str:
+def _login(client: TestClient, username: str = "reviewer", password: str = "pass123") -> str:
     """Seed a user, log in, return the JWT token."""
+    import contextlib
+
     from cq_server.app import _get_store
     from cq_server.auth import hash_password
 
     store = _get_store()
-    try:
+    with contextlib.suppress(Exception):
         store.create_user(username, hash_password(password))
-    except Exception:
-        pass
     resp = client.post("/auth/login", json={"username": username, "password": password})
     return resp.json()["token"]
 
@@ -92,9 +91,7 @@ class TestApprove:
 
     def test_approve_nonexistent_returns_404(self, client: TestClient) -> None:
         token = _login(client)
-        resp = client.post(
-            "/review/ku_nonexistent/approve", headers=_auth_header(token)
-        )
+        resp = client.post("/review/ku_nonexistent/approve", headers=_auth_header(token))
         assert resp.status_code == 404
 
     def test_approved_unit_appears_in_query(self, client: TestClient) -> None:
@@ -127,9 +124,7 @@ class TestListUnits:
         token = _login(client)
         _propose(client, domain=["python"])
         _propose(client, domain=["rust"])
-        resp = client.get(
-            "/review/units", params={"domain": "python"}, headers=_auth_header(token)
-        )
+        resp = client.get("/review/units", params={"domain": "python"}, headers=_auth_header(token))
         assert resp.status_code == 200
         items = resp.json()
         assert len(items) == 1
@@ -164,9 +159,7 @@ class TestListUnits:
         _propose(client, domain=["mixed"])
         client.post(f"/review/{u1['id']}/approve", headers=_auth_header(token))
         client.post(f"/review/{u2['id']}/reject", headers=_auth_header(token))
-        resp = client.get(
-            "/review/units", params={"domain": "mixed"}, headers=_auth_header(token)
-        )
+        resp = client.get("/review/units", params={"domain": "mixed"}, headers=_auth_header(token))
         assert resp.status_code == 200
         items = resp.json()
         assert len(items) == 3
@@ -294,9 +287,7 @@ class TestReviewStatsDetail:
         """A reviewed KU should appear once (as approved/rejected), not twice."""
         token = _login(client)
         unit = _propose(client)
-        approve_resp = client.post(
-            f"/review/{unit['id']}/approve", headers=_auth_header(token)
-        )
+        approve_resp = client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         assert approve_resp.status_code == 200
         resp = client.get("/review/stats", headers=_auth_header(token))
         assert resp.status_code == 200

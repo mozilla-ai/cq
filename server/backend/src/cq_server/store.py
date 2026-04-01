@@ -125,9 +125,7 @@ class TeamStore:
         unit = unit.model_copy(update={"domain": domains})
         data = unit.model_dump_json()
         created_at = (
-            unit.evidence.first_observed.isoformat()
-            if unit.evidence.first_observed
-            else datetime.now(UTC).isoformat()
+            unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else datetime.now(UTC).isoformat()
         )
         with self._lock, self._conn:
             self._conn.execute(
@@ -340,9 +338,7 @@ class TeamStore:
             ).fetchall()
         return {row[0]: row[1] for row in rows}
 
-    def pending_queue(
-        self, *, limit: int = 20, offset: int = 0
-    ) -> list[dict[str, Any]]:
+    def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
         """Return pending KUs with review metadata, oldest first.
 
         Args:
@@ -375,18 +371,14 @@ class TeamStore:
         """Return the number of pending KUs."""
         self._check_open()
         with self._lock:
-            row = self._conn.execute(
-                "SELECT COUNT(*) FROM knowledge_units WHERE status = 'pending'"
-            ).fetchone()
+            row = self._conn.execute("SELECT COUNT(*) FROM knowledge_units WHERE status = 'pending'").fetchone()
         return row[0]
 
     def counts_by_status(self) -> dict[str, int]:
         """Return KU counts grouped by review status."""
         self._check_open()
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT status, COUNT(*) FROM knowledge_units GROUP BY status"
-            ).fetchall()
+            rows = self._conn.execute("SELECT status, COUNT(*) FROM knowledge_units GROUP BY status").fetchall()
         return {row[0]: row[1] for row in rows}
 
     def list_units(
@@ -408,6 +400,7 @@ class TeamStore:
             confidence_min: Optional minimum confidence (inclusive).
             confidence_max: Optional maximum confidence (exclusive when < 1.0, inclusive at 1.0).
             status: Optional review status to filter by (e.g. "approved", "rejected").
+            limit: Maximum number of results to return.
 
         Returns:
             List of dicts with knowledge_unit, status, reviewed_by,
@@ -425,11 +418,7 @@ class TeamStore:
             normalised = normalise_domains([domain])
             if not normalised:
                 return []
-            conditions.append(
-                "ku.id IN ("
-                "  SELECT DISTINCT unit_id FROM knowledge_unit_domains WHERE domain = ?"
-                ")"
-            )
+            conditions.append("ku.id IN (  SELECT DISTINCT unit_id FROM knowledge_unit_domains WHERE domain = ?)")
             params.append(normalised[0])
 
         has_confidence_filter = confidence_min is not None or confidence_max is not None
@@ -449,9 +438,7 @@ class TeamStore:
             c = unit.evidence.confidence
             if confidence_min is not None and c < confidence_min:
                 continue
-            if confidence_max is not None and (
-                c > confidence_max or (c >= confidence_max and confidence_max < 1.0)
-            ):
+            if confidence_max is not None and (c > confidence_max or (c >= confidence_max and confidence_max < 1.0)):
                 continue
             results.append(
                 {
@@ -507,9 +494,7 @@ class TeamStore:
         """Return confidence distribution buckets for approved KUs."""
         self._check_open()
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT data FROM knowledge_units WHERE status = 'approved'"
-            ).fetchall()
+            rows = self._conn.execute("SELECT data FROM knowledge_units WHERE status = 'approved'").fetchall()
         buckets = {"0.0-0.3": 0, "0.3-0.6": 0, "0.6-0.8": 0, "0.8-1.0": 0}
         for (data,) in rows:
             unit = KnowledgeUnit.model_validate_json(data)
@@ -548,11 +533,7 @@ class TeamStore:
         activity = []
         for row in rows:
             unit = KnowledgeUnit.model_validate_json(row[1])
-            proposed_ts = (
-                unit.evidence.first_observed.isoformat()
-                if unit.evidence.first_observed
-                else ""
-            )
+            proposed_ts = unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else ""
             # Show only the terminal state per KU: the review event if
             # reviewed, otherwise the proposed event.
             if row[2] in ("approved", "rejected"):

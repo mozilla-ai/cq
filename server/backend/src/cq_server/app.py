@@ -11,7 +11,6 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .auth import router as auth_router
-from .review import router as review_router
 from .knowledge_unit import (
     Context,
     FlagReason,
@@ -20,6 +19,7 @@ from .knowledge_unit import (
     Tier,
     create_knowledge_unit,
 )
+from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
 from .store import TeamStore, normalise_domains
 
@@ -99,9 +99,7 @@ def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
     store = _get_store()
     domains = normalise_domains(request.domain)
     if not domains:
-        raise HTTPException(
-            status_code=422, detail="At least one non-empty domain is required"
-        )
+        raise HTTPException(status_code=422, detail="At least one non-empty domain is required")
     unit = create_knowledge_unit(
         domain=domains,
         insight=request.insight,

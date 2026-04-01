@@ -89,9 +89,7 @@ def get_current_user(request: Request) -> str:
     """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401, detail="Missing or invalid authorization header"
-        )
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     token = auth_header.removeprefix("Bearer ")
     secret = _get_jwt_secret()
     try:
@@ -105,9 +103,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
-def login(
-    request: LoginRequest, store: TeamStore = Depends(get_store)
-) -> LoginResponse:
+def login(request: LoginRequest, store: TeamStore = Depends(get_store)) -> LoginResponse:
     """Authenticate a user and return a JWT token.
 
     Args:
@@ -128,9 +124,7 @@ def login(
 
 
 @router.get("/me")
-def me(
-    username: str = Depends(get_current_user), store: TeamStore = Depends(get_store)
-) -> MeResponse:
+def me(username: str = Depends(get_current_user), store: TeamStore = Depends(get_store)) -> MeResponse:
     """Return the current user's info.
 
     Args:

@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
 from cq_server.app import app
 
 
@@ -69,9 +70,7 @@ class TestPropose:
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
 
-    def test_propose_with_whitespace_only_domains_rejected(
-        self, client: TestClient
-    ) -> None:
+    def test_propose_with_whitespace_only_domains_rejected(self, client: TestClient) -> None:
         payload = _propose_payload(domain=["  ", ""])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
@@ -228,9 +227,7 @@ class TestReviewLifecycleEndToEnd:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Agent proposes a KU.
-        propose_resp = client.post(
-            "/propose", json=_propose_payload(domain=["e2e-test"])
-        )
+        propose_resp = client.post("/propose", json=_propose_payload(domain=["e2e-test"]))
         assert propose_resp.status_code == 201
         unit_id = propose_resp.json()["id"]
 

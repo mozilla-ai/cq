@@ -7,6 +7,7 @@ from pathlib import Path
 import jwt
 import pytest
 from fastapi.testclient import TestClient
+
 from cq_server.app import app
 from cq_server.auth import create_token, hash_password, verify_password, verify_token
 
@@ -19,9 +20,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
         yield c
 
 
-def _seed_user(
-    client: TestClient, username: str = "peter", password: str = "secret123"
-) -> None:
+def _seed_user(client: TestClient, username: str = "peter", password: str = "secret123") -> None:
     """Seed a user directly via the store."""
     from cq_server.app import _get_store
     from cq_server.auth import hash_password
@@ -72,9 +71,7 @@ class TestLoginEndpoint:
 
     def test_login_success(self, client: TestClient) -> None:
         _seed_user(client)
-        resp = client.post(
-            "/auth/login", json={"username": "peter", "password": self.test_password}
-        )
+        resp = client.post("/auth/login", json={"username": "peter", "password": self.test_password})
         assert resp.status_code == 200
         body = resp.json()
         assert "token" in body
@@ -89,9 +86,7 @@ class TestLoginEndpoint:
         assert resp.status_code == 401
 
     def test_login_unknown_user(self, client: TestClient) -> None:
-        resp = client.post(
-            "/auth/login", json={"username": "nobody", "password": self.test_password}
-        )
+        resp = client.post("/auth/login", json={"username": "nobody", "password": self.test_password})
         assert resp.status_code == 401
 
 
@@ -100,9 +95,7 @@ class TestAuthMe:
 
     def test_me_with_valid_token(self, client: TestClient) -> None:
         _seed_user(client)
-        login = client.post(
-            "/auth/login", json={"username": "peter", "password": self.test_password}
-        )
+        login = client.post("/auth/login", json={"username": "peter", "password": self.test_password})
         token = login.json()["token"]
         resp = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200

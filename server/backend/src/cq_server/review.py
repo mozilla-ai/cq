@@ -144,9 +144,7 @@ def approve_unit(
     if status is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     if status["status"] != "pending":
-        raise HTTPException(
-            status_code=409, detail=f"Knowledge unit already {status['status']}"
-        )
+        raise HTTPException(status_code=409, detail=f"Knowledge unit already {status['status']}")
     store.set_review_status(unit_id, "approved", username)
     updated = store.get_review_status(unit_id)
     assert updated is not None  # Unit exists; we just wrote to it.
@@ -177,9 +175,7 @@ def reject_unit(
     if status is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     if status["status"] != "pending":
-        raise HTTPException(
-            status_code=409, detail=f"Knowledge unit already {status['status']}"
-        )
+        raise HTTPException(status_code=409, detail=f"Knowledge unit already {status['status']}")
     store.set_review_status(unit_id, "rejected", username)
     updated = store.get_review_status(unit_id)
     assert updated is not None  # Unit exists; we just wrote to it.
