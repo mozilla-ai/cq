@@ -34,7 +34,7 @@ jobs:
 
       - name: Test
         working-directory: cli
-        run: go test ./... -v
+        run: make test
 
       - name: Build
         working-directory: cli

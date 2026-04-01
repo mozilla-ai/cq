@@ -13,7 +13,37 @@ permissions:
   contents: read
 
 jobs:
+  schema:
+    name: Validate schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Validate fixtures against schemas
+        run: make validate-schema
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: sdk/go/go.mod
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.10.1
+          working-directory: sdk/go
+
+
   test:
+    name: Test
+    needs: [schema, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -26,12 +56,6 @@ jobs:
         working-directory: sdk/go
         run: make sync-skill
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.10.1
-          working-directory: sdk/go
-
       - name: Test
         working-directory: sdk/go
-        run: go test ./... -v
+        run: make test
