@@ -10,10 +10,13 @@
 
 ## Repository Structure
 
-| Directory | Component | Stack |
-|-----------|-----------|-------|
-| `plugins/cq/server` | MCP server (plugin) | Python, FastMCP |
-| `server` | Team knowledge server | Python, FastAPI, TypeScript, React |
+| Directory    | Component                              | Stack                              |
+|--------------|----------------------------------------|------------------------------------|
+| `cli`        | CLI (with MCP server)                  | Go, Cobra, mcp-go                  |
+| `sdk/go`     | Go SDK                                 | Go                                 |
+| `sdk/python` | Python SDK                             | Python                             |
+| `plugins/cq` | Agent plugin (skills, commands, hooks) | Markdown, Python                   |
+| `server`     | Team knowledge server                  | Python, FastAPI, TypeScript, React |
 
 ## Initial Setup
 

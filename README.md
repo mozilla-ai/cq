@@ -159,7 +159,7 @@ Add an `environment` key to the cq MCP server entry in your OpenCode config (`~/
   "mcp": {
     "cq": {
       "type": "local",
-      "command": ["uv", "run", "--directory", "/path/to/cq/plugins/cq/server", "cq-mcp-server"],
+      "command": ["/path/to/cq", "mcp"],
       "environment": {
         "CQ_TEAM_ADDR": "http://localhost:8742",
         "CQ_TEAM_API_KEY": "your-api-key"  # pragma: allowlist secret
