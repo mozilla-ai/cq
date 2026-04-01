@@ -69,6 +69,7 @@ jobs:
       - name: Checkout release tag
         env:
           TAG: ${{ env.RELEASE_TAG }}
+          VERSION_TAG: ${{ env.GORELEASER_CURRENT_TAG }}
         run: |
           git fetch --tags
           if ! git rev-parse "$TAG" >/dev/null 2>&1; then
@@ -76,6 +77,11 @@ jobs:
             exit 1
           fi
           git checkout "$TAG"
+          # GoReleaser (free) requires an unprefixed semver tag on HEAD.
+          # Create a local-only tag so it can find it; delete first to avoid
+          # conflicts with legacy tags from before the monorepo migration.
+          git tag -d "$VERSION_TAG" 2>/dev/null || true
+          git tag "$VERSION_TAG"
 
       - name: Set up Go
         uses: actions/setup-go@v6
