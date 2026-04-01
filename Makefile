@@ -15,18 +15,22 @@ help:
 	@echo "  make uninstall-opencode PROJECT=/path/to/app Remove from a specific project"
 	@echo ""
 	@echo "Development:"
-	@echo "  make lint              Lint all components"
-	@echo "  make lint-cli          Lint Go CLI"
-	@echo "  make lint-sdk-go       Lint Go SDK"
-	@echo "  make lint-sdk-python   Lint Python SDK"
-	@echo "  make lint-server       Lint server and frontend"
-	@echo "  make setup             Install all dependencies"
-	@echo "  make test              Run all tests"
-	@echo "  make test-cli          Run Go CLI tests"
-	@echo "  make test-sdk-go       Run Go SDK tests"
-	@echo "  make test-sdk-python   Run Python SDK tests"
-	@echo "  make test-server       Run server tests"
-	@echo "  make validate-schema   Validate JSON Schema fixtures"
+	@echo "  make setup                Install all dependencies"
+	@echo "  make lint                   Lint all components"
+	@echo "    - make lint-cli             CLI"
+	@echo "    - make lint-plugin          Plugin scripts"
+	@echo "    - make lint-sdk-go          Go SDK"
+	@echo "    - make lint-sdk-python      Python SDK"
+	@echo "    - make lint-server          Server (backend + frontend)"
+	@echo "      - make lint-server-backend  Backend"
+	@echo "      - make lint-server-frontend Frontend"
+	@echo "  make test                   Run all tests"
+	@echo "    - make test-cli             CLI"
+	@echo "    - make test-sdk-go          Go SDK"
+	@echo "    - make test-sdk-python      Python SDK"
+	@echo "    - make test-server          Server"
+	@echo "      - make test-server-backend  Backend"
+	@echo "  make validate-schema        Validate JSON Schema fixtures"
 	@echo ""
 	@echo "Docker Compose:"
 	@echo "  make compose-up                              Build and start services"
@@ -41,7 +45,6 @@ setup:
 	(cd sdk/go && $(MAKE) sync-skill)
 	(cd sdk/python && uv sync --group dev)
 	(cd cli && go mod download)
-	(cd plugins/cq/server && uv sync --group dev)
 	(cd server/backend && uv sync --group dev)
 	(cd server/frontend && pnpm install $(if $(CI),--frozen-lockfile,))
 
@@ -125,6 +128,16 @@ dev-ui:
 validate-schema:
 	cd schema && $(MAKE) validate
 
+.PHONY: lint-cli
+lint-cli:
+	cd cli && $(MAKE) lint
+
+.PHONY: lint-plugin
+lint-plugin:
+	uv run pre-commit run ruff --files plugins/cq/scripts/*.py
+	uv run pre-commit run ruff-format --files plugins/cq/scripts/*.py
+	uv run pre-commit run ty-check-plugin --files plugins/cq/scripts/*.py
+
 .PHONY: lint-sdk-go
 lint-sdk-go:
 	cd sdk/go && $(MAKE) lint
@@ -133,33 +146,25 @@ lint-sdk-go:
 lint-sdk-python:
 	cd sdk/python && $(MAKE) lint
 
-.PHONY: lint-cli
-lint-cli:
-	cd cli && $(MAKE) lint
+.PHONY: lint-server-backend
+lint-server-backend:
+	uv run pre-commit run ruff --files server/backend/src/**/*.py
+	uv run pre-commit run ruff-format --files server/backend/src/**/*.py
+	uv run pre-commit run ty-check-server-backend --files server/backend/src/**/*.py
 
-.PHONY: lint-server
-lint-server:
-	cd plugins/cq/server && uv run pre-commit run --all-files --config "$(CURDIR)/.pre-commit-config.yaml"
+.PHONY: lint-server-frontend
+lint-server-frontend:
 	bash scripts/lint-frontend.sh
 
+.PHONY: lint-server
+lint-server: lint-server-backend lint-server-frontend
+
 .PHONY: lint
-lint: lint-sdk-go lint-sdk-python lint-cli lint-server
+lint: lint-cli lint-plugin lint-sdk-go lint-sdk-python lint-server
 
-.PHONY: format
-format:
-	cd plugins/cq/server && uv run ruff format .
-	cd server/backend && uv run ruff format .
-
-.PHONY: format-check
-format-check:
-	cd plugins/cq/server && uv run ruff format --check .
-	cd server/backend && uv run ruff format --check .
-
-.PHONY: typecheck
-typecheck:
-	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
-	cd server/backend && uv sync --group dev && uvx ty check src/cq_server --python .venv
-	cd server/frontend && pnpm tsc -b
+.PHONY: test-cli
+test-cli:
+	cd cli && $(MAKE) test
 
 .PHONY: test-sdk-go
 test-sdk-go:
@@ -169,16 +174,12 @@ test-sdk-go:
 test-sdk-python:
 	cd sdk/python && $(MAKE) test
 
-.PHONY: test-cli
-test-cli:
-	cd cli && $(MAKE) test
-
-.PHONY: test-server
-test-server: validate-schema
-	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
-	cd server/backend && uv sync --group dev && uvx ty check src/cq_server --python .venv
-	cd plugins/cq/server && uv run pytest
+.PHONY: test-server-backend
+test-server-backend: validate-schema
 	cd server/backend && uv run pytest
 
+.PHONY: test-server
+test-server: test-server-backend
+
 .PHONY: test
-test: test-sdk-go test-sdk-python test-cli test-server
+test: test-cli test-sdk-go test-sdk-python test-server
