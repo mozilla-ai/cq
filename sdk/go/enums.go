@@ -11,11 +11,23 @@ type FlagReason string
 // FlagReasons is an ordered collection of flag reasons.
 type FlagReasons []FlagReason
 
+// QuerySource indicates whether query results came from the local store or a remote API.
+type QuerySource string
+
 // Tier indicates the storage tier of a knowledge unit.
 type Tier string
 
 // Tiers is an ordered collection of tiers.
 type Tiers []Tier
+
+// QuerySource values indicate where query results were fetched from.
+const (
+	// SourceLocal means results came from the local store only (no remote configured).
+	SourceLocal QuerySource = "local"
+
+	// SourceRemote means a remote API was queried.
+	SourceRemote QuerySource = "remote"
+)
 
 // Tier values identify where a knowledge unit is stored.
 const (

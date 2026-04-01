@@ -77,9 +77,18 @@ type QueryParams struct {
 
 // QueryResult holds query results alongside metadata about the query.
 type QueryResult struct {
-	Units    []KnowledgeUnit `json:"units"`
-	Source   string          `json:"source"`
-	Warnings []error         `json:"-"`
+	// Units contains the matched knowledge units, potentially merged from
+	// local and remote stores. Each unit's Tier field indicates its origin
+	// and determines how subsequent operations (Confirm, Flag) are routed.
+	Units []KnowledgeUnit `json:"units"`
+
+	// Source indicates whether the query consulted only the local store
+	// (SourceLocal) or also reached a remote API (SourceRemote). This is
+	// metadata about the query itself, not about individual units.
+	Source QuerySource `json:"source"`
+
+	// Warnings collects non-fatal issues encountered during the query.
+	Warnings []error `json:"-"`
 }
 
 // StoreStats holds aggregated statistics about the knowledge store.

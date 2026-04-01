@@ -344,6 +344,36 @@ func TestQueryMergesLocalAndRemote(t *testing.T) {
 	qr, err := c.Query(ctx, QueryParams{Domains: []string{"api"}})
 	require.NoError(t, err)
 	require.Len(t, qr.Units, 2)
+	require.Equal(t, SourceRemote, qr.Source)
+}
+
+func TestQuerySourceLocalWhenNoRemote(t *testing.T) {
+	t.Parallel()
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	_, err := c.Propose(ctx, ProposeParams{
+		Summary: "Local only", Detail: "D.", Action: "A.", Domains: []string{"api"},
+	})
+	require.NoError(t, err)
+
+	qr, err := c.Query(ctx, QueryParams{Domains: []string{"api"}})
+	require.NoError(t, err)
+	require.Len(t, qr.Units, 1)
+	require.Equal(t, SourceLocal, qr.Source)
+}
+
+func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
+	t.Parallel()
+	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000005")})
+	}))
+
+	qr, err := c.Query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.NoError(t, err)
+	require.Len(t, qr.Units, 1)
+	require.Equal(t, SourceRemote, qr.Source)
 }
 
 func TestConfirmLocalUnit(t *testing.T) {

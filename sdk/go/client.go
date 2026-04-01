@@ -325,7 +325,7 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 	if c.remote == nil {
 		return QueryResult{
 			Units:    localResults,
-			Source:   "local",
+			Source:   SourceLocal,
 			Warnings: storeResult.Warnings,
 		}, nil
 	}
@@ -334,16 +334,9 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 	normalised.Limit = limit
 	remoteResults := c.remote.query(ctx, normalised)
 
-	source := "local"
-	if len(remoteResults) > 0 && len(localResults) > 0 {
-		source = "both"
-	} else if len(remoteResults) > 0 {
-		source = "remote"
-	}
-
 	return QueryResult{
 		Units:    mergeResults(localResults, remoteResults, limit),
-		Source:   source,
+		Source:   SourceRemote,
 		Warnings: storeResult.Warnings,
 	}, nil
 }
