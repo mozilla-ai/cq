@@ -253,6 +253,23 @@ class TestRemoteConfig:
             assert c._store.db_path == db
             c.close()
 
+    def test_default_timeout_used_when_not_specified(self, tmp_path: Path):
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        assert c._http is not None
+        assert c._http.timeout == httpx.Timeout(5.0)
+        c.close()
+
+    def test_custom_timeout_forwarded_to_http_client(self, tmp_path: Path):
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db", timeout=15.0)
+        assert c._http is not None
+        assert c._http.timeout == httpx.Timeout(15.0)
+        c.close()
+
+    def test_timeout_without_remote_addr(self, tmp_path: Path):
+        c = Client(local_db_path=tmp_path / "test.db", timeout=10.0)
+        assert c._http is None
+        c.close()
+
 
 class TestRemoteIntegration:
     def test_remote_query_merges_with_local(self, tmp_path: Path, httpx_mock):

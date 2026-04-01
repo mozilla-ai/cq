@@ -51,6 +51,7 @@ class Client:
         self,
         addr: str | None = None,
         local_db_path: Path | None = None,
+        timeout: float = _DEFAULT_TIMEOUT,
     ) -> None:
         """Initialize the client.
 
@@ -59,6 +60,7 @@ class Client:
                 env var if not provided. None = local-only mode.
             local_db_path: Local SQLite path. Reads from CQ_LOCAL_DB_PATH
                 env var if not provided. Defaults to $XDG_DATA_HOME/cq/local.db.
+            timeout: HTTP request timeout in seconds. Defaults to 5.0.
         """
         self._addr = addr or os.environ.get("CQ_ADDR")
         db_path = local_db_path or _db_path_from_env()
@@ -69,7 +71,7 @@ class Client:
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
             self._http = httpx.Client(
                 base_url=self._addr,
-                timeout=_DEFAULT_TIMEOUT,
+                timeout=timeout,
                 headers=headers,
             )
 
