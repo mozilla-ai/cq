@@ -159,6 +159,30 @@ class TestCalculateRelevance:
         )
         assert 0.0 <= score <= 1.0
 
+    def test_relevance_clamped_to_ceiling(self):
+        unit = _make_unit(
+            domains=["databases"],
+            context=Context(languages=["python"], frameworks=["django"]),
+        )
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("cq.scoring._DOMAIN_WEIGHT", 0.8)
+            mp.setattr("cq.scoring._LANGUAGE_WEIGHT", 0.8)
+            mp.setattr("cq.scoring._FRAMEWORK_WEIGHT", 0.8)
+            score = calculate_relevance(
+                unit,
+                ["databases"],
+                query_languages=["python"],
+                query_frameworks=["django"],
+            )
+        assert score == 1.0
+
+    def test_relevance_clamped_to_floor(self):
+        unit = _make_unit(domains=["databases"])
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("cq.scoring._DOMAIN_WEIGHT", -1.0)
+            score = calculate_relevance(unit, ["databases"])
+        assert score == 0.0
+
     def test_bare_string_query_domains_coerced_to_list(self):
         unit = _make_unit(domains=["databases"])
         score = calculate_relevance(unit, "databases")  # type: ignore[arg-type]

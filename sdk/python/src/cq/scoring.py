@@ -10,6 +10,10 @@ FLAG_PENALTY = 0.15
 _CONFIDENCE_CEILING = 1.0
 _CONFIDENCE_FLOOR = 0.0
 
+_DOMAIN_WEIGHT = 0.7
+_LANGUAGE_WEIGHT = 0.15
+_FRAMEWORK_WEIGHT = 0.15
+
 
 def apply_confirmation(unit: KnowledgeUnit) -> KnowledgeUnit:
     """Increment confirmations and boost confidence, capped at 1.0."""
@@ -62,10 +66,6 @@ def calculate_relevance(
     if query_frameworks is not None:
         query_frameworks = _as_list(query_frameworks)
 
-    domain_weight = 0.7
-    language_weight = 0.15
-    framework_weight = 0.15
-
     # Domain overlap scored by Jaccard similarity.
     unit_domains = set(unit.domains)
     query_domain_set = set(query_domains)
@@ -84,4 +84,5 @@ def calculate_relevance(
     if query_frameworks and any(fw in unit.context.frameworks for fw in query_frameworks):
         framework_score = 1.0
 
-    return domain_weight * domain_score + language_weight * language_score + framework_weight * framework_score
+    score = _DOMAIN_WEIGHT * domain_score + _LANGUAGE_WEIGHT * language_score + _FRAMEWORK_WEIGHT * framework_score
+    return min(max(score, _CONFIDENCE_FLOOR), _CONFIDENCE_CEILING)
