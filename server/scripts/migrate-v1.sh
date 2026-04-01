@@ -15,7 +15,8 @@
 #   4. ${XDG_DATA_HOME:-$HOME/.local/share}/cq/local.db
 #
 # Transformations applied:
-#   - Tier values:   TIER_LOCAL → local, TIER_PRIVATE → private, TIER_PUBLIC → public
+#   - Tier values:   TIER_LOCAL → local, TIER_PRIVATE → private, TIER_PUBLIC → public,
+#                    team → private, global → public (server legacy values)
 #   - Flag reasons:  FLAG_REASON_STALE → stale, FLAG_REASON_INCORRECT → incorrect,
 #                    FLAG_REASON_DUPLICATE → duplicate
 #   - Field rename:  "domain" (singular) → "domains" (plural) in JSON data
@@ -60,7 +61,7 @@ count_legacy_rows() {
     sqlite3 "$db_path" <<'SQL'
 SELECT
     (SELECT COUNT(*) FROM knowledge_units
-     WHERE json_extract(data, '$.tier') IN ('TIER_LOCAL','TIER_PRIVATE','TIER_PUBLIC'))
+     WHERE json_extract(data, '$.tier') IN ('TIER_LOCAL','TIER_PRIVATE','TIER_PUBLIC','team','global'))
     || '|' ||
     (SELECT COUNT(*) FROM knowledge_units
      WHERE data LIKE '%FLAG_REASON_%')
@@ -133,15 +134,18 @@ PRAGMA foreign_keys = OFF;
 BEGIN TRANSACTION;
 
 -- Normalise tier enum values using targeted JSON path replacement.
+-- Handles both Go SDK prefixed values and server legacy values.
 UPDATE knowledge_units
 SET data = json_set(data, '$.tier',
     CASE json_extract(data, '$.tier')
         WHEN 'TIER_LOCAL'   THEN 'local'
         WHEN 'TIER_PRIVATE' THEN 'private'
         WHEN 'TIER_PUBLIC'  THEN 'public'
+        WHEN 'team'         THEN 'private'
+        WHEN 'global'       THEN 'public'
     END
 )
-WHERE json_extract(data, '$.tier') IN ('TIER_LOCAL', 'TIER_PRIVATE', 'TIER_PUBLIC');
+WHERE json_extract(data, '$.tier') IN ('TIER_LOCAL', 'TIER_PRIVATE', 'TIER_PUBLIC', 'team', 'global');
 
 -- Normalise flag reason enum values.
 -- Uses string replacement because SQLite lacks ergonomic JSON array-element
@@ -217,7 +221,7 @@ verify_migration() {
     remaining=$(sqlite3 "$db_path" <<'SQL'
 SELECT
     (SELECT COUNT(*) FROM knowledge_units
-     WHERE json_extract(data, '$.tier') IN ('TIER_LOCAL','TIER_PRIVATE','TIER_PUBLIC'))
+     WHERE json_extract(data, '$.tier') IN ('TIER_LOCAL','TIER_PRIVATE','TIER_PUBLIC','team','global'))
     +
     (SELECT COUNT(*) FROM knowledge_units
      WHERE data LIKE '%FLAG_REASON_%')

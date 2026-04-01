@@ -120,7 +120,7 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
               )}
             </div>
 
-            <DomainTags domains={item.knowledge_unit.domain} />
+            <DomainTags domains={item.knowledge_unit.domains} />
 
             <p className="text-gray-600 leading-relaxed">
               {item.knowledge_unit.insight.detail}
@@ -172,7 +172,9 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
 
             <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
               <span className="font-mono">{item.knowledge_unit.id}</span>
-              <span>{timeAgo(item.knowledge_unit.evidence.first_observed)}</span>
+              {item.knowledge_unit.evidence.first_observed && (
+                <span>{timeAgo(item.knowledge_unit.evidence.first_observed)}</span>
+              )}
             </div>
           </div>
         )}

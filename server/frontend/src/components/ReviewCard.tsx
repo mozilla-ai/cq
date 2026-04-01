@@ -59,10 +59,12 @@ export const ReviewCard = forwardRef<HTMLDivElement, Props>(
         {...pointerHandlers}
       >
         <div className="flex items-center justify-between mb-3">
-          <DomainTags domains={unit.domain} variant={activeState} />
-          <span className="text-xs text-gray-400">
-            {timeAgo(unit.evidence.first_observed)}
-          </span>
+          <DomainTags domains={unit.domains} variant={activeState} />
+          {unit.evidence.first_observed && (
+            <span className="text-xs text-gray-400">
+              {timeAgo(unit.evidence.first_observed)}
+            </span>
+          )}
         </div>
 
         <h2 className="text-lg font-semibold text-gray-900 mb-2">

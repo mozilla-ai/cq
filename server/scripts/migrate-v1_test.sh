@@ -219,6 +219,38 @@ test_tier_public() {
     assert_eq "$tier" "public" "TIER_PUBLIC should become public"
 }
 
+test_tier_team() {
+    local dir="$1"
+    local db
+    db=$(create_team_db "$dir")
+
+    insert_ku "$db" "ku_00000000000000000000000000000001" \
+        '{"id":"ku_00000000000000000000000000000001","version":1,"domains":["api"],"tier":"team","insight":{"summary":"s","detail":"d","action":"a"},"context":{},"evidence":{"confidence":0.5},"flags":[]}' \
+        "api"
+
+    bash "$MIGRATE" "$db" >/dev/null
+
+    local tier
+    tier=$(read_field "$db" "ku_00000000000000000000000000000001" '$.tier')
+    assert_eq "$tier" "private" "team should become private"
+}
+
+test_tier_global() {
+    local dir="$1"
+    local db
+    db=$(create_team_db "$dir")
+
+    insert_ku "$db" "ku_00000000000000000000000000000001" \
+        '{"id":"ku_00000000000000000000000000000001","version":1,"domains":["api"],"tier":"global","insight":{"summary":"s","detail":"d","action":"a"},"context":{},"evidence":{"confidence":0.5},"flags":[]}' \
+        "api"
+
+    bash "$MIGRATE" "$db" >/dev/null
+
+    local tier
+    tier=$(read_field "$db" "ku_00000000000000000000000000000001" '$.tier')
+    assert_eq "$tier" "public" "global should become public"
+}
+
 test_flag_reason_stale() {
     local dir="$1"
     local db
@@ -574,6 +606,8 @@ main() {
     run_test "tier: TIER_LOCAL → local"                     test_tier_local
     run_test "tier: TIER_PRIVATE → private"                 test_tier_private
     run_test "tier: TIER_PUBLIC → public"                   test_tier_public
+    run_test "tier: team → private"                         test_tier_team
+    run_test "tier: global → public"                        test_tier_global
     run_test "flag: FLAG_REASON_STALE → stale"              test_flag_reason_stale
     run_test "flag: FLAG_REASON_INCORRECT → incorrect"      test_flag_reason_incorrect
     run_test "flag: FLAG_REASON_DUPLICATE → duplicate"      test_flag_reason_duplicate

@@ -61,5 +61,15 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/frontend/pnpm-lock.yaml
+
       - name: Setup and test
         run: make setup-server test-server

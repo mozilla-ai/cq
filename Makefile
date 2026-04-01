@@ -37,6 +37,7 @@ help:
 	@echo "    - make test-sdk-python      Python SDK"
 	@echo "    - make test-server          Server"
 	@echo "      - make test-server-backend  Backend"
+	@echo "      - make test-server-frontend Frontend"
 	@echo "  make validate-schema        Validate JSON Schema fixtures"
 	@echo ""
 	@echo "Docker Compose:"
@@ -203,8 +204,12 @@ test-sdk-python:
 test-server-backend: validate-schema
 	cd server/backend && uv run pytest
 
+.PHONY: test-server-frontend
+test-server-frontend:
+	cd server/frontend && pnpm test
+
 .PHONY: test-server
-test-server: test-server-backend
+test-server: test-server-backend test-server-frontend
 
 .PHONY: test
 test: test-cli test-sdk-go test-sdk-python test-server

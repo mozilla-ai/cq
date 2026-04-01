@@ -13,19 +13,28 @@ export interface Context {
 export interface Evidence {
   confidence: number;
   confirmations: number;
-  first_observed: string;
-  last_confirmed: string;
+  first_observed: string | null;
+  last_confirmed: string | null;
+}
+
+export interface Flag {
+  reason: "stale" | "incorrect" | "duplicate";
+  timestamp: string;
+  detail: string | null;
+  duplicate_of: string | null;
 }
 
 export interface KnowledgeUnit {
   id: string;
   version: number;
-  domain: string[];
+  domains: string[];
   insight: Insight;
   context: Context;
   evidence: Evidence;
   tier: string;
   created_by: string;
+  superseded_by: string | null;
+  flags: Flag[];
 }
 
 export interface ReviewItem {

@@ -128,7 +128,7 @@ export function FilteredListModal({ filter, onClose, onSelectUnit }: Props) {
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <DomainTags domains={item.knowledge_unit.domain} />
+                    <DomainTags domains={item.knowledge_unit.domains} />
                     <span className="text-xs text-gray-400 ml-auto shrink-0">
                       {confidenceLabel(item.knowledge_unit.evidence.confidence)}
                     </span>
