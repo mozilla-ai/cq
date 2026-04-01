@@ -33,7 +33,12 @@ _DEFAULT_TIMEOUT = 5.0
 class DrainResult:
     """Result of a drain operation."""
 
+    # Number of local units successfully pushed to the remote API.
     pushed: int = 0
+
+    # Non-fatal issues encountered during the drain. Each entry
+    # describes a unit that could not be pushed, either because the
+    # remote was unreachable or because it rejected the request.
     warnings: list[str] = field(default_factory=list)
 
 
@@ -41,8 +46,18 @@ class DrainResult:
 class QueryResult:
     """Result of a query operation."""
 
+    # Whether the query consulted only the local store ("local") or
+    # also reached a remote API ("remote"). This is metadata about the
+    # query itself, not about individual units.
     source: str
+
+    # Matched knowledge units, potentially merged from local and remote
+    # stores. Each unit's tier field indicates its origin and determines
+    # how subsequent operations (confirm, flag) are routed.
     units: list["KnowledgeUnit"] = field(default_factory=list)
+
+    # Non-fatal issues encountered during the query, such as a remote
+    # API being unreachable or returning an unparseable response.
     warnings: list[str] = field(default_factory=list)
 
 
@@ -149,7 +164,7 @@ class Client:
                 limit=limit,
             )
             source = "remote"
-        except (httpx.HTTPError, ValueError, ValidationError) as exc:
+        except (httpx.HTTPError, ValueError, ValidationError, TypeError) as exc:
             warnings.append(f"Remote query failed: {exc}")
 
         merged = _merge_results(local_results, remote_results, limit)
@@ -302,7 +317,7 @@ class Client:
                         pushed += 1
                     else:
                         warnings.append(f"Failed to drain unit {unit.id}: remote unreachable")
-                except (httpx.HTTPError, RemoteError) as exc:
+                except RemoteError as exc:
                     warnings.append(f"Failed to drain unit {unit.id}: {exc}")
         return DrainResult(pushed=pushed, warnings=warnings)
 
