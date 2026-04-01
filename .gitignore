@@ -11,6 +11,7 @@ ENV/
 dist/
 build/*
 !build/licenses/
+!build/brew/
 
 node_modules/
 

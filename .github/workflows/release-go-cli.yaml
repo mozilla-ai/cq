@@ -9,15 +9,7 @@ on:
         description: "Prefixed tag to release (e.g. cli/v0.1.0)"
         required: true
       skip_publish:
-        description: "Skip binary publish"
-        required: false
-        default: "false"
-      skip_homebrew:
-        description: "Skip homebrew publish"
-        required: false
-        default: "false"
-      skip_validate:
-        description: "Skip GoReleaser validation"
+        description: "Skip artifact upload and homebrew"
         required: false
         default: "false"
 
@@ -25,14 +17,36 @@ permissions:
   contents: write
 
 jobs:
-  goreleaser:
+  build:
     runs-on: ubuntu-latest
     # Skip early for non-CLI releases (no runner cost).
     if: >
-      github.event_name != 'release' ||
-      startsWith(github.event.release.tag_name, 'cli/v')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'cli/v'))
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            archive_arch: x86_64
+          - goos: linux
+            goarch: arm64
+            archive_arch: arm64
+          - goos: darwin
+            goarch: amd64
+            archive_arch: x86_64
+          - goos: darwin
+            goarch: arm64
+            archive_arch: arm64
+          - goos: windows
+            goarch: amd64
+            archive_arch: x86_64
+          - goos: windows
+            goarch: arm64
+            archive_arch: arm64
     steps:
       - name: Validate tag
+        id: tag
         env:
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
@@ -47,58 +61,138 @@ jobs:
           fi
 
           VERSION="${TAG#cli/}"
-          echo "Releasing CLI $VERSION from tag $TAG"
-
-          {
-            echo "GORELEASER_CURRENT_TAG<<EOF"
-            echo "$VERSION"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
-
-          {
-            echo "RELEASE_TAG<<EOF"
-            echo "$TAG"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
-
-      - name: Checkout release tag
-        env:
-          TAG: ${{ env.RELEASE_TAG }}
-          VERSION_TAG: ${{ env.GORELEASER_CURRENT_TAG }}
-        run: |
-          git fetch --tags
-          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag '$TAG' does not exist in the repository"
-            exit 1
-          fi
-          git checkout "$TAG"
-          # GoReleaser (free) requires an unprefixed semver tag on HEAD.
-          # Create a local-only tag so it can find it; delete first to avoid
-          # conflicts with legacy tags from before the monorepo migration.
-          git tag -d "$VERSION_TAG" 2>/dev/null || true
-          git tag "$VERSION_TAG"
+          ref: ${{ steps.tag.outputs.tag }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version-file: cli/go.mod
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          version: latest
-          workdir: cli
-          args: >
-            release --clean
-            ${{ github.event.inputs.skip_publish == 'true' && ' --skip publish' || '' }}
-            ${{ github.event.inputs.skip_validate == 'true' && ' --skip validate' || '' }}
-            ${{ github.event.inputs.skip_homebrew == 'true' && ' --skip homebrew' || '' }}
+      - name: Sync skill
+        run: make -C sdk/go sync-skill
+
+      - name: Build
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        working-directory: cli
+        run: |
+          COMMIT="$(git rev-parse --short HEAD)"
+          DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          BINARY="cq"
+          if [[ "$GOOS" == "windows" ]]; then
+            BINARY="cq.exe"
+          fi
+
+          VERSION_PKG="$(go list -m)/internal/version"
+          go build -trimpath -o "$BINARY" \
+            -ldflags "-s -w \
+              -X '${VERSION_PKG}.version=${VERSION#v}' \
+              -X '${VERSION_PKG}.commit=${COMMIT}' \
+              -X '${VERSION_PKG}.date=${DATE}'"
+
+      - name: Package
+        env:
+          GOOS: ${{ matrix.goos }}
+          ARCHIVE_ARCH: ${{ matrix.archive_arch }}
+        working-directory: cli
+        run: |
+          OS="$(echo "$GOOS" | sed 's/./\U&/')"
+
+          if [[ "$GOOS" == "windows" ]]; then
+            ARCHIVE="cq_${OS}_${ARCHIVE_ARCH}.zip"
+            zip "$ARCHIVE" cq.exe NOTICE README.md -j ../LICENSE
+          else
+            ARCHIVE="cq_${OS}_${ARCHIVE_ARCH}.tar.gz"
+            tar czf "$ARCHIVE" cq NOTICE README.md -C .. LICENSE
+          fi
+
+          echo "archive=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Checksum
+        working-directory: cli
+        run: sha256sum "${{ env.archive }}" > "${{ env.archive }}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cq_${{ matrix.goos }}_${{ matrix.archive_arch }}
+          path: |
+            cli/${{ env.archive }}
+            cli/${{ env.archive }}.sha256
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: inputs.skip_publish != 'true'
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+        run: |
+          VERSION="${TAG#cli/}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Combine checksums
+        working-directory: dist
+        run: cat *.sha256 > checksums.txt && rm -f *.sha256
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --repo "$GITHUB_REPOSITORY"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: build/brew
+          path: repo
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: repo/build/brew/go.mod
+
+      - name: Generate Homebrew cask
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          go run ./repo/build/brew \
+            -checksums dist/checksums.txt \
+            -base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}" \
+            -version "${VERSION#v}" \
+            -template repo/build/brew/cq.rb.tpl \
+            -output dist/cq.rb
+
+      - name: Push Homebrew cask
+        env:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ env.GORELEASER_CURRENT_TAG }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          cd "$(mktemp -d)"
+          git clone "https://x-access-token:${HOMEBREW_TAP_GITHUB_TOKEN}@github.com/mozilla-ai/homebrew-tap.git" .
+          cp "$GITHUB_WORKSPACE/dist/cq.rb" Casks/cq.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/cq.rb
+          git diff --cached --quiet && echo "No changes to Homebrew cask" && exit 0
+          git commit -m "Update cq cask to ${TAG#cli/}"
+          git push
