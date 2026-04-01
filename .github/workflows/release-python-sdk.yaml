@@ -1,9 +1,13 @@
 name: Release Python SDK
 
 on:
-  push:
-    tags:
-      - "sdk/python/[0-9]+.[0-9]+.[0-9]+*"
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Prefixed tag to release (e.g. sdk/python/0.1.0)"
+        required: true
 
 permissions:
   contents: read
@@ -11,25 +15,46 @@ permissions:
 jobs:
   release:
     name: Publish to PyPI
+    # Skip early for non-Python-SDK releases (no runner cost).
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'sdk/python/'))
     environment: pypi
     permissions:
       contents: read
       id-token: write
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+        run: |
+          if [[ -z "$TAG" ]]; then
+            echo "::error::No tag provided"
+            exit 1
+          fi
+
+          if [[ ! "$TAG" =~ ^sdk/python/[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not match expected pattern sdk/python/X.Y.Z"
+            exit 1
+          fi
+
+          VERSION="${TAG#sdk/python/}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
 
       - uses: astral-sh/setup-uv@v7
-
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#sdk/python/}" >> "$GITHUB_OUTPUT"
 
       - name: Set package version
         working-directory: sdk/python
         run: sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.tag.outputs.version }}
 
       - name: Copy skill prompt into package
         working-directory: sdk/python
