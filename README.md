@@ -201,10 +201,10 @@ The local SQLite database format changed during the 0.x cycle (enum values, fiel
 
 ```bash
 # Local SDK database (auto-detects path).
-./scripts/migrate-v1.sh
+./server/scripts/migrate-v1.sh
 
 # Explicit path.
-./scripts/migrate-v1.sh ~/.local/share/cq/local.db
+./server/scripts/migrate-v1.sh ~/.local/share/cq/local.db
 
 # Team server running in a container.
 docker compose exec cq-team-api bash /app/scripts/migrate-v1.sh

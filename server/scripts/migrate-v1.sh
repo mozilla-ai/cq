@@ -4,7 +4,7 @@
 # Handles databases created by both the Python SDK and Go SDK (cq-go).
 #
 # Usage:
-#   ./scripts/migrate-v1.sh [DB_PATH]           # Local SDK database.
+#   ./server/scripts/migrate-v1.sh [DB_PATH]    # Local SDK database.
 #   docker compose exec cq-team-api \
 #     bash /app/scripts/migrate-v1.sh            # Team server database.
 #
