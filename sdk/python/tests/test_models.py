@@ -114,6 +114,15 @@ class TestDomainValidation:
         assert unit.domains == ["databases"]
 
 
+class TestCreateKnowledgeUnitCoercion:
+    def test_bare_string_domains_coerced_to_list(self):
+        unit = create_knowledge_unit(
+            domains="api",  # type: ignore[arg-type]
+            insight=_make_insight(),
+        )
+        assert unit.domains == ["api"]
+
+
 class TestIdUniqueness:
     def test_two_units_have_different_ids(self):
         unit_a = _make_unit()

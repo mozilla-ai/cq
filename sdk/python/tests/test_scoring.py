@@ -158,3 +158,29 @@ class TestCalculateRelevance:
             query_frameworks=["flask"],
         )
         assert 0.0 <= score <= 1.0
+
+    def test_bare_string_query_domains_coerced_to_list(self):
+        unit = _make_unit(domains=["databases"])
+        score = calculate_relevance(unit, "databases")  # type: ignore[arg-type]
+        expected = calculate_relevance(unit, ["databases"])
+        assert score == expected
+
+    def test_bare_string_query_languages_coerced_to_list(self):
+        unit = _make_unit(context=Context(languages=["python"]))
+        score = calculate_relevance(
+            unit,
+            ["databases"],
+            query_languages="python",  # type: ignore[arg-type]
+        )
+        expected = calculate_relevance(unit, ["databases"], query_languages=["python"])
+        assert score == expected
+
+    def test_bare_string_query_frameworks_coerced_to_list(self):
+        unit = _make_unit(context=Context(frameworks=["django"]))
+        score = calculate_relevance(
+            unit,
+            ["databases"],
+            query_frameworks="django",  # type: ignore[arg-type]
+        )
+        expected = calculate_relevance(unit, ["databases"], query_frameworks=["django"])
+        assert score == expected

@@ -17,6 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ._util import _as_list
 from .models import KnowledgeUnit
 from .scoring import calculate_relevance
 
@@ -84,17 +85,6 @@ CREATE TABLE IF NOT EXISTS metadata (
     value TEXT NOT NULL
 );
 """
-
-
-def _as_list(value: list[str] | str) -> list[str]:
-    """Coerce a bare string to a single-item list.
-
-    Python iterates strings character-by-character, so passing ``"python"``
-    where ``["python"]`` is expected silently produces wrong results.
-    """
-    if isinstance(value, str):
-        return [value]
-    return value
 
 
 def _normalize_domains(domains: list[str]) -> list[str]:

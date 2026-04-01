@@ -11,6 +11,7 @@ from pathlib import Path
 import httpx
 from pydantic import ValidationError
 
+from ._util import _as_list
 from .models import (
     Context,
     FlagReason,
@@ -102,6 +103,11 @@ class Client:
         Queries both the local store and remote API (if configured),
         merging and deduplicating results.
         """
+        domains = _as_list(domains)
+        if languages is not None:
+            languages = _as_list(languages)
+        if frameworks is not None:
+            frameworks = _as_list(frameworks)
         local_results = self._store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
 
         if self._http is None:
@@ -128,6 +134,11 @@ class Client:
         to local storage when the remote is unreachable. Raises RemoteError
         if the remote explicitly rejects the unit.
         """
+        domains = _as_list(domains)
+        if languages is not None:
+            languages = _as_list(languages)
+        if frameworks is not None:
+            frameworks = _as_list(frameworks)
         context = Context(
             languages=languages or [],
             frameworks=frameworks or [],

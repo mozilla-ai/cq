@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from ._util import _as_list
 from .models import Flag, FlagReason, KnowledgeUnit
 
 CONFIRMATION_BOOST = 0.1
@@ -55,6 +56,12 @@ def calculate_relevance(
     Domain overlap is the primary signal (weighted at 0.7).
     Language and framework matches are secondary signals (0.15 each).
     """
+    query_domains = _as_list(query_domains)
+    if query_languages is not None:
+        query_languages = _as_list(query_languages)
+    if query_frameworks is not None:
+        query_frameworks = _as_list(query_frameworks)
+
     domain_weight = 0.7
     language_weight = 0.15
     framework_weight = 0.15

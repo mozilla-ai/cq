@@ -7,6 +7,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from ._util import _as_list
+
 _KU_ID_PREFIX = "ku_"
 _KU_ID_PATTERN = re.compile(r"^ku_[0-9a-f]{32}$")
 
@@ -130,6 +132,7 @@ def create_knowledge_unit(
     created_by: str = "",
 ) -> KnowledgeUnit:
     """Create a new knowledge unit with an auto-generated ID."""
+    domains = _as_list(domains)
     return KnowledgeUnit(
         id=_generate_ku_id(),
         domains=domains,
