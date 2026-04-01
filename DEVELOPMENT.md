@@ -13,8 +13,7 @@
 | Directory | Component | Stack |
 |-----------|-----------|-------|
 | `plugins/cq/server` | MCP server (plugin) | Python, FastMCP |
-| `team-api` | Team knowledge API | Python, FastAPI |
-| `team-ui` | Review dashboard | TypeScript, React, Vite |
+| `server` | Team knowledge server | Python, FastAPI, TypeScript, React |
 
 ## Initial Setup
 
@@ -100,4 +99,4 @@ Add to `~/.config/opencode/opencode.json` or your project-level config, in the M
 | Command | Purpose |
 |---------|---------|
 | `make lint` | Format, lint, and type-check all components |
-| `make test` | Type checks and tests across plugin server and team-api |
+| `make test` | Type checks and tests across plugin server and server backend |

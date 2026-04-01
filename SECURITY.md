@@ -32,7 +32,6 @@ We follow a coordinated disclosure approach. We ask that you do not disclose the
 This policy applies to all cq components:
 
 - MCP server plugin
-- team-api
-- team-ui
+- server
 
 Thank you for helping us keep cq secure.
