@@ -44,7 +44,7 @@ jobs:
           cache-dependency-path: server/frontend/pnpm-lock.yaml
 
       - name: Setup and lint
-        run: make setup lint-server
+        run: make setup-server lint-server
 
   test:
     name: Test
@@ -62,4 +62,4 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup and test
-        run: make setup test-server
+        run: make setup-server test-server

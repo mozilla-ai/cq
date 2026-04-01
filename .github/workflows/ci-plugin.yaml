@@ -23,4 +23,4 @@ jobs:
           enable-cache: true
 
       - name: Setup and lint
-        run: make setup lint-plugin
+        run: make setup-plugin lint-plugin

@@ -34,7 +34,7 @@ jobs:
           enable-cache: true
 
       - name: Setup and lint
-        run: make setup lint-sdk-python
+        run: make setup-sdk-python lint-sdk-python
 
   test:
     name: Test
@@ -52,4 +52,4 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Test
-        run: make setup test-sdk-python
+        run: make setup-sdk-python test-sdk-python

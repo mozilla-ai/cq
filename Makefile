@@ -15,7 +15,14 @@ help:
 	@echo "  make uninstall-opencode PROJECT=/path/to/app Remove from a specific project"
 	@echo ""
 	@echo "Development:"
-	@echo "  make setup                Install all dependencies"
+	@echo "  make setup                  Install all dependencies"
+	@echo "    - make setup-cli            CLI"
+	@echo "    - make setup-plugin         Plugin"
+	@echo "    - make setup-sdk-go         Go SDK"
+	@echo "    - make setup-sdk-python     Python SDK"
+	@echo "    - make setup-server         Server (backend + frontend)"
+	@echo "      - make setup-server-backend  Backend"
+	@echo "      - make setup-server-frontend Frontend"
 	@echo "  make lint                   Lint all components"
 	@echo "    - make lint-cli             CLI"
 	@echo "    - make lint-plugin          Plugin"
@@ -40,14 +47,35 @@ help:
 	@echo "  make seed-kus   USER=demo PASS=demo123       Load sample knowledge units"
 	@echo "  make seed-all   USER=demo PASS=demo123       Create user + load KUs"
 
+.PHONY: setup-cli
+setup-cli:
+	cd cli && go mod download
+
+.PHONY: setup-plugin
+setup-plugin:
+	cd plugins/cq && uv sync --group dev
+
+.PHONY: setup-sdk-go
+setup-sdk-go:
+	cd sdk/go && $(MAKE) sync-skill
+
+.PHONY: setup-sdk-python
+setup-sdk-python:
+	cd sdk/python && uv sync --group dev
+
+.PHONY: setup-server-backend
+setup-server-backend:
+	cd server/backend && uv sync --group dev
+
+.PHONY: setup-server-frontend
+setup-server-frontend:
+	cd server/frontend && pnpm install $(if $(CI),--frozen-lockfile,)
+
+.PHONY: setup-server
+setup-server: setup-server-backend setup-server-frontend
+
 .PHONY: setup
-setup:
-	(cd cli && go mod download)
-	(cd plugins/cq && uv sync --group dev)
-	(cd sdk/go && $(MAKE) sync-skill)
-	(cd sdk/python && uv sync --group dev)
-	(cd server/backend && uv sync --group dev)
-	(cd server/frontend && pnpm install $(if $(CI),--frozen-lockfile,))
+setup: setup-cli setup-plugin setup-sdk-go setup-sdk-python setup-server
 
 .PHONY: install-claude
 install-claude:
