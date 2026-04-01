@@ -90,7 +90,33 @@ _ = result.Units
 
 ### Go CLI
 
-From source:
+#### via Homebrew
+
+```bash
+brew install mozilla-ai/tap/cq
+```
+
+#### via GitHub Releases
+
+Download the latest binary from the [releases page](https://github.com/mozilla-ai/cq/releases).
+
+Or install with `curl`:
+
+```bash
+# CLI releases are tagged cli/vX.Y.Z.
+VERSION="cli/v0.1.0"
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+curl -sSL "https://github.com/mozilla-ai/cq/releases/download/${VERSION}/cq_${OS}_${ARCH}.tar.gz" | tar xz cq
+sudo mv cq /usr/local/bin/
+```
+
+> **macOS Gatekeeper:** If macOS blocks the binary, remove the quarantine flag:
+> ```
+> xattr -d com.apple.quarantine /usr/local/bin/cq
+> ```
+
+#### From Source
 
 ```bash
 git clone https://github.com/mozilla-ai/cq.git
