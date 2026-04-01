@@ -42,8 +42,8 @@ setup:
 	(cd sdk/python && uv sync --group dev)
 	(cd cli && go mod download)
 	(cd plugins/cq/server && uv sync --group dev)
-	(cd team-api && uv sync --group dev)
-	(cd team-ui && pnpm install $(if $(CI),--frozen-lockfile,))
+	(cd server/backend && uv sync --group dev)
+	(cd server/frontend && pnpm install $(if $(CI),--frozen-lockfile,))
 
 .PHONY: install-claude
 install-claude:
@@ -100,7 +100,7 @@ endif
 ifndef PASS
 	$(error PASS is required. Usage: make seed-kus USER=demo PASS=demo123)
 endif
-	docker compose exec cq-team-api /app/.venv/bin/python /app/scripts/seed/load.py --user "$(USER)" --pass "$(PASS)" --url http://localhost:8742
+	docker compose exec cq-team-api /app/.venv/bin/python /app/scripts/seed-kus.py --user "$(USER)" --pass "$(PASS)" --url http://localhost:8742
 
 .PHONY: seed-all
 seed-all:
@@ -115,11 +115,11 @@ endif
 
 .PHONY: dev-api
 dev-api:
-	cd team-api && CQ_DB_PATH=./dev.db CQ_JWT_SECRET=dev-secret uv run cq-team-api
+	cd server/backend && CQ_DB_PATH=./dev.db CQ_JWT_SECRET=dev-secret uv run cq-server
 
 .PHONY: dev-ui
 dev-ui:
-	cd team-ui && pnpm dev
+	cd server/frontend && pnpm dev
 
 .PHONY: validate-schema
 validate-schema:
@@ -148,18 +148,18 @@ lint: lint-sdk-go lint-sdk-python lint-cli lint-server
 .PHONY: format
 format:
 	cd plugins/cq/server && uv run ruff format .
-	cd team-api && uv run ruff format .
+	cd server/backend && uv run ruff format .
 
 .PHONY: format-check
 format-check:
 	cd plugins/cq/server && uv run ruff format --check .
-	cd team-api && uv run ruff format --check .
+	cd server/backend && uv run ruff format --check .
 
 .PHONY: typecheck
 typecheck:
 	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
-	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
-	cd team-ui && pnpm tsc -b
+	cd server/backend && uv sync --group dev && uvx ty check src/cq_server --python .venv
+	cd server/frontend && pnpm tsc -b
 
 .PHONY: test-sdk-go
 test-sdk-go:
@@ -176,9 +176,9 @@ test-cli:
 .PHONY: test-server
 test-server: validate-schema
 	cd plugins/cq/server && uv sync --group dev && uvx ty check cq_mcp --python .venv
-	cd team-api && uv sync --group dev && uvx ty check team_api --python .venv
+	cd server/backend && uv sync --group dev && uvx ty check src/cq_server --python .venv
 	cd plugins/cq/server && uv run pytest
-	cd team-api && uv run pytest
+	cd server/backend && uv run pytest
 
 .PHONY: test
 test: test-sdk-go test-sdk-python test-cli test-server
