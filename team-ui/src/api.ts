@@ -6,14 +6,23 @@ import type {
 } from "./types";
 
 const API_BASE = "/api";
+const TOKEN_KEY = "cq_auth_token";
 
 let token: string | null = null;
 
 export function setToken(t: string | null) {
   token = t;
+  if (t) {
+    localStorage.setItem(TOKEN_KEY, t);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
 }
 
 export function getToken(): string | null {
+  if (!token) {
+    token = localStorage.getItem(TOKEN_KEY);
+  }
   return token;
 }
 
@@ -38,8 +47,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  const currentToken = getToken();
+  if (currentToken) {
+    headers["Authorization"] = `Bearer ${currentToken}`;
   }
   const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!resp.ok) {
@@ -58,6 +68,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
+
+  me: () => request<{ username: string; created_at: string }>("/auth/me"),
 
   reviewQueue: (limit = 20, offset = 0) =>
     request<ReviewQueueResponse>(
