@@ -376,7 +376,7 @@ class TestQuery:
         )
         store.insert(python_unit)
         store.insert(go_unit)
-        results = store.query(["databases"], language="python")
+        results = store.query(["databases"], languages=["python"])
         assert len(results) == 2
         assert results[0].id == python_unit.id
 
@@ -391,7 +391,7 @@ class TestQuery:
         )
         store.insert(django_unit)
         store.insert(flask_unit)
-        results = store.query(["web"], framework="django")
+        results = store.query(["web"], frameworks=["django"])
         assert len(results) == 2
         assert results[0].id == django_unit.id
 
@@ -406,7 +406,7 @@ class TestQuery:
         )
         store.insert(match)
         store.insert(partial)
-        results = store.query(["web"], language="python", framework="django")
+        results = store.query(["web"], languages=["python"], frameworks=["django"])
         assert len(results) == 2
         assert results[0].id == match.id
 
@@ -643,7 +643,7 @@ class TestEndToEnd:
         )
         store.insert(unit)
 
-        results = store.query(["api", "payments"], language="python")
+        results = store.query(["api", "payments"], languages=["python"])
         assert len(results) == 1
         assert results[0].evidence.confidence == 0.5
 

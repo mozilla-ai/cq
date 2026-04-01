@@ -93,8 +93,8 @@ class Client:
         self,
         domains: list[str],
         *,
-        language: str | None = None,
-        framework: str | None = None,
+        languages: list[str] | None = None,
+        frameworks: list[str] | None = None,
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Search for knowledge units by domain tags.
@@ -102,12 +102,12 @@ class Client:
         Queries both the local store and remote API (if configured),
         merging and deduplicating results.
         """
-        local_results = self._store.query(domains, language=language, framework=framework, limit=limit)
+        local_results = self._store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
 
         if self._http is None:
             return local_results
 
-        remote_results = self._remote_query(domains, language=language, framework=framework, limit=limit)
+        remote_results = self._remote_query(domains, languages=languages, frameworks=frameworks, limit=limit)
         return _merge_results(local_results, remote_results, limit)
 
     def propose(
@@ -258,8 +258,8 @@ class Client:
         self,
         domains: list[str],
         *,
-        language: str | None = None,
-        framework: str | None = None,
+        languages: list[str] | None = None,
+        frameworks: list[str] | None = None,
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Query the remote API, returning empty list on failure."""
@@ -268,10 +268,10 @@ class Client:
             "domains": domains,
             "limit": limit,
         }
-        if language:
-            params["language"] = language
-        if framework:
-            params["framework"] = framework
+        if languages:
+            params["languages"] = languages
+        if frameworks:
+            params["frameworks"] = frameworks
         try:
             resp = self._http.get("/query", params=params)
             resp.raise_for_status()

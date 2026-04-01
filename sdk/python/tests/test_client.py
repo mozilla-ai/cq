@@ -123,7 +123,7 @@ class TestLocalOnlyMode:
         with pytest.raises(RuntimeError, match="remote API"):
             client.flag("ku_ffffffffffffffffffffffffffffffff", FlagReason.STALE, tier=Tier.PRIVATE)
 
-    def test_query_language_boosts_ranking(self, client: Client):
+    def test_query_languages_boosts_ranking(self, client: Client):
         client.propose(
             summary="Python insight",
             detail="Detail.",
@@ -138,7 +138,7 @@ class TestLocalOnlyMode:
             domains=["api"],
             languages=["go"],
         )
-        results = client.query(["api"], language="python")
+        results = client.query(["api"], languages=["python"])
         assert len(results) == 2
         assert results[0].context.languages == ["python"]
 
@@ -153,7 +153,7 @@ class TestFullLifecycle:
             languages=["python"],
         )
 
-        results = client.query(["api", "stripe"], language="python")
+        results = client.query(["api", "stripe"], languages=["python"])
         assert len(results) == 1
         assert results[0].evidence.confidence == 0.5
 

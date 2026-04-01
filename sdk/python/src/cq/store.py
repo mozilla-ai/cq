@@ -332,8 +332,8 @@ class LocalStore:
         self,
         domains: list[str],
         *,
-        language: str | None = None,
-        framework: str | None = None,
+        languages: list[str] | None = None,
+        frameworks: list[str] | None = None,
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Search for knowledge units by domain tags with relevance ranking.
@@ -409,8 +409,8 @@ class LocalStore:
             relevance = calculate_relevance(
                 unit,
                 normalized,
-                query_language=language,
-                query_framework=framework,
+                query_languages=languages,
+                query_frameworks=frameworks,
             )
             scored.append((relevance * unit.evidence.confidence, unit))
 
