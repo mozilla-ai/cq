@@ -231,6 +231,28 @@ class TestRemoteIntegration:
         assert "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01" in ids
         c.close()
 
+    def test_remote_query_sends_plural_language_and_framework_params(self, tmp_path: Path, httpx_mock):
+        """Remote query sends plural 'languages'/'frameworks' keys, not singular."""
+        remote_unit = {
+            "id": "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01",
+            "domains": ["api"],
+            "insight": {"summary": "S", "detail": "D", "action": "A"},
+            "tier": "private",
+        }
+        httpx_mock.add_response(
+            url=httpx.URL(
+                "http://test-remote/query",
+                params={"domains": ["api"], "limit": "5", "languages": ["python"], "frameworks": ["django"]},
+            ),
+            json=[remote_unit],
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        results = c.query(["api"], languages=["python"], frameworks=["django"])
+        assert len(results) == 1
+        assert results[0].id == "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01"
+        c.close()
+
     def test_propose_returns_server_response_when_remote_accepts(self, tmp_path: Path, httpx_mock):
         """When remote accepts, propose() returns the server-created unit."""
         server_unit = {
