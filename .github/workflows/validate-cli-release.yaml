@@ -1,0 +1,71 @@
+name: Validate CLI Release Config
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - cli/go.mod
+      - cli/internal/version/**
+      - .github/workflows/release-go-cli.yaml
+      - build/brew/**
+  pull_request:
+    branches: [main]
+    paths:
+      - cli/go.mod
+      - cli/internal/version/**
+      - .github/workflows/release-go-cli.yaml
+      - build/brew/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Validate version package
+        working-directory: cli
+        run: |
+          set -euo pipefail
+
+          MODULE="$(go list -m)"
+          echo "Module: $MODULE"
+
+          VERSION_PKG="${MODULE}/internal/version"
+          go list "$VERSION_PKG" > /dev/null
+          echo "Version package exists: $VERSION_PKG"
+
+          # Verify the expected variables are declared.
+          for var in version commit date; do
+            if ! grep -q "^\s*${var}\s*=" internal/version/version.go; then
+              echo "Error: variable '$var' not found in internal/version/version.go"
+              exit 1
+            fi
+          done
+
+          echo "Version package validated successfully"
+
+      - name: Validate brew template
+        working-directory: build/brew
+        run: |
+          set -euo pipefail
+
+          # Render with dummy data to catch template errors.
+          printf "aaaa cq_Darwin_arm64.tar.gz\nbbbb cq_Linux_x86_64.tar.gz\n" > /tmp/checksums.txt
+          go run . \
+            -checksums /tmp/checksums.txt \
+            -base-url "https://example.com" \
+            -version "0.0.0" \
+            -template cq.rb.tpl \
+            -output /dev/null
+
+          echo "Brew template validated successfully"

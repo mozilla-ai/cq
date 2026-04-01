@@ -174,13 +174,14 @@ jobs:
         env:
           VERSION: ${{ steps.tag.outputs.version }}
           TAG: ${{ steps.tag.outputs.tag }}
+        working-directory: repo/build/brew
         run: |
-          go run ./repo/build/brew \
-            -checksums dist/checksums.txt \
+          go run . \
+            -checksums "$GITHUB_WORKSPACE/dist/checksums.txt" \
             -base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}" \
             -version "${VERSION#v}" \
-            -template repo/build/brew/cq.rb.tpl \
-            -output dist/cq.rb
+            -template cq.rb.tpl \
+            -output "$GITHUB_WORKSPACE/dist/cq.rb"
 
       - name: Push Homebrew cask
         env:
