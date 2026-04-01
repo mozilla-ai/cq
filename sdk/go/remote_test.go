@@ -173,27 +173,46 @@ func TestRemoteFlagOmitsEmptyFields(t *testing.T) {
 
 func TestRemoteQuerySendsPluralParamNames(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify plural param names.
-		require.NotEmpty(t, r.URL.Query()["domains"], "should send 'domains' not 'domain'")
-		require.Empty(t, r.URL.Query()["domain"], "should not send singular 'domain'")
 
-		if langs := r.URL.Query()["languages"]; len(langs) > 0 {
-			require.Equal(t, []string{"go"}, langs)
-		}
-		if fws := r.URL.Query()["frameworks"]; len(fws) > 0 {
-			require.Equal(t, []string{"grpc"}, fws)
-		}
+	t.Run("single values", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NotEmpty(t, r.URL.Query()["domains"], "should send 'domains' not 'domain'")
+			require.Empty(t, r.URL.Query()["domain"], "should not send singular 'domain'")
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{})
-	}))
-	defer srv.Close()
+			require.Equal(t, []string{"go"}, r.URL.Query()["languages"])
+			require.Equal(t, []string{"grpc"}, r.URL.Query()["frameworks"])
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
-	rc.query(context.Background(), QueryParams{
-		Domains:    []string{"api"},
-		Languages:  []string{"go"},
-		Frameworks: []string{"grpc"},
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		}))
+		defer srv.Close()
+
+		rc := newRemoteClient(srv.URL, "", 5*time.Second)
+		rc.query(context.Background(), QueryParams{
+			Domains:    []string{"api"},
+			Languages:  []string{"go"},
+			Frameworks: []string{"grpc"},
+		})
+	})
+
+	t.Run("multiple values", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, []string{"api", "testing"}, r.URL.Query()["domains"])
+			require.Equal(t, []string{"python", "go"}, r.URL.Query()["languages"])
+			require.Equal(t, []string{"grpc", "http"}, r.URL.Query()["frameworks"])
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		}))
+		defer srv.Close()
+
+		rc := newRemoteClient(srv.URL, "", 5*time.Second)
+		rc.query(context.Background(), QueryParams{
+			Domains:    []string{"api", "testing"},
+			Languages:  []string{"python", "go"},
+			Frameworks: []string{"grpc", "http"},
+		})
 	})
 }

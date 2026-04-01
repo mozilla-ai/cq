@@ -508,6 +508,56 @@ func TestQuery(t *testing.T) {
 		require.Equal(t, kuGo.ID, results.KUs[0].ID)
 	})
 
+	t.Run("multi-language query boosts any overlap", func(t *testing.T) {
+		t.Parallel()
+		s := newTestStore(t)
+
+		kuMatch := newFakeKU(t, []string{"api"})
+		kuMatch.Context = Context{Languages: []string{"python"}}
+		kuMatch.Evidence.Confidence = 0.8
+		require.NoError(t, s.insert(kuMatch))
+
+		kuNoMatch := newFakeKU(t, []string{"api"})
+		kuNoMatch.Context = Context{Languages: []string{"rust"}}
+		kuNoMatch.Evidence.Confidence = 0.8
+		require.NoError(t, s.insert(kuNoMatch))
+
+		// Querying with multiple languages; "python" overlaps with kuMatch.
+		results, err := s.query(
+			withDomain("api"),
+			withLanguage("python"), withLanguage("go"),
+			withLimit(10),
+		)
+		require.NoError(t, err)
+		require.Len(t, results.KUs, 2)
+		require.Equal(t, kuMatch.ID, results.KUs[0].ID, "unit with overlapping language should rank first")
+	})
+
+	t.Run("multi-framework query boosts any overlap", func(t *testing.T) {
+		t.Parallel()
+		s := newTestStore(t)
+
+		kuMatch := newFakeKU(t, []string{"api"})
+		kuMatch.Context = Context{Frameworks: []string{"grpc"}}
+		kuMatch.Evidence.Confidence = 0.8
+		require.NoError(t, s.insert(kuMatch))
+
+		kuNoMatch := newFakeKU(t, []string{"api"})
+		kuNoMatch.Context = Context{Frameworks: []string{"django"}}
+		kuNoMatch.Evidence.Confidence = 0.8
+		require.NoError(t, s.insert(kuNoMatch))
+
+		// Querying with multiple frameworks; "grpc" overlaps with kuMatch.
+		results, err := s.query(
+			withDomain("api"),
+			withFramework("grpc"), withFramework("http"),
+			withLimit(10),
+		)
+		require.NoError(t, err)
+		require.Len(t, results.KUs, 2)
+		require.Equal(t, kuMatch.ID, results.KUs[0].ID, "unit with overlapping framework should rank first")
+	})
+
 	t.Run("higher confidence ranks higher", func(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
