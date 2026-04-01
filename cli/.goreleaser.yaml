@@ -8,7 +8,7 @@ project_name: cq
 
 before:
   hooks:
-    - cd ../sdk/go && make sync-skill
+    - make -C ../sdk/go sync-skill
     - go mod tidy
 
 builds:
