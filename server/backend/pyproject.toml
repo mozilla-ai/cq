@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cq-team-api"
+name = "cq-server"
 version = "0.1.0"
-description = "cq team knowledge store API"
+description = "cq team knowledge store server"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-cq-team-api = "team_api.app:main"
+cq-server = "cq_server.app:main"
 
 [dependency-groups]
 dev = [
@@ -36,7 +36,7 @@ tests = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["team_api"]
+packages = ["src/cq_server"]
 
 [tool.ruff.lint]
 ignore = [
