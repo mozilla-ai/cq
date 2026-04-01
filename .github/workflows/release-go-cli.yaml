@@ -51,6 +51,12 @@ jobs:
 
           {
             echo "GORELEASER_CURRENT_TAG<<EOF"
+            echo "$VERSION"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "RELEASE_TAG<<EOF"
             echo "$TAG"
             echo "EOF"
           } >> "$GITHUB_ENV"
@@ -62,7 +68,7 @@ jobs:
 
       - name: Checkout release tag
         env:
-          TAG: ${{ env.GORELEASER_CURRENT_TAG }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           git fetch --tags
           if ! git rev-parse "$TAG" >/dev/null 2>&1; then

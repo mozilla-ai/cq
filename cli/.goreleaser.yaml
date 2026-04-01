@@ -6,9 +6,6 @@ version: 2
 
 project_name: cq
 
-monorepo:
-  tag_prefix: cli/
-
 before:
   hooks:
     - cd ../sdk/go && make sync-skill
