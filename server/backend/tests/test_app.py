@@ -115,11 +115,37 @@ class TestQuery:
             domains=["web"],
             context={"languages": ["go"], "frameworks": []},
         )
-        resp = client.get("/query", params={"domains": ["web"], "language": "python"})
+        resp = client.get("/query", params={"domains": ["web"], "languages": ["python"]})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 2
         assert "python" in results[0]["context"]["languages"]
+
+    def test_query_boosts_any_matching_language(self, client: TestClient) -> None:
+        self._insert_unit(
+            client,
+            domains=["web"],
+            context={"languages": ["python"], "frameworks": []},
+        )
+        self._insert_unit(
+            client,
+            domains=["web"],
+            context={"languages": ["go"], "frameworks": []},
+        )
+        self._insert_unit(
+            client,
+            domains=["web"],
+            context={"languages": ["rust"], "frameworks": []},
+        )
+        resp = client.get(
+            "/query",
+            params={"domains": ["web"], "languages": ["python", "go"]},
+        )
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) == 3
+        top_langs = {results[0]["context"]["languages"][0], results[1]["context"]["languages"][0]}
+        assert top_langs == {"python", "go"}
 
     def test_query_respects_limit(self, client: TestClient) -> None:
         for _ in range(3):
@@ -282,7 +308,7 @@ class TestEndToEnd:
         # Query returns the unit.
         resp = client.get(
             "/query",
-            params={"domains": ["api", "payments"], "language": "python"},
+            params={"domains": ["api", "payments"], "languages": ["python"]},
         )
         assert len(resp.json()) == 1
         assert resp.json()[0]["evidence"]["confidence"] == 0.5

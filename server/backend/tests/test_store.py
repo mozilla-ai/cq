@@ -118,7 +118,7 @@ class TestQuery:
             domains=["web"],
             context=Context(languages=["go"]),
         )
-        results = store.query(["web"], language="python")
+        results = store.query(["web"], languages=["python"])
         assert len(results) == 2
         assert results[0].id == py.id
         assert results[1].id == go.id
@@ -126,14 +126,14 @@ class TestQuery:
     def test_language_filter_includes_units_without_language(self, store: TeamStore) -> None:
         """KUs with no language set should still appear when language filter is used."""
         no_lang = _insert_and_approve(store, domains=["ci"])
-        results = store.query(["ci"], language="python")
+        results = store.query(["ci"], languages=["python"])
         assert len(results) == 1
         assert results[0].id == no_lang.id
 
     def test_framework_filter_includes_units_without_framework(self, store: TeamStore) -> None:
         """KUs with no framework set should still appear when framework filter is used."""
         no_fw = _insert_and_approve(store, domains=["web"])
-        results = store.query(["web"], framework="fastapi")
+        results = store.query(["web"], frameworks=["fastapi"])
         assert len(results) == 1
         assert results[0].id == no_fw.id
 
@@ -145,10 +145,57 @@ class TestQuery:
             domains=["web"],
             context=Context(languages=["python"]),
         )
-        results = store.query(["web"], language="python")
+        results = store.query(["web"], languages=["python"])
         assert len(results) == 2
         assert results[0].id == with_lang.id
         assert results[1].id == no_lang.id
+
+    def test_multiple_languages_boost_any_match(self, store: TeamStore) -> None:
+        """Querying with multiple languages boosts units matching any of them."""
+        py = _insert_and_approve(
+            store,
+            domains=["web"],
+            context=Context(languages=["python"]),
+        )
+        go = _insert_and_approve(
+            store,
+            domains=["web"],
+            context=Context(languages=["go"]),
+        )
+        rust = _insert_and_approve(
+            store,
+            domains=["web"],
+            context=Context(languages=["rust"]),
+        )
+        results = store.query(["web"], languages=["python", "go"])
+        assert len(results) == 3
+        # Both python and go units rank above rust (no match).
+        matched_ids = {results[0].id, results[1].id}
+        assert matched_ids == {py.id, go.id}
+        assert results[2].id == rust.id
+
+    def test_multiple_frameworks_boost_any_match(self, store: TeamStore) -> None:
+        """Querying with multiple frameworks boosts units matching any of them."""
+        fastapi = _insert_and_approve(
+            store,
+            domains=["web"],
+            context=Context(frameworks=["fastapi"]),
+        )
+        django = _insert_and_approve(
+            store,
+            domains=["web"],
+            context=Context(frameworks=["django"]),
+        )
+        flask = _insert_and_approve(
+            store,
+            domains=["web"],
+            context=Context(frameworks=["flask"]),
+        )
+        results = store.query(["web"], frameworks=["fastapi", "django"])
+        assert len(results) == 3
+        matched_ids = {results[0].id, results[1].id}
+        assert matched_ids == {fastapi.id, django.id}
+        assert results[2].id == flask.id
 
     def test_rejects_non_positive_limit(self, store: TeamStore) -> None:
         with pytest.raises(ValueError, match="limit must be positive"):
@@ -384,7 +431,7 @@ class TestEndToEnd:
             tier=Tier.PRIVATE,
         )
 
-        results = store.query(["api", "payments"], language="python")
+        results = store.query(["api", "payments"], languages=["python"])
         assert len(results) == 1
         assert results[0].evidence.confidence == 0.5
 

@@ -258,18 +258,18 @@ class TeamStore:
         self,
         domains: list[str],
         *,
-        language: str | None = None,
-        framework: str | None = None,
+        languages: list[str] | None = None,
+        frameworks: list[str] | None = None,
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Search for knowledge units by domain tags with relevance ranking.
 
         Args:
             domains: Domain tags to search for.
-            language: Optional language ranking signal. Matching KUs
-                rank higher but non-matching KUs are still returned.
-            framework: Optional framework ranking signal. Matching KUs
-                rank higher but non-matching KUs are still returned.
+            languages: Optional language ranking signal. KUs matching any
+                listed language rank higher but non-matching KUs are still returned.
+            frameworks: Optional framework ranking signal. KUs matching any
+                listed framework rank higher but non-matching KUs are still returned.
             limit: Maximum number of results to return. Must be positive.
 
         Returns:
@@ -311,8 +311,8 @@ class TeamStore:
             relevance = calculate_relevance(
                 unit,
                 normalized,
-                query_language=language,
-                query_framework=framework,
+                query_languages=languages,
+                query_frameworks=frameworks,
             )
             scored.append((relevance * unit.evidence.confidence, unit))
 
