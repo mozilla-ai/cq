@@ -348,6 +348,7 @@ class LocalStore:
         Raises:
             ValueError: If limit is not positive.
         """
+        domains = _as_list(domains)
         if languages is not None:
             languages = _as_list(languages)
         if frameworks is not None:

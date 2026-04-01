@@ -454,6 +454,15 @@ class TestQuery:
         assert len(results) == 2
         assert results[0].id == match.id
 
+    def test_bare_string_domains_coerced_to_list(self, store: LocalStore):
+        unit = _make_unit(domains=["zzzqqqxxx"])
+        store.insert(unit)
+        # Without _as_list, "zzzqqqxxx" is iterated char-by-char and
+        # no domain or FTS match is found, returning an empty list.
+        results = store.query("zzzqqqxxx")  # type: ignore[arg-type]
+        assert len(results) == 1
+        assert results[0].id == unit.id
+
     def test_bare_string_language_coerced_to_list(self, store: LocalStore):
         # The matching unit has lower confidence; the boost must overcome it.
         python_unit = _make_unit(
