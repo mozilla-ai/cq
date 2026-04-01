@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Load seed knowledge units into the cq team store.
 
-Reads scripts/seed/knowledge_units.json and POSTs each unit to the running
+Reads seed-kus.json and POSTs each unit to the running
 team API. After creation, approves most units via the review API, then calls
 /confirm or /flag to reach the target confidence defined by
 _target_confidence.
@@ -10,7 +10,7 @@ Leaves the last few units in 'pending' status so the review queue is not
 empty for demo purposes.
 
 Usage:
-    python scripts/seed/load.py --user demo --pass demo123 [--url http://localhost:8742]
+    python server/scripts/seed-kus.py --user demo --pass demo123 [--url http://localhost:8742]
 
 The team API must be running and a user must be seeded before this script
 is executed.
@@ -23,7 +23,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-SEED_FILE = Path(__file__).parent / "knowledge_units.json"
+SEED_FILE = Path(__file__).parent / "seed-kus.json"
 
 # Number of units to leave in pending status for the review queue.
 PENDING_COUNT = 3
