@@ -130,6 +130,22 @@ class TestCalculateRelevance:
         )
         assert score == pytest.approx(1.0)
 
+    def test_multi_language_query_boosts_on_any_overlap(self):
+        unit = _make_unit(context=Context(languages=["python"], frameworks=[]))
+        score_overlap = calculate_relevance(unit, ["databases"], query_languages=["go", "python"])
+        score_no_overlap = calculate_relevance(unit, ["databases"], query_languages=["go", "rust"])
+        score_none = calculate_relevance(unit, ["databases"], query_languages=None)
+        assert score_overlap > score_none
+        assert score_no_overlap == score_none
+
+    def test_multi_framework_query_boosts_on_any_overlap(self):
+        unit = _make_unit(context=Context(languages=[], frameworks=["django"]))
+        score_overlap = calculate_relevance(unit, ["databases"], query_frameworks=["flask", "django"])
+        score_no_overlap = calculate_relevance(unit, ["databases"], query_frameworks=["flask", "fastapi"])
+        score_none = calculate_relevance(unit, ["databases"], query_frameworks=None)
+        assert score_overlap > score_none
+        assert score_no_overlap == score_none
+
     def test_relevance_is_between_zero_and_one(self):
         unit = _make_unit(
             domains=["databases", "performance"],
