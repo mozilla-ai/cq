@@ -84,6 +84,17 @@ Newly proposed units start at confidence 0.5. Each confirmation adds 0.1; each f
 
 When a query returns results, read the `insight.action` field for the recommended approach and `insight.detail` for the full explanation.
 
+#### Presenting Results to the User
+
+After querying, present a reference table of consulted knowledge units so the user can see what guidance is influencing your actions. Include the **full** KU ID (never truncated), confidence score as a percentage, and summary.
+
+| ID | Confidence | Summary |
+|----|------------|---------|
+| `ku_0123456789abcdef0123456789abcdef` | 85% | Stripe API returns 200 for rate-limited requests |
+| `ku_abcdef0123456789abcdef0123456789` | 62% | Stripe webhook signatures use the raw body before JSON parsing |
+
+If the query returns no results, do not display a table.
+
 ### Proposing Knowledge (`propose`)
 
 Propose a new knowledge unit when you discover something that would save another agent time. Call `propose` when:
@@ -185,9 +196,13 @@ The developer asks you to integrate Stripe payments in a Python project.
 
 1. Recognise the trigger: external API integration.
 2. Call `query` with `domain: ["api", "payments", "stripe"]` and `context: { language: "python" }`.
-3. cq returns a knowledge unit (confidence: 0.94):
-   > **Summary:** Stripe API v2024-12 returns 200 with error body for rate-limited requests.
-   > **Action:** Always parse response body for error field regardless of HTTP status code.
+3. cq returns a knowledge unit. Present the reference table to the user:
+
+   | ID | Confidence | Summary |
+   |----|------------|---------|
+   | `ku_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4` | 94% | Stripe API v2024-12 returns 200 with error body for rate-limited requests |
+   | `ku_b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5` | 71% | Stripe webhook signatures must be verified against the raw request body, not parsed JSON |
+
 4. Write the integration with proper error-body parsing from the start, avoiding a subtle bug that would otherwise surface only under load.
 5. Call `confirm` with the knowledge unit's ID after verifying the behaviour.
 
@@ -211,8 +226,12 @@ The developer asks you to set up a Rust CI pipeline with GitHub Actions using a 
 
 1. Recognise the trigger: CI/CD configuration.
 2. Call `query` with `domain: ["ci", "github-actions", "rust"]`.
-3. cq returns a knowledge unit (confidence: 0.82):
-   > **Summary:** `rust-toolchain.toml` override is ignored when GitHub Actions matrix sets an explicit toolchain via `dtolnay/rust-toolchain`.
-   > **Action:** Remove `rust-toolchain.toml` from the repo root when using matrix-based toolchain selection, or use the file as the single source of truth and remove the matrix toolchain input.
+3. cq returns a knowledge unit. Present the reference table to the user:
+
+   | ID | Confidence | Summary |
+   |----|------------|---------|
+   | `ku_f7e8d9c0b1a2f7e8d9c0b1a2f7e8d9c0` | 82% | `rust-toolchain.toml` override is ignored when GitHub Actions matrix sets explicit toolchain via `dtolnay/rust-toolchain` |
+   | `ku_e8d9c0b1a2f7e8d9c0b1a2f7e8d9c0b1` | 65% | GitHub Actions `dtolnay/rust-toolchain` caches rustup but not Cargo build artefacts |
+
 4. Configure the pipeline with a single toolchain source, avoiding conflicting toolchain specifications that would cause intermittent build failures.
 5. Call `confirm` with the knowledge unit's ID.
