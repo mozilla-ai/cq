@@ -54,7 +54,7 @@ For isolated component testing outside Docker, use `make dev-api` (team API) and
 
 ## Agent Configuration
 
-To point your agent at a local team API instance, set `CQ_TEAM_ADDR`.
+To point your agent at a local API instance, set `CQ_ADDR`.
 
 ### Claude Code
 
@@ -63,7 +63,7 @@ Add to `~/.claude/settings.json` under the `env` key:
 ```json
 {
   "env": {
-    "CQ_TEAM_ADDR": "http://localhost:8742"
+    "CQ_ADDR": "http://localhost:8742"
   }
 }
 ```
@@ -77,14 +77,14 @@ Add to `~/.config/opencode/opencode.json` or your project-level config, in the M
   "mcp": {
     "cq": {
       "environment": {
-        "CQ_TEAM_ADDR": "http://localhost:8742"
+        "CQ_ADDR": "http://localhost:8742"
       }
     }
   }
 }
 ```
 
-`CQ_TEAM_API_KEY` is documented in the README but not yet implemented (see [#63](https://github.com/mozilla-ai/cq/issues/63), [#80](https://github.com/mozilla-ai/cq/issues/80)).
+`CQ_API_KEY` is documented in the README but not yet implemented (see [#63](https://github.com/mozilla-ai/cq/issues/63), [#80](https://github.com/mozilla-ai/cq/issues/80)).
 
 ## Docker Compose
 

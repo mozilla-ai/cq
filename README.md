@@ -37,7 +37,7 @@ Or from a cloned repo:
 make uninstall-claude
 ```
 
-If you configured team sync, you may also want to remove `CQ_TEAM_ADDR` and `CQ_TEAM_API_KEY` from `~/.claude/settings.json`.
+If you configured team sync, you may also want to remove `CQ_ADDR` and `CQ_API_KEY` from `~/.claude/settings.json`.
 
 ### OpenCode (MCP server)
 
@@ -132,10 +132,10 @@ cq works out of the box in **local-only mode** with no configuration. Set enviro
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `CQ_LOCAL_DB_PATH` | No | `~/.local/share/cq/local.db` | Path to the local SQLite database (follows [XDG Base Directory spec](https://specifications.freedesktop.org/basedir/latest/); respects `$XDG_DATA_HOME`) |
-| `CQ_TEAM_ADDR` | No | *(disabled)* | Team API URL. Set to enable team sync (e.g. `http://localhost:8742`) |
-| `CQ_TEAM_API_KEY` | When team configured | — | API key for team API authentication |
+| `CQ_ADDR` | No | *(disabled)* | Remote API URL. Set to enable team sync (e.g. `http://localhost:8742`) |
+| `CQ_API_KEY` | When remote configured | — | API key for remote API authentication |
 
-When `CQ_TEAM_ADDR` is unset or empty, cq runs in local-only mode — knowledge stays on your machine. Set it to a team API URL to enable shared knowledge across your team.
+When `CQ_ADDR` is unset or empty, cq runs in local-only mode — knowledge stays on your machine. Set it to a remote API URL to enable shared knowledge across your team.
 
 ### Claude Code
 
@@ -144,8 +144,8 @@ Add variables to `~/.claude/settings.json` under the `env` key:
 ```json
 {
   "env": {
-    "CQ_TEAM_ADDR": "http://localhost:8742",
-    "CQ_TEAM_API_KEY": "your-api-key"  # pragma: allowlist secret
+    "CQ_ADDR": "http://localhost:8742",
+    "CQ_API_KEY": "your-api-key"  # pragma: allowlist secret
   }
 }
 ```
@@ -161,8 +161,8 @@ Add an `environment` key to the cq MCP server entry in your OpenCode config (`~/
       "type": "local",
       "command": ["/path/to/cq", "mcp"],
       "environment": {
-        "CQ_TEAM_ADDR": "http://localhost:8742",
-        "CQ_TEAM_API_KEY": "your-api-key"  # pragma: allowlist secret
+        "CQ_ADDR": "http://localhost:8742",
+        "CQ_API_KEY": "your-api-key"  # pragma: allowlist secret
       }
     }
   }

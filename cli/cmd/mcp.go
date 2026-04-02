@@ -10,7 +10,6 @@ import (
 
 	"github.com/mozilla-ai/cq/cli/internal/version"
 	"github.com/mozilla-ai/cq/cli/mcpserver"
-	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
 // drainTimeout bounds the background drain of local to remote KUs at MCP server startup.
@@ -25,7 +24,7 @@ func NewMCPCmd() *cobra.Command {
 			"Use this when integrating cq into IDE plugins or agent frameworks " +
 			"that communicate via MCP.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, err := cq.NewClient()
+			c, err := newCLIClient()
 			if err != nil {
 				return err
 			}

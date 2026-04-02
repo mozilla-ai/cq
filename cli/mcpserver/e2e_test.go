@@ -37,8 +37,12 @@ func newMCPTestClient(t *testing.T, srv *mcpserver.Server) *client.Client {
 func newSDKClient(t *testing.T) *cq.Client {
 	t.Helper()
 
+	t.Setenv("CQ_ADDR", "")
+	t.Setenv("CQ_API_KEY", "")
+	t.Setenv("CQ_LOCAL_DB_PATH", "")
+
 	path := filepath.Join(t.TempDir(), "local.db")
-	c, err := cq.NewClient(cq.WithAddr(""), cq.WithAPIKey(""), cq.WithLocalDBPath(path))
+	c, err := cq.NewClient(cq.WithLocalDBPath(path))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = c.Close() })
 
@@ -46,7 +50,6 @@ func newSDKClient(t *testing.T) *cq.Client {
 }
 
 func TestE2EProposeQueryConfirmFlagStatus(t *testing.T) {
-	t.Parallel()
 
 	realClient := newSDKClient(t)
 	srv := mcpserver.New(realClient, "test")

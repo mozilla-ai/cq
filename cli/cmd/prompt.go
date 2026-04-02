@@ -28,7 +28,7 @@ func NewPromptCmd() *cobra.Command {
 
 			if format == "json" {
 				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
+				enc.SetIndent("", jsonIndent)
 
 				return enc.Encode(map[string]string{"prompt": prompt})
 			}

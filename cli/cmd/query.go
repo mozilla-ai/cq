@@ -50,7 +50,7 @@ func NewQueryCmd() *cobra.Command {
 
 			if format == "json" {
 				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
+				enc.SetIndent("", jsonIndent)
 
 				return enc.Encode(qr.Units)
 			}

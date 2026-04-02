@@ -38,10 +38,13 @@ func newRootCmd() *cobra.Command {
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 	rootCmd.Version = version.String()
 
+	cmd.InitFlags(rootCmd.PersistentFlags())
+
 	rootCmd.AddGroup(&cobra.Group{ID: "core", Title: "Core Commands:"})
 
 	for _, fn := range []func() *cobra.Command{
 		cmd.NewConfirmCmd,
+		cmd.NewDrainCmd,
 		cmd.NewFlagCmd,
 		cmd.NewMCPCmd,
 		cmd.NewPromptCmd,
@@ -54,9 +57,29 @@ func newRootCmd() *cobra.Command {
 		rootCmd.AddCommand(c)
 	}
 
-	rootCmd.AddGroup(&cobra.Group{ID: "system", Title: "System Commands:"})
+	// Assign built-in commands (e.g. help, completion) to the 'system' group.
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "system",
+		Title: "System Commands:",
+	})
 	rootCmd.SetHelpCommandGroupID("system")
 	rootCmd.SetCompletionCommandGroupID("system")
 
+	// Hide the --help flag on all commands.
+	hideHelpFlagsRecursively(rootCmd)
+
 	return rootCmd
+}
+
+// hideHelpFlagsRecursively hides the --help flag on all commands.
+func hideHelpFlagsRecursively(c *cobra.Command) {
+	c.InitDefaultHelpFlag()
+
+	if f := c.Flags().Lookup("help"); f != nil {
+		f.Hidden = true
+	}
+
+	for _, sub := range c.Commands() {
+		hideHelpFlagsRecursively(sub)
+	}
 }
