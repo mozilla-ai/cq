@@ -10,7 +10,7 @@ Leaves the last few units in 'pending' status so the review queue is not
 empty for demo purposes.
 
 Usage:
-    python server/scripts/seed-kus.py --user demo --pass demo123 [--url http://localhost:8742]
+    python server/scripts/seed-kus.py --user demo --pass demo123 [--url http://localhost:3000]
 
 The team API must be running and a user must be seeded before this script
 is executed.
@@ -131,8 +131,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--url",
-        default="http://localhost:8742",
-        help="Base URL of the team API (default: http://localhost:8742)",
+        default="http://localhost:3000",
+        help="Base URL of the team API (default: http://localhost:3000)",
     )
     parser.add_argument("--user", required=True, help="Username for review auth.")
     parser.add_argument("--pass", dest="password", required=True, help="Password.")

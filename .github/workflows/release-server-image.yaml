@@ -1,0 +1,122 @@
+name: Release Server Image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Prefixed tag to release (e.g. server/v0.1.0)"
+        required: true
+      skip_publish:
+        description: "Skip all image publishing"
+        required: false
+        default: "false"
+      skip_publish_ghcr:
+        description: "Skip GHCR publishing"
+        required: false
+        default: "false"
+      skip_publish_dockerhub:
+        description: "Skip DockerHub publishing"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  GHCR_IMAGE: ghcr.io/mozilla-ai/cq/server
+  DOCKERHUB_IMAGE: mzdotai/cq-server
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'server/v'))
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+        run: |
+          if [[ ! "$TAG" =~ ^server/v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not match expected pattern server/vX.Y.Z"
+            exit 1
+          fi
+          VERSION="${TAG#server/}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve publish flags
+        id: publish
+        env:
+          SKIP_ALL: ${{ github.event.inputs.skip_publish || 'false' }}
+          SKIP_GHCR: ${{ github.event.inputs.skip_publish_ghcr || 'false' }}
+          SKIP_DOCKERHUB: ${{ github.event.inputs.skip_publish_dockerhub || 'false' }}
+        run: |
+          if [[ "$SKIP_ALL" == "true" ]]; then
+            echo "ghcr=false" >> "$GITHUB_OUTPUT"
+            echo "dockerhub=false" >> "$GITHUB_OUTPUT"
+          else
+            [[ "$SKIP_GHCR" == "true" ]] && echo "ghcr=false" >> "$GITHUB_OUTPUT" || echo "ghcr=true" >> "$GITHUB_OUTPUT"
+            [[ "$SKIP_DOCKERHUB" == "true" ]] && echo "dockerhub=false" >> "$GITHUB_OUTPUT" || echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: steps.publish.outputs.ghcr == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to DockerHub
+        if: steps.publish.outputs.dockerhub == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Collect tags
+        id: tags
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          PUSH_GHCR: ${{ steps.publish.outputs.ghcr }}
+          PUSH_DOCKERHUB: ${{ steps.publish.outputs.dockerhub }}
+        run: |
+          TAGS=""
+          if [[ "$PUSH_GHCR" == "true" ]]; then
+            TAGS="${GHCR_IMAGE}:${VERSION},${GHCR_IMAGE}:latest"
+          fi
+          if [[ "$PUSH_DOCKERHUB" == "true" ]]; then
+            [[ -n "$TAGS" ]] && TAGS="${TAGS},"
+            TAGS="${TAGS}${DOCKERHUB_IMAGE}:${VERSION},${DOCKERHUB_IMAGE}:latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "push=$([[ -n "$TAGS" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: server
+          push: ${{ steps.tags.outputs.push }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/mozilla-ai/cq
+            org.opencontainers.image.version=${{ steps.tag.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -5,13 +5,13 @@
 #
 # Usage:
 #   ./server/scripts/migrate-v1.sh [DB_PATH]    # Local SDK database.
-#   docker compose exec cq-team-api \
-#     bash /app/scripts/migrate-v1.sh            # Team server database.
+#   docker compose exec cq-server \
+#     bash /app/scripts/migrate-v1.sh            # Server database.
 #
 # DB_PATH resolution order:
 #   1. Explicit argument
 #   2. CQ_LOCAL_DB_PATH environment variable
-#   3. CQ_DB_PATH environment variable (set in the team-api container)
+#   3. CQ_DB_PATH environment variable (set in the cq-server container)
 #   4. ${XDG_DATA_HOME:-$HOME/.local/share}/cq/local.db
 #
 # Transformations applied:

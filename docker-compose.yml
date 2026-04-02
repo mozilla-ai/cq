@@ -1,21 +1,14 @@
 services:
-  cq-team-api:
-    build: ./server/backend
+  cq-server:
+    build: ./server
     ports:
-      - "8742:8742"
+      - "3000:3000"
     volumes:
       - cq-data:/data
       - ./server/scripts:/app/scripts:ro
     environment:
-      - CQ_DB_PATH=/data/team.db
+      - CQ_DB_PATH=/data/cq.db
       - CQ_JWT_SECRET=${CQ_JWT_SECRET:?Set CQ_JWT_SECRET}
-
-  cq-team-ui:
-    build: ./server/frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - cq-team-api
 
 volumes:
   cq-data:

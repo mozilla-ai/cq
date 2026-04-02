@@ -5,7 +5,7 @@ import type {
   ReviewStatsResponse,
 } from "./types";
 
-const API_BASE = "/api";
+const API_BASE = "/api/v1";
 const TOKEN_KEY = "cq_auth_token";
 
 let token: string | null = null;

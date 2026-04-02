@@ -13,7 +13,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Seed a cq team user.")
     parser.add_argument("--username", required=True)
     parser.add_argument("--password", required=True)
-    parser.add_argument("--db", default="/data/team.db")
+    parser.add_argument("--db", default="/data/cq.db")
     args = parser.parse_args()
 
     db_path = Path(args.db)

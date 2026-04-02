@@ -17,7 +17,7 @@ from cq.models import KnowledgeUnit
 from .scoring import calculate_relevance
 from .tables import ensure_review_columns, ensure_users_table
 
-DEFAULT_DB_PATH = Path("/data/team.db")
+DEFAULT_DB_PATH = Path("/data/cq.db")
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS knowledge_units (
@@ -55,7 +55,7 @@ class TeamStore:
         """Initialise the store, creating the database and schema if needed.
 
         Args:
-            db_path: Path to the SQLite database file. Defaults to /data/team.db.
+            db_path: Path to the SQLite database file. Defaults to /data/cq.db.
         """
         self._db_path = db_path or DEFAULT_DB_PATH
         self._db_path.parent.mkdir(parents=True, exist_ok=True)

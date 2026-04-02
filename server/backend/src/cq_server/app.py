@@ -1,4 +1,4 @@
-"""cq team knowledge store API."""
+"""cq knowledge store API."""
 
 import os
 from collections.abc import AsyncIterator
@@ -15,13 +15,17 @@ from cq.models import (
     Tier,
     create_knowledge_unit,
 )
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.responses import FileResponse
 
 from .auth import router as auth_router
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
 from .store import TeamStore, normalize_domains
+
+_STATIC_DIR = Path(__file__).parent / "static"
 
 
 class ProposeRequest(BaseModel):
@@ -63,25 +67,27 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     jwt_secret = os.environ.get("CQ_JWT_SECRET")
     if not jwt_secret:
         raise RuntimeError("CQ_JWT_SECRET environment variable is required")
-    db_path = Path(os.environ.get("CQ_DB_PATH", "/data/team.db"))
+    db_path = Path(os.environ.get("CQ_DB_PATH", "/data/cq.db"))
     _store = TeamStore(db_path=db_path)
     app_instance.state.store = _store
     yield
     _store.close()
 
 
-app = FastAPI(title="cq Team API", version="0.1.0", lifespan=lifespan)
-app.include_router(auth_router)
-app.include_router(review_router)
+# --- API routes on a shared router so they can be mounted at both / and /api. ---
+
+api_router = APIRouter()
+api_router.include_router(auth_router)
+api_router.include_router(review_router)
 
 
-@app.get("/health")
+@api_router.get("/health")
 def health() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
 
 
-@app.get("/query")
+@api_router.get("/query")
 def query_units(
     domains: Annotated[list[str], Query()],
     languages: Annotated[list[str] | None, Query()] = None,
@@ -93,9 +99,9 @@ def query_units(
     return store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
 
 
-@app.post("/propose", status_code=201)
+@api_router.post("/propose", status_code=201)
 def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
-    """Submit a new knowledge unit to the team store."""
+    """Submit a new knowledge unit."""
     store = _get_store()
     normalized = normalize_domains(request.domains)
     if not normalized:
@@ -111,7 +117,7 @@ def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
     return unit
 
 
-@app.post("/confirm/{unit_id}")
+@api_router.post("/confirm/{unit_id}")
 def confirm_unit(unit_id: str) -> KnowledgeUnit:
     """Confirm a knowledge unit, boosting its confidence."""
     store = _get_store()
@@ -123,7 +129,7 @@ def confirm_unit(unit_id: str) -> KnowledgeUnit:
     return confirmed
 
 
-@app.post("/flag/{unit_id}")
+@api_router.post("/flag/{unit_id}")
 def flag_unit(unit_id: str, request: FlagRequest) -> KnowledgeUnit:
     """Flag a knowledge unit, reducing its confidence."""
     store = _get_store()
@@ -135,7 +141,7 @@ def flag_unit(unit_id: str, request: FlagRequest) -> KnowledgeUnit:
     return flagged
 
 
-@app.get("/stats")
+@api_router.get("/stats")
 def stats() -> StatsResponse:
     """Return store statistics."""
     store = _get_store()
@@ -145,6 +151,25 @@ def stats() -> StatsResponse:
     )
 
 
+# --- Application assembly. ---
+
+app = FastAPI(title="cq Server", version="0.1.0", lifespan=lifespan)
+
+# Mount API routes at root (SDK compatibility) and at /api (frontend).
+app.include_router(api_router)
+app.include_router(api_router, prefix="/api/v1")
+
+# Serve the frontend static build when present (combined Docker image).
+if _STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=_STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/{path:path}")
+    def spa_fallback(path: str) -> FileResponse:
+        """Serve the SPA entry point for any unmatched path."""
+        return FileResponse(_STATIC_DIR / "index.html")
+
+
 def main() -> None:
-    """Start the cq team API server."""
-    uvicorn.run(app, host="0.0.0.0", port=8742)
+    """Start the cq API server."""
+    port = int(os.environ.get("CQ_PORT", "3000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

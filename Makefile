@@ -123,7 +123,7 @@ endif
 ifndef PASS
 	$(error PASS is required. Usage: make seed-users USER=peter PASS=changeme)
 endif
-	docker compose exec cq-team-api /app/.venv/bin/python /app/scripts/seed-users.py --username "$(USER)" --password "$(PASS)"
+	docker compose exec cq-server /app/.venv/bin/python /app/scripts/seed-users.py --username "$(USER)" --password "$(PASS)"
 
 .PHONY: seed-kus
 seed-kus:
@@ -133,7 +133,7 @@ endif
 ifndef PASS
 	$(error PASS is required. Usage: make seed-kus USER=demo PASS=demo123)
 endif
-	docker compose exec cq-team-api /app/.venv/bin/python /app/scripts/seed-kus.py --user "$(USER)" --pass "$(PASS)" --url http://localhost:8742
+	docker compose exec cq-server /app/.venv/bin/python /app/scripts/seed-kus.py --user "$(USER)" --pass "$(PASS)" --url http://localhost:3000
 
 .PHONY: seed-all
 seed-all:
@@ -148,7 +148,7 @@ endif
 
 .PHONY: dev-api
 dev-api:
-	cd server/backend && CQ_DB_PATH=./dev.db CQ_JWT_SECRET=dev-secret uv run cq-server
+	cd server/backend && CQ_DB_PATH=./dev.db CQ_JWT_SECRET=dev-secret CQ_PORT=8742 uv run cq-server
 
 .PHONY: dev-ui
 dev-ui:
