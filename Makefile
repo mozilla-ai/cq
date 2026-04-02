@@ -47,6 +47,7 @@ help:
 	@echo "  make seed-users USER=demo PASS=demo123       Create a user"
 	@echo "  make seed-kus   USER=demo PASS=demo123       Load sample knowledge units"
 	@echo "  make seed-all   USER=demo PASS=demo123       Create user + load KUs"
+	@echo "  make backup-db                               Snapshot server database locally"
 
 .PHONY: setup-cli
 setup-cli:
@@ -114,6 +115,10 @@ compose-down:
 .PHONY: compose-reset
 compose-reset:
 	docker compose down -v
+
+.PHONY: backup-db
+backup-db:
+	@bash server/scripts/backup-db.sh
 
 .PHONY: seed-users
 seed-users:
