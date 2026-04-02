@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
@@ -10,6 +12,9 @@ import (
 	"github.com/mozilla-ai/cq/cli/mcpserver"
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
+
+// drainTimeout bounds the background drain of local to remote KUs at MCP server startup.
+const drainTimeout = 30 * time.Second
 
 // NewMCPCmd returns the mcp command.
 func NewMCPCmd() *cobra.Command {
@@ -25,6 +30,14 @@ func NewMCPCmd() *cobra.Command {
 				return err
 			}
 			defer func() { _ = c.Close() }()
+
+			if c.HasRemote() {
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
+					defer cancel()
+					_, _ = c.Drain(ctx)
+				}()
+			}
 
 			srv := mcpserver.New(c, version.Version())
 			if err := server.ServeStdio(srv.MCPServer()); err != nil {

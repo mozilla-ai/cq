@@ -494,6 +494,24 @@ func TestDrainNoRemote(t *testing.T) {
 	require.Contains(t, err.Error(), "no remote API configured")
 }
 
+func TestHasRemote(t *testing.T) {
+	t.Parallel()
+
+	t.Run("without remote", func(t *testing.T) {
+		t.Parallel()
+		c := newTestClient(t)
+		require.False(t, c.HasRemote())
+	})
+
+	t.Run("with remote", func(t *testing.T) {
+		t.Parallel()
+		c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		require.True(t, c.HasRemote())
+	})
+}
+
 func TestFlagRemoteUnit(t *testing.T) {
 	t.Parallel()
 	var received map[string]any

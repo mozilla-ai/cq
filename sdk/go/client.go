@@ -66,6 +66,11 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// HasRemote reports whether the client is configured with a remote API.
+func (c *Client) HasRemote() bool {
+	return c.remote != nil
+}
+
 // Confirm boosts the confidence of a knowledge unit.
 // Routes to local store or remote API based on the unit's tier.
 func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, error) {
