@@ -205,13 +205,18 @@ configure_mcp() {
         '{ type: "local", command: ["python3", $script] }')
 
     if [[ -f "${config_file}" ]]; then
-        if jq -e '.mcp.cq' "${config_file}" &>/dev/null; then
-            echo "  MCP server already configured in ${config_file}"
-        else
+        if ! jq -e '.mcp.cq' "${config_file}" &>/dev/null; then
             local tmp
             tmp=$(jq --argjson entry "${cq_entry}" '.mcp.cq = $entry' "${config_file}")
             printf '%s\n' "${tmp}" > "${config_file}"
             echo "  Added CQ MCP server to ${config_file}"
+        elif ! jq -e --argjson expected "${cq_entry}" '.mcp.cq.command == $expected.command' "${config_file}" &>/dev/null; then
+            local tmp
+            tmp=$(jq --argjson entry "${cq_entry}" '.mcp.cq = $entry' "${config_file}")
+            printf '%s\n' "${tmp}" > "${config_file}"
+            echo "  Updated CQ MCP server in ${config_file}"
+        else
+            echo "  MCP server already configured in ${config_file}"
         fi
     else
         mkdir -p "$(dirname "${config_file}")"
