@@ -21,8 +21,8 @@ dest="${data_home}/cq/backup/${ts}"
 mkdir -p "$dest"
 
 # Produce a consistent snapshot inside the container, then copy it out.
-docker compose exec cq-server sqlite3 /data/cq.db ".backup /data/cq.db.backup"
+docker compose exec -T cq-server sqlite3 /data/cq.db ".backup /data/cq.db.backup"
 docker compose cp cq-server:/data/cq.db.backup "$dest/cq.db"
-docker compose exec cq-server rm /data/cq.db.backup
+docker compose exec -T cq-server rm /data/cq.db.backup
 
 echo "Backed up to ${dest}"

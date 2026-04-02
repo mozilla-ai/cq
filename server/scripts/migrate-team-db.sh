@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# migrate-team-db.sh — Migrate team.db to cq.db inside the server data volume.
+# migrate-team-db.sh — Create cq.db from an existing team.db.
 #
-# Run from inside the container (via docker compose exec or run) or directly
-# if the data directory is accessible on the host.
+# For users upgrading from the old team-server layout where the database was
+# named team.db. Uses sqlite3 .backup to produce a consistent cq.db snapshot.
+# The original team.db is left in place; a copy is also kept at
+# team.db.pre-rename-backup for safety.
 #
-# Usage:
+# Run from inside the container or directly on the host:
 #   docker compose exec cq-server bash /app/scripts/migrate-team-db.sh
 #   docker compose run --rm cq-server bash /app/scripts/migrate-team-db.sh
-#   ./server/scripts/migrate-team-db.sh /path/to/data   # Direct host access.
-#
-# Uses sqlite3 .backup to produce a consistent cq.db from team.db.
-# A copy of team.db is kept as team.db.pre-rename-backup.
+#   ./server/scripts/migrate-team-db.sh /path/to/data
 #
 # Idempotent: safe to run multiple times.
 
@@ -44,4 +43,4 @@ sqlite3 "$OLD_DB" ".backup '${NEW_DB}'"
 # Clean up old WAL/SHM files.
 rm -f "${OLD_DB}-wal" "${OLD_DB}-shm"
 
-echo "Migrated ${OLD_DB} → ${NEW_DB}."
+echo "Created ${NEW_DB} from ${OLD_DB}."

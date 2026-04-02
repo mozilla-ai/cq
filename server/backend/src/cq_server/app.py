@@ -166,6 +166,8 @@ if _STATIC_DIR.is_dir():
     @app.get("/{path:path}")
     def spa_fallback(path: str) -> FileResponse:
         """Serve the SPA entry point for any unmatched path."""
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
         return FileResponse(_STATIC_DIR / "index.html")
 
 

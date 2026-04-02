@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Load seed knowledge units into the cq team store.
+"""Load seed knowledge units into the cq server.
 
-Reads seed-kus.json and POSTs each unit to the running
-team API. After creation, approves most units via the review API, then calls
-/confirm or /flag to reach the target confidence defined by
-_target_confidence.
+Reads seed-kus.json and POSTs each unit to the running server. After creation,
+approves most units via the review API, then calls /confirm or /flag to reach
+the target confidence defined by _target_confidence.
 
 Leaves the last few units in 'pending' status so the review queue is not
 empty for demo purposes.
@@ -12,7 +11,7 @@ empty for demo purposes.
 Usage:
     python server/scripts/seed-kus.py --user demo --pass demo123 [--url http://localhost:3000]
 
-The team API must be running and a user must be seeded before this script
+The server must be running and a user must be seeded before this script
 is executed.
 """
 
@@ -51,7 +50,7 @@ def _request(
 
 
 def _check_health(base_url: str) -> None:
-    """Verify the team API is reachable."""
+    """Verify the server is reachable."""
     req = urllib.request.Request(f"{base_url}/health")
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -60,8 +59,8 @@ def _check_health(base_url: str) -> None:
                 raise SystemExit(f"Health check failed: {result}")
     except urllib.error.URLError as exc:
         raise SystemExit(
-            f"Cannot reach team API at {base_url}: {exc.reason}\n"
-            "Make sure the API is running (make dev-api or make compose-up)."
+            f"Cannot reach server at {base_url}: {exc.reason}\n"
+            "Make sure the server is running (make dev-api or make compose-up)."
         ) from exc
 
 
@@ -127,12 +126,12 @@ def load(base_url: str, token: str) -> None:
 
 
 def main() -> None:
-    """Load seed knowledge units into the cq team store."""
+    """Load seed knowledge units into the cq server."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--url",
         default="http://localhost:3000",
-        help="Base URL of the team API (default: http://localhost:3000)",
+        help="Base URL of the cq server (default: http://localhost:3000)",
     )
     parser.add_argument("--user", required=True, help="Username for review auth.")
     parser.add_argument("--pass", dest="password", required=True, help="Password.")
