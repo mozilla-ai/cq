@@ -3,10 +3,16 @@ name: Python SDK CI
 on:
   push:
     branches: [main]
-    paths: ["sdk/python/**", "schema/**"]
+    paths:
+      - .github/workflows/ci-sdk-python.yaml
+      - schema/**
+      - sdk/python/**
   pull_request:
     branches: [main]
-    paths: ["sdk/python/**", "schema/**"]
+    paths:
+      - .github/workflows/ci-sdk-python.yaml
+      - schema/**
+      - sdk/python/**
 
 permissions:
   contents: read

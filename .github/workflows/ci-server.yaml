@@ -3,10 +3,16 @@ name: Server CI
 on:
   push:
     branches: [main]
-    paths: ["server/**", "schema/**"]
+    paths:
+      - .github/workflows/ci-server.yaml
+      - schema/**
+      - server/**
   pull_request:
     branches: [main]
-    paths: ["server/**", "schema/**"]
+    paths:
+      - .github/workflows/ci-server.yaml
+      - schema/**
+      - server/**
 
 permissions:
   contents: read

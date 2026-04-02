@@ -3,10 +3,16 @@ name: Plugin CI
 on:
   push:
     branches: [main]
-    paths: ["plugins/cq/**", "schema/**"]
+    paths:
+      - .github/workflows/ci-plugin.yaml
+      - plugins/cq/**
+      - schema/**
   pull_request:
     branches: [main]
-    paths: ["plugins/cq/**", "schema/**"]
+    paths:
+      - .github/workflows/ci-plugin.yaml
+      - plugins/cq/**
+      - schema/**
 
 permissions:
   contents: read

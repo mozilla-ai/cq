@@ -26,7 +26,7 @@ NOTICE_TPL := ../../build/licenses/notice.tpl
 help:
 	@echo "cq Go SDK"
 	@echo ""
-	@echo "  make sync-skill      Copy skill prompt from golden source"
+	@echo "  make sync-skill       Copy skill prompt from golden source"
 	@echo "  make lint             Run golangci-lint"
 	@echo "  make test             Run all tests"
 	@echo "  make check-licenses   Verify dependency licenses"
@@ -39,12 +39,12 @@ sync-skill:
 	@echo "✓ Skill prompt synced."
 
 .PHONY: lint
-lint: sync-skill check-notice
+lint: sync-skill check-notice check-licenses
 	golangci-lint run --fix -v
 
 .PHONY: test
-test: lint
-	go test ./...
+test: sync-skill
+	go test ./... -v
 
 .PHONY: check-licenses
 check-licenses:

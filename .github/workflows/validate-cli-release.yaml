@@ -4,17 +4,19 @@ on:
   push:
     branches: [main]
     paths:
+      - .github/workflows/release-cli.yaml
+      - .github/workflows/validate-cli-release.yaml
+      - build/brew/**
       - cli/go.mod
       - cli/internal/version/**
-      - .github/workflows/release-go-cli.yaml
-      - build/brew/**
   pull_request:
     branches: [main]
     paths:
+      - .github/workflows/release-cli.yaml
+      - .github/workflows/validate-cli-release.yaml
+      - build/brew/**
       - cli/go.mod
       - cli/internal/version/**
-      - .github/workflows/release-go-cli.yaml
-      - build/brew/**
   workflow_dispatch:
 
 permissions:

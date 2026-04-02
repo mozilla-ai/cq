@@ -38,15 +38,15 @@ help:
 	@echo "  make check-notice     Verify NOTICE is up to date"
 
 .PHONY: lint
-lint: check-notice
+lint: check-notice check-licenses
 	golangci-lint run --fix -v
 
 .PHONY: test
-test: lint
-	go test ./...
+test:
+	go test ./... -v
 
 .PHONY: build
-build: lint
+build:
 	@echo "Building cq (version: $(VERSION), commit: $(COMMIT))..."
 	@go build $(BUILDFLAGS) -o cq -ldflags="$(LDFLAGS)" .
 

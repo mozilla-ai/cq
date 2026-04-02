@@ -4,23 +4,25 @@ on:
   push:
     branches: [main]
     paths:
-      - "cli/go.mod"
-      - "cli/go.sum"
-      - "cli/NOTICE"
-      - "sdk/go/go.mod"
-      - "sdk/go/go.sum"
-      - "sdk/go/NOTICE"
-      - "build/licenses/**"
+      - .github/workflows/ci-licenses.yaml
+      - build/licenses/**
+      - cli/go.mod
+      - cli/go.sum
+      - cli/NOTICE
+      - sdk/go/go.mod
+      - sdk/go/go.sum
+      - sdk/go/NOTICE
   pull_request:
     branches: [main]
     paths:
-      - "cli/go.mod"
-      - "cli/go.sum"
-      - "cli/NOTICE"
-      - "sdk/go/go.mod"
-      - "sdk/go/go.sum"
-      - "sdk/go/NOTICE"
-      - "build/licenses/**"
+      - .github/workflows/ci-licenses.yaml
+      - build/licenses/**
+      - cli/go.mod
+      - cli/go.sum
+      - cli/NOTICE
+      - sdk/go/go.mod
+      - sdk/go/go.sum
+      - sdk/go/NOTICE
 
 permissions:
   contents: read
