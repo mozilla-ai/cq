@@ -17,6 +17,7 @@ func testSetup(t *testing.T) {
 	// Set package-level flag vars that newCLIClient reads.
 	setFlag(t, &flagDBPath, dbPath)
 	setFlag(t, &flagAddr, "")
+	setFlag(t, &flagAPIKey, "")
 }
 
 // setFlag sets a package-level flag variable and restores it after the test.

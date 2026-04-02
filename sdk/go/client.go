@@ -167,8 +167,11 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 
 // DrainableCount returns the number of local units that Drain would push.
 func (c *Client) DrainableCount(ctx context.Context) (int, error) {
-	_, cancel := c.operationContext(ctx)
-	defer cancel()
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
 
 	units, err := c.store.all()
 	if err != nil {

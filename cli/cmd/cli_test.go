@@ -26,7 +26,7 @@ func TestInitFlagsDefaultsFromEnv(t *testing.T) {
 	InitFlags(fs)
 
 	require.Equal(t, "http://test:8742", fs.Lookup("addr").DefValue)
-	require.Equal(t, "test-key", fs.Lookup("api-key").DefValue)
+	require.Empty(t, fs.Lookup("api-key").DefValue, "api-key default should never expose the secret")
 	require.Equal(t, "/tmp/test.db", fs.Lookup("db-path").DefValue)
 }
 

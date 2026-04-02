@@ -75,21 +75,20 @@ func NewDrainCmd() *cobra.Command {
 
 // outputDrainResult formats and writes the drain result.
 func outputDrainResult(cmd *cobra.Command, result cq.DrainResult, format string) error {
-	if format == "json" {
+	switch format {
+	case "json":
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", jsonIndent)
+		return enc.Encode(result)
+	case "text":
+		w := cmd.OutOrStdout()
+		_, _ = fmt.Fprintf(w, "Pushed %d unit(s) to remote.\n", result.Pushed)
 
-		return enc.Encode(map[string]any{
-			"pushed":   result.Pushed,
-			"warnings": len(result.Warnings),
-		})
-	}
-
-	w := cmd.OutOrStdout()
-	_, _ = fmt.Fprintf(w, "Pushed %d unit(s) to remote.\n", result.Pushed)
-
-	for _, warn := range result.Warnings {
-		_, _ = fmt.Fprintf(w, "  warning: %v\n", warn)
+		for _, warn := range result.Warnings {
+			_, _ = fmt.Fprintf(w, "  warning: %v\n", warn)
+		}
+	default:
+		return fmt.Errorf("unsupported format '%s'", format)
 	}
 
 	return nil

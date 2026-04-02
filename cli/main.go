@@ -65,10 +65,35 @@ func newRootCmd() *cobra.Command {
 	rootCmd.SetHelpCommandGroupID("system")
 	rootCmd.SetCompletionCommandGroupID("system")
 
+	// Hide client flags on commands that don't use a client.
+	hideFlagsFor(rootCmd, "prompt")
+
 	// Hide the --help flag on all commands.
 	hideHelpFlagsRecursively(rootCmd)
 
 	return rootCmd
+}
+
+// hideFlagsFor hides the persistent client flags on the named subcommands.
+func hideFlagsFor(root *cobra.Command, names ...string) {
+	hidden := make(map[string]bool, len(names))
+	for _, n := range names {
+		hidden[n] = true
+	}
+
+	for _, c := range root.Commands() {
+		if hidden[c.Name()] {
+			c.SetHelpFunc(func(c *cobra.Command, args []string) {
+				for _, name := range []string{"addr", "api-key", "db-path"} {
+					if f := c.Flags().Lookup(name); f != nil {
+						f.Hidden = true
+					}
+				}
+
+				c.Parent().HelpFunc()(c, args)
+			})
+		}
+	}
 }
 
 // hideHelpFlagsRecursively hides the --help flag on all commands.

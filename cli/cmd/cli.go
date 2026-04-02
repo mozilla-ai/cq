@@ -50,9 +50,10 @@ var (
 // InitFlags registers persistent flags that apply to all subcommands.
 func InitFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&flagAddr, "addr", os.Getenv(envVarAddr), "Remote API address (env: "+envVarAddr+")")
-	fs.StringVar(&flagAPIKey, "api-key", os.Getenv(envVarAPIKey), "API key for remote authentication (env: "+envVarAPIKey+")")
+	fs.StringVar(&flagAPIKey, "api-key", "", "API key for remote authentication (env: "+envVarAPIKey+")")
 	fs.StringVar(&flagDBPath, "db-path", os.Getenv(envVarDBPath), "Local database path (env: "+envVarDBPath+")")
 }
+
 
 // cliTimeout returns the CLI operation timeout from CQ_TIMEOUT env var or the default.
 func cliTimeout() time.Duration {
@@ -77,8 +78,13 @@ func newCLIClient() (*cq.Client, error) {
 		opts = append(opts, cq.WithAddr(flagAddr))
 	}
 
-	if flagAPIKey != "" {
-		opts = append(opts, cq.WithAPIKey(flagAPIKey))
+	apiKey := flagAPIKey // pragma: allowlist secret
+	if apiKey == "" {
+		apiKey = os.Getenv(envVarAPIKey)
+	}
+
+	if apiKey != "" {
+		opts = append(opts, cq.WithAPIKey(apiKey))
 	}
 
 	if flagDBPath != "" {

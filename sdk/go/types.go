@@ -1,6 +1,9 @@
 package cq
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Context describes the programming context where a knowledge unit applies.
 type Context struct {
@@ -11,8 +14,8 @@ type Context struct {
 
 // DrainResult holds the outcome of a drain operation.
 type DrainResult struct {
-	Pushed   int     `json:"pushed"`
-	Warnings []error `json:"-"`
+	Pushed   int      `json:"pushed"`
+	Warnings Warnings `json:"warnings,omitempty"`
 }
 
 // Evidence tracks confidence metrics for a knowledge unit.
@@ -89,7 +92,7 @@ type QueryResult struct {
 	Source QuerySource `json:"source"`
 
 	// Warnings collects non-fatal issues encountered during the query.
-	Warnings []error `json:"-"`
+	Warnings Warnings `json:"warnings,omitempty"`
 }
 
 // StoreStats holds aggregated statistics about the knowledge store.
@@ -100,10 +103,20 @@ type StoreStats struct {
 	ConfidenceDistribution map[string]int  `json:"confidence_distribution"`
 }
 
+type Warnings []error
+
 // flagConfig holds optional parameters for a flag operation.
 type flagConfig struct {
 	detail      string
 	duplicateOf string
+}
+
+func (ws *Warnings) MarshalJSON() ([]byte, error) {
+	v := make([]string, len(*ws))
+	for i, w := range *ws {
+		v[i] = w.Error()
+	}
+	return json.Marshal(v)
 }
 
 // WithDetail adds an explanation to the flag.
