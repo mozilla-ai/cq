@@ -1,4 +1,4 @@
-"""Tests for the cq team API endpoints."""
+"""Tests for the cq remote API endpoints."""
 
 from collections.abc import Iterator
 from pathlib import Path

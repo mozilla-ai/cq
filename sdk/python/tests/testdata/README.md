@@ -10,8 +10,8 @@ with clean enum values (`"local"`, `"private"`, `"stale"`).
 
 - `python_unit.json` -- Local tier, one stale flag.
 - `python_flagged_unit.json` -- Local tier, two flags (stale + incorrect), multiple languages.
-- `python_real_unit.json` -- Real production unit from team API, private tier.
-- `python_team_confirmed.json` -- Private tier, confirmed twice, no flags.
+- `python_real_unit.json` -- Real production unit from remote API, private tier.
+- `python_remote_confirmed.json` -- Private tier, confirmed twice, no flags.
 - `ku_*.json` -- Real KU backups from production, all private tier.
 
 ## Go fixtures

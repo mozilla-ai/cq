@@ -37,7 +37,7 @@ Or from a cloned repo:
 make uninstall-claude
 ```
 
-If you configured team sync, you may also want to remove `CQ_ADDR` and `CQ_API_KEY` from `~/.claude/settings.json`.
+If you configured remote sync, you may also want to remove `CQ_ADDR` and `CQ_API_KEY` from `~/.claude/settings.json`.
 
 ### OpenCode (MCP server)
 
@@ -63,7 +63,7 @@ make uninstall-opencode
 make uninstall-opencode PROJECT=/path/to/your/project
 ```
 
-If you configured team sync, you may also want to remove the `environment` block from the cq entry in your OpenCode config.
+If you configured remote sync, you may also want to remove the `environment` block from the cq entry in your OpenCode config.
 
 ### Go SDK
 
@@ -127,15 +127,15 @@ make build
 
 ## Configuration
 
-cq works out of the box in **local-only mode** with no configuration. Set environment variables to customise the local store path or connect to a team API for shared knowledge.
+cq works out of the box in **local-only mode** with no configuration. Set environment variables to customize the local store path or connect to a remote API for shared knowledge.
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `CQ_LOCAL_DB_PATH` | No | `~/.local/share/cq/local.db` | Path to the local SQLite database (follows [XDG Base Directory spec](https://specifications.freedesktop.org/basedir/latest/); respects `$XDG_DATA_HOME`) |
-| `CQ_ADDR` | No | *(disabled)* | Remote API URL. Set to enable team sync (e.g. `http://localhost:8742`) |
+| `CQ_ADDR` | No | *(disabled)* | Remote API URL. Set to enable remote sync (e.g. `http://localhost:3000`) |
 | `CQ_API_KEY` | When remote configured | — | API key for remote API authentication |
 
-When `CQ_ADDR` is unset or empty, cq runs in local-only mode — knowledge stays on your machine. Set it to a remote API URL to enable shared knowledge across your team.
+When `CQ_ADDR` is unset or empty, cq runs in local-only mode; knowledge stays on your machine. Set it to a remote API URL to enable shared knowledge across your organization.
 
 ### Claude Code
 
@@ -144,7 +144,7 @@ Add variables to `~/.claude/settings.json` under the `env` key:
 ```json
 {
   "env": {
-    "CQ_ADDR": "http://localhost:8742",
+    "CQ_ADDR": "http://localhost:3000",
     "CQ_API_KEY": "your-api-key"  # pragma: allowlist secret
   }
 }
@@ -161,7 +161,7 @@ Add an `environment` key to the cq MCP server entry in your OpenCode config (`~/
       "type": "local",
       "command": ["/path/to/cq", "mcp"],
       "environment": {
-        "CQ_ADDR": "http://localhost:8742",
+        "CQ_ADDR": "http://localhost:3000",
         "CQ_API_KEY": "your-api-key"  # pragma: allowlist secret
       }
     }
@@ -173,13 +173,13 @@ Alternatively, export the variables in your shell before launching OpenCode.
 
 ## Architecture
 
-cq runs across three runtime boundaries: the agent process (plugin configuration), a local MCP server (knowledge logic and private store), and a Docker container (team-shared API).
+cq runs across three runtime boundaries: the agent process (plugin configuration), a local MCP server (knowledge logic and private store), and a Docker container (remote shared API).
 
 ```mermaid
 flowchart TB
     subgraph cc["Claude Code Process"]
         direction TB
-        skill["SKILL.md\nBehavioural instructions"]
+        skill["SKILL.md\nBehavioral instructions"]
         hook["hooks.json\nPost-error auto-query"]
         cmd_status["/cq:status\nStore statistics"]
         cmd_reflect["/cq:reflect\nSession mining"]
@@ -194,9 +194,9 @@ flowchart TB
 
     subgraph docker["Docker Container"]
         direction TB
-        api["Team API\nPython / FastAPI\nlocalhost:8742"]
-        team_db[("Team Store\n/data/team.db\nSQLite")]
-        api --> team_db
+        api["Remote API\nPython / FastAPI\nlocalhost:3000"]
+        remote_db[("Remote Store\n/data/cq.db\nSQLite")]
+        api --> remote_db
     end
 
     cc <-->|"stdio / MCP protocol"| mcp
@@ -210,7 +210,7 @@ flowchart TB
     class skill,hook,cmd_status,cmd_reflect ccStyle
     class server mcpStyle
     class api dockerStyle
-    class local_db,team_db dbStyle
+    class local_db,remote_db dbStyle
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for the full set of architecture diagrams covering knowledge flow, tier graduation, plugin anatomy, and ecosystem integration.
@@ -232,8 +232,8 @@ The local SQLite database format changed during the 0.x cycle (enum values, fiel
 # Explicit path.
 ./server/scripts/migrate-v1.sh ~/.local/share/cq/local.db
 
-# Team server running in a container.
-docker compose exec cq-team-api bash /app/scripts/migrate-v1.sh
+# Remote server running in a container.
+docker compose exec cq-server bash /app/scripts/migrate-v1.sh
 ```
 
 The script is idempotent — safe to run multiple times, on any 0.x database. It creates a backup before modifying anything. See the script header for full details.

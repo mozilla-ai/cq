@@ -17,7 +17,7 @@ Status: Exploratory / Pre-proposal
 
 > **Core Insight:** Agents are constrained by their context. Every AI agent on earth independently rediscovers the same failures, burns the same tokens, and makes the same mistakes that thousands of other agents have already encountered and resolved.
 
-Today's AI agents operate in isolation. Each time an agent encounters a known pitfall — an undocumented API behaviour, a library version incompatibility, a common architectural anti-pattern — it must discover the problem from scratch, consuming compute, energy, and time in the process. There is no mechanism for agents to learn from each other's experiences.
+Today's AI agents operate in isolation. Each time an agent encounters a known pitfall — an undocumented API behavior, a library version incompatibility, a common architectural anti-pattern — it must discover the problem from scratch, consuming compute, energy, and time in the process. There is no mechanism for agents to learn from each other's experiences.
 
 This creates three compounding problems:
 
@@ -55,20 +55,20 @@ The system is structured in layers, each serving a different scope and trust lev
 | Layer | Scope | Example Content |
 |-------|-------|-----------------|
 | **Local (Agent)** | Single agent's session memory | "This API returned 200 with error body, not 4xx" |
-| **Team / Org** | Shared within a company or team | "Our Postgres needs 30s timeout, not default 5s" |
+| **Remote / Org** | Shared within an organization | "Our Postgres needs 30s timeout, not default 5s" |
 | **Global Commons** | Public, community-governed | "Three.js r128 lacks CapsuleGeometry; use CylinderGeometry" |
 
-Knowledge flows upward through a graduation process. Local learnings that prove consistently useful can be nominated for team-wide sharing. Team learnings that are sufficiently generic and validated can be submitted to the global commons via a human-in-the-loop review process. This graduation mechanism serves two purposes: it keeps local stores lean and domain-specific, and it ensures the global commons contains only high-quality, broadly applicable knowledge.
+Knowledge flows upward through a graduation process. Local learnings that prove consistently useful can be nominated for organization-wide sharing. Remote learnings that are sufficiently generic and validated can be submitted to the global commons via a human-in-the-loop review process. This graduation mechanism serves two purposes: it keeps local stores lean and domain-specific, and it ensures the global commons contains only high-quality, broadly applicable knowledge.
 
 ### 3.2 The Trust Layer
 
 For agents to trust knowledge from other agents, we need verifiable identity and reputation. The system requires several interlocking components:
 
-- **Identity and Provenance:** Contributors need verifiable identity attesting to their provenance — who deployed the agent, what organisation it belongs to. Several approaches are being explored, from standard OAuth/OIDC-based identity through to decentralised identifiers (DIDs) using protocols like KERI. The right choice depends on deployment context: centralised identity is simpler and sufficient for many scenarios; decentralised identity becomes valuable when trust must extend beyond a single platform.
+- **Identity and Provenance:** Contributors need verifiable identity attesting to their provenance — who deployed the agent, what organization it belongs to. Several approaches are being explored, from standard OAuth/OIDC-based identity through to decentralized identifiers (DIDs) using protocols like KERI. The right choice depends on deployment context: centralized identity is simpler and sufficient for many scenarios; decentralized identity becomes valuable when trust must extend beyond a single platform.
 - **Reputation Scoring:** Agents build reputation through confirmed contributions. When Agent A shares an insight and Agents B, C, and D independently confirm it resolved their problem, A's reputation increases. Reputation is earned through diverse, independent confirmation — not through economic stake alone.
 - **Anti-Poisoning Safeguards:** Multiple mechanisms work together: anomaly detection flags disproportionate contributions from single entities; diversity requirements ensure confirmation comes from varied sources; HITL review gates knowledge graduation; and guardrails (such as Mozilla.ai's any-guardrail) filter for safety and quality.
 
-Throughout this trust model, accountability flows through deploying organisations and the people within them — not through agents. Agents are the mechanism through which knowledge is proposed, confirmed, and consumed; the social contract is between the organisations and individuals who deploy them. Identity, reputation, and HITL review all ultimately bind to human actors and the organisations they represent.
+Throughout this trust model, accountability flows through deploying organizations and the people within them — not through agents. Agents are the mechanism through which knowledge is proposed, confirmed, and consumed; the social contract is between the organizations and individuals who deploy them. Identity, reputation, and HITL review all ultimately bind to human actors and the organizations they represent.
 
 > **Design Note: Stake-Based Trust and the "Pay to Pollute" Risk**
 >
@@ -88,64 +88,64 @@ Shared knowledge is only valuable if it is safe, accurate, and free from manipul
 
 Mozilla.ai's **any-guardrail** is a natural fit here. any-guardrail provides a unified, model-agnostic interface for applying safety and quality checks across different LLM providers and guardrail implementations. In the context of cq, it serves multiple roles:
 
-- **Ingestion filtering (the primary PII control):** When an agent proposes a new learning unit, any-guardrail checks for harmful content, prompt injection attempts, vendor bias signals, and PII leakage before the knowledge enters even the local store. This automated filtering is the primary defence against PII entering the commons — not human review. Regulators (particularly under GDPR) do not consider humans to be reliable determinants of what constitutes personal data, especially when rapidly processing information at scale. Automated guardrails handle PII detection; human reviewers focus on what humans are good at: accuracy, relevance, quality, and generalisability.
-- **Graduation gates:** When knowledge is nominated for promotion (local → team, team → global), guardrails run a more thorough assessment — checking for factual consistency, potential security implications (e.g. knowledge that could expose infrastructure details), and alignment with the commons' quality standards.
+- **Ingestion filtering (the primary PII control):** When an agent proposes a new learning unit, any-guardrail checks for harmful content, prompt injection attempts, vendor bias signals, and PII leakage before the knowledge enters even the local store. This automated filtering is the primary defense against PII entering the commons — not human review. Regulators (particularly under GDPR) do not consider humans to be reliable determinants of what constitutes personal data, especially when rapidly processing information at scale. Automated guardrails handle PII detection; human reviewers focus on what humans are good at: accuracy, relevance, quality, and generalizability.
+- **Graduation gates:** When knowledge is nominated for promotion (local → remote, remote → global), guardrails run a more thorough assessment — checking for factual consistency, potential security implications (e.g. knowledge that could expose infrastructure details), and alignment with the commons' quality standards.
 - **Retrieval-time validation:** When an agent queries the commons, guardrails can flag knowledge that has been disputed, is approaching staleness thresholds, or has low confidence relative to the agent's domain.
 
-Because any-guardrail is model-agnostic and extensible, it allows the cq ecosystem to incorporate guardrail implementations from other providers too — including open-source alternatives and enterprise-specific rulesets. Organisations can layer their own compliance rules (e.g. industry-specific regulations, internal policies) on top of the commons' baseline quality checks without forking the system.
+Because any-guardrail is model-agnostic and extensible, it allows the cq ecosystem to incorporate guardrail implementations from other providers too — including open-source alternatives and enterprise-specific rulesets. Organizations can layer their own compliance rules (e.g. industry-specific regulations, internal policies) on top of the commons' baseline quality checks without forking the system.
 
 The broader guardrails ecosystem is also relevant here. Projects like Guardrails AI, NeMo Guardrails, and LlamaGuard provide complementary capabilities that could plug into cq's guardrails layer via any-guardrail's unified interface. The goal is not to mandate a single guardrails implementation but to ensure that every knowledge flow — in, between, and out of the commons — passes through appropriate safety and quality checks.
 
 ### 3.6 The Tiered Architecture in Detail
 
-The local → team → global layering is central to cq's design. It deserves a closer look, because the tiers are not just a filtering mechanism — they create distinct value at each level, and the relationship between tiers is what makes the system commercially viable while remaining open at its core.
+The local → remote → global layering is central to cq's design. It deserves a closer look, because the tiers are not just a filtering mechanism — they create distinct value at each level, and the relationship between tiers is what makes the system commercially viable while remaining open at its core.
 
 **Tier 1: Local (Agent-level)**
 
 Every participating agent maintains its own local knowledge store. This captures learnings from the agent's own sessions — errors encountered, workarounds discovered, patterns observed. The local store is private to the agent (or its user) and persists across sessions. Think of it as the agent's personal notebook. No sharing occurs at this level. This tier exists to solve the immediate problem of agent amnesia — the fact that most agents today forget everything between sessions.
 
-**Tier 2: Team / Organisation**
+**Tier 2: Remote / Organization**
 
-Multiple agents within the same organisation share a team-level store. This is where knowledge starts to compound. When several agents across a company independently discover the same insight, it surfaces as a high-confidence team learning. The team store is private to the organisation and governed by the organisation's own policies.
+Multiple agents within the same organization share a remote store. This is where knowledge starts to compound. When several agents across a company independently discover the same insight, it surfaces as a high-confidence remote learning. The remote store is private to the organization and governed by the organization's own policies.
 
-This is where the distillation effect becomes powerful. Over time, the team store accumulates a highly specific, highly relevant body of knowledge about the organisation's own stack, APIs, infrastructure quirks, and domain patterns. The more agents contribute, the more potent and targeted this store becomes — reducing onboarding time for new agents, eliminating repeated failures, and creating a genuine competitive advantage for the organisation. Critically, this knowledge never leaves the organisation unless explicitly graduated.
+This is where the distillation effect becomes powerful. Over time, the remote store accumulates a highly specific, highly relevant body of knowledge about the organization's own stack, APIs, infrastructure quirks, and domain patterns. The more agents contribute, the more potent and targeted this store becomes — reducing onboarding time for new agents, eliminating repeated failures, and creating a genuine competitive advantage for the organization. Critically, this knowledge never leaves the organization unless explicitly graduated.
 
-A team store could also support sub-tenants (e.g. per-department, per-project, or per-team scoping) so that large organisations can segment knowledge appropriately while still benefiting from cross-team insights where relevant.
+A remote store could also support sub-tenants (e.g. per-department, per-project, or per-team scoping) so that large organizations can segment knowledge appropriately while still benefiting from cross-team insights where relevant.
 
 **Tier 3: Global Commons**
 
-The public, community-governed knowledge commons. Only knowledge that has been explicitly nominated, abstracted (stripped of organisation-specific context), reviewed by HITL, and approved enters this tier. The global commons contains broadly applicable, high-confidence knowledge that benefits any agent regardless of provider or organisation.
+The public, community-governed knowledge commons. Only knowledge that has been explicitly nominated, abstracted (stripped of organization-specific context), reviewed by HITL, and approved enters this tier. The global commons contains broadly applicable, high-confidence knowledge that benefits any agent regardless of provider or organization.
 
 **The flow between tiers:**
 
 There are two graduation paths to the global commons, reflecting the different compliance requirements of enterprise and individual contributors:
 
-**Enterprise path:** Local → team (internal review) → global. Enterprise organisations graduate knowledge through their team store first. Internal reviewers verify quality, strip organisation-specific context, and ensure compliance with internal policies. Only knowledge that has passed internal review is nominated for global graduation. This means enterprise contributors never upload raw local knowledge directly to the commons — everything goes through the team layer's existing compliance infrastructure.
+**Enterprise path:** Local → remote (internal review) → global. Enterprise organizations graduate knowledge through their remote store first. Internal reviewers verify quality, strip organization-specific context, and ensure compliance with internal policies. Only knowledge that has passed internal review is nominated for global graduation. This means enterprise contributors never upload raw local knowledge directly to the commons — everything goes through the remote layer's existing compliance infrastructure.
 
 **Individual path:** Local → global. Individual contributors (not operating within an enterprise context) can nominate local knowledge directly for global graduation. The review is lighter — automated guardrails plus community review — because the compliance burden is lower when individuals are not handling enterprise PII or proprietary context.
 
-Both paths converge at the global graduation boundary, where HITL reviewers apply the same quality, safety, and generalisability standards regardless of the contribution source.
+Both paths converge at the global graduation boundary, where HITL reviewers apply the same quality, safety, and generalizability standards regardless of the contribution source.
 
 **Within each path, the steps are:**
 
 1. Agents generate local knowledge through normal operation.
-2. The system (or the agent itself) identifies candidates for sharing based on confirmation frequency and generalisability signals.
-3. For enterprise: team-level reviewers (human or hybrid) approve promotion to the team store. For individuals: candidates are flagged directly for global nomination.
-4. Over time, knowledge that appears generic is flagged as a candidate for global graduation. The agent categorises and abstracts it — stripping any remaining context-specific identifiers.
-5. Human reviewers at the graduation boundary approve or reject submissions to the global commons, checking for quality, safety, vendor neutrality, and genuine generalisability.
+2. The system (or the agent itself) identifies candidates for sharing based on confirmation frequency and generalizability signals.
+3. For enterprise: reviewers (human or hybrid) approve promotion to the remote store. For individuals: candidates are flagged directly for global nomination.
+4. Over time, knowledge that appears generic is flagged as a candidate for global graduation. The agent categorizes and abstracts it — stripping any remaining context-specific identifiers.
+5. Human reviewers at the graduation boundary approve or reject submissions to the global commons, checking for quality, safety, vendor neutrality, and genuine generalizability.
 6. Knowledge in the global commons is consumed by agents worldwide, confirmed or disputed through use, and subject to ongoing confidence scoring and staleness decay.
 
-The mechanics of how nominations are tracked, how rejected or synthesised nominations are handled, and how contributing tiers reconcile with the global commons are detailed in section 3.9.
+The mechanics of how nominations are tracked, how rejected or synthesized nominations are handled, and how contributing tiers reconcile with the global commons are detailed in section 3.9.
 
 **The commercial opportunity:**
 
 The global commons is free and open — this is non-negotiable and core to the Mozilla mission. But the Tier 1 and Tier 2 infrastructure represents a clear enterprise and SaaS opportunity:
 
-- **Hosted team stores** with organisation-level tenancy, access controls, and sub-team scoping.
+- **Hosted remote stores** with organization-level tenancy, access controls, and sub-team scoping.
 - **Managed graduation pipelines** with configurable HITL workflows, compliance integrations, and audit dashboards.
-- **Analytics and insights** — which knowledge is most consumed, where agents are struggling most, what patterns are emerging across the organisation.
+- **Analytics and insights** — which knowledge is most consumed, where agents are struggling most, what patterns are emerging across the organization.
 - **Enterprise guardrails configuration** — custom rulesets layered on top of the baseline via any-guardrail.
-- **Priority support and SLAs** for organisations that depend on the commons for critical agent operations.
+- **Priority support and SLAs** for organizations that depend on the commons for critical agent operations.
 
 This follows the proven open-core model: the protocol, the knowledge format, the global commons, and the reference implementations are all OSS. The enterprise value-add — hosting, management, analytics, compliance tooling — is where commercial products can be built, by Mozilla.ai or by third parties. This is the same model that sustains projects like GitLab, Elastic, and Red Hat.
 
@@ -155,7 +155,7 @@ Architecture diagrams are necessary but insufficient. The question every enginee
 
 **The Ecosystem Has Already Converged**
 
-In the twelve months leading up to early 2026, something remarkable happened: the agent tooling ecosystem converged on two shared extension points. **MCP** (Model Context Protocol), now an open standard under the Linux Foundation, provides universal tool connectivity. **Agent Skills**, an open standard originated by Anthropic and rapidly adopted industry-wide, provides a cross-platform format for packaging procedural knowledge and behavioural instructions. As of March 2026, the Agent Skills standard is supported by Claude Code, OpenAI Codex, Cursor, OpenCode, Google Antigravity (Gemini CLI), GitHub Copilot, VS Code, Mistral Vibe, Amp, Goose, Manus, and over 30 other agent platforms. Skills authored for one agent run unchanged on the others — the specification is filesystem-based, not API-dependent.
+In the twelve months leading up to early 2026, something remarkable happened: the agent tooling ecosystem converged on two shared extension points. **MCP** (Model Context Protocol), now an open standard under the Linux Foundation, provides universal tool connectivity. **Agent Skills**, an open standard originated by Anthropic and rapidly adopted industry-wide, provides a cross-platform format for packaging procedural knowledge and behavioral instructions. As of March 2026, the Agent Skills standard is supported by Claude Code, OpenAI Codex, Cursor, OpenCode, Google Antigravity (Gemini CLI), GitHub Copilot, VS Code, Mistral Vibe, Amp, Goose, Manus, and over 30 other agent platforms. Skills authored for one agent run unchanged on the others — the specification is filesystem-based, not API-dependent.
 
 Meanwhile, Vercel launched **skills.sh** in January 2026 — an open-source package manager and directory for agent skills. It already has over 200 listed skills, telemetry-based leaderboards, cross-agent installation via `npx skills add`, and the top skill has over 26,000 installs. Think of it as npm for agent capabilities.
 
@@ -195,13 +195,13 @@ cq-plugin/
 └── README.md
 ```
 
-One install gives the developer: the MCP server connection (plumbing), the Skill that teaches the agent when and how to use the commons (judgement), a sub-agent for reviewing graduation candidates, a hook that automatically queries the commons when the agent encounters errors, and slash commands for inspecting the local store and retrospectively mining sessions for shareable knowledge. Because Claude Code and OpenCode both follow the Agent Skills standard, the same `SKILL.md` works across both platforms without modification.
+One install gives the developer: the MCP server connection (plumbing), the Skill that teaches the agent when and how to use the commons (judgment), a sub-agent for reviewing graduation candidates, a hook that automatically queries the commons when the agent encounters errors, and slash commands for inspecting the local store and retrospectively mining sessions for shareable knowledge. Because Claude Code and OpenCode both follow the Agent Skills standard, the same `SKILL.md` works across both platforms without modification.
 
 **The `/cq:reflect` command** deserves its own explanation, because it solves a subtle but important problem. During a normal coding session, the cq skill teaches the agent to query the commons before acting and to propose learnings in real time when it encounters something novel. But agents don't always *know* something is interesting in the moment. A developer might spend 40 minutes debugging an obscure configuration issue, and the agent's real-time focus is on solving the problem — not on cataloguing the solution for posterity. The insight only becomes visible in retrospect, when you look at the full arc of what happened.
 
-`/cq:reflect` triggers a retrospective pass. The agent reviews its own session context — conversation history, tool calls, errors encountered, solutions found, dead ends abandoned — and identifies patterns that might be worth proposing to the commons. It looks for things like: repeated failures that eventually led to a non-obvious fix, workarounds for undocumented behaviour, configuration combinations that only work in specific environments, and knowledge that contradicts or refines existing commons entries.
+`/cq:reflect` triggers a retrospective pass. The agent reviews its own session context — conversation history, tool calls, errors encountered, solutions found, dead ends abandoned — and identifies patterns that might be worth proposing to the commons. It looks for things like: repeated failures that eventually led to a non-obvious fix, workarounds for undocumented behavior, configuration combinations that only work in specific environments, and knowledge that contradicts or refines existing commons entries.
 
-The output is a structured summary: here are N potential knowledge units I've identified from this session, ranked by estimated generalisability. The developer reviews them, edits if needed, and approves submission — or dismisses. This is HITL at the point of creation, not just at the point of graduation.
+The output is a structured summary: here are N potential knowledge units I've identified from this session, ranked by estimated generalizability. The developer reviews them, edits if needed, and approves submission — or dismisses. This is HITL at the point of creation, not just at the point of graduation.
 
 This matters for two reasons. First, it catches the long-tail knowledge that real-time hooks miss — the stuff that only makes sense after the fact. Second, it gives developers an explicit, low-friction moment to contribute. Instead of hoping developers will remember to manually propose learnings, the agent does the synthesis work and presents candidates. The developer just says yes or no. Before proposing approved candidates, the system checks the commons for existing coverage — if a knowledge unit already captures the same insight, it is surfaced rather than duplicated. This is how you get contribution volume without contribution fatigue.
 
@@ -221,18 +221,18 @@ For **Cursor** specifically, the skill translates to a `.cursor/rules/cq.mdc` ru
 
 The universal integration point. A standalone MCP server — deployable as a local stdio process or a remote streamable HTTP endpoint — that exposes a small set of tools:
 
-- `query` — Search local → team → global stores for relevant knowledge
+- `query` — Search local → remote → global stores for relevant knowledge
 - `propose` — Submit a new knowledge unit (enters local store immediately)
 - `confirm` — Confirm an existing knowledge unit (increases confidence)
 - `flag` — Flag a unit as stale, incorrect, or a graduation candidate
-- `reflect` — Retrospectively analyse session context and return candidate knowledge units
+- `reflect` — Retrospectively analyze session context and return candidate knowledge units
 - `status` — Report store statistics and connectivity state
 
 The server handles authentication, routing across tiers, guardrails checks (via any-guardrail), and knowledge format validation. Because MCP is the universal agent connectivity standard, any agent with MCP support can use cq — even agents that don't support skills or plugins. The MCP server is the floor; the Skill and Plugin are the ceiling.
 
 **Why This Matters for Adoption**
 
-The cq plugin appearing on skills.sh and in Claude Code's plugin marketplace is not just a distribution convenience — it is the adoption strategy. Developers discover skills and plugins through the same registries they already browse. A cq skill sitting alongside "Next.js Best Practices" and "Stripe Integration" in skills.sh normalises the concept. Installation is one command. The skill activates automatically based on context. The developer doesn't need to understand knowledge commons architecture to benefit from it — their agent just starts getting things right more often.
+The cq plugin appearing on skills.sh and in Claude Code's plugin marketplace is not just a distribution convenience — it is the adoption strategy. Developers discover skills and plugins through the same registries they already browse. A cq skill sitting alongside "Next.js Best Practices" and "Stripe Integration" in skills.sh normalizes the concept. Installation is one command. The skill activates automatically based on context. The developer doesn't need to understand knowledge commons architecture to benefit from it — their agent just starts getting things right more often.
 
 This is also how the commons gets seeded. Every agent running the cq skill is a potential contributor. The skill teaches agents to propose knowledge; the HITL pipeline filters it; the commons grows. The distribution format *is* the growth mechanism.
 
@@ -270,12 +270,12 @@ Every piece of shared knowledge flows through a common structured format. This i
     "graduation_history": [
       {
         "from": "local",
-        "to": "team",
+        "to": "remote",
         "approved_by": "human:alice@acme.dev",
         "timestamp": "2025-01-20T11:00:00Z"
       },
       {
-        "from": "team",
+        "from": "remote",
         "to": "global",
         "approved_by": "human:reviewer_7f2a@cq.mozilla.ai",
         "timestamp": "2025-02-01T16:45:00Z"
@@ -300,13 +300,13 @@ The schema is deliberately opinionated about a few things:
 
 **`context` is for matching, not filtering:** Domain tags, languages, frameworks, and environment are used to rank relevance, not to hard-exclude. A Python agent encountering a Stripe rate-limiting issue should still surface a knowledge unit tagged `typescript` if the underlying insight is language-agnostic. The matching logic lives in the MCP server, not in the schema.
 
-**`evidence` separates confidence from confirmations:** A knowledge unit confirmed by 3 agents from 3 independent organisations might have higher effective confidence than one confirmed by 800 agents from 2 organisations. The `contributing_orgs` count is a diversity signal that feeds into the anti-poisoning reputation system.
+**`evidence` separates confidence from confirmations:** A knowledge unit confirmed by 3 agents from 3 independent organizations might have higher effective confidence than one confirmed by 800 agents from 2 organizations. The `contributing_orgs` count is a diversity signal that feeds into the anti-poisoning reputation system.
 
 **`provenance` is the audit trail:** Every graduation step records who approved it (human, always — this is the HITL guarantee) and when. The proposer's identity ties back to the trust layer described in section 3.2. This is what makes cq EU AI Act compliant by design — the audit trail is a byproduct of normal operation, not a retrofit.
 
 **`lifecycle` handles staleness:** Knowledge units decay if not re-confirmed within a configurable window. APIs change, libraries update, best practices evolve. A `staleness_policy` of `confirm_or_decay_after_90d` means that after 90 days without fresh confirmation, the confidence score begins to decrease. Knowledge can also be explicitly superseded — when Stripe fixes their rate-limiting status codes, a new knowledge unit replaces the old one via `superseded_by`.
 
-**`lifecycle.kind` classifies what type of knowledge this is.** Not all knowledge units are the same. A `kind` of `pitfall` is permanent knowledge that no tool can abstract away (an API quirk, an undocumented behaviour). A `kind` of `workaround` is useful now but represents a gap in tooling — if a better tool existed, agents wouldn't need this knowledge. A `kind` of `tool-recommendation` points agents to the right tool rather than providing knowledge directly. This classification drives the tool ecosystem intelligence described in section 3.8.
+**`lifecycle.kind` classifies what type of knowledge this is.** Not all knowledge units are the same. A `kind` of `pitfall` is permanent knowledge that no tool can abstract away (an API quirk, an undocumented behavior). A `kind` of `workaround` is useful now but represents a gap in tooling — if a better tool existed, agents wouldn't need this knowledge. A `kind` of `tool-recommendation` points agents to the right tool rather than providing knowledge directly. This classification drives the tool ecosystem intelligence described in section 3.8.
 
 **`lifecycle.related` carries explicit relationship types.** Knowledge units are atomic by default — each captures one insight. The `related` field supports typed relationships between units: `supersedes` (this unit replaces a previous one), `contradicts` (this unit conflicts with another — agents should weigh both), `extends` (this unit adds detail to another), and `requires` (this unit only applies when another is also true). This gives agents enough to compose related knowledge without requiring a full reasoning chain model.
 
@@ -316,26 +316,26 @@ The tiered architecture implies different storage characteristics at each level,
 
 **Local (Tier 1)** is agent-side and should be fast, offline-capable, and private by default. The most natural fit is an embedded store on the developer's machine — SQLite, a local JSON file store, or an embedded vector database (for semantic retrieval). Some agents already maintain local persistence: Claude Code's memory system, Cursor's indexed codebase, Codex's session resume. The cq local store could integrate with or sit alongside these existing mechanisms. The key constraint is that local data never leaves the machine unless explicitly graduated.
 
-**Team/Organisation (Tier 2)** needs multi-user access, access controls, and query performance across potentially thousands of knowledge units. This is where a hosted service makes sense — a managed database (Postgres with pgvector for hybrid keyword+semantic search, for instance), behind an API with organisation-level tenancy and RBAC. This is also the natural home for the enterprise SaaS offering described in section 3.6: hosted team stores with configurable sub-tenants, audit logging, and integration with existing identity providers (SSO, SCIM).
+**Remote/Organization (Tier 2)** needs multi-user access, access controls, and query performance across potentially thousands of knowledge units. This is where a hosted service makes sense — a managed database (Postgres with pgvector for hybrid keyword+semantic search, for instance), behind an API with organization-level tenancy and RBAC. This is also the natural home for the enterprise SaaS offering described in section 3.6: hosted remote stores with configurable sub-tenants, audit logging, and integration with existing identity providers (SSO, SCIM).
 
-**Global Commons (Tier 3)** is the most interesting storage challenge. It needs to be publicly readable, highly available, resistant to single points of failure, and governed transparently. Several approaches are plausible and not mutually exclusive: a federated model where multiple organisations mirror the commons (similar to package registries like npm or crates.io); a decentralised approach leveraging content-addressed storage (IPFS, Arweave) for immutability and provenance; or a more conventional CDN-backed API with transparent governance and regular public snapshots. Decentralised infrastructure (e.g. Midnight for privacy-preserving writes, Masumi for agent transactions) could play a role here, particularly for the provenance and identity layers, without requiring the knowledge data itself to live on-chain.
+**Global Commons (Tier 3)** is the most interesting storage challenge. It needs to be publicly readable, highly available, resistant to single points of failure, and governed transparently. Several approaches are plausible and not mutually exclusive: a federated model where multiple organizations mirror the commons (similar to package registries like npm or crates.io); a decentralized approach leveraging content-addressed storage (IPFS, Arweave) for immutability and provenance; or a more conventional CDN-backed API with transparent governance and regular public snapshots. Decentralized infrastructure (e.g. Midnight for privacy-preserving writes, Masumi for agent transactions) could play a role here, particularly for the provenance and identity layers, without requiring the knowledge data itself to live on-chain.
 
-The specification should define the API contract (how agents read and write knowledge units) independently of the backing store. A reference implementation might start with SQLite for local, Postgres for team, and a simple API-backed store for global — then allow the community to build alternative backends as the ecosystem matures. What matters is that the knowledge unit schema and the MCP tool interface remain stable regardless of what's underneath.
+The specification should define the API contract (how agents read and write knowledge units) independently of the backing store. A reference implementation might start with SQLite for local, Postgres for remote, and a simple API-backed store for global — then allow the community to build alternative backends as the ecosystem matures. What matters is that the knowledge unit schema and the MCP tool interface remain stable regardless of what's underneath.
 
 **What an integration looks like end-to-end:**
 
 1. Developer installs the cq plugin (`/plugin install cq@mozilla-ai-plugins`) or skill (`npx skills add mozilla-ai/cq`).
 2. Developer runs their agent and asks it to integrate Stripe payments.
-3. The cq Skill recognises "API integration" as a trigger context.
+3. The cq Skill recognizes "API integration" as a trigger context.
 4. The agent calls `query` via the MCP server with domain tags `["api", "payments", "stripe"]` and the current language context.
-5. The MCP server searches local store → team store → global commons, applies any-guardrail checks on retrieved units, and returns ranked matches.
+5. The MCP server searches local store → remote store → global commons, applies any-guardrail checks on retrieved units, and returns ranked matches.
 6. The agent incorporates high-confidence knowledge into its plan *before writing code*.
-7. During execution, if the agent encounters a novel issue (e.g. a new undocumented behaviour), it calls `propose` with a draft knowledge unit.
+7. During execution, if the agent encounters a novel issue (e.g. a new undocumented behavior), it calls `propose` with a draft knowledge unit.
 8. The proposed unit enters the local store immediately. If the Skill identifies it as a graduation candidate (generic, not company-specific), it flags it for HITL review.
-9. A human reviewer on the team's cq dashboard sees the proposal, approves or edits it, and it enters the team store.
-10. Over time, if multiple organisations' agents independently confirm the same insight, it becomes a candidate for global graduation.
+9. A human reviewer on the organization's cq dashboard sees the proposal, approves or edits it, and it enters the remote store.
+10. Over time, if multiple organizations' agents independently confirm the same insight, it becomes a candidate for global graduation.
 
-The entire flow uses existing infrastructure: MCP for transport, Agent Skills for agent behaviour, JSON schema for data format, verifiable identity for trust, any-guardrail for safety, skills.sh/plugin marketplaces for distribution. No new protocols. No new runtimes. Just a knowledge layer that plugs into the stack developers already have.
+The entire flow uses existing infrastructure: MCP for transport, Agent Skills for agent behavior, JSON schema for data format, verifiable identity for trust, any-guardrail for safety, skills.sh/plugin marketplaces for distribution. No new protocols. No new runtimes. Just a knowledge layer that plugs into the stack developers already have.
 
 ### 3.8 Knowledge Unit Lifecycle and Tool Ecosystem Intelligence
 
@@ -352,66 +352,66 @@ The commons is not just a knowledge store — it is a data source about the agen
 
 1. **No tool exists.** Agents keep failing at X → signal to build an MCP server or integration.
 2. **Tool exists but is poor.** Agents have a tool for X but keep hitting the same issues → signal to improve the tool.
-3. **No tool will solve this.** Genuine knowledge gap (API quirks, undocumented behaviour) → Level 1 KUs live permanently.
+3. **No tool will solve this.** Genuine knowledge gap (API quirks, undocumented behavior) → Level 1 KUs live permanently.
 
 **Why this matters:**
 
-This is a differentiator from adjacent systems like Memco/Spark, which treat shared agent memory as a flat knowledge store. cq treats the commons as ecosystem intelligence: which tools are working well, where tools are missing, and where investment is needed. When you see 50 agents across 12 organisations all learning the same workaround, that is not a knowledge problem — it is a missing tool. The commons surfaces that signal with quantitative evidence.
+This is a differentiator from adjacent systems like Memco/Spark, which treat shared agent memory as a flat knowledge store. cq treats the commons as ecosystem intelligence: which tools are working well, where tools are missing, and where investment is needed. When you see 50 agents across 12 organizations all learning the same workaround, that is not a knowledge problem — it is a missing tool. The commons surfaces that signal with quantitative evidence.
 
-For Mozilla.ai specifically, this aligns with the mission: cq generates open, public intelligence about where the agent tooling ecosystem needs to improve. That is the kind of structural contribution a foundation can make and a startup cannot. Any agent platform with a feature request or tool-building pipeline could consume these signals to prioritise what tools to build next — closing the loop between "agents are struggling" and "the ecosystem builds the right tools."
+For Mozilla.ai specifically, this aligns with the mission: cq generates open, public intelligence about where the agent tooling ecosystem needs to improve. That is the kind of structural contribution a foundation can make and a startup cannot. Any agent platform with a feature request or tool-building pipeline could consume these signals to prioritize what tools to build next — closing the loop between "agents are struggling" and "the ecosystem builds the right tools."
 
 ### 3.9 Graduation Nomination Lifecycle
 
-The graduation paths described in section 3.6 imply a critical design constraint: **graduation is a nomination, not a move.** When a team nominates a knowledge unit for the global commons, the team's copy must remain active and queryable throughout the process. The global commons may accept it, modify it, synthesise it with other nominations, or reject it entirely. The team's knowledge remains valuable regardless of the outcome.
+The graduation paths described in section 3.6 imply a critical design constraint: **graduation is a nomination, not a move.** When an organization nominates a knowledge unit for the global commons, the remote store's copy must remain active and queryable throughout the process. The global commons may accept it, modify it, synthesize it with other nominations, or reject it entirely. The organization's knowledge remains valuable regardless of the outcome.
 
-This distinction matters because deletion-on-nomination creates an unacceptable risk: a team loses a proven, high-confidence knowledge unit that their agents depend on, only to discover weeks later that the global commons rejected it. The team store should never be degraded by the act of contributing to the global commons.
+This distinction matters because deletion-on-nomination creates an unacceptable risk: an organization loses a proven, high-confidence knowledge unit that their agents depend on, only to discover weeks later that the global commons rejected it. The remote store should never be degraded by the act of contributing to the global commons.
 
 **Nomination States**
 
 From the nominating tier's perspective, a nominated knowledge unit has one of four outcomes:
 
-| State | Meaning | Team Action |
+| State | Meaning | Action |
 |-------|---------|-------------|
 | **Pending** | Nominated but not yet reviewed by the receiving tier. | Source KU remains active. No change. |
 | **Accepted** | Receiving tier accepted the nomination, possibly with editorial changes. | Source KU remains active. Nominating tier receives a reference to the resulting KU at the higher tier. |
-| **Synthesised** | Receiving tier combined this nomination with others from different sources into a new, generalised KU. | Source KU remains active. Nominating tier receives a reference to the synthesised KU and sees which other nominations contributed. |
-| **Rejected** | Receiving tier declined the nomination, with a reason. | Source KU remains active. Nominating tier admin sees the rejection reason. The nomination is not re-submittable without material changes. |
+| **Synthesized** | Receiving tier combined this nomination with others from different sources into a new, generalized KU. | Source KU remains active. Nominating tier receives a reference to the synthesized KU and sees which other nominations contributed. |
+| **Rejected** | Receiving tier declined the nomination, with a reason. | Source KU remains active. Nominating tier administrator sees the rejection reason. The nomination is not re-submittable without material changes. |
 
 In all four outcomes, the source tier's original knowledge unit is untouched. The nomination is a **separate entity** that tracks the proposal's fate at the higher tier. This separation is important: the KU schema (section 3.7) captures what the knowledge *is*; the nomination record captures what *happened* when it was proposed for graduation.
 
-Although this section focuses on the team-to-global boundary (the most complex case), the same lifecycle applies to local-to-team graduation. A local KU nominated for the team store remains in the local store regardless of whether the team approves it. The pattern is consistent across all tier boundaries.
+Although this section focuses on the remote-to-global boundary (the most complex case), the same lifecycle applies to local-to-remote graduation. A local KU nominated for the remote store remains in the local store regardless of whether the remote store approves it. The pattern is consistent across all tier boundaries.
 
 **The Synthesis Case**
 
-Synthesis is the most interesting outcome and represents one of cq's most powerful capabilities. Consider three organisations that have each independently discovered aspects of the same underlying truth:
+Synthesis is the most interesting outcome and represents one of cq's most powerful capabilities. Consider three organizations that have each independently discovered aspects of the same underlying truth:
 
 - **Org A** nominates: *"Our payment webhook handler needs idempotency keys because Stripe retries on timeout."*
 - **Org B** nominates: *"Webhook endpoints must handle duplicate deliveries; we saw triple-delivery from Stripe during their October incident."*
 - **Org C** nominates: *"Always store webhook event IDs and check for duplicates before processing; payment providers retry aggressively."*
 
-Each of these is org-specific and individually useful at the team level. But a global reviewer (human, or assisted by automated analysis) recognises the commonality and synthesises a new global KU: *"Payment webhook handlers must implement idempotency. Store event IDs on receipt and reject duplicates before processing. Payment providers retry delivery aggressively, including during provider-side incidents, and may deliver the same event multiple times."*
+Each of these is org-specific and individually useful at the remote level. But a global reviewer (human, or assisted by automated analysis) recognizes the commonality and synthesizes a new global KU: *"Payment webhook handlers must implement idempotency. Store event IDs on receipt and reject duplicates before processing. Payment providers retry delivery aggressively, including during provider-side incidents, and may deliver the same event multiple times."*
 
-The synthesised global KU is more useful than any individual nomination because it captures the generalised principle with broader evidence. Each contributing team's nomination record is updated to reference the resulting global KU, and the provenance chain records that three independent organisations contributed to the insight.
+The synthesized global KU is more useful than any individual nomination because it captures the generalized principle with broader evidence. Each contributing organization's nomination record is updated to reference the resulting global KU, and the provenance chain records that three independent organizations contributed to the insight.
 
-Synthesis detection can be partially automated. Embedding-based similarity analysis over incoming nominations can cluster candidates that share underlying themes, even when they use different terminology or reference different specific providers. A lightweight model can then draft synthesis candidates for human review; the reviewer approves the generalisation, edits it, or dismisses it. This reduces the cognitive load on global reviewers from "identify patterns across hundreds of nominations" to "verify this proposed generalisation is accurate." The automation assists; the human decides.
+Synthesis detection can be partially automated. Embedding-based similarity analysis over incoming nominations can cluster candidates that share underlying themes, even when they use different terminology or reference different specific providers. A lightweight model can then draft synthesis candidates for human review; the reviewer approves the generalization, edits it, or dismisses it. This reduces the cognitive load on global reviewers from "identify patterns across hundreds of nominations" to "verify this proposed generalization is accurate." The automation assists; the human decides.
 
 **Reconciliation**
 
 The nominating tier needs a mechanism to learn what happened to its nominations. Three models are possible, in order of implementation complexity:
 
-1. **Manual reconciliation.** A team admin clicks "check status" in the dashboard and the system queries the receiving tier's API for updates on outstanding nominations. Suitable for early stages where nomination volume is low.
+1. **Manual reconciliation.** An administrator clicks "check status" in the dashboard and the system queries the receiving tier's API for updates on outstanding nominations. Suitable for early stages where nomination volume is low.
 
 2. **Pull-based reconciliation.** The nominating tier periodically polls the receiving tier for status updates on outstanding nominations. A background job runs on a configurable interval (e.g. daily), updates nomination records, and surfaces changes in the admin dashboard. No webhook infrastructure required; works even when the nominating tier is behind a corporate firewall.
 
 3. **Push-based reconciliation.** The receiving tier calls back to registered endpoints when nomination decisions are made. More responsive but requires the nominating tier's API to be reachable from the receiving tier, which may not be true for all deployments.
 
-A production system should support all three models. The choice depends on the deployment context: push for cloud-hosted team stores with stable endpoints; pull for teams behind firewalls or NAT; manual as a universal fallback.
+A production system should support all three models. The choice depends on the deployment context: push for cloud-hosted remote stores with stable endpoints; pull for teams behind firewalls or NAT; manual as a universal fallback.
 
 **Downstream Notifications**
 
-Reconciliation flows in both directions. If the global commons later deprecates, flags, or supersedes a KU that a team contributed to, the team should be notified. Their nomination record is updated, and the admin dashboard surfaces the change: *"Global KU ku_xyz (which your nomination contributed to) has been flagged as stale by the global commons."*
+Reconciliation flows in both directions. If the global commons later deprecates, flags, or supersedes a KU that an organization contributed to, the organization should be notified. Their nomination record is updated, and the admin dashboard surfaces the change: *"Global KU ku_xyz (which your nomination contributed to) has been flagged as stale by the global commons."*
 
-The team can then independently assess whether their original team-level KU is also affected, or whether it remains valid in their org-specific context. An API timeout workaround that was generalised for the global commons might be deprecated there when the API vendor fixes the issue; but the team's version might reference internal infrastructure that still exhibits the same behaviour.
+The organization can then independently assess whether their original remote-level KU is also affected, or whether it remains valid in their org-specific context. An API timeout workaround that was generalized for the global commons might be deprecated there when the API vendor fixes the issue; but the organization's version might reference internal infrastructure that still exhibits the same behavior.
 
 This bidirectional awareness is what makes graduation safe for contributors. Teams can nominate freely, knowing that contributing to the global commons never risks degrading their own knowledge store, and that they will be informed of the full lifecycle of any knowledge they helped create.
 
@@ -423,15 +423,15 @@ To make cq tangible, here are three user journeys showing how it works at differ
 
 ### 4.1 A Developer's Coding Agent Hits a Known Pitfall
 
-A developer asks their coding agent to integrate a payment API. The agent begins writing code and, before executing, queries the cq local store. No relevant knowledge exists locally. It queries the global commons and retrieves a learning unit: *"Stripe API v2024-12 returns 200 with error body for rate-limited requests instead of 429. Check response body for `error` field regardless of status code. Confirmed by 847 agents across 312 organisations. Confidence: high."*
+A developer asks their coding agent to integrate a payment API. The agent begins writing code and, before executing, queries the cq local store. No relevant knowledge exists locally. It queries the global commons and retrieves a learning unit: *"Stripe API v2024-12 returns 200 with error body for rate-limited requests instead of 429. Check response body for `error` field regardless of status code. Confirmed by 847 agents across 312 organizations. Confidence: high."*
 
 The agent incorporates this knowledge, writes correct error handling on the first attempt, and avoids the 3–4 failed iterations that would otherwise have been needed. The developer never notices — the agent simply got it right. Total tokens saved: approximately 12,000. Time saved: approximately 4 minutes. One less wasted API call hitting Stripe's servers.
 
 ### 4.2 A Team Curates Local Knowledge and Graduates an Insight
 
-A fintech company's team of agents have been working with an internal risk scoring service for six months. Multiple agents have independently logged that the service's timeout needs to be set to 15 seconds (not the documented 5 seconds) during batch processing windows. This knowledge lives in the team-level store.
+A fintech company's team of agents have been working with an internal risk scoring service for six months. Multiple agents have independently logged that the service's timeout needs to be set to 15 seconds (not the documented 5 seconds) during batch processing windows. This knowledge lives in the remote store.
 
-A team lead reviews the cq team dashboard weekly. They notice this insight has been confirmed by 12 agents across 4 teams internally. They flag it for graduation review. Before submitting to the global commons, the agent categorises and abstracts it: the company-specific service name is stripped, and the insight becomes *"Internal microservices performing batch operations may require 3x the documented timeout during peak processing. Validate timeout assumptions during batch windows."* A human reviewer approves the generalised version. It enters the global commons tagged with `domain: microservices, pattern: timeout, context: batch-processing`.
+A team lead reviews the cq remote store dashboard weekly. They notice this insight has been confirmed by 12 agents across 4 teams internally. They flag it for graduation review. Before submitting to the global commons, the agent categorizes and abstracts it: the company-specific service name is stripped, and the insight becomes *"Internal microservices performing batch operations may require 3x the documented timeout during peak processing. Validate timeout assumptions during batch windows."* A human reviewer approves the generalized version. It enters the global commons tagged with `domain: microservices, pattern: timeout, context: batch-processing`.
 
 ### 4.3 An Agent Identifies Its Own Knowledge Gap
 
@@ -444,7 +444,7 @@ The agent incorporates these as context before generating its pipeline configura
 These journeys suggest a natural MVP progression:
 
 - **MVP 1 — Local store and query:** A single agent can persist learnings across sessions and query them. No sharing, no trust layer. Proves the knowledge format works.
-- **MVP 2 — Team sharing:** Multiple agents within one organisation share a knowledge store. HITL dashboard for review. Proves the graduation and curation mechanics.
+- **MVP 2 — Remote sharing:** Multiple agents within one organization share a knowledge store. HITL dashboard for review. Proves the graduation and curation mechanics.
 - **MVP 3 — Global commons (read-only):** Agents can query a curated, bootstrapped global commons (seeded with documentation and synthetic traces, similar to Spark's approach). Proves cross-agent value.
 - **MVP 4 — Global commons (read-write with trust):** Agents contribute to and consume from the global commons with identity verification, reputation scoring, and HITL graduation. The full cq loop.
 
@@ -456,11 +456,11 @@ Several adjacent efforts exist, but none deliver the full vision described above
 
 | Project | What It Does | Gap |
 |---------|-------------|-----|
-| **Memco / Spark** | Shared memory layer for coding agents. Open-source CLI (MIT); proprietary backend. Query/share/feedback loop with community-based knowledge segmentation. | Coding-specific, no trust/identity layer, centralised single-vendor knowledge store, no graduation or curation pipeline. |
+| **Memco / Spark** | Shared memory layer for coding agents. Open-source CLI (MIT); proprietary backend. Query/share/feedback loop with community-based knowledge segmentation. | Coding-specific, no trust/identity layer, centralized single-vendor knowledge store, no graduation or curation pipeline. |
 | **MOSAIC (DARPA ShELL)** | Academic algorithm for agents sharing RL policies via neural network masks. | Research-stage, operates at model-weight level, not practical knowledge. No product or standard. |
 | **Cardano / Veridian** | Open-source DID platform with KERI protocol. Agent identity and verifiable credentials. | Identity infrastructure only — no knowledge sharing layer built on top. |
 | **Midnight** | Privacy layer using ZK proofs for selective disclosure. Federated mainnet Q1 2026. | Privacy infrastructure only — not applied to agent knowledge sharing. |
-| **Masumi Network** | Decentralised agent transaction and discovery network on Cardano. | Focused on agent commerce (payments, task delegation), not knowledge sharing. |
+| **Masumi Network** | Decentralized agent transaction and discovery network on Cardano. | Focused on agent commerce (payments, task delegation), not knowledge sharing. |
 | **ERC-8004** | On-chain agent reputation and discovery protocol on Ethereum. | Trust and discovery only — no knowledge commons. |
 
 **The key observation:** the infrastructure pieces exist (identity, privacy, transactions, academic theory) but nobody is building the knowledge commons layer itself, and nobody is doing it as an open standard. This is the gap.
@@ -483,11 +483,11 @@ Mozilla has a unique position and credibility to lead this effort, for several r
 
 ## 7. Regulatory Alignment: EU AI Act
 
-The EU AI Act becomes fully enforceable for high-risk AI systems on 2 August 2026. Its requirements around transparency, human oversight, data governance, and risk management are not optional — they carry significant penalties for non-compliance. cq's architecture was not designed to satisfy regulation, but it turns out to align naturally with several core requirements. This is a significant selling point for enterprise adoption: organisations that use cq are building compliance into their agent infrastructure rather than retrofitting it later.
+The EU AI Act becomes fully enforceable for high-risk AI systems on 2 August 2026. Its requirements around transparency, human oversight, data governance, and risk management are not optional — they carry significant penalties for non-compliance. cq's architecture was not designed to satisfy regulation, but it turns out to align naturally with several core requirements. This is a significant selling point for enterprise adoption: organizations that use cq are building compliance into their agent infrastructure rather than retrofitting it later.
 
 ### 7.1 Human Oversight (Article 14)
 
-The EU AI Act requires that high-risk AI systems be designed to allow effective human oversight, including the ability to understand the system's capabilities and limitations and to intervene or interrupt as necessary. cq's HITL graduation pipeline directly satisfies this: humans review and approve knowledge before it moves from local to team scope, and from team to global scope. Agents propose, humans decide. This is not a bolted-on compliance checkbox — it is a core architectural feature that simultaneously improves knowledge quality and satisfies regulatory requirements.
+The EU AI Act requires that high-risk AI systems be designed to allow effective human oversight, including the ability to understand the system's capabilities and limitations and to intervene or interrupt as necessary. cq's HITL graduation pipeline directly satisfies this: humans review and approve knowledge before it moves from local to remote scope, and from remote to global scope. Agents propose, humans decide. This is not a bolted-on compliance checkbox — it is a core architectural feature that simultaneously improves knowledge quality and satisfies regulatory requirements.
 
 ### 7.2 Transparency and Record-Keeping (Articles 11, 12, 13)
 
@@ -495,7 +495,7 @@ The Act requires detailed technical documentation, automatic logging of relevant
 
 ### 7.3 Risk Management (Article 9)
 
-Providers must establish a documented risk management system that identifies, analyses, and mitigates risks throughout the AI system's lifecycle. cq's anti-poisoning safeguards (anomaly detection, diversity requirements, reputation scoring) and its integration with guardrails tooling (such as any-guardrail) constitute a risk management layer for shared knowledge. The layered architecture itself is a risk mitigation: sensitive knowledge stays in the local/team layer, and only validated, generic insights reach the global commons.
+Providers must establish a documented risk management system that identifies, analyzes, and mitigates risks throughout the AI system's lifecycle. cq's anti-poisoning safeguards (anomaly detection, diversity requirements, reputation scoring) and its integration with guardrails tooling (such as any-guardrail) constitute a risk management layer for shared knowledge. The layered architecture itself is a risk mitigation: sensitive knowledge stays in the local/remote layer, and only validated, generic insights reach the global commons.
 
 ### 7.4 Data Governance (Article 10)
 
@@ -507,24 +507,24 @@ High-risk AI systems must achieve appropriate levels of accuracy and robustness.
 
 ### 7.6 Contributor Liability and the Contributor Agreement
 
-A key question under the EU AI Act is whether knowledge unit contributors are "deployers" in the Act's sense (Article 28). If an organisation contributes a knowledge unit that influences an agent causing harm, is the contributing organisation liable?
+A key question under the EU AI Act is whether knowledge unit contributors are "deployers" in the Act's sense (Article 28). If an organization contributes a knowledge unit that influences an agent causing harm, is the contributing organization liable?
 
-The position: no. Contributing a knowledge unit is providing information, not deploying an AI system. The analogy is StackOverflow: answerers are not liable when someone copies their code into a production system that fails. The Act's liability framework is aimed at deployers and providers, not upstream data contributors. Causal opacity — the knowledge unit passes through an LLM's interpretation before affecting agent behaviour — further weakens any causal chain from contributor to harm.
+The position: no. Contributing a knowledge unit is providing information, not deploying an AI system. The analogy is StackOverflow: answerers are not liable when someone copies their code into a production system that fails. The Act's liability framework is aimed at deployers and providers, not upstream data contributors. Causal opacity — the knowledge unit passes through an LLM's interpretation before affecting agent behavior — further weakens any causal chain from contributor to harm.
 
-That said, this assumption must be explicit, not assumed. cq requires an explicit **contributor agreement** for knowledge unit contributions (distinct from the Apache 2.0 licence governing code contributions). The agreement establishes:
+That said, this assumption must be explicit, not assumed. cq requires an explicit **contributor agreement** for knowledge unit contributions (distinct from the Apache 2.0 license governing code contributions). The agreement establishes:
 
 - **Originality and rights:** Contributors represent that submissions are their own work and do not contain proprietary third-party information.
 - **No PII:** Contributors represent that submissions do not contain personally identifiable information. Automated guardrails are a safety net, not a substitute for contributor diligence.
-- **Licence grant:** Perpetual, royalty-free licence for commons use. Irrevocable at global scope; withdrawable at team scope.
+- **License grant:** Perpetual, royalty-free license for commons use. Irrevocable at global scope; withdrawable at remote scope.
 - **Limitation of liability:** Contributors are not liable for downstream consequences of agents acting on contributed knowledge.
 - **Duty of care at review:** HITL reviewers verify quality before graduation. No self-review.
 - **Provenance consent:** Contributors consent to attribution tracking via contributor identifiers.
 
-This is similar to how npm package authors are not liable for downstream use, but that protection is explicit in the licence terms — not assumed.
+This is similar to how npm package authors are not liable for downstream use, but that protection is explicit in the license terms — not assumed.
 
 ### 7.7 The Compliance Narrative for Enterprises
 
-For organisations evaluating cq, the regulatory message is straightforward: adopting cq does not just make your agents smarter and more efficient — it gives you auditable provenance on the knowledge your agents use, human oversight checkpoints at every scope boundary, built-in risk management through trust and reputation mechanisms, and data governance by design with privacy-preserving sharing. In a regulatory environment where "no documentation equals failed audit," a system that generates documentation and audit trails as a byproduct of normal operation is a significant advantage.
+For organizations evaluating cq, the regulatory message is straightforward: adopting cq does not just make your agents smarter and more efficient — it gives you auditable provenance on the knowledge your agents use, human oversight checkpoints at every scope boundary, built-in risk management through trust and reputation mechanisms, and data governance by design with privacy-preserving sharing. In a regulatory environment where "no documentation equals failed audit," a system that generates documentation and audit trails as a byproduct of normal operation is a significant advantage.
 
 ---
 
@@ -539,9 +539,9 @@ For organisations evaluating cq, the regulatory message is straightforward: adop
 
 ### 8.2 Phase 2: Reference Implementation
 
-- Build a reference OSS implementation of the local and team-level knowledge stores.
-- Implement the HITL graduation pipeline (local → team → global nomination).
-- Integrate verifiable identity infrastructure (evaluating approaches from standard OIDC through to decentralised identifiers).
+- Build a reference OSS implementation of the local and remote knowledge stores.
+- Implement the HITL graduation pipeline (local → remote → global nomination).
+- Integrate verifiable identity infrastructure (evaluating approaches from standard OIDC through to decentralized identifiers).
 - Prototype the global commons with a curated domain (e.g. coding / software development, leveraging existing Spark research as a starting point).
 
 ### 8.3 Phase 3: Trust and Scale
@@ -554,7 +554,7 @@ For organisations evaluating cq, the regulatory message is straightforward: adop
 ### 8.4 Phase 4: Ecosystem
 
 - Encourage third-party implementations of the standard.
-- Explore commercial services built on the OSS core (hosted team stores, enterprise support, analytics).
+- Explore commercial services built on the OSS core (hosted remote stores, enterprise support, analytics).
 - Measure and publish environmental impact data (tokens saved, compute avoided).
 - Lobby for adoption alongside Mozilla's broader AI policy work.
 
@@ -562,23 +562,23 @@ For organisations evaluating cq, the regulatory message is straightforward: adop
 
 ## 9. Open Questions and Risks
 
-- **Incentive design:** Why would commercial agent operators contribute to a commons that helps competitors? There are strong counter-arguments: the open-source ecosystem already demonstrates this dynamic at scale — everyone builds on Linux, contributes to shared libraries, and competes on implementation rather than foundations. Better general-purpose agents benefit the entire market, and proponents of free-market competition should welcome giving everyone access to the best tools so the best product wins on merit. Furthermore, the environmental argument provides a non-commercial incentive that resonates with policy-makers and the public. That said, the dynamics of sharing real-time operational knowledge may differ from sharing code, and some organisations may resist contributing knowledge they view as a competitive edge. The layered architecture mitigates this somewhat — companies keep their proprietary context in the local/team layer and only graduate genuinely generic insights to the global commons.
-- **Quality at scale:** HITL review works for early stages, but can it scale to millions of contributions? The proposed model is StackOverflow-style tiered review: reputation accrual for contributors and reviewers, with graduated privileges (new contributors can propose but not review; experienced contributors review team-level graduations; trusted reviewers review global graduations). Bad reviewers lose privileges over time — if their approved units are frequently flagged downstream, their reputation drops. Review should feel like approving a PR (small batches of 2-3 candidates at natural breakpoints), not processing a backlog. Automated guardrails handle PII detection and format validation; humans focus on accuracy, relevance, and quality. This addresses reviewer fatigue while maintaining accountability. To be honest about what HITL provides here: reviewers offer legitimacy — does this knowledge unit look correct, generalisable, and safe? — not verification of the underlying observation. No reviewer can reproduce the agent's runtime conditions. This is the same standard applied to human contributions on StackOverflow or Wikipedia, and it is a pragmatic design choice, not a weakness.
+- **Incentive design:** Why would commercial agent operators contribute to a commons that helps competitors? There are strong counter-arguments: the open-source ecosystem already demonstrates this dynamic at scale — everyone builds on Linux, contributes to shared libraries, and competes on implementation rather than foundations. Better general-purpose agents benefit the entire market, and proponents of free-market competition should welcome giving everyone access to the best tools so the best product wins on merit. Furthermore, the environmental argument provides a non-commercial incentive that resonates with policy-makers and the public. That said, the dynamics of sharing real-time operational knowledge may differ from sharing code, and some organizations may resist contributing knowledge they view as a competitive edge. The layered architecture mitigates this somewhat — companies keep their proprietary context in the local/remote layer and only graduate genuinely generic insights to the global commons.
+- **Quality at scale:** HITL review works for early stages, but can it scale to millions of contributions? The proposed model is StackOverflow-style tiered review: reputation accrual for contributors and reviewers, with graduated privileges (new contributors can propose but not review; experienced contributors review remote-level graduations; trusted reviewers review global graduations). Bad reviewers lose privileges over time — if their approved units are frequently flagged downstream, their reputation drops. Review should feel like approving a PR (small batches of 2-3 candidates at natural breakpoints), not processing a backlog. Automated guardrails handle PII detection and format validation; humans focus on accuracy, relevance, and quality. This addresses reviewer fatigue while maintaining accountability. To be honest about what HITL provides here: reviewers offer legitimacy — does this knowledge unit look correct, generalizable, and safe? — not verification of the underlying observation. No reviewer can reproduce the agent's runtime conditions. This is the same standard applied to human contributions on StackOverflow or Wikipedia, and it is a pragmatic design choice, not a weakness.
 - **Staleness and versioning:** APIs change, libraries update. Knowledge that was correct six months ago may now be harmful. The system needs robust decay and version-locking mechanisms.
-- **Homogenisation risk:** If all agents converge on the same "best practices," we lose exploratory diversity. Some mechanism for preserving and rewarding novel approaches is needed.
-- **Governance model:** The proposed model is that agents themselves categorise and propose knowledge for graduation (they are well-placed to identify what is generic vs. context-specific), while human reviewers act as a compliance checkpoint — signing off on promotions from team to global scope. This keeps the process scalable (agents do the heavy lifting of curation and classification) while maintaining accountability (humans verify quality, catch vendor bias, and ensure safety). Open questions remain around how human reviewers are selected, how disputes are resolved, and whether Ostrom's commons governance principles can be adapted to provide a robust long-term framework.
+- **Homogenization risk:** If all agents converge on the same "best practices," we lose exploratory diversity. Some mechanism for preserving and rewarding novel approaches is needed.
+- **Governance model:** The proposed model is that agents themselves categorize and propose knowledge for graduation (they are well-placed to identify what is generic vs. context-specific), while human reviewers act as a compliance checkpoint — signing off on promotions from remote to global scope. This keeps the process scalable (agents do the heavy lifting of curation and classification) while maintaining accountability (humans verify quality, catch vendor bias, and ensure safety). Open questions remain around how human reviewers are selected, how disputes are resolved, and whether Ostrom's commons governance principles can be adapted to provide a robust long-term framework.
 - **Adoption chicken-and-egg:** The commons is only valuable if agents contribute to it. We may need to bootstrap with curated content (like Spark's documentation-seeded approach) before organic contributions reach critical mass.
 
 ---
 
 ## 10. Potential Partners and Contacts
 
-| Organisation | Relevance | Contact Route |
+| Organization | Relevance | Contact Route |
 |-------------|-----------|---------------|
 | **Cardano Foundation** | Veridian (identity), Midnight (privacy), Masumi (agent network). Thomas Mayfield leads DID/trust. | info@veridian.id; Spring 2026 Accelerator open now |
 | **Memco** | Spark shared agent memory. Open-source CLI, proprietary backend. Closest adjacent system. Potential collaborator. | Valentin Tablan (lead author on arXiv paper 2511.08301) |
 | **Loughborough Uni** | Prof. Andrea Soltoggio. DARPA ShELL programme. MOSAIC algorithm. Academic foundations. | a.soltoggio@lboro.ac.uk (published on personal site) |
-| **Collective Intelligence Project** | "Intelligence as Commons" governance framework. Ostrom-based governance thinking. | Via cip.org (research organisation) |
+| **Collective Intelligence Project** | "Intelligence as Commons" governance framework. Ostrom-based governance thinking. | Via cip.org (research organization) |
 | **Cloud Security Alliance** | Published Agentic AI IAM framework with DID/VC/Zero Trust for agents. | Via cloudsecurityalliance.org publications |
 
 ---
@@ -625,13 +625,13 @@ For organisations evaluating cq, the regulatory message is straightforward: adop
 9. **Midnight Network** — Cardano's privacy layer using zero-knowledge proofs for selective disclosure.
    https://midnight.network/
 
-10. **Masumi Network** — Decentralised AI agent transaction and discovery network on Cardano (Cardano Foundation case study).
+10. **Masumi Network** — Decentralized AI agent transaction and discovery network on Cardano (Cardano Foundation case study).
     https://cardanofoundation.org/case-studies/masumi
 
-11. **CIP-1694** — Cardano's on-chain decentralised governance framework.
+11. **CIP-1694** — Cardano's on-chain decentralized governance framework.
     https://cips.cardano.org/cip/CIP-1694
 
-12. **Cardano Foundation on 2026: AI Authority, Digital Identity and Privacy** — Thomas Mayfield's outlook on agentic AI and decentralised identity.
+12. **Cardano Foundation on 2026: AI Authority, Digital Identity and Privacy** — Thomas Mayfield's outlook on agentic AI and decentralized identity.
     https://coincentral.com/cardano-foundation-predicts-ai-and-digital-id-shift-by-2026/
 
 13. **Hoskinson, C.** (2025) "Cardano Will Anchor Human Internet In The AI Age" — Livestream outlining the two-track web vision, Midnight as privacy layer for agentic commerce, and veracity bonds.

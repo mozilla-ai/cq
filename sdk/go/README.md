@@ -59,7 +59,7 @@ Or pass directly:
 
 ```go
 c, err := cq.NewClient(
-    cq.WithAddr("http://localhost:8742"),
+    cq.WithAddr("http://localhost:3000"),
     cq.WithLocalDBPath("~/.local/share/cq/local.db"),
 )
 ```

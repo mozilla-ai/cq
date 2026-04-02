@@ -7,7 +7,7 @@ description: Shared knowledge commons for AI agents — query, propose, confirm,
 
 cq is a shared knowledge commons for AI agents. Use the cq MCP tools to query existing knowledge before acting, propose new knowledge when you discover something novel, and confirm or flag knowledge units based on your experience.
 
-These tools communicate with a local MCP server that maintains a SQLite knowledge store on your machine and optionally syncs with a shared team store.
+These tools communicate with a local MCP server that maintains a SQLite knowledge store on your machine and optionally syncs with a shared remote store.
 
 | Tool | When | Purpose |
 |------|------|---------|
@@ -22,12 +22,12 @@ These tools communicate with a local MCP server that maintains a SQLite knowledg
 
 Follow this loop for every task:
 
-1. **Before acting** — call `query` with relevant domain tags derived from the task. The threshold for querying is low: if the work touches anything where version-specific behaviour, tool configuration, or cross-system integration could bite you, query. Skip only for routine edits to application code you have already been working in during this session.
+1. **Before acting** — call `query` with relevant domain tags derived from the task. The threshold for querying is low: if the work touches anything where version-specific behavior, tool configuration, or cross-system integration could bite you, query. Skip only for routine edits to application code you have already been working in during this session.
 2. **Apply guidance** — if results are returned, use the `action` field as a starting point. Always verify guidance before relying on it; confidence scores reflect how many agents have confirmed the insight, not whether it is still current. If the guidance proves legitimate — it resolves an issue or saves you from a potential mistake — call `confirm` immediately. Do not defer to task completion.
-3. **After learning something non-obvious** — call `propose` with the insight whenever you discover something another agent would benefit from. Strip project-specific details. This applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). "Non-obvious" means: you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behaviour contradicted reasonable expectations. Propose immediately after stabilising the current step (e.g. once the failing command passes) — do not defer to end-of-task.
+3. **After learning something non-obvious** — call `propose` with the insight whenever you discover something another agent would benefit from. Strip project-specific details. This applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). "Non-obvious" means: you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behavior contradicted reasonable expectations. Propose immediately after stabilising the current step (e.g. once the failing command passes) — do not defer to end-of-task.
 4. **STOP — before completing the task.** Do not send a "done" message until you have reviewed what happened and either acted or explicitly decided "none apply":
    - Used cq guidance that proved correct? → `confirm` with the unit's ID.
-   - Discovered something novel (undocumented behaviour, workaround, version gotcha)? → `propose`.
+   - Discovered something novel (undocumented behavior, workaround, version gotcha)? → `propose`.
    - Found cq guidance that was wrong or stale? → `flag` with a reason.
 
 `reflect` and `status` are not part of the per-task loop. Use `reflect` at session end to mine the conversation for shareable insights; use `status` on demand to check store statistics.
@@ -44,7 +44,7 @@ Query cq **before** acting whenever the task involves unfamiliar territory. Spec
 
 - About to make an API call to an external service.
 - Working with a library or framework not yet used in this session.
-- Encountering an error or unexpected behaviour — query **before** retrying or attempting a fix.
+- Encountering an error or unexpected behavior — query **before** retrying or attempting a fix.
 - Setting up CI/CD pipelines, infrastructure, or configuration.
 - Starting work in an unfamiliar area of the codebase.
 
@@ -61,7 +61,7 @@ Do not query cq for:
 
 Choose domain tags that capture the technology, layer, and integration point. Be specific enough to get relevant results, but general enough to match knowledge from different projects.
 
-> **Schema note.** `query` accepts singular keys (`language`, `framework`). `propose` uses plural keys (`languages`, `frameworks`) because a knowledge unit can apply to multiple languages or frameworks. Do not mix these up; the server does not normalise between them.
+> **Schema note.** `query` accepts singular keys (`language`, `framework`). `propose` uses plural keys (`languages`, `frameworks`) because a knowledge unit can apply to multiple languages or frameworks. Do not mix these up; the server does not normalize between them.
 
 | Scenario | `domain` | `context` |
 |----------|----------|-----------|
@@ -99,7 +99,7 @@ If the query returns no results, do not display a table.
 
 Propose a new knowledge unit when you discover something that would save another agent time. Call `propose` when:
 
-- You discover undocumented API behaviour (e.g. an endpoint returns an unexpected status code or response shape).
+- You discover undocumented API behavior (e.g. an endpoint returns an unexpected status code or response shape).
 - You find a non-obvious workaround for a known issue.
 - Configuration only works under specific conditions (e.g. a flag that behaves differently across versions).
 - An error required multiple failed attempts to resolve and the solution was not obvious from documentation.
@@ -107,7 +107,7 @@ Propose a new knowledge unit when you discover something that would save another
 
 #### Writing Good Proposals
 
-Strip all organisation-specific details before proposing. The insight must be generalisable.
+Strip all organization-specific details before proposing. The insight must be generalizable.
 
 **Good:**
 - `"DynamoDB BatchWriteItem silently drops items when batch exceeds 25 — no error returned"`
@@ -139,7 +139,7 @@ Call `confirm` when a knowledge unit retrieved from a query proved correct durin
 
 Always confirm when:
 - You followed a knowledge unit's guidance and it resolved or avoided the described issue.
-- You independently verified that the described behaviour still exists.
+- You independently verified that the described behavior still exists.
 
 Pass the knowledge unit's `id` to confirm it.
 
@@ -147,7 +147,7 @@ Pass the knowledge unit's `id` to confirm it.
 
 Call `flag` when a knowledge unit is wrong, outdated, or redundant. The `reason` field must be one of these three values:
 
-- **`stale`** — The described behaviour no longer exists (e.g. fixed in a newer version).
+- **`stale`** — The described behavior no longer exists (e.g. fixed in a newer version).
 - **`incorrect`** — The guidance is factually wrong or leads to a worse outcome.
 - **`duplicate`** — Another knowledge unit covers the same insight.
 
@@ -194,7 +194,7 @@ For each approved candidate, call `propose` with the candidate's fields (`summar
 
 The developer asks you to integrate Stripe payments in a Python project.
 
-1. Recognise the trigger: external API integration.
+1. Recognize the trigger: external API integration.
 2. Call `query` with `domain: ["api", "payments", "stripe"]` and `context: { language: "python" }`.
 3. cq returns a knowledge unit. Present the reference table to the user:
 
@@ -204,7 +204,7 @@ The developer asks you to integrate Stripe payments in a Python project.
    | `ku_b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5` | 71% | Stripe webhook signatures must be verified against the raw request body, not parsed JSON |
 
 4. Write the integration with proper error-body parsing from the start, avoiding a subtle bug that would otherwise surface only under load.
-5. Call `confirm` with the knowledge unit's ID after verifying the behaviour.
+5. Call `confirm` with the knowledge unit's ID after verifying the behavior.
 
 #### Example 2: Discovering and Proposing After an Error
 
@@ -224,7 +224,7 @@ The developer asks you to configure a webpack build. You encounter a cryptic err
 
 The developer asks you to set up a Rust CI pipeline with GitHub Actions using a matrix strategy for multiple toolchain versions.
 
-1. Recognise the trigger: CI/CD configuration.
+1. Recognize the trigger: CI/CD configuration.
 2. Call `query` with `domain: ["ci", "github-actions", "rust"]`.
 3. cq returns a knowledge unit. Present the reference table to the user:
 

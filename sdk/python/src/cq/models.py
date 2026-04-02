@@ -16,8 +16,11 @@ _KU_ID_PATTERN = re.compile(r"^ku_[0-9a-f]{32}$")
 class Tier(StrEnum):
     """Knowledge unit storage tier."""
 
+    # Locally-stored knowledge unit.
     LOCAL = "local"
+    # Shared on a remote store with restricted access.
     PRIVATE = "private"
+    # Publicly shared.
     PUBLIC = "public"
 
 

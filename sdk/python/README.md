@@ -56,7 +56,7 @@ Or pass directly:
 
 ```python
 cq = Client(
-    addr="http://localhost:8742",
+    addr="http://localhost:3000",
     local_db_path=Path("~/.local/share/cq/local.db").expanduser(),
 )
 ```

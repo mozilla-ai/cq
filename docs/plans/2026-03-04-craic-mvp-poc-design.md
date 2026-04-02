@@ -10,7 +10,7 @@
 
 Build a minimal proof-of-concept that demonstrates the core cq loop: an AI agent that persists learnings locally, queries shared knowledge before acting, proposes new knowledge when discovering something novel, and retrospectively mines sessions for shareable insights.
 
-The PoC targets **Claude Code** as the primary agent platform, uses **Python** throughout, and demonstrates both local and team-level knowledge sharing.
+The PoC targets **Claude Code** as the primary agent platform, uses **Python** throughout, and demonstrates both local and remote knowledge sharing.
 
 ---
 
@@ -22,7 +22,7 @@ Three distinct runtime boundaries:
 flowchart TB
     subgraph cc["Claude Code Process"]
         direction TB
-        skill["cq Skill<br/><i>SKILL.md — behavioural instructions</i>"]
+        skill["cq Skill<br/><i>SKILL.md — behavioral instructions</i>"]
         hook["Post-Error Hook<br/><i>hooks.json — triggers on errors</i>"]
         reflect_cmd["/cq:reflect<br/><i>Slash command — session mining</i>"]
         status_cmd["/cq:status<br/><i>Slash command — store stats</i>"]
@@ -37,20 +37,20 @@ flowchart TB
 
     subgraph docker["Docker Container"]
         direction TB
-        api["cq Team API<br/><i>Python / FastAPI</i><br/><i>localhost:8742</i>"]
-        team_db[("Team Store<br/>/data/team.db<br/><i>SQLite — shared across team</i>")]
-        api --> team_db
+        api["cq Remote API<br/><i>Python / FastAPI</i><br/><i>localhost:3000</i>"]
+        remote_db[("Remote Store<br/>/data/cq.db<br/><i>SQLite — shared across organization</i>")]
+        api --> remote_db
     end
 
     cc -->|"stdio (MCP protocol)"| mcp
     mcp -->|"HTTP (REST API)"| docker
 ```
 
-**Claude Code process** loads the plugin's config files (skill, hooks, commands). These are markdown and JSON that shape agent behaviour — no code runs here.
+**Claude Code process** loads the plugin's config files (skill, hooks, commands). These are markdown and JSON that shape agent behavior — no code runs here.
 
 **Local MCP server process** is a Python process spawned by Claude Code via stdio. It owns the local SQLite store on disk and contains all the cq logic.
 
-**Docker container** runs the team API independently. In the PoC it is `docker compose up` on localhost. In production this would be a hosted service with auth, tenancy, and RBAC.
+**Docker container** runs the remote API independently. In the PoC it is `docker compose up` on localhost. In production this would be a hosted service with auth, tenancy, and RBAC.
 
 ---
 
@@ -63,24 +63,24 @@ sequenceDiagram
     participant Skill as cq Skill
     participant MCP as MCP Server
     participant Local as Local Store
-    participant Team as Team API
+    participant Remote as Remote API
 
     Dev->>CC: "Integrate Stripe payments"
-    CC->>Skill: Recognises trigger: API integration
+    CC->>Skill: Recognizes trigger: API integration
     Skill->>CC: Instruct: query cq first
     CC->>MCP: query(domain=["api","payments","stripe"])
     MCP->>Local: Search local store
     Local-->>MCP: 0 results
-    MCP->>Team: GET /query?domain=api,payments,stripe
-    Team-->>MCP: 1 result (confidence: 0.94)
+    MCP->>Remote: GET /query?domain=api,payments,stripe
+    Remote-->>MCP: 1 result (confidence: 0.94)
     MCP-->>CC: "Stripe returns 200 with error body for rate limits"
     CC->>Dev: Writes correct error handling on first attempt
 
-    Note over CC: Later, discovers novel behaviour...
+    Note over CC: Later, discovers novel behavior...
 
     CC->>MCP: propose(summary="...", domain=["api","webhooks"])
     MCP->>Local: Store locally
-    MCP->>Team: POST /propose (insight is generic)
+    MCP->>Remote: POST /propose (insight is generic)
     MCP-->>CC: Stored as ku_abc123
 ```
 
@@ -148,9 +148,9 @@ Search for relevant knowledge units.
 | `context.framework` | `string` | Optional. Filter by framework. |
 | `limit` | `int` | Optional. Max results (default 5). |
 
-Returns `{ results: KnowledgeUnit[], source: "local" | "team" | "both" }`.
+Returns `{ results: KnowledgeUnit[], source: "local" | "remote" | "both" }`.
 
-Searches local store first, then team store. Merges and deduplicates by `id`. Returns top N ranked by relevance * confidence.
+Searches local store first, then remote store. Merges and deduplicates by `id`. Returns top N ranked by relevance * confidence.
 
 ### `propose`
 
@@ -166,7 +166,7 @@ Submit a new knowledge unit.
 
 Returns `{ id: string, tier: "local", message: string }`.
 
-Creates a knowledge unit in the local store. If the MCP server determines the insight is generic (no org-specific references), it also pushes to the team store.
+Creates a knowledge unit in the local store. If the MCP server determines the insight is generic (no org-specific references), it also pushes to the remote store.
 
 ### `confirm`
 
@@ -191,21 +191,21 @@ Returns `{ id: string, new_confidence: float, message: string }`.
 
 ### `reflect`
 
-Retrospectively analyse session context for shareable learnings.
+Retrospectively analyze session context for shareable learnings.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `session_context` | `string` | Required. Conversation/session context to analyse. |
+| `session_context` | `string` | Required. Conversation/session context to analyze. |
 
 Returns `{ candidates: [{ summary, detail, action, domain, estimated_relevance }] }`.
 
-The agent (via `/cq:reflect`) passes its session context. The server analyses it for patterns worth sharing and returns candidates. The agent presents them to the user for approval before calling `propose` on each.
+The agent (via `/cq:reflect`) passes its session context. The server analyzes it for patterns worth sharing and returns candidates. The agent presents them to the user for approval before calling `propose` on each.
 
 ---
 
 ## cq Skill Design
 
-The Skill is the behavioural layer that gives the agent judgement about when to use cq tools. Without it, the MCP tools are passive and may never be called.
+The Skill is the behavioral layer that gives the agent judgment about when to use cq tools. Without it, the MCP tools are passive and may never be called.
 
 ### Query Triggers
 
@@ -213,14 +213,14 @@ The agent should call `query` when:
 
 - About to make an API call to an external service.
 - Working with a library or framework it hasn't used in this session.
-- Encountering an error or unexpected behaviour.
+- Encountering an error or unexpected behavior.
 - Setting up CI/CD, infrastructure, or configuration.
 
 ### Propose Triggers
 
 The agent should call `propose` when:
 
-- It discovers undocumented behaviour (e.g. API returned unexpected response).
+- It discovers undocumented behavior (e.g. API returned unexpected response).
 - It finds a workaround for a known issue.
 - It identifies a configuration that only works under specific conditions.
 - It resolves an error after multiple failed attempts.
@@ -255,7 +255,7 @@ This is the "demo moment" — at end of session, the developer runs `/cq:reflect
 
 ---
 
-## Team API (Docker Container)
+## Remote API (Docker Container)
 
 ### Endpoints
 
@@ -272,20 +272,20 @@ This is the "demo moment" — at end of session, the developer runs `/cq:reflect
 
 ```yaml
 services:
-  cq-team:
-    build: ./team-api
+  cq-server:
+    build: ./server
     ports:
-      - "8742:8742"
+      - "3000:3000"
     volumes:
       - cq-data:/data
     environment:
-      - cq_DB_PATH=/data/team.db
+      - cq_DB_PATH=/data/cq.db
 
 volumes:
   cq-data:
 ```
 
-One container, one volume, one port. The MCP server connects to `http://localhost:8742` by default (configurable via environment variable).
+One container, one volume, one port. The MCP server connects to `http://localhost:3000` by default (configurable via environment variable).
 
 ---
 
@@ -309,12 +309,12 @@ cq-plugin/
 │   │   ├── __init__.py
 │   │   ├── server.py
 │   │   ├── local_store.py
-│   │   ├── team_client.py
+│   │   ├── remote_client.py
 │   │   └── knowledge_unit.py
 │   └── Dockerfile
-├── team-api/
+├── server/
 │   ├── pyproject.toml
-│   ├── team_api/
+│   ├── cq_server/
 │   │   ├── __init__.py
 │   │   ├── app.py
 │   │   └── store.py
@@ -332,11 +332,11 @@ The following are intentionally excluded from the PoC. Each is a real feature fo
 - **Identity/DIDs** — agents identified by machine ID, not Veridian/KERI.
 - **Zero-knowledge proofs** — no Midnight integration.
 - **Reputation system** — simple confirmation counting only.
-- **Global commons tier** — local + team only.
+- **Global commons tier** — local + remote only.
 - **Semantic/vector search** — keyword matching on domain tags.
 - **any-guardrail integration** — no guardrails filtering.
 - **Time-based staleness decay** — knowledge does not expire.
-- **Multi-tenant team stores** — single team, no auth.
+- **Multi-tenant remote stores** — single team, no auth.
 - **HITL graduation dashboard** — graduation is manual via `/cq:reflect`.
 
 ---

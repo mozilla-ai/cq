@@ -34,7 +34,7 @@ const (
 	// Local is a locally-stored knowledge unit.
 	Local Tier = "local"
 
-	// Private is shared within a team.
+	// Private is shared on a remote store with restricted access.
 	Private Tier = "private"
 
 	// Public is publicly shared.

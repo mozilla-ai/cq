@@ -16,7 +16,7 @@
 | `sdk/go`     | Go SDK                                 | Go                                 |
 | `sdk/python` | Python SDK                             | Python                             |
 | `plugins/cq` | Agent plugin (skills, commands, hooks) | Markdown, Python                   |
-| `server`     | Team knowledge server                  | Python, FastAPI, TypeScript, React |
+| `server`     | Remote knowledge server                | Python, FastAPI, TypeScript, React |
 
 ## Initial Setup
 
@@ -48,9 +48,9 @@ In a separate terminal, create a user and load sample knowledge units:
 make seed-all USER=demo PASS=demo123
 ```
 
-The team API is available at `http://localhost:8742`.
+The remote API is available at `http://localhost:3000`.
 
-For isolated component testing outside Docker, use `make dev-api` (team API) and `make dev-ui` (dashboard).
+For isolated component testing outside Docker, use `make dev-api` (remote API) and `make dev-ui` (dashboard).
 
 ## Agent Configuration
 
@@ -63,7 +63,7 @@ Add to `~/.claude/settings.json` under the `env` key:
 ```json
 {
   "env": {
-    "CQ_ADDR": "http://localhost:8742"
+    "CQ_ADDR": "http://localhost:3000"
   }
 }
 ```
@@ -77,7 +77,7 @@ Add to `~/.config/opencode/opencode.json` or your project-level config, in the M
   "mcp": {
     "cq": {
       "environment": {
-        "CQ_ADDR": "http://localhost:8742"
+        "CQ_ADDR": "http://localhost:3000"
       }
     }
   }
