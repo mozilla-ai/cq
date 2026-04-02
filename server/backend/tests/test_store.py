@@ -1,4 +1,4 @@
-"""Tests for the SQLite-backed team knowledge store."""
+"""Tests for the SQLite-backed remote knowledge store."""
 
 import sqlite3
 from collections.abc import Iterator
@@ -17,7 +17,7 @@ from cq.models import (
 )
 
 from cq_server.scoring import apply_confirmation, apply_flag
-from cq_server.store import TeamStore
+from cq_server.store import RemoteStore
 
 
 def _make_insight(**overrides: Any) -> Insight:
@@ -38,13 +38,13 @@ def _make_unit(**overrides: Any) -> KnowledgeUnit:
 
 
 @pytest.fixture()
-def store(tmp_path: Path) -> Iterator[TeamStore]:
-    s = TeamStore(db_path=tmp_path / "test.db")
+def store(tmp_path: Path) -> Iterator[RemoteStore]:
+    s = RemoteStore(db_path=tmp_path / "test.db")
     yield s
     s.close()
 
 
-def _insert_and_approve(store: TeamStore, **overrides: Any) -> KnowledgeUnit:
+def _insert_and_approve(store: RemoteStore, **overrides: Any) -> KnowledgeUnit:
     """Insert a knowledge unit and approve it for query visibility."""
     unit = _make_unit(**overrides)
     store.insert(unit)
@@ -53,29 +53,29 @@ def _insert_and_approve(store: TeamStore, **overrides: Any) -> KnowledgeUnit:
 
 
 class TestInsertAndGet:
-    def test_insert_and_retrieve(self, store: TeamStore) -> None:
+    def test_insert_and_retrieve(self, store: RemoteStore) -> None:
         unit = _make_unit()
         store.insert(unit)
         retrieved = store.get_any(unit.id)
         assert retrieved == unit
 
-    def test_insert_duplicate_raises(self, store: TeamStore) -> None:
+    def test_insert_duplicate_raises(self, store: RemoteStore) -> None:
         unit = _make_unit()
         store.insert(unit)
         with pytest.raises(sqlite3.IntegrityError):
             store.insert(unit)
 
-    def test_returns_none_for_missing_id(self, store: TeamStore) -> None:
+    def test_returns_none_for_missing_id(self, store: RemoteStore) -> None:
         assert store.get("ku_nonexistent") is None
 
-    def test_insert_with_empty_domains_raises(self, store: TeamStore) -> None:
+    def test_insert_with_empty_domains_raises(self, store: RemoteStore) -> None:
         unit = _make_unit(domains=["  ", ""])
         with pytest.raises(ValueError, match="At least one non-empty domain"):
             store.insert(unit)
 
 
 class TestUpdate:
-    def test_update_persists_changes(self, store: TeamStore) -> None:
+    def test_update_persists_changes(self, store: RemoteStore) -> None:
         unit = _insert_and_approve(store)
         confirmed = apply_confirmation(unit)
         store.update(confirmed)
@@ -83,12 +83,12 @@ class TestUpdate:
         assert retrieved is not None
         assert retrieved.evidence.confirmations == 2
 
-    def test_update_missing_unit_raises(self, store: TeamStore) -> None:
+    def test_update_missing_unit_raises(self, store: RemoteStore) -> None:
         unit = _make_unit()
         with pytest.raises(KeyError, match="Knowledge unit not found"):
             store.update(unit)
 
-    def test_update_with_empty_domains_raises(self, store: TeamStore) -> None:
+    def test_update_with_empty_domains_raises(self, store: RemoteStore) -> None:
         unit = _make_unit(domains=["databases"])
         store.insert(unit)
         updated = unit.model_copy(update={"domains": ["  "]})
@@ -97,17 +97,17 @@ class TestUpdate:
 
 
 class TestQuery:
-    def test_returns_matching_units(self, store: TeamStore) -> None:
+    def test_returns_matching_units(self, store: RemoteStore) -> None:
         unit = _insert_and_approve(store, domains=["databases"])
         results = store.query(["databases"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
-    def test_returns_empty_for_no_match(self, store: TeamStore) -> None:
+    def test_returns_empty_for_no_match(self, store: RemoteStore) -> None:
         _insert_and_approve(store, domains=["databases"])
         assert store.query(["networking"]) == []
 
-    def test_language_filter_boosts_matching_units(self, store: TeamStore) -> None:
+    def test_language_filter_boosts_matching_units(self, store: RemoteStore) -> None:
         py = _insert_and_approve(
             store,
             domains=["web"],
@@ -123,21 +123,21 @@ class TestQuery:
         assert results[0].id == py.id
         assert results[1].id == go.id
 
-    def test_language_filter_includes_units_without_language(self, store: TeamStore) -> None:
+    def test_language_filter_includes_units_without_language(self, store: RemoteStore) -> None:
         """KUs with no language set should still appear when language filter is used."""
         no_lang = _insert_and_approve(store, domains=["ci"])
         results = store.query(["ci"], languages=["python"])
         assert len(results) == 1
         assert results[0].id == no_lang.id
 
-    def test_framework_filter_includes_units_without_framework(self, store: TeamStore) -> None:
+    def test_framework_filter_includes_units_without_framework(self, store: RemoteStore) -> None:
         """KUs with no framework set should still appear when framework filter is used."""
         no_fw = _insert_and_approve(store, domains=["web"])
         results = store.query(["web"], frameworks=["fastapi"])
         assert len(results) == 1
         assert results[0].id == no_fw.id
 
-    def test_language_filter_ranks_matching_higher(self, store: TeamStore) -> None:
+    def test_language_filter_ranks_matching_higher(self, store: RemoteStore) -> None:
         """KUs with matching language should rank above those without."""
         no_lang = _insert_and_approve(store, domains=["web"])
         with_lang = _insert_and_approve(
@@ -150,7 +150,7 @@ class TestQuery:
         assert results[0].id == with_lang.id
         assert results[1].id == no_lang.id
 
-    def test_multiple_languages_boost_any_match(self, store: TeamStore) -> None:
+    def test_multiple_languages_boost_any_match(self, store: RemoteStore) -> None:
         """Querying with multiple languages boosts units matching any of them."""
         py = _insert_and_approve(
             store,
@@ -174,7 +174,7 @@ class TestQuery:
         assert matched_ids == {py.id, go.id}
         assert results[2].id == rust.id
 
-    def test_multiple_frameworks_boost_any_match(self, store: TeamStore) -> None:
+    def test_multiple_frameworks_boost_any_match(self, store: RemoteStore) -> None:
         """Querying with multiple frameworks boosts units matching any of them."""
         fastapi = _insert_and_approve(
             store,
@@ -197,21 +197,21 @@ class TestQuery:
         assert matched_ids == {fastapi.id, django.id}
         assert results[2].id == flask.id
 
-    def test_rejects_non_positive_limit(self, store: TeamStore) -> None:
+    def test_rejects_non_positive_limit(self, store: RemoteStore) -> None:
         with pytest.raises(ValueError, match="limit must be positive"):
             store.query(["databases"], limit=0)
 
 
 class TestStats:
-    def test_count_empty_store(self, store: TeamStore) -> None:
+    def test_count_empty_store(self, store: RemoteStore) -> None:
         assert store.count() == 0
 
-    def test_count_after_inserts(self, store: TeamStore) -> None:
+    def test_count_after_inserts(self, store: RemoteStore) -> None:
         store.insert(_make_unit(domains=["a"]))
         store.insert(_make_unit(domains=["b"]))
         assert store.count() == 2
 
-    def test_domain_counts(self, store: TeamStore) -> None:
+    def test_domain_counts(self, store: RemoteStore) -> None:
         u1 = _make_unit(domains=["api", "payments"])
         u2 = _make_unit(domains=["api", "auth"])
         store.insert(u1)
@@ -225,7 +225,7 @@ class TestStats:
 
 
 class TestReviewStatus:
-    def test_inserted_unit_has_pending_status(self, store: TeamStore) -> None:
+    def test_inserted_unit_has_pending_status(self, store: RemoteStore) -> None:
         unit = _make_unit()
         store.insert(unit)
         status = store.get_review_status(unit.id)
@@ -236,32 +236,32 @@ class TestReviewStatus:
 
 
 class TestStatusFiltering:
-    def test_query_excludes_pending_units(self, store: TeamStore) -> None:
+    def test_query_excludes_pending_units(self, store: RemoteStore) -> None:
         unit = _make_unit(domains=["api"])
         store.insert(unit)
         results = store.query(["api"])
         assert len(results) == 0
 
-    def test_query_returns_approved_units(self, store: TeamStore) -> None:
+    def test_query_returns_approved_units(self, store: RemoteStore) -> None:
         unit = _make_unit(domains=["api"])
         store.insert(unit)
         store.set_review_status(unit.id, "approved", "reviewer")
         results = store.query(["api"])
         assert len(results) == 1
 
-    def test_query_excludes_rejected_units(self, store: TeamStore) -> None:
+    def test_query_excludes_rejected_units(self, store: RemoteStore) -> None:
         unit = _make_unit(domains=["api"])
         store.insert(unit)
         store.set_review_status(unit.id, "rejected", "reviewer")
         results = store.query(["api"])
         assert len(results) == 0
 
-    def test_get_only_returns_approved_for_agents(self, store: TeamStore) -> None:
+    def test_get_only_returns_approved_for_agents(self, store: RemoteStore) -> None:
         unit = _make_unit()
         store.insert(unit)
         assert store.get(unit.id) is None
 
-    def test_get_returns_approved_unit(self, store: TeamStore) -> None:
+    def test_get_returns_approved_unit(self, store: RemoteStore) -> None:
         unit = _make_unit()
         store.insert(unit)
         store.set_review_status(unit.id, "approved", "reviewer")
@@ -269,7 +269,7 @@ class TestStatusFiltering:
 
 
 class TestReviewQueue:
-    def test_pending_queue_returns_pending_units(self, store: TeamStore) -> None:
+    def test_pending_queue_returns_pending_units(self, store: RemoteStore) -> None:
         u1 = _make_unit(domains=["api"])
         u2 = _make_unit(domains=["db"])
         store.insert(u1)
@@ -277,14 +277,14 @@ class TestReviewQueue:
         queue = store.pending_queue(limit=20, offset=0)
         assert len(queue) == 2
 
-    def test_pending_queue_excludes_reviewed(self, store: TeamStore) -> None:
+    def test_pending_queue_excludes_reviewed(self, store: RemoteStore) -> None:
         unit = _make_unit(domains=["api"])
         store.insert(unit)
         store.set_review_status(unit.id, "approved", "reviewer")
         queue = store.pending_queue(limit=20, offset=0)
         assert len(queue) == 0
 
-    def test_pending_count(self, store: TeamStore) -> None:
+    def test_pending_count(self, store: RemoteStore) -> None:
         u1 = _make_unit(domains=["a"])
         u2 = _make_unit(domains=["b"])
         store.insert(u1)
@@ -292,7 +292,7 @@ class TestReviewQueue:
         store.set_review_status(u1.id, "approved", "reviewer")
         assert store.pending_count() == 1
 
-    def test_counts_by_status(self, store: TeamStore) -> None:
+    def test_counts_by_status(self, store: RemoteStore) -> None:
         u1 = _make_unit(domains=["a"])
         u2 = _make_unit(domains=["b"])
         u3 = _make_unit(domains=["c"])
@@ -306,7 +306,7 @@ class TestReviewQueue:
         assert counts["rejected"] == 1
         assert counts["pending"] == 1
 
-    def test_daily_counts(self, store: TeamStore) -> None:
+    def test_daily_counts(self, store: RemoteStore) -> None:
         store.insert(_make_unit(domains=["a"]))
         store.insert(_make_unit(domains=["b"]))
         counts = store.daily_counts(days=30)
@@ -314,7 +314,7 @@ class TestReviewQueue:
         total = sum(row["proposed"] for row in counts)
         assert total == 2
 
-    def test_daily_counts_gap_fills_to_today(self, store: TeamStore) -> None:
+    def test_daily_counts_gap_fills_to_today(self, store: RemoteStore) -> None:
         """daily_counts should return contiguous dates from the earliest entry to today."""
         three_days_ago = datetime.now(UTC) - timedelta(days=3)
         unit = _make_unit(domains=["a"])
@@ -338,7 +338,7 @@ class TestReviewQueue:
         for row in counts[1:]:
             assert row["proposed"] == 0
 
-    def test_daily_counts_includes_approved(self, store: TeamStore) -> None:
+    def test_daily_counts_includes_approved(self, store: RemoteStore) -> None:
         """daily_counts should include approved counts grouped by reviewed_at date."""
         three_days_ago = datetime.now(UTC) - timedelta(days=3)
         one_day_ago = datetime.now(UTC) - timedelta(days=1)
@@ -374,7 +374,7 @@ class TestReviewQueue:
         # No approvals on the proposal date.
         assert by_date[three_days_ago_str]["approved"] == 0
 
-    def test_daily_counts_includes_rejected(self, store: TeamStore) -> None:
+    def test_daily_counts_includes_rejected(self, store: RemoteStore) -> None:
         """daily_counts should include rejected counts grouped by reviewed_at date."""
         two_days_ago = datetime.now(UTC) - timedelta(days=2)
 
@@ -403,11 +403,11 @@ class TestReviewQueue:
         assert by_date[today_str]["rejected"] == 1
         assert by_date[today_str]["proposed"] == 0
 
-    def test_daily_counts_rejects_non_positive_days(self, store: TeamStore) -> None:
+    def test_daily_counts_rejects_non_positive_days(self, store: RemoteStore) -> None:
         with pytest.raises(ValueError, match="days must be positive"):
             store.daily_counts(days=0)
 
-    def test_pending_queue_pagination(self, store: TeamStore) -> None:
+    def test_pending_queue_pagination(self, store: RemoteStore) -> None:
         for _ in range(3):
             store.insert(_make_unit(domains=["a"]))
         page1 = store.pending_queue(limit=2, offset=0)
@@ -417,13 +417,13 @@ class TestReviewQueue:
         ids = {r["knowledge_unit"].id for r in page1} | {r["knowledge_unit"].id for r in page2}
         assert len(ids) == 3
 
-    def test_counts_by_status_empty(self, store: TeamStore) -> None:
+    def test_counts_by_status_empty(self, store: RemoteStore) -> None:
         counts = store.counts_by_status()
         assert counts == {}
 
 
 class TestEndToEnd:
-    def test_propose_confirm_flag_lifecycle(self, store: TeamStore) -> None:
+    def test_propose_confirm_flag_lifecycle(self, store: RemoteStore) -> None:
         _insert_and_approve(
             store,
             domains=["api", "payments"],

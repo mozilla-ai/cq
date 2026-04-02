@@ -23,7 +23,7 @@ from starlette.responses import FileResponse
 from .auth import router as auth_router
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
-from .store import TeamStore, normalize_domains
+from .store import RemoteStore, normalize_domains
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -50,10 +50,10 @@ class StatsResponse(BaseModel):
     domains: dict[str, int]
 
 
-_store: TeamStore | None = None
+_store: RemoteStore | None = None
 
 
-def _get_store() -> TeamStore:
+def _get_store() -> RemoteStore:
     """Return the global store instance."""
     if _store is None:
         raise RuntimeError("Store not initialised")
@@ -68,7 +68,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     if not jwt_secret:
         raise RuntimeError("CQ_JWT_SECRET environment variable is required")
     db_path = Path(os.environ.get("CQ_DB_PATH", "/data/cq.db"))
-    _store = TeamStore(db_path=db_path)
+    _store = RemoteStore(db_path=db_path)
     app_instance.state.store = _store
     yield
     _store.close()

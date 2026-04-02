@@ -1,6 +1,6 @@
-"""SQLite-backed team knowledge store.
+"""SQLite-backed remote knowledge store.
 
-Stores knowledge units in a SQLite database for team-level sharing.
+Stores knowledge units in a SQLite database for remote sharing.
 Auto-creates the database directory and schema on first use.
 Implements the context manager protocol for deterministic resource cleanup.
 """
@@ -42,8 +42,8 @@ def normalize_domains(domains: list[str]) -> list[str]:
     return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
 
 
-class TeamStore:
-    """SQLite-backed team knowledge store.
+class RemoteStore:
+    """SQLite-backed remote knowledge store.
 
     Holds a single persistent connection for the lifetime of the instance.
     Use as a context manager or call ``close()`` explicitly.
@@ -82,7 +82,7 @@ class TeamStore:
     def _check_open(self) -> None:
         """Raise if the store has been closed."""
         if self._closed:
-            raise RuntimeError("TeamStore is closed")
+            raise RuntimeError("RemoteStore is closed")
 
     def close(self) -> None:
         """Close the underlying database connection."""
@@ -91,7 +91,7 @@ class TeamStore:
         self._closed = True
         self._conn.close()
 
-    def __enter__(self) -> "TeamStore":
+    def __enter__(self) -> "RemoteStore":
         """Enter the context manager."""
         return self
 

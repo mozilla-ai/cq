@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from .deps import get_store
-from .store import TeamStore
+from .store import RemoteStore
 
 
 def hash_password(password: str) -> str:
@@ -103,12 +103,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
-def login(request: LoginRequest, store: TeamStore = Depends(get_store)) -> LoginResponse:
+def login(request: LoginRequest, store: RemoteStore = Depends(get_store)) -> LoginResponse:
     """Authenticate a user and return a JWT token.
 
     Args:
         request: Login credentials.
-        store: The team store dependency.
+        store: The remote store dependency.
 
     Returns:
         A LoginResponse with a signed JWT and the username.
@@ -124,12 +124,12 @@ def login(request: LoginRequest, store: TeamStore = Depends(get_store)) -> Login
 
 
 @router.get("/me")
-def me(username: str = Depends(get_current_user), store: TeamStore = Depends(get_store)) -> MeResponse:
+def me(username: str = Depends(get_current_user), store: RemoteStore = Depends(get_store)) -> MeResponse:
     """Return the current user's info.
 
     Args:
         username: The authenticated username from the JWT dependency.
-        store: The team store dependency.
+        store: The remote store dependency.
 
     Returns:
         A MeResponse with the user's username and creation timestamp.
