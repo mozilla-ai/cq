@@ -211,6 +211,7 @@ class TestStats:
         assert resp.status_code == 200
         body = resp.json()
         assert body["total_units"] == 0
+        assert body["tiers"] == {}
         assert body["domains"] == {}
 
     def test_stats_after_inserts(self, client: TestClient) -> None:
@@ -225,6 +226,7 @@ class TestStats:
         assert resp.status_code == 200
         body = resp.json()
         assert body["total_units"] == 2
+        assert body["tiers"] == {"private": 2}
         assert body["domains"]["api"] == 2
         assert body["domains"]["auth"] == 1
         assert body["domains"]["payments"] == 1

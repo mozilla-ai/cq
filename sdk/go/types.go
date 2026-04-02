@@ -101,6 +101,7 @@ type StoreStats struct {
 	DomainCounts           map[string]int  `json:"domain_counts"`
 	Recent                 []KnowledgeUnit `json:"recent"`
 	ConfidenceDistribution map[string]int  `json:"confidence_distribution"`
+	TierCounts             map[Tier]int    `json:"tier_counts"`
 }
 
 type Warnings []error

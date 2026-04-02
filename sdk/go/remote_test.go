@@ -216,3 +216,44 @@ func TestRemoteQuerySendsPluralParamNames(t *testing.T) {
 		})
 	})
 }
+
+func TestRemoteStats(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/stats", r.URL.Path)
+		require.Equal(t, "GET", r.Method)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_units": 5,
+			"tiers":       map[string]int{"private": 4, "public": 1},
+			"domains":     map[string]int{"api": 3, "db": 2},
+		})
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rs, err := rc.stats(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 5, rs.TotalUnits)
+	require.Equal(t, map[Tier]int{Private: 4, Public: 1}, rs.Tiers)
+	require.Equal(t, map[string]int{"api": 3, "db": 2}, rs.Domains)
+}
+
+func TestRemoteStatsServerError(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	_, err := rc.stats(context.Background())
+	require.ErrorIs(t, err, errUnreachable)
+}
+
+func TestRemoteStatsTransportError(t *testing.T) {
+	t.Parallel()
+	rc := newRemoteClient("http://127.0.0.1:1", "", 1*time.Second)
+	_, err := rc.stats(context.Background())
+	require.ErrorIs(t, err, errUnreachable)
+}

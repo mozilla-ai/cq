@@ -7,6 +7,7 @@ _REVIEW_COLUMN_STATEMENTS = [
     "ALTER TABLE knowledge_units ADD COLUMN reviewed_by TEXT",
     "ALTER TABLE knowledge_units ADD COLUMN reviewed_at TEXT",
     "ALTER TABLE knowledge_units ADD COLUMN created_at TEXT",
+    "ALTER TABLE knowledge_units ADD COLUMN tier TEXT NOT NULL DEFAULT 'private'",
 ]
 
 USERS_TABLE_SQL = """

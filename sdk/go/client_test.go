@@ -579,3 +579,96 @@ func TestQueryLimitCappedAt50(t *testing.T) {
 	// Should not error; limit is silently capped.
 	require.LessOrEqual(t, len(qr.Units), 50)
 }
+
+func TestStatusLocalOnlyHasTierCounts(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	_, err := c.Propose(ctx, ProposeParams{
+		Summary: "S", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	stats, err := c.Status(ctx)
+	require.NoError(t, err)
+	require.Equal(t, map[Tier]int{Local: 1}, stats.TierCounts)
+}
+
+func TestStatusWithRemoteMergesTierCounts(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/stats" && r.Method == "GET" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_units": 3,
+				"tiers":       map[string]int{"private": 3, "public": 0},
+				"domains":     map[string]int{"api": 2},
+			})
+			return
+		}
+		// Propose unreachable — forces local fallback.
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	c := newTestClientWithRemote(t, handler)
+	ctx := context.Background()
+
+	_, err := c.Propose(ctx, ProposeParams{
+		Summary: "Local", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	stats, err := c.Status(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 4, stats.TotalCount)
+	require.Equal(t, 1, stats.TierCounts[Local])
+	require.Equal(t, 3, stats.TierCounts[Private])
+	require.Equal(t, 0, stats.TierCounts[Public])
+}
+
+func TestStatusRemoteUnreachableStillReturnsLocal(t *testing.T) {
+	testClearEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	c, err := NewClient(WithAddr("http://127.0.0.1:1"), WithLocalDBPath(dbPath), WithTimeout(1*time.Second))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
+
+	_, err = c.Propose(context.Background(), ProposeParams{
+		Summary: "S", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	stats, err := c.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, stats.TotalCount)
+	require.Equal(t, map[Tier]int{Local: 1}, stats.TierCounts)
+}
+
+func TestStatusIgnoresLocalTierFromRemote(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/stats" && r.Method == "GET" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_units": 6,
+				"tiers":       map[string]int{"local": 1, "private": 4, "public": 1},
+				"domains":     map[string]int{},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	c := newTestClientWithRemote(t, handler)
+	ctx := context.Background()
+
+	_, err := c.Propose(ctx, ProposeParams{
+		Summary: "S", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	stats, err := c.Status(ctx)
+	require.NoError(t, err)
+	// Local count comes from the local store (1), not from the remote's "local" tier.
+	require.Equal(t, 1, stats.TierCounts[Local])
+	require.Equal(t, 4, stats.TierCounts[Private])
+	require.Equal(t, 1, stats.TierCounts[Public])
+	// Total is local (1) + private (4) + public (1) = 6. The remote's "local: 1" is excluded.
+	require.Equal(t, 6, stats.TotalCount)
+}

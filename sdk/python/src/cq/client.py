@@ -4,7 +4,7 @@ Handles remote mode (HTTP calls to a cq API) and local mode
 (SQLite at $XDG_DATA_HOME/cq/local.db), with fallback between them.
 """
 
-import logging
+import contextlib
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,8 +23,6 @@ from .models import (
 )
 from .scoring import apply_confirmation, apply_flag
 from .store import LocalStore, StoreStats
-
-logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 5.0
 
@@ -209,7 +207,6 @@ class Client:
             if result is not None:
                 return result
             # Remote unreachable — fall back to local storage.
-            logger.info("Remote unreachable; storing unit %s locally as fallback.", unit.id)
 
         self._store.insert(unit)
         return unit
@@ -235,10 +232,8 @@ class Client:
             confirmed = apply_confirmation(unit)
             self._store.update(confirmed)
             if self._http is not None:
-                try:
+                with contextlib.suppress(RemoteError):
                     self._remote_confirm(unit_id)
-                except RemoteError:
-                    logger.debug("Remote rejected confirm for local unit %s", unit_id)
             return confirmed
 
         if self._http is None:
@@ -269,10 +264,8 @@ class Client:
             flagged = apply_flag(unit, reason)
             self._store.update(flagged)
             if self._http is not None:
-                try:
+                with contextlib.suppress(RemoteError):
                     self._remote_flag(unit_id, reason)
-                except RemoteError:
-                    logger.debug("Remote rejected flag for local unit %s", unit_id)
             return flagged
 
         if self._http is None:
@@ -283,8 +276,27 @@ class Client:
         raise KeyError(f"Remote unreachable; cannot flag unit: {unit_id}")
 
     def status(self) -> StoreStats:
-        """Return local store statistics."""
-        return self._store.stats()
+        """Return knowledge store statistics with tier counts.
+
+        When a remote API is configured and reachable, tier counts include
+        both local and remote breakdowns. If the remote is unreachable,
+        only local counts are returned.
+        """
+        stats = self._store.stats()
+        stats.tier_counts = {Tier.LOCAL: stats.total_count}
+
+        if self._http is not None:
+            remote = self._remote_stats()
+            if remote is not None:
+                for tier, count in remote.get("tiers", {}).items():
+                    # The remote store should never report a "local" tier, but guard
+                    # against it to prevent overwriting the local count we already set.
+                    if tier == Tier.LOCAL:
+                        continue
+                    stats.tier_counts[tier] = count
+                    stats.total_count += count
+
+        return stats
 
     @staticmethod
     def prompt() -> str:
@@ -322,6 +334,20 @@ class Client:
         return DrainResult(pushed=pushed, warnings=warnings)
 
     # -- Remote HTTP helpers (graceful degradation) --
+
+    def _remote_stats(self) -> dict | None:
+        """Fetch store statistics from the remote API.
+
+        Returns:
+            The stats dict on success, None on transport error.
+        """
+        assert self._http is not None
+        try:
+            resp = self._http.get("/stats")
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPError:
+            return None
 
     def _remote_query(
         self,
@@ -374,7 +400,6 @@ class Client:
                 detail=exc.response.text,
             ) from exc
         except httpx.HTTPError:
-            logger.debug("Remote propose unreachable", exc_info=True)
             return None
         try:
             data = resp.json()
@@ -382,7 +407,6 @@ class Client:
             return KnowledgeUnit.model_validate(unit_data)
         except (ValueError, ValidationError):
             # Server accepted but response is not a parseable KU.
-            logger.debug("Remote propose accepted but response not parseable; using local unit.")
             return unit
 
     def _remote_confirm(self, unit_id: str) -> KnowledgeUnit | None:
@@ -405,7 +429,6 @@ class Client:
                 detail=exc.response.text,
             ) from exc
         except httpx.HTTPError:
-            logger.debug("Remote confirm failed", exc_info=True)
             return None
         try:
             data = resp.json()
@@ -440,7 +463,6 @@ class Client:
                 detail=exc.response.text,
             ) from exc
         except httpx.HTTPError:
-            logger.debug("Remote flag failed", exc_info=True)
             return None
         try:
             data = resp.json()

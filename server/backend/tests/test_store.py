@@ -224,6 +224,75 @@ class TestStats:
         assert counts["auth"] == 1
 
 
+class TestTierColumn:
+    def test_tier_column_exists_after_migration(self, store: RemoteStore) -> None:
+        """The tier column should exist on the knowledge_units table."""
+        cursor = store._conn.execute("PRAGMA table_info(knowledge_units)")
+        columns = {row[1] for row in cursor.fetchall()}
+        assert "tier" in columns
+
+    def test_tier_column_defaults_to_private_for_migration(self, store: RemoteStore) -> None:
+        """Pre-existing rows without an explicit tier get 'private' from the column default."""
+        store._conn.execute(
+            "INSERT INTO knowledge_units (id, data, created_at) VALUES (?, ?, ?)",
+            ("ku_00000000000000000000000000000001", "{}", "2026-01-01T00:00:00Z"),
+        )
+        store._conn.commit()
+        row = store._conn.execute(
+            "SELECT tier FROM knowledge_units WHERE id = ?",
+            ("ku_00000000000000000000000000000001",),
+        ).fetchone()
+        assert row[0] == "private"
+
+    def test_insert_populates_tier_from_unit(self, store: RemoteStore) -> None:
+        """Insert should write the unit's tier value to the tier column."""
+        unit = _make_unit(tier=Tier.PRIVATE)
+        store.insert(unit)
+        row = store._conn.execute(
+            "SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)
+        ).fetchone()
+        assert row[0] == "private"
+
+    def test_update_syncs_tier_column(self, store: RemoteStore) -> None:
+        """Update should keep the tier column in sync with the JSON blob."""
+        unit = _make_unit(tier=Tier.PRIVATE)
+        store.insert(unit)
+        updated = unit.model_copy(update={"tier": Tier.PUBLIC})
+        store.update(updated)
+        row = store._conn.execute(
+            "SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)
+        ).fetchone()
+        assert row[0] == "public"
+
+    def test_counts_by_tier_empty(self, store: RemoteStore) -> None:
+        """Empty store returns empty dict."""
+        assert store.counts_by_tier() == {}
+
+    def test_counts_by_tier_approved_only(self, store: RemoteStore) -> None:
+        """Only approved units are counted."""
+        u1 = _make_unit(domains=["a"], tier=Tier.PRIVATE)
+        u2 = _make_unit(domains=["b"], tier=Tier.PRIVATE)
+        u3 = _make_unit(domains=["c"], tier=Tier.PRIVATE)
+        store.insert(u1)
+        store.insert(u2)
+        store.insert(u3)
+        store.set_review_status(u1.id, "approved", "reviewer")
+        store.set_review_status(u2.id, "approved", "reviewer")
+        counts = store.counts_by_tier()
+        assert counts == {"private": 2}
+
+    def test_counts_by_tier_groups_correctly(self, store: RemoteStore) -> None:
+        """Counts are grouped by tier value."""
+        u1 = _make_unit(domains=["a"], tier=Tier.PRIVATE)
+        u2 = _make_unit(domains=["b"], tier=Tier.PUBLIC)
+        store.insert(u1)
+        store.insert(u2)
+        store.set_review_status(u1.id, "approved", "reviewer")
+        store.set_review_status(u2.id, "approved", "reviewer")
+        counts = store.counts_by_tier()
+        assert counts == {"private": 1, "public": 1}
+
+
 class TestReviewStatus:
     def test_inserted_unit_has_pending_status(self, store: RemoteStore) -> None:
         unit = _make_unit()

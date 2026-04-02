@@ -49,12 +49,13 @@ def _default_db_path() -> Path:
 
 
 class StoreStats(BaseModel):
-    """Aggregated statistics for the local knowledge store."""
+    """Aggregated statistics for the knowledge store."""
 
     total_count: int
     domain_counts: dict[str, int] = Field(default_factory=dict)
     recent: list[KnowledgeUnit] = Field(default_factory=list)
     confidence_distribution: dict[str, int] = Field(default_factory=dict)
+    tier_counts: dict[str, int] = Field(default_factory=dict)
 
 
 _SCHEMA_SQL = """

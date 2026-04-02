@@ -47,6 +47,7 @@ class StatsResponse(BaseModel):
     """Response body for store statistics."""
 
     total_units: int
+    tiers: dict[str, int]
     domains: dict[str, int]
 
 
@@ -147,6 +148,7 @@ def stats() -> StatsResponse:
     store = _get_store()
     return StatsResponse(
         total_units=store.count(),
+        tiers=store.counts_by_tier(),
         domains=store.domain_counts(),
     )
 

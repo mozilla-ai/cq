@@ -79,6 +79,16 @@ class TestLocalOnlyMode:
         assert stats.total_count == 1
         assert "api" in stats.domain_counts
 
+    def test_status_local_only_has_tier_counts(self, client: Client):
+        client.propose(
+            summary="Test",
+            detail="Detail.",
+            action="Action.",
+            domains=["api"],
+        )
+        stats = client.status()
+        assert stats.tier_counts == {"local": 1}
+
     def test_drain_raises_without_remote(self, client: Client):
         with pytest.raises(RuntimeError, match="No remote API configured"):
             client.drain()
@@ -528,6 +538,58 @@ class TestRemoteIntegration:
 
         confirmed = c.confirm(unit.id)
         assert confirmed.evidence.confidence == pytest.approx(0.6)
+        c.close()
+
+    def test_status_merges_remote_tier_counts(self, tmp_path: Path, httpx_mock):
+        """status() merges local and remote tier counts."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/stats"),
+            json={"total_units": 3, "tiers": {"private": 3, "public": 0}, "domains": {}},
+        )
+
+        local_client = Client(local_db_path=tmp_path / "test.db")
+        local_client.propose(summary="S", detail="D", action="A", domains=["api"])
+        local_client.close()
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        assert stats.tier_counts["local"] == 1
+        assert stats.tier_counts["private"] == 3
+        assert stats.tier_counts["public"] == 0
+        assert stats.total_count == 4
+        c.close()
+
+    def test_status_remote_unreachable_returns_local_only(self, tmp_path: Path, httpx_mock):
+        """status() returns local-only tier counts when remote is unreachable."""
+        httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
+
+        local_client = Client(local_db_path=tmp_path / "test.db")
+        local_client.propose(summary="S", detail="D", action="A", domains=["api"])
+        local_client.close()
+
+        c = Client(addr="http://unreachable", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        assert stats.total_count == 1
+        assert stats.tier_counts == {"local": 1}
+        c.close()
+
+    def test_status_ignores_local_tier_from_remote(self, tmp_path: Path, httpx_mock):
+        """status() ignores 'local' tier in remote response to prevent double-counting."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/stats"),
+            json={"total_units": 6, "tiers": {"local": 1, "private": 4, "public": 1}, "domains": {}},
+        )
+
+        local_client = Client(local_db_path=tmp_path / "test.db")
+        local_client.propose(summary="S", detail="D", action="A", domains=["api"])
+        local_client.close()
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        assert stats.tier_counts["local"] == 1
+        assert stats.tier_counts["private"] == 4
+        assert stats.tier_counts["public"] == 1
+        assert stats.total_count == 6
         c.close()
 
     def test_flag_local_ignores_remote_rejection(self, tmp_path: Path, httpx_mock):

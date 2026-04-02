@@ -130,8 +130,8 @@ class RemoteStore:
         )
         with self._lock, self._conn:
             self._conn.execute(
-                "INSERT INTO knowledge_units (id, data, created_at) VALUES (?, ?, ?)",
-                (unit.id, data, created_at),
+                "INSERT INTO knowledge_units (id, data, created_at, tier) VALUES (?, ?, ?, ?)",
+                (unit.id, data, created_at, unit.tier.value),
             )
             self._conn.executemany(
                 "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
@@ -240,8 +240,8 @@ class RemoteStore:
         data = unit.model_dump_json()
         with self._lock, self._conn:
             cursor = self._conn.execute(
-                "UPDATE knowledge_units SET data = ? WHERE id = ?",
-                (data, unit.id),
+                "UPDATE knowledge_units SET data = ?, tier = ? WHERE id = ?",
+                (data, unit.tier.value, unit.id),
             )
             if cursor.rowcount == 0:
                 raise KeyError(f"Knowledge unit not found: {unit.id}")
@@ -380,6 +380,15 @@ class RemoteStore:
         self._check_open()
         with self._lock:
             rows = self._conn.execute("SELECT status, COUNT(*) FROM knowledge_units GROUP BY status").fetchall()
+        return {row[0]: row[1] for row in rows}
+
+    def counts_by_tier(self) -> dict[str, int]:
+        """Return approved KU counts grouped by tier."""
+        self._check_open()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT tier, COUNT(*) FROM knowledge_units WHERE status = 'approved' GROUP BY tier"
+            ).fetchall()
         return {row[0]: row[1] for row in rows}
 
     def list_units(

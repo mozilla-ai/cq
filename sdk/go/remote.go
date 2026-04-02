@@ -235,6 +235,44 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) []Knowledg
 	return units
 }
 
+// remoteStatsResponse holds the server's /stats response.
+type remoteStatsResponse struct {
+	TotalUnits int          `json:"total_units"`
+	Tiers      map[Tier]int `json:"tiers"`
+	Domains    map[string]int `json:"domains"`
+}
+
+// stats fetches store statistics from the remote API.
+// Returns errUnreachable on transport/5xx errors.
+func (r *remoteClient) stats(ctx context.Context) (remoteStatsResponse, error) {
+	statsURL, err := r.url("/stats")
+	if err != nil {
+		return remoteStatsResponse{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+
+	resp, err := r.do(ctx, http.MethodGet, statsURL, nil)
+	if err != nil {
+		return remoteStatsResponse{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 500 {
+		return remoteStatsResponse{}, errUnreachable
+	}
+
+	if resp.StatusCode >= 400 {
+		detail, _ := io.ReadAll(resp.Body)
+		return remoteStatsResponse{}, &RemoteError{StatusCode: resp.StatusCode, Detail: string(detail)}
+	}
+
+	var result remoteStatsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return remoteStatsResponse{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
+	}
+
+	return result, nil
+}
+
 // url builds a full URL from the base URL and a path segment.
 func (r *remoteClient) url(path string) (string, error) {
 	return url.JoinPath(r.baseURL, path)

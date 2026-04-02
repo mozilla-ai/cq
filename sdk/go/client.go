@@ -370,6 +370,9 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 }
 
 // Status returns aggregated statistics about the knowledge store.
+// When a remote API is configured and reachable, tier counts include
+// both local and remote breakdowns. If the remote is unreachable,
+// only local counts are returned.
 func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
@@ -385,6 +388,23 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 
 	if err := ctx.Err(); err != nil {
 		return StoreStats{}, err
+	}
+
+	stats.TierCounts = map[Tier]int{Local: stats.TotalCount}
+
+	if c.remote != nil {
+		remote, err := c.remote.stats(ctx)
+		if err == nil {
+			for tier, count := range remote.Tiers {
+				// The remote store should never report a "local" tier, but guard
+				// against it to prevent overwriting the local count we already set.
+				if tier == Local {
+					continue
+				}
+				stats.TierCounts[tier] = count
+				stats.TotalCount += count
+			}
+		}
 	}
 
 	return stats, nil
