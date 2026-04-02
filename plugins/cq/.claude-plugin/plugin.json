@@ -1,7 +1,7 @@
 {
   "name": "cq",
-  "version": "0.5.0",
-  "cliVersion": "0.1.0",
+  "version": "0.6.0",
+  "cliVersion": "0.2.0",
   "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
   "skills": "./skills/",
   "commands": "./commands/",
