@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -38,11 +39,15 @@ func ResolvedLocalDBPath(opts ...ClientOption) (string, error) {
 	return cfg.localDBPath, nil
 }
 
-// WithAddr overrides the CQ_TEAM_ADDR / CQ_ADDR environment variable.
+// WithAddr overrides the CQ_ADDR environment variable.
 func WithAddr(addr string) ClientOption {
 	return func(c *clientConfig) error {
-		c.addr = addr
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			return fmt.Errorf("addr cannot be empty")
+		}
 
+		c.addr = addr
 		return nil
 	}
 }
@@ -50,8 +55,12 @@ func WithAddr(addr string) ClientOption {
 // WithAPIKey overrides the CQ_API_KEY environment variable.
 func WithAPIKey(key string) ClientOption {
 	return func(c *clientConfig) error {
-		c.apiKey = key // pragma: allowlist secret
+		key = strings.TrimSpace(key)
+		if key == "" {
+			return fmt.Errorf("API key cannot be empty")
+		}
 
+		c.apiKey = key // pragma: allowlist secret
 		return nil
 	}
 }
@@ -60,13 +69,17 @@ func WithAPIKey(key string) ClientOption {
 // Expands a leading ~ to the user's home directory.
 func WithLocalDBPath(path string) ClientOption {
 	return func(c *clientConfig) error {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return fmt.Errorf("local DB path cannot be empty")
+		}
+
 		expanded, err := expandHome(path)
 		if err != nil {
 			return err
 		}
 
 		c.localDBPath = expanded
-
 		return nil
 	}
 }
@@ -77,8 +90,8 @@ func WithTimeout(d time.Duration) ClientOption {
 		if d <= 0 {
 			return fmt.Errorf("timeout must be positive, got %v", d)
 		}
-		c.timeout = d
 
+		c.timeout = d
 		return nil
 	}
 }
@@ -123,16 +136,10 @@ func expandHome(path string) (string, error) {
 
 // resolveConfig builds a clientConfig from defaults, env vars, and options.
 // Precedence: defaults < env vars < options.
-// CQ_TEAM_ADDR takes precedence over CQ_ADDR for the remote address.
 func resolveConfig(opts ...ClientOption) (*clientConfig, error) {
 	cfg := defaultConfig()
 
 	if v := os.Getenv("CQ_ADDR"); v != "" {
-		cfg.addr = v
-	}
-
-	// CQ_TEAM_ADDR takes precedence over CQ_ADDR.
-	if v := os.Getenv("CQ_TEAM_ADDR"); v != "" {
 		cfg.addr = v
 	}
 

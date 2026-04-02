@@ -13,7 +13,6 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	t.Setenv("CQ_ADDR", "")
-	t.Setenv("CQ_TEAM_ADDR", "")
 	t.Setenv("CQ_API_KEY", "")
 	t.Setenv("CQ_LOCAL_DB_PATH", "")
 
@@ -27,7 +26,6 @@ func TestDefaultConfig(t *testing.T) {
 
 func TestConfigReadsEnvVars(t *testing.T) {
 	t.Setenv("CQ_ADDR", "http://localhost:8742")
-	t.Setenv("CQ_TEAM_ADDR", "")
 	t.Setenv("CQ_API_KEY", "test-key")
 	t.Setenv("CQ_LOCAL_DB_PATH", "/tmp/test.db")
 
@@ -38,32 +36,9 @@ func TestConfigReadsEnvVars(t *testing.T) {
 	require.Equal(t, "/tmp/test.db", cfg.localDBPath)
 }
 
-func TestConfigReadsCQTeamAddr(t *testing.T) {
-	t.Setenv("CQ_ADDR", "http://old-addr:8742")
-	t.Setenv("CQ_TEAM_ADDR", "http://team-addr:9999")
-	t.Setenv("CQ_API_KEY", "")
-	t.Setenv("CQ_LOCAL_DB_PATH", "/tmp/test.db")
-
-	cfg, err := resolveConfig()
-	require.NoError(t, err)
-	require.Equal(t, "http://team-addr:9999", cfg.addr)
-}
-
-func TestConfigCQTeamAddrAloneWorks(t *testing.T) {
-	t.Setenv("CQ_ADDR", "")
-	t.Setenv("CQ_TEAM_ADDR", "http://team-only:9999")
-	t.Setenv("CQ_API_KEY", "")
-	t.Setenv("CQ_LOCAL_DB_PATH", "/tmp/test.db")
-
-	cfg, err := resolveConfig()
-	require.NoError(t, err)
-	require.Equal(t, "http://team-only:9999", cfg.addr)
-}
-
 func TestConfigExpandsTildeInEnvVar(t *testing.T) {
 	t.Setenv("CQ_LOCAL_DB_PATH", "~/cq/test.db")
 	t.Setenv("CQ_ADDR", "")
-	t.Setenv("CQ_TEAM_ADDR", "")
 	t.Setenv("CQ_API_KEY", "")
 
 	cfg, err := resolveConfig()
@@ -75,7 +50,6 @@ func TestConfigExpandsTildeInEnvVar(t *testing.T) {
 
 func TestOptionOverridesEnv(t *testing.T) {
 	t.Setenv("CQ_ADDR", "http://from-env:8742")
-	t.Setenv("CQ_TEAM_ADDR", "")
 
 	cfg, err := resolveConfig(
 		WithAddr("http://from-option:9999"),
@@ -98,13 +72,35 @@ func TestWithTimeoutRejectsNonPositive(t *testing.T) {
 
 func TestNilOptionIsSkipped(t *testing.T) {
 	t.Setenv("CQ_ADDR", "")
-	t.Setenv("CQ_TEAM_ADDR", "")
 	t.Setenv("CQ_API_KEY", "")
 	t.Setenv("CQ_LOCAL_DB_PATH", "")
 
 	cfg, err := resolveConfig(nil, WithAddr("http://test:8742"), nil)
 	require.NoError(t, err)
 	require.Equal(t, "http://test:8742", cfg.addr)
+}
+
+// -- option validation tests --
+
+func TestWithAddrRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	_, err := resolveConfig(WithAddr(""))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "addr cannot be empty")
+}
+
+func TestWithAPIKeyRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	_, err := resolveConfig(WithAPIKey(""))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "API key cannot be empty")
+}
+
+func TestWithLocalDBPathRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	_, err := resolveConfig(WithLocalDBPath(""))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "local DB path cannot be empty")
 }
 
 // -- expandHome tests --
@@ -185,7 +181,6 @@ func TestDefaultLocalDBPathNoLegacyNoXDG(t *testing.T) {
 
 func TestResolvedLocalDBPath(t *testing.T) {
 	t.Setenv("CQ_ADDR", "")
-	t.Setenv("CQ_TEAM_ADDR", "")
 	t.Setenv("CQ_API_KEY", "")
 	t.Setenv("CQ_LOCAL_DB_PATH", "/explicit/path.db")
 
@@ -197,7 +192,6 @@ func TestResolvedLocalDBPath(t *testing.T) {
 func TestResolvedLocalDBPathWithOption(t *testing.T) {
 	t.Setenv("CQ_LOCAL_DB_PATH", "")
 	t.Setenv("CQ_ADDR", "")
-	t.Setenv("CQ_TEAM_ADDR", "")
 	t.Setenv("CQ_API_KEY", "")
 
 	path, err := ResolvedLocalDBPath(WithLocalDBPath("/from/option.db"))

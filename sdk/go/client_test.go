@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,15 +13,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testNoRemote overrides any CQ_TEAM_ADDR or CQ_ADDR env var to ensure local-only operation.
-func testNoRemote() ClientOption {
-	return WithAddr("")
+// testClearEnv clears CQ environment variables so tests are isolated from the host.
+// Uses os.Unsetenv instead of t.Setenv to remain compatible with t.Parallel().
+func testClearEnv(t *testing.T) {
+	t.Helper()
+
+	for _, key := range []string{"CQ_ADDR", "CQ_API_KEY", "CQ_LOCAL_DB_PATH"} {
+		prev, existed := os.LookupEnv(key)
+		require.NoError(t, os.Unsetenv(key))
+
+		if existed {
+			t.Cleanup(func() { _ = os.Setenv(key, prev) })
+		}
+	}
 }
 
 func newTestClient(t *testing.T) *Client {
 	t.Helper()
+	testClearEnv(t)
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	c, err := NewClient(testNoRemote(), WithAPIKey(""), WithLocalDBPath(dbPath))
+	c, err := NewClient(WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
@@ -28,10 +40,11 @@ func newTestClient(t *testing.T) *Client {
 
 func newTestClientWithRemote(t *testing.T, handler http.Handler) *Client {
 	t.Helper()
+	testClearEnv(t)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	c, err := NewClient(WithAddr(srv.URL), WithAPIKey(""), WithLocalDBPath(dbPath))
+	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
@@ -64,13 +77,13 @@ func TestNewClientLocalOnly(t *testing.T) {
 }
 
 func TestNewClientWithRemote(t *testing.T) {
-	t.Parallel()
+	testClearEnv(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	c, err := NewClient(WithAddr(srv.URL), WithAPIKey(""), WithLocalDBPath(dbPath))
+	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	_ = c.Close()
@@ -288,9 +301,9 @@ func TestProposeRemoteReachable(t *testing.T) {
 }
 
 func TestProposeRemoteUnreachable(t *testing.T) {
-	t.Parallel()
+	testClearEnv(t)
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	c, err := NewClient(WithAddr("http://127.0.0.1:1"), WithAPIKey(""), WithLocalDBPath(dbPath), WithTimeout(1*time.Second))
+	c, err := NewClient(WithAddr("http://127.0.0.1:1"), WithLocalDBPath(dbPath), WithTimeout(1*time.Second))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = c.Close() })
 
@@ -462,7 +475,7 @@ func TestDrain(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 
 	// Seed local data with a local-only client.
-	localOnly, err := NewClient(testNoRemote(), WithAPIKey(""), WithLocalDBPath(dbPath))
+	localOnly, err := NewClient(WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	_, err = localOnly.Propose(context.Background(), ProposeParams{
 		Summary: "Drain me", Detail: "D.", Action: "A.", Domains: []string{"api"},
@@ -471,7 +484,7 @@ func TestDrain(t *testing.T) {
 	_ = localOnly.Close()
 
 	// Create client with remote and drain.
-	c, err := NewClient(WithAddr(srv.URL), WithAPIKey(""), WithLocalDBPath(dbPath))
+	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	defer func() { _ = c.Close() }()
 
@@ -492,6 +505,30 @@ func TestDrainNoRemote(t *testing.T) {
 	_, err := c.Drain(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no remote API configured")
+}
+
+func TestDrainableCount(t *testing.T) {
+	t.Parallel()
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	count, err := c.DrainableCount(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+
+	_, err = c.Propose(ctx, ProposeParams{
+		Summary: "Drainable", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	_, err = c.Propose(ctx, ProposeParams{
+		Summary: "Also drainable", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	count, err = c.DrainableCount(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
 }
 
 func TestHasRemote(t *testing.T) {

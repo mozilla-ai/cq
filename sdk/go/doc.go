@@ -12,7 +12,7 @@
 //	    Domains: []string{"api", "stripe"},
 //	})
 //
-// The client reads CQ_TEAM_ADDR, CQ_API_KEY, and CQ_LOCAL_DB_PATH from the
+// The client reads CQ_ADDR, CQ_API_KEY, and CQ_LOCAL_DB_PATH from the
 // environment. Use WithAddr, WithAPIKey, and WithLocalDBPath to override.
 // If no remote address is configured, the client operates in local-only mode.
 package cq

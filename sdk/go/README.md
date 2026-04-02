@@ -51,7 +51,7 @@ The client works out of the box in local-only mode with no configuration.
 
 | Variable           | Description           | Default                      |
 |--------------------|-----------------------|------------------------------|
-| `CQ_TEAM_ADDR`    | Remote cq API address | None (local-only)            |
+| `CQ_ADDR`          | Remote cq API address | None (local-only)            |
 | `CQ_API_KEY`      | API key               | None                         |
 | `CQ_LOCAL_DB_PATH` | Local SQLite path     | `~/.local/share/cq/local.db` |
 

@@ -37,7 +37,7 @@ type Client struct {
 }
 
 // NewClient creates a new cq client.
-// It reads CQ_TEAM_ADDR, CQ_ADDR, CQ_API_KEY, and CQ_LOCAL_DB_PATH from the environment.
+// It reads CQ_ADDR, CQ_API_KEY, and CQ_LOCAL_DB_PATH from the environment.
 // Options override environment variables.
 // If no remote address is configured, the client operates in local-only mode.
 func NewClient(opts ...ClientOption) (*Client, error) {
@@ -163,6 +163,26 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 	}
 
 	return result, nil
+}
+
+// DrainableCount returns the number of local units that Drain would push.
+func (c *Client) DrainableCount(ctx context.Context) (int, error) {
+	_, cancel := c.operationContext(ctx)
+	defer cancel()
+
+	units, err := c.store.all()
+	if err != nil {
+		return 0, fmt.Errorf("reading local units: %w", err)
+	}
+
+	var count int
+	for _, ku := range units {
+		if ku.Tier == Local {
+			count++
+		}
+	}
+
+	return count, nil
 }
 
 // Flag marks a knowledge unit as problematic and reduces its confidence.
