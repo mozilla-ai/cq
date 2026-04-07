@@ -29,7 +29,11 @@ repos:
       - id: detect-secrets
         exclude: uv\.lock$
 
-  - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.10.7
+  - repo: local
     hooks:
-      - id: uv-lock
+      - id: uv-lock-check-sdk-python
+        name: uv lock --check (sdk/python)
+        entry: uv lock --check --directory sdk/python
+        language: system
+        pass_filenames: false
+        files: ^sdk/python/(pyproject\.toml|uv\.lock|uv\.toml)$
