@@ -1,0 +1,33 @@
+{
+  "id": "ku_c90c2236fa754bb7b61e58c21531f7fc",
+  "version": 1,
+  "domains": [
+    "python",
+    "packaging",
+    "hatchling",
+    "uv",
+    "ci"
+  ],
+  "insight": {
+    "summary": "Hatchling wheel build fails if project name doesn't match package dir; fix via tool.hatch.build.targets.wheel.packages",
+    "detail": "When using Hatchling, the wheel builder tries heuristics to select files to ship. If your distribution name (e.g. `craic-demo`) implies a normalized module name (e.g. `craic_demo`) but your repo doesn't contain a matching package directory, editable builds can fail with: `ValueError: Unable to determine which files to ship... The most likely cause is that there is no directory that matches the name of your project`. This can surface via `uv run` because it builds the project by default. Verified 2026-03 while running `uv run --with pytest pytest` on a Hatchling project where the only importable package directory was `src/`.",
+    "action": "Add an explicit file selection config for Hatchling, e.g. `[tool.hatch.build.targets.wheel]\npackages = [\"<your-package-dir>\"]` (for a src-layout package: `packages = [\"src/<pkg>\"]`, or for a top-level package dir: `packages = [\"<pkg>\"]`). If you want CI commands like `uv run pytest` to work without building the project, you can alternatively use `uv run --no-project ...`."
+  },
+  "context": {
+    "languages": [
+      "python"
+    ],
+    "frameworks": [],
+    "pattern": "ci-pipeline"
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-20T11:47:47.402520Z",
+    "last_confirmed": "2026-03-20T11:47:47.402520Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

@@ -1,0 +1,27 @@
+{
+  "id": "ku_00000000000000000000000000000002",
+  "version": 1,
+  "domains": ["ci"],
+  "insight": {
+    "summary": "Actions checkout v3 is outdated",
+    "detail": "v4 has been available since 2024.",
+    "action": "Pin to actions/checkout@v4."
+  },
+  "evidence": {
+    "confidence": 0.2,
+    "confirmations": 1,
+    "first_observed": "2025-06-01T00:00:00Z",
+    "last_confirmed": "2025-06-01T00:00:00Z"
+  },
+  "tier": "private",
+  "flags": [
+    {
+      "reason": "stale",
+      "timestamp": "2026-03-01T12:00:00Z"
+    },
+    {
+      "reason": "stale",
+      "timestamp": "2026-03-10T09:00:00Z"
+    }
+  ]
+}

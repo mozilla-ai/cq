@@ -1,0 +1,25 @@
+{
+  "id": "ku_00000000000000000000000000000003",
+  "version": 1,
+  "domains": ["ci", "github-actions"],
+  "insight": {
+    "summary": "Use actions/checkout@v4 instead of v3",
+    "detail": "v3 uses Node 16 which is EOL.",
+    "action": "Update checkout step to actions/checkout@v4."
+  },
+  "evidence": {
+    "confidence": 0.3,
+    "confirmations": 1,
+    "first_observed": "2025-08-10T00:00:00Z",
+    "last_confirmed": "2025-08-10T00:00:00Z"
+  },
+  "tier": "private",
+  "flags": [
+    {
+      "reason": "duplicate",
+      "timestamp": "2026-03-15T08:00:00Z",
+      "duplicate_of": "ku_00000000000000000000000000000002",
+      "detail": "Covers the same checkout v3 deprecation as ku_flagged00001."
+    }
+  ]
+}

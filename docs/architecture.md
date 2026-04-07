@@ -6,13 +6,13 @@ This document describes the architecture of cq (shared agent knowledge commons) 
 
 ## 1. System Overview
 
-cq runs across three distinct runtime boundaries. Claude Code loads the plugin configuration files that shape agent behaviour. A local MCP server process handles all cq logic and owns the private knowledge store. A Docker container runs the Team API independently for shared organisational knowledge.
+cq runs across three distinct runtime boundaries. Claude Code loads the plugin configuration files that shape agent behavior. A local MCP server process handles all cq logic and owns the private knowledge store. A Docker container runs the Remote API independently for shared organizational knowledge.
 
 ```mermaid
 flowchart TB
     subgraph cc["Claude Code Process"]
         direction TB
-        skill["SKILL.md\nBehavioural instructions"]
+        skill["SKILL.md\nBehavioral instructions"]
         hook["hooks.json\nPost-error auto-query"]
         cmd_status["/cq:status\nStore statistics"]
         cmd_reflect["/cq:reflect\nSession mining"]
@@ -27,9 +27,9 @@ flowchart TB
 
     subgraph docker["Docker Container"]
         direction TB
-        api["Team API\nPython / FastAPI\nlocalhost:8742"]
-        team_db[("Team Store\n/data/team.db\nSQLite")]
-        api --> team_db
+        api["Remote API\nPython / FastAPI\nlocalhost:3000"]
+        remote_db[("Remote Store\n/data/cq.db\nSQLite")]
+        api --> remote_db
     end
 
     cc <-->|"stdio / MCP protocol"| mcp
@@ -43,14 +43,14 @@ flowchart TB
     class skill,hook,cmd_status,cmd_reflect ccStyle
     class server mcpStyle
     class api dockerStyle
-    class local_db,team_db dbStyle
+    class local_db,remote_db dbStyle
 ```
 
 **Claude Code** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
 
 **MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
 
-**Docker Container** runs the Team API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
+**Docker Container** runs the Remote API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
 
 ---
 
@@ -65,10 +65,10 @@ sequenceDiagram
     participant Skill as cq Skill
     participant MCP as MCP Server
     participant Local as Local Store
-    participant Team as Team API
+    participant Team as Remote API
 
     Dev->>CC: "Integrate Stripe payments"
-    CC->>Skill: Recognises trigger context (API integration)
+    CC->>Skill: Recognizes trigger context (API integration)
     Skill->>CC: Instruct: query cq before acting
 
     CC->>MCP: query(domain=["api","payments","stripe"])
@@ -80,26 +80,26 @@ sequenceDiagram
 
     CC->>Dev: Writes correct error handling on first attempt
 
-    Note over CC,MCP: Later, agent discovers undocumented behaviour...
+    Note over CC,MCP: Later, agent discovers undocumented behavior...
 
     CC->>MCP: propose(summary="...", domain=["api","webhooks"])
     MCP->>MCP: Guardrails check (PII, prompt injection, quality)
     MCP->>Local: Store as ku_abc123 (confidence: 0.5)
     MCP-->>CC: Stored locally as ku_abc123
 
-    Note over CC,Team: Graduation to team requires human approval...
+    Note over CC,Team: Graduation to remote requires human approval...
 
     MCP->>Team: POST /propose (flagged for HITL review)
     Team-->>MCP: Queued for review
 ```
 
-The agent queries before writing code, avoiding repeated failures. When it discovers something novel, it proposes a new knowledge unit. The proposal passes through guardrails (PII detection, prompt injection filtering, quality checks) before entering the local store. Graduation to the team store is not automatic — it requires human approval through a review process. In the enterprise path, a team reviewer approves promotion; in the individual path, the contributor nominates local knowledge directly for global graduation.
+The agent queries before writing code, avoiding repeated failures. When it discovers something novel, it proposes a new knowledge unit. The proposal passes through guardrails (PII detection, prompt injection filtering, quality checks) before entering the local store. Graduation to the remote store is not automatic; it requires human approval through a review process. In the enterprise path, a team reviewer approves promotion; in the individual path, the contributor nominates local knowledge directly for global graduation.
 
 ---
 
 ## 3. Tier Architecture
 
-Knowledge graduates upward through three tiers, each with increasing scope and trust requirements. The PoC implements Local and Team tiers. The Global tier represents the long-term vision.
+Knowledge graduates upward through three tiers, each with increasing scope and trust requirements. The PoC implements Local and Remote tiers. The Global tier represents the long-term vision.
 
 ```mermaid
 flowchart TB
@@ -109,9 +109,9 @@ flowchart TB
         l_conf["Confidence starts at 0.5\nNo sharing — agent's personal notebook"]
     end
 
-    subgraph team["Tier 2: Team / Organisation"]
+    subgraph team["Tier 2: Remote / Organization"]
         direction TB
-        t_desc["Shared within organisation\nCross-agent confirmed insights\nHosted FastAPI + Postgres"]
+        t_desc["Shared within organization\nCross-agent confirmed insights\nHosted FastAPI + Postgres"]
         t_conf["Multiple confirmations increase confidence\nOrg-specific context permitted"]
     end
 
@@ -136,11 +136,11 @@ flowchart TB
 
 There are two graduation paths to the global commons, reflecting different compliance requirements:
 
-**Enterprise path (Local → Team → Global):** Organisations graduate knowledge through their team store first. Team reviewers verify quality, strip organisation-specific context, and ensure compliance with internal policies. Only knowledge that has passed internal HITL review is nominated for global graduation.
+**Enterprise path (Local → Remote → Global):** Organizations graduate knowledge through their remote store first. Reviewers verify quality, strip organization-specific context, and ensure compliance with internal policies. Only knowledge that has passed internal HITL review is nominated for global graduation.
 
 **Individual path (Local → Global):** Individual contributors not operating within an enterprise context can nominate local knowledge directly for global graduation. Automated guardrails plus community review provide the quality gate.
 
-Both paths converge at the global graduation boundary, where HITL reviewers apply the same quality, safety, and generalisability standards regardless of source. The Global tier is out of scope for the PoC but is a core part of the long-term architecture.
+Both paths converge at the global graduation boundary, where HITL reviewers apply the same quality, safety, and generalizability standards regardless of source. The Global tier is out of scope for the PoC but is a core part of the long-term architecture.
 
 ---
 
@@ -151,7 +151,7 @@ The trust layer provides contributor traceability — not trust in the tradition
 ```mermaid
 flowchart LR
     subgraph identity["Identity"]
-        did["Decentralised Identifier (DID)\nKERI protocol via Veridian\nACDC credential chains"]
+        did["Decentralized Identifier (DID)\nKERI protocol via Veridian\nACDC credential chains"]
     end
 
     subgraph reputation["Reputation"]
@@ -174,9 +174,9 @@ flowchart LR
     class anti safeStyle
 ```
 
-**Identity** uses KERI (Key Event Receipt Infrastructure) for decentralised, blockchain-optional identity management. ACDC (Authentic Chained Data Containers) provides verifiable credential chains linking agents to their deploying organisations. Accountability flows through organisations and the people within them, not through agents directly.
+**Identity** uses KERI (Key Event Receipt Infrastructure) for decentralized, blockchain-optional identity management. ACDC (Authentic Chained Data Containers) provides verifiable credential chains linking agents to their deploying organizations. Accountability flows through organizations and the people within them, not through agents directly.
 
-**Reputation** is earned through diverse, independent confirmation. An insight confirmed by 3 agents from 3 independent organisations carries more weight than one confirmed by 800 agents from 2 organisations. Confirmation metadata includes model family; retrieval exposes a per-family breakdown so consuming agents can assess diversity at inference time without a storage-time penalty.
+**Reputation** is earned through diverse, independent confirmation. An insight confirmed by 3 agents from 3 independent organizations carries more weight than one confirmed by 800 agents from 2 organizations. Confirmation metadata includes model family; retrieval exposes a per-family breakdown so consuming agents can assess diversity at inference time without a storage-time penalty.
 
 **Anti-poisoning** combines multiple mechanisms: anomaly detection flags disproportionate contribution volume; diversity requirements ensure confirmation comes from varied sources; HITL review gates knowledge graduation; and guardrails filter for safety and quality. Staking provides useful skin-in-the-game incentives but is one signal among many — weighted below independent peer confirmation and HITL review to avoid a "pay to pollute" vulnerability where well-funded actors absorb slashing costs.
 
@@ -215,9 +215,9 @@ flowchart LR
     class any anyStyle
 ```
 
-**any-guardrail** provides a unified, model-agnostic interface for applying safety and quality checks. Because it is extensible, organisations can layer their own compliance rules on top of the baseline without forking the system. The broader guardrails ecosystem — Guardrails AI, NeMo Guardrails, LlamaGuard — provides complementary capabilities that plug in via any-guardrail's interface.
+**any-guardrail** provides a unified, model-agnostic interface for applying safety and quality checks. Because it is extensible, organizations can layer their own compliance rules on top of the baseline without forking the system. The broader guardrails ecosystem — Guardrails AI, NeMo Guardrails, LlamaGuard — provides complementary capabilities that plug in via any-guardrail's interface.
 
-**Ingestion filtering** is the primary PII control. Automated guardrails handle PII detection; human reviewers focus on accuracy, relevance, quality, and generalisability.
+**Ingestion filtering** is the primary PII control. Automated guardrails handle PII detection; human reviewers focus on accuracy, relevance, quality, and generalizability.
 
 **Graduation gates** run a more thorough assessment when knowledge is nominated for promotion between tiers — checking factual consistency, potential security implications, and alignment with quality standards.
 
@@ -258,12 +258,12 @@ Every piece of shared knowledge flows through a common structured format — `kn
     "proposer_did": "did:keri:EXq5YqaL6L48pf0fu7IUhL0JRaU2_RxFP0AL43wYn148",
     "graduation_history": [
       {
-        "from": "local", "to": "team",
+        "from": "local", "to": "remote",
         "approved_by": "human:alice@acme.dev",
         "timestamp": "2025-01-20T11:00:00Z"
       },
       {
-        "from": "team", "to": "global",
+        "from": "remote", "to": "global",
         "approved_by": "human:reviewer_7f2a@cq.mozilla.ai",
         "timestamp": "2025-02-01T16:45:00Z"
       }
@@ -294,7 +294,7 @@ Key design decisions:
 
 ## 3d. Knowledge Unit Lifecycle
 
-Not all knowledge is the same. Knowledge units exist on a spectrum from permanent knowledge to tool ecosystem intelligence. The `kind` field drives lifecycle behaviour.
+Not all knowledge is the same. Knowledge units exist on a spectrum from permanent knowledge to tool ecosystem intelligence. The `kind` field drives lifecycle behavior.
 
 ```mermaid
 flowchart TB
@@ -324,7 +324,7 @@ flowchart TB
 
 **Level 3 — Tool recommendations** point agents to the right tool rather than providing knowledge directly. This is what a Level 2 becomes after someone builds the tool — the original workaround gets `superseded_by` the recommendation.
 
-**Level 4 — Tool gap signals** are emergent. No single contributor creates them. When enough Level 2 KUs cluster around the same problem area, the aggregate pattern reveals a missing tool. This signal — with quantitative evidence across organisations — can drive ecosystem investment decisions.
+**Level 4 — Tool gap signals** are emergent. No single contributor creates them. When enough Level 2 KUs cluster around the same problem area, the aggregate pattern reveals a missing tool. This signal — with quantitative evidence across organizations — can drive ecosystem investment decisions.
 
 This classification makes the commons more than a knowledge store. It becomes an intelligence layer for the agent tooling ecosystem: which tools are working well, where tools are missing, and where investment is needed.
 
@@ -337,10 +337,10 @@ The tiered architecture implies different storage characteristics at each level.
 | Tier | Backing Store | Characteristics |
 |------|--------------|-----------------|
 | **Tier 1: Local** | SQLite / embedded | Fast, offline-capable, private. Data never leaves the machine unless explicitly graduated. |
-| **Tier 2: Team** | Postgres + pgvector | Multi-user access, RBAC, hybrid keyword + semantic search. Natural home for the enterprise SaaS offering. |
-| **Tier 3: Global** | Federated / decentralised | Publicly readable, highly available, resistant to single points of failure. Content-addressed storage for immutability and provenance. |
+| **Tier 2: Remote** | Postgres + pgvector | Multi-user access, RBAC, hybrid keyword + semantic search. Natural home for the enterprise SaaS offering. |
+| **Tier 3: Global** | Federated / decentralized | Publicly readable, highly available, resistant to single points of failure. Content-addressed storage for immutability and provenance. |
 
-The API contract — how agents read and write knowledge units via MCP tools — remains stable regardless of what storage sits underneath. The PoC uses SQLite for both Local and Team tiers; production deployments can swap in appropriate backends without changing the agent-facing interface.
+The API contract — how agents read and write knowledge units via MCP tools — remains stable regardless of what storage sits underneath. The PoC uses SQLite for both Local and Remote tiers; production deployments can swap in appropriate backends without changing the agent-facing interface.
 
 ---
 
@@ -380,13 +380,13 @@ flowchart LR
     class tools serverStyle
 ```
 
-**SKILL.md** is the behavioural layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behaviour, confirm when knowledge proves correct, flag when it is wrong or stale.
+**SKILL.md** is the behavioral layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behavior, confirm when knowledge proves correct, flag when it is wrong or stale.
 
-**MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, team API communication, confidence scoring, and query matching.
+**MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, remote API communication, confidence scoring, and query matching.
 
 **Hooks** trigger automatically. The post-error hook instructs the agent to call `query` with the error context before attempting a fix.
 
-**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalisability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
+**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalizability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
 
 **plugin.json** is the manifest that declares all components and wires them together for one-command installation.
 
@@ -400,7 +400,7 @@ cq is built entirely on existing open standards. It does not introduce new proto
 flowchart TB
     subgraph standards["Open Standards"]
         mcp_proto["MCP Protocol\nUniversal tool connectivity\nLinux Foundation governed"]
-        skills_std["Agent Skills Standard\nCross-platform behavioural format\n30+ agents supported"]
+        skills_std["Agent Skills Standard\nCross-platform behavioral format\n30+ agents supported"]
     end
 
     subgraph distribution["Distribution"]
@@ -447,10 +447,10 @@ flowchart TB
 
 1. **MCP Server only** — any MCP-compatible agent can connect to the cq MCP server and use the knowledge tools directly. This is the universal floor.
 
-2. **Skill via skills.sh** — installs `SKILL.md` and MCP configuration. Works across 30+ agents that support the Agent Skills standard. The Skill adds judgement: it teaches the agent *when* and *why* to call the tools.
+2. **Skill via skills.sh** — installs `SKILL.md` and MCP configuration. Works across 30+ agents that support the Agent Skills standard. The Skill adds judgment: it teaches the agent *when* and *why* to call the tools.
 
 3. **Full Plugin** — bundles the Skill, MCP server, hooks, commands, and manifest into a one-command install for Claude Code, OpenCode, and other plugin-compatible agents. This is the richest experience.
 
 The ecosystem convergence on MCP and Agent Skills means cq does not need to convince developers to adopt new protocols. It plugs into the infrastructure they already have.
 
-> **Domain scope:** The initial implementation targets coding agents — the domain where agent tooling is most mature and adoption is fastest. The underlying mechanism (structured knowledge sharing via MCP with tiered trust) generalises to arbitrary domains: DevOps, security, data engineering, and beyond.
+> **Domain scope:** The initial implementation targets coding agents — the domain where agent tooling is most mature and adoption is fastest. The underlying mechanism (structured knowledge sharing via MCP with tiered trust) generalizes to arbitrary domains: DevOps, security, data engineering, and beyond.

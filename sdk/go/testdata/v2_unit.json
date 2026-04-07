@@ -1,0 +1,11 @@
+{
+  "id": "ku_0123456789abcdef0123456789abcdef",
+  "version": 1,
+  "domains": ["api", "stripe"],
+  "insight": {"summary": "test summary", "detail": "test detail", "action": "test action"},
+  "context": {"languages": ["go"], "frameworks": ["net/http"], "pattern": "api-client"},
+  "evidence": {"confidence": 0.7, "confirmations": 3, "first_observed": "2026-03-30T12:00:00Z", "last_confirmed": "2026-03-30T12:00:00Z"},
+  "tier": "local",
+  "created_by": "agent-v2",
+  "flags": []
+}

@@ -1,0 +1,35 @@
+{
+  "id": "ku_00000000000000000000000000000004",
+  "version": 1,
+  "domains": [
+    "ci",
+    "docker"
+  ],
+  "insight": {
+    "summary": "Pin Docker image tags in CI to avoid flaky builds",
+    "detail": "Using latest or unpinned tags in CI Dockerfiles causes non-reproducible builds when upstream images change.",
+    "action": "Always pin Docker image tags to a specific SHA256 digest in CI configuration."
+  },
+  "context": {
+    "languages": [
+      "go",
+      "bash"
+    ],
+    "frameworks": []
+  },
+  "evidence": {
+    "confidence": 0.35,
+    "confirmations": 1,
+    "first_observed": "2026-03-25T10:00:00Z",
+    "last_confirmed": "2026-03-25T10:00:00Z"
+  },
+  "tier": "local",
+  "created_by": "agent-go",
+  "flags": [
+    {
+      "reason": "duplicate",
+      "duplicate_of": "ku_00000000000000000000000000000099",
+      "timestamp": "2026-03-26T09:00:00Z"
+    }
+  ]
+}

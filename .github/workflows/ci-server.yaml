@@ -1,0 +1,81 @@
+name: Server CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-server.yaml
+      - schema/**
+      - server/**
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-server.yaml
+      - schema/**
+      - server/**
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Validate schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Validate fixtures against schemas
+        run: make validate-schema
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/frontend/pnpm-lock.yaml
+
+      - name: Setup and lint
+        run: make setup-server lint-server
+
+  test:
+    name: Test
+    needs: [schema, lint]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/frontend/pnpm-lock.yaml
+
+      - name: Setup and test
+        run: make setup-server test-server

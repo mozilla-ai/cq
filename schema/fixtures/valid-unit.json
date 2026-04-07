@@ -1,0 +1,24 @@
+{
+  "id": "ku_a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "version": 1,
+  "domains": ["api", "stripe", "error-handling"],
+  "insight": {
+    "summary": "Stripe API returns 402 for expired cards",
+    "detail": "The error code is card_declined, not payment_failed.",
+    "action": "Check error.code, not error.type, when handling card errors."
+  },
+  "context": {
+    "languages": ["python"],
+    "frameworks": ["fastapi"],
+    "pattern": "api-integration"
+  },
+  "evidence": {
+    "confidence": 0.7,
+    "confirmations": 3,
+    "first_observed": "2026-01-15T10:30:00Z",
+    "last_confirmed": "2026-03-20T14:22:00Z"
+  },
+  "tier": "private",
+  "created_by": "agent:claude-code",
+  "flags": []
+}

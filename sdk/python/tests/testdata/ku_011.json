@@ -1,0 +1,30 @@
+{
+  "id": "ku_37bc194c37944ae49e784fbc87083093",
+  "version": 1,
+  "domains": [
+    "google-drive",
+    "api",
+    "url",
+    "download"
+  ],
+  "insight": {
+    "summary": "Google Drive uc?id= URLs can serve HTML interstitials instead of file content",
+    "detail": "The commonly used https://drive.google.com/uc?id={file_id} URL pattern can return an HTML interstitial page instead of the raw file, particularly in enterprise/Workspace environments with external sharing restrictions. The Drive API's webContentLink field (returned when requested via fields parameter) provides a more reliable direct download URL. When webContentLink is unavailable, appending &export=download to the fallback URL improves reliability.",
+    "action": "Request webContentLink in the Drive upload fields parameter and prefer it over constructed URLs. Use &export=download in any fallback URL."
+  },
+  "context": {
+    "languages": [],
+    "frameworks": [],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-20T18:07:57.214190Z",
+    "last_confirmed": "2026-03-20T18:07:57.214190Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

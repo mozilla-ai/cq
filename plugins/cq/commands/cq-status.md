@@ -1,11 +1,11 @@
 ---
 name: cq:status
-description: Display local cq knowledge store statistics — unit count, domains, recent additions, and confidence distribution.
+description: Display cq knowledge store statistics — tier counts (local/private/public), domains, recent additions, and confidence distribution.
 ---
 
 # /cq:status
 
-Display a summary of the local cq knowledge store.
+Display a summary of the cq knowledge store.
 
 ## Instructions
 
@@ -17,9 +17,10 @@ Display a summary of the local cq knowledge store.
 Present the results using this structure:
 
 ```
-## cq Local Store
+## cq Knowledge Store
 
-**{total_count} knowledge units**
+### Tier Counts
+local: {count} | private: {count} | public: {count}
 
 ### Domains
 {domain}: {count} | {domain}: {count} | ...
@@ -35,15 +36,17 @@ Present the results using this structure:
 ■ 0.0-0.3: {count} units
 ```
 
-If the response includes `promoted_to_team`, add this line after the total count:
+The `tier_counts` field contains the tier breakdown. Display all tiers present in the response. Omit tiers with a count of 0.
+
+If the response includes `promoted_to_remote`, add this line after the total count:
 
 ```
-Promoted {promoted_to_team} knowledge units to team at startup.
+Promoted {promoted_to_remote} knowledge units to the remote store at startup.
 ```
 
 ## Empty Store
 
-When `total_count` is 0:
+When all tier counts are 0 (or `tier_counts` is absent):
 
-- **With `promoted_to_team`:** Show the header, total count line, and promotion line. Omit Domains, Recent Additions, and Confidence sections (there is no data to display).
-- **Without `promoted_to_team`:** Display only: "The local cq store is empty. Knowledge units are added via `propose` or the `/cq:reflect` command."
+- **With `promoted_to_remote`:** Show the header, tier counts line, and promotion line. Omit Domains, Recent Additions, and Confidence sections (there is no data to display).
+- **Without `promoted_to_remote`:** Display only: "The cq store is empty. Knowledge units are added via `propose` or the `/cq:reflect` command."

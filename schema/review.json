@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/review.json",
+  "title": "Review",
+  "description": "Review workflow types for the knowledge unit review pipeline.",
+  "$defs": {
+    "ReviewStatus": {
+      "type": "string",
+      "enum": ["pending", "approved", "rejected"],
+      "description": "Review status for a knowledge unit."
+    },
+    "ReviewItem": {
+      "type": "object",
+      "description": "A knowledge unit with review metadata.",
+      "required": ["knowledge_unit", "status"],
+      "properties": {
+        "knowledge_unit": { "$ref": "knowledge_unit.json" },
+        "status": { "$ref": "#/$defs/ReviewStatus" },
+        "reviewed_by": {
+          "type": "string",
+          "description": "Identifier of the reviewer."
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReviewQueueResponse": {
+      "type": "object",
+      "description": "Paginated review queue response.",
+      "required": ["items", "total", "offset", "limit"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ReviewItem" }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReviewDecisionResponse": {
+      "type": "object",
+      "description": "Response after approving or rejecting a knowledge unit.",
+      "required": ["unit_id", "status"],
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "pattern": "^ku_[0-9a-f]{32}$"
+        },
+        "status": { "$ref": "#/$defs/ReviewStatus" },
+        "reviewed_by": {
+          "type": "string"
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DailyCount": {
+      "type": "object",
+      "description": "Daily proposal, approval, and rejection counts.",
+      "required": ["date", "proposed", "approved", "rejected"],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "proposed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "approved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "StatusCounts": {
+      "type": "object",
+      "description": "Counts of knowledge units by review status.",
+      "required": ["pending", "approved", "rejected"],
+      "properties": {
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "approved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConfidenceBucket": {
+      "type": "object",
+      "description": "A single confidence distribution bucket.",
+      "required": ["lower", "upper", "count"],
+      "properties": {
+        "lower": {
+          "type": "number",
+          "description": "Inclusive lower bound."
+        },
+        "upper": {
+          "type": "number",
+          "description": "Exclusive upper bound (inclusive at 1.0)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReviewStatsResponse": {
+      "type": "object",
+      "description": "Dashboard metrics response.",
+      "required": ["counts", "domains", "confidence_distribution", "trends"],
+      "properties": {
+        "counts": { "$ref": "#/$defs/StatusCounts" },
+        "domains": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 },
+          "description": "Count of knowledge units per domain."
+        },
+        "confidence_distribution": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ConfidenceBucket" }
+        },
+        "trends": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DailyCount" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

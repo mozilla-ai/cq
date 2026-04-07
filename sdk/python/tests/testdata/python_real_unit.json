@@ -1,0 +1,30 @@
+{
+  "id": "ku_6650ba0773fc4b5bada33e9051004439",
+  "version": 1,
+  "domains": [
+    "testing",
+    "detect-secrets",
+    "pre-commit",
+    "testdata"
+  ],
+  "insight": {
+    "summary": "detect-secrets flags realistic Google-style IDs as Base64 High Entropy Strings",
+    "detail": "Google API IDs (spreadsheet IDs, file IDs) are long base64-like strings that trigger detect-secrets Base64HighEntropyString detector. This blocks commits containing realistic testdata JSON fixtures.",
+    "action": "Use simple placeholder IDs in test fixtures instead of realistic-looking Google-style IDs to avoid false positives from detect-secrets."
+  },
+  "context": {
+    "languages": [],
+    "frameworks": [],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-20T11:06:16.913366Z",
+    "last_confirmed": "2026-03-20T11:06:16.913366Z"
+  },
+  "tier": "private",
+  "created_by": "",
+  "superseded_by": null,
+  "flags": []
+}

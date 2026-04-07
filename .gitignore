@@ -9,7 +9,9 @@ ENV/
 
 *.egg-info/
 dist/
-build/
+build/*
+!build/licenses/
+!build/brew/
 
 node_modules/
 
@@ -34,3 +36,11 @@ htmlcov/
 .worktrees/
 CLAUDE.local.md
 opencode.json
+
+# Copied at build time from plugins/cq/skills/cq/SKILL.md.
+sdk/python/src/cq/protocol/skill.md
+sdk/go/internal/protocol/skill.md
+cli/cq
+
+# Downloaded plugin binary.
+plugins/cq/bin/

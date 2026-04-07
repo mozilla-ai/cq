@@ -11,7 +11,7 @@
       "name": "cq",
       "source": "./plugins/cq",
       "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
-      "version": "0.4.0",
+      "version": "0.6.0",
       "category": "knowledge",
       "tags": ["knowledge-sharing", "agent-learning", "agent-commons","mcp", "pitfall-avoidance", "team-knowledge", "api-quirks"]
     }

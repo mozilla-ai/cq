@@ -1,0 +1,61 @@
+name: Python SDK CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-sdk-python.yaml
+      - schema/**
+      - sdk/python/**
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-sdk-python.yaml
+      - schema/**
+      - sdk/python/**
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Validate schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Validate fixtures against schemas
+        run: make validate-schema
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Setup and lint
+        run: make setup-sdk-python lint-sdk-python
+
+  test:
+    name: Test
+    needs: [schema, lint]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Test
+        run: make setup-sdk-python test-sdk-python

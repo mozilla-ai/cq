@@ -1,0 +1,30 @@
+{
+  "id": "ku_00000000000000000000000000000001",
+  "version": 1,
+  "domains": ["api"],
+  "insight": {
+    "summary": "test summary",
+    "detail": "test detail",
+    "action": "test action"
+  },
+  "context": {
+    "languages": ["python"],
+    "frameworks": [],
+    "pattern": ""
+  },
+  "evidence": {
+    "confidence": 0.5,
+    "confirmations": 1,
+    "first_observed": "2026-03-26T12:00:00Z",
+    "last_confirmed": "2026-03-26T12:00:00Z"
+  },
+  "tier": "local",
+  "created_by": "agent-test",
+  "superseded_by": null,
+  "flags": [
+    {
+      "reason": "stale",
+      "timestamp": "2026-03-26T12:00:00Z"
+    }
+  ]
+}

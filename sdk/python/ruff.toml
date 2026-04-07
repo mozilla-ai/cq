@@ -1,0 +1,68 @@
+target-version = "py311"
+src = ["src"]
+line-length = 120
+include = ["*.py", "*.pyi"]
+fix = true
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I",    # isort (import sorting)
+    "N",    # pep8-naming
+    "ISC",  # flake8-implicit-str-concat
+    "PTH",  # flake8-use-pathlib
+    "D",    # pydocstyle (docstrings)
+]
+
+ignore = [
+    "D105",  # Missing docstring in magic method
+    "D107",  # Missing docstring in __init__
+]
+
+unfixable = [
+    "B",    # flake8-bugbear
+    "F841", # unused variables
+]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401", "D104"]
+"**/tests/**" = [
+    "D",
+    "N999",
+]
+
+[lint.pydocstyle]
+convention = "google"
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

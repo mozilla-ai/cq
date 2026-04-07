@@ -4,7 +4,9 @@ repos:
     hooks:
       - id: check-merge-conflict
       - id: trailing-whitespace
+        exclude: '^(cli|sdk/go)/NOTICE$'
       - id: end-of-file-fixer
+        exclude: '^(cli|sdk/go)/NOTICE$'
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.4
@@ -21,20 +23,27 @@ repos:
 
   - repo: local
     hooks:
-      - id: ty-check-server
-        name: ty (server)
-        entry: bash -c 'cd plugins/cq/server && uvx ty check cq_mcp --python .venv'
+      - id: ty-check-plugin
+        name: ty (plugin)
+        entry: bash -c 'uvx ty check plugins/cq/scripts/'
         language: system
         pass_filenames: false
         types: [python]
-        files: ^plugins/cq/server/
-      - id: ty-check-team-api
-        name: ty (team-api)
-        entry: bash -c 'cd team-api && uvx ty check team_api --python .venv'
+        files: ^plugins/cq/scripts/
+      - id: ty-check-sdk-python
+        name: ty (sdk/python)
+        entry: bash -c 'cd sdk/python && uvx ty check src/cq --python .venv'
         language: system
         pass_filenames: false
         types: [python]
-        files: ^team-api/
+        files: ^sdk/python/
+      - id: ty-check-server-backend
+        name: ty (server/backend)
+        entry: bash -c 'cd server/backend && uvx ty check src/cq_server --python .venv'
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^server/backend/
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.10.7

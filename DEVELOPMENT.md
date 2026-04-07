@@ -10,11 +10,13 @@
 
 ## Repository Structure
 
-| Directory | Component | Stack |
-|-----------|-----------|-------|
-| `plugins/cq/server` | MCP server (plugin) | Python, FastMCP |
-| `team-api` | Team knowledge API | Python, FastAPI |
-| `team-ui` | Review dashboard | TypeScript, React, Vite |
+| Directory    | Component                              | Stack                              |
+|--------------|----------------------------------------|------------------------------------|
+| `cli`        | CLI (with MCP server)                  | Go, Cobra, mcp-go                  |
+| `sdk/go`     | Go SDK                                 | Go                                 |
+| `sdk/python` | Python SDK                             | Python                             |
+| `plugins/cq` | Agent plugin (skills, commands, hooks) | Markdown, Python                   |
+| `server`     | Remote knowledge server                | Python, FastAPI, TypeScript, React |
 
 ## Initial Setup
 
@@ -46,13 +48,13 @@ In a separate terminal, create a user and load sample knowledge units:
 make seed-all USER=demo PASS=demo123
 ```
 
-The team API is available at `http://localhost:8742`.
+The remote API is available at `http://localhost:3000`.
 
-For isolated component testing outside Docker, use `make dev-api` (team API) and `make dev-ui` (dashboard).
+For isolated component testing outside Docker, use `make dev-api` (remote API) and `make dev-ui` (dashboard).
 
 ## Agent Configuration
 
-To point your agent at a local team API instance, set `CQ_TEAM_ADDR`.
+To point your agent at a local API instance, set `CQ_ADDR`.
 
 ### Claude Code
 
@@ -61,7 +63,7 @@ Add to `~/.claude/settings.json` under the `env` key:
 ```json
 {
   "env": {
-    "CQ_TEAM_ADDR": "http://localhost:8742"
+    "CQ_ADDR": "http://localhost:3000"
   }
 }
 ```
@@ -75,14 +77,14 @@ Add to `~/.config/opencode/opencode.json` or your project-level config, in the M
   "mcp": {
     "cq": {
       "environment": {
-        "CQ_TEAM_ADDR": "http://localhost:8742"
+        "CQ_ADDR": "http://localhost:3000"
       }
     }
   }
 }
 ```
 
-`CQ_TEAM_API_KEY` is documented in the README but not yet implemented (see [#63](https://github.com/mozilla-ai/cq/issues/63), [#80](https://github.com/mozilla-ai/cq/issues/80)).
+`CQ_API_KEY` is documented in the README but not yet implemented (see [#63](https://github.com/mozilla-ai/cq/issues/63), [#80](https://github.com/mozilla-ai/cq/issues/80)).
 
 ## Docker Compose
 
@@ -100,4 +102,4 @@ Add to `~/.config/opencode/opencode.json` or your project-level config, in the M
 | Command | Purpose |
 |---------|---------|
 | `make lint` | Format, lint, and type-check all components |
-| `make test` | Type checks and tests across plugin server and team-api |
+| `make test` | Type checks and tests across plugin server and server backend |

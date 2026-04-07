@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/confirm.json",
+  "title": "ConfirmRequest",
+  "description": "Request to confirm a knowledge unit.",
+  "type": "object",
+  "required": ["unit_id"],
+  "properties": {
+    "unit_id": {
+      "type": "string",
+      "pattern": "^ku_[0-9a-f]{32}$",
+      "description": "ID of the knowledge unit to confirm."
+    }
+  },
+  "additionalProperties": false
+}

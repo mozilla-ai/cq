@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/scoring.json",
+  "title": "Scoring",
+  "description": "Relevance scoring weights and confidence adjustment constants.",
+  "type": "object",
+  "properties": {
+    "relevance_weights": { "$ref": "#/$defs/RelevanceWeights" },
+    "confidence_constants": { "$ref": "#/$defs/ConfidenceConstants" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "RelevanceWeights": {
+      "type": "object",
+      "description": "Relevance scoring weights. Domain overlap is scored by Jaccard similarity. Language and framework matches are binary (0.0 or 1.0). Final relevance = domain_weight * domain_score + language_weight * language_score + framework_weight * framework_score.",
+      "properties": {
+        "domain_weight": {
+          "type": "number",
+          "default": 0.7,
+          "description": "Weight for domain overlap score."
+        },
+        "language_weight": {
+          "type": "number",
+          "default": 0.15,
+          "description": "Weight for language match score."
+        },
+        "framework_weight": {
+          "type": "number",
+          "default": 0.15,
+          "description": "Weight for framework match score."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConfidenceConstants": {
+      "type": "object",
+      "description": "Constants used to adjust knowledge unit confidence scores.",
+      "properties": {
+        "initial_confidence": {
+          "type": "number",
+          "default": 0.5,
+          "description": "Starting confidence for new knowledge units."
+        },
+        "confirmation_boost": {
+          "type": "number",
+          "default": 0.1,
+          "description": "Confidence increase per confirmation."
+        },
+        "flag_penalty": {
+          "type": "number",
+          "default": 0.15,
+          "description": "Confidence decrease per flag."
+        },
+        "ceiling": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Maximum confidence value."
+        },
+        "floor": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Minimum confidence value."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/stats.json",
+  "title": "StatsResponse",
+  "description": "Store-level statistics.",
+  "type": "object",
+  "required": ["total_count", "domain_counts"],
+  "properties": {
+    "total_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of knowledge units in the store."
+    },
+    "domain_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "description": "Count of knowledge units per domain."
+    },
+    "recent": {
+      "type": "array",
+      "items": { "$ref": "knowledge_unit.json" },
+      "description": "Recently added or confirmed knowledge units."
+    },
+    "confidence_distribution": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "description": "Count of knowledge units per confidence bucket."
+    }
+  },
+  "additionalProperties": false
+}

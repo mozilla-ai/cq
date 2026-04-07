@@ -1,0 +1,30 @@
+{
+  "id": "ku_00000000000000000000000000000003",
+  "version": 1,
+  "domains": [
+    "api",
+    "go"
+  ],
+  "insight": {
+    "summary": "Use protojson for cross-language storage compatibility",
+    "detail": "Proto3 canonical JSON ensures the same database can be read by Go and Python SDKs without translation.",
+    "action": "Always use protojson.Marshal for writing knowledge units to SQLite."
+  },
+  "context": {
+    "languages": [
+      "go"
+    ],
+    "frameworks": [
+      "grpc"
+    ]
+  },
+  "evidence": {
+    "confidence": 0.7,
+    "confirmations": 2,
+    "first_observed": "2026-03-25T10:00:00Z",
+    "last_confirmed": "2026-03-26T15:30:00Z"
+  },
+  "tier": "local",
+  "created_by": "agent-go",
+  "flags": []
+}

@@ -12,7 +12,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PLUGIN_DIR="${REPO_ROOT}/plugins/cq"
-SERVER_DIR="${PLUGIN_DIR}/server"
 
 # -- Dependencies. --
 
@@ -198,22 +197,26 @@ remove_agents_md() {
 
 configure_mcp() {
     local config_file="${TARGET}/opencode.json"
-    local server_path
-    server_path="$(cd "${SERVER_DIR}" && pwd)"
+    local bootstrap="${PLUGIN_DIR}/scripts/bootstrap.py"
 
     local cq_entry
     cq_entry=$(jq -n \
-        --arg dir "${server_path}" \
-        '{ type: "local", command: ["uv", "run", "--directory", $dir, "cq-mcp-server"] }')
+        --arg script "${bootstrap}" \
+        '{ type: "local", command: ["python3", $script] }')
 
     if [[ -f "${config_file}" ]]; then
-        if jq -e '.mcp.cq' "${config_file}" &>/dev/null; then
-            echo "  MCP server already configured in ${config_file}"
-        else
+        if ! jq -e '.mcp.cq' "${config_file}" &>/dev/null; then
             local tmp
             tmp=$(jq --argjson entry "${cq_entry}" '.mcp.cq = $entry' "${config_file}")
             printf '%s\n' "${tmp}" > "${config_file}"
             echo "  Added CQ MCP server to ${config_file}"
+        elif ! jq -e --argjson expected "${cq_entry}" '.mcp.cq.command == $expected.command' "${config_file}" &>/dev/null; then
+            local tmp
+            tmp=$(jq --argjson entry "${cq_entry}" '.mcp.cq = $entry' "${config_file}")
+            printf '%s\n' "${tmp}" > "${config_file}"
+            echo "  Updated CQ MCP server in ${config_file}"
+        else
+            echo "  MCP server already configured in ${config_file}"
         fi
     else
         mkdir -p "$(dirname "${config_file}")"
