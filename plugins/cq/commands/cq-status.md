@@ -22,6 +22,8 @@ Present the results using this structure:
 ### Tier Counts
 local: {count} | private: {count} | public: {count}
 
+*local* = on this machine only; *private* = shared with everyone who can reach the same `CQ_ADDR`; *public* = open commons (not yet available).
+
 ### Domains
 {domain}: {count} | {domain}: {count} | ...
 

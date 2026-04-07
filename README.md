@@ -171,6 +171,20 @@ Add an `environment` key to the cq MCP server entry in your OpenCode config (`~/
 
 Alternatively, export the variables in your shell before launching OpenCode.
 
+## Knowledge tiers
+
+cq organises knowledge units into three tiers that describe where a unit lives and who can see it:
+
+- **local** — stored in your on-disk SQLite database (`~/.local/share/cq/local.db` by default). Never leaves your machine.
+- **private** — stored on the remote API at `CQ_ADDR`, visible to everyone with access to that same remote. If you share a `CQ_ADDR` with teammates, they will see these units. "Private" here means private to that remote, not private to you.
+- **public** — publicly shared on the open commons. Not yet available; planned for a later release.
+
+Where knowledge units land:
+
+- **No remote configured** (`CQ_ADDR` unset): new units are written to your local store.
+- **Remote configured and reachable:** `propose` sends straight to the remote and the unit enters the `private` tier. It does not also appear in your local store.
+- **Remote configured but unreachable:** cq falls back to writing the unit locally.
+
 ## Architecture
 
 cq runs across three runtime boundaries: the agent process (plugin configuration), a local MCP server (knowledge logic and private store), and a Docker container (remote shared API).
