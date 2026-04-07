@@ -40,7 +40,7 @@ local: {count} | private: {count} | public: {count}
 
 The `tier_counts` field contains the tier breakdown. Display all tiers present in the response. Omit tiers with a count of 0.
 
-The `recent` field reflects the local store only. When a remote is configured, units proposed via `Client.Propose` go directly to the remote and do not appear here. If `recent` is empty, render the section as `(no recent local additions)` so users understand the scope.
+The `recent` field reflects the local store only. When a remote is configured and reachable, units proposed via `Client.Propose` go directly to the remote and do not appear here. If `recent` is empty, render the section as `(no recent local additions)` so users understand the scope.
 
 If the response includes `promoted_to_remote`, add this line after the total count:
 
