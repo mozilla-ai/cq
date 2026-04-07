@@ -45,7 +45,23 @@ repos:
         types: [python]
         files: ^server/backend/
 
-  - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.10.7
+  - repo: local
     hooks:
-      - id: uv-lock
+      - id: uv-lock-check-plugin
+        name: uv lock --check (plugins/cq)
+        entry: uv lock --check --directory plugins/cq
+        language: system
+        pass_filenames: false
+        files: ^plugins/cq/(pyproject\.toml|uv\.lock|uv\.toml)$
+      - id: uv-lock-check-sdk-python
+        name: uv lock --check (sdk/python)
+        entry: uv lock --check --directory sdk/python
+        language: system
+        pass_filenames: false
+        files: ^sdk/python/(pyproject\.toml|uv\.lock|uv\.toml)$
+      - id: uv-lock-check-server-backend
+        name: uv lock --check (server/backend)
+        entry: uv lock --check --directory server/backend
+        language: system
+        pass_filenames: false
+        files: ^server/backend/(pyproject\.toml|uv\.lock|uv\.toml)$

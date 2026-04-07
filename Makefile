@@ -169,7 +169,7 @@ lint-cli:
 
 .PHONY: lint-plugin
 lint-plugin:
-	cd plugins/cq && uv run pre-commit run --files scripts/*.py
+	cd plugins/cq && uv run --locked pre-commit run --files scripts/*.py pyproject.toml uv.lock
 
 .PHONY: lint-sdk-go
 lint-sdk-go:
@@ -177,11 +177,11 @@ lint-sdk-go:
 
 .PHONY: lint-sdk-python
 lint-sdk-python:
-	cd sdk/python && uv run pre-commit run --files src/**/*.py
+	cd sdk/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
 
 .PHONY: lint-server-backend
 lint-server-backend:
-	cd server/backend && uv run pre-commit run --files src/**/*.py
+	cd server/backend && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
 
 .PHONY: lint-server-frontend
 lint-server-frontend:
