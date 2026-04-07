@@ -1,0 +1,54 @@
+"""Shared types: ChangeResult, Action, InstallContext, RunState."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+
+
+class Action(Enum):
+    """The kind of change a primitive applied (or would apply in dry-run mode)."""
+
+    CREATED = "created"
+    UPDATED = "updated"
+    UNCHANGED = "unchanged"
+    REMOVED = "removed"
+    SKIPPED = "skipped"
+
+
+@dataclass(frozen=True)
+class ChangeResult:
+    """The outcome of a single primitive call."""
+
+    action: Action
+    path: Path
+    detail: str = ""
+
+
+@dataclass
+class RunState:
+    """In-memory dedup tracker for a single installer invocation."""
+
+    _done: set[tuple[str, str]] = field(default_factory=set)
+
+    def mark_done(self, step: str, target: Path) -> bool:
+        """Record that `step` ran for `target`. Returns True if this is the first time."""
+        key = (step, str(target))
+        if key in self._done:
+            return False
+        self._done.add(key)
+        return True
+
+
+@dataclass(frozen=True)
+class InstallContext:
+    """Per-host install context resolved from CLI arguments."""
+
+    target: Path
+    plugin_root: Path
+    bootstrap_path: Path
+    shared_skills_path: Path
+    host_isolated_skills: bool
+    dry_run: bool
+    run_state: RunState
