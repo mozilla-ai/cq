@@ -76,28 +76,23 @@ class CursorHost(HostDef):
 
     def uninstall(self, ctx: InstallContext) -> list[ChangeResult]:
         """Remove cq from the Cursor target."""
-        results: list[ChangeResult] = []
-        results.append(
+        results: list[ChangeResult] = [
             remove_copied_tree(
                 ctx.target / "skills",
                 manifest_name=CURSOR_HOST_SKILLS_MANIFEST,
                 dry_run=ctx.dry_run,
-            )
-        )
-        results.append(
+            ),
             remove_json_entry(
                 ctx.target / "mcp.json",
                 ["mcpServers", "cq"],
                 dry_run=ctx.dry_run,
-            )
-        )
-        results.append(
+            ),
             remove_owned_file(
                 ctx.target / "rules" / "cq.mdc",
                 expected_content_hash=CURSOR_RULE_HASH,
                 dry_run=ctx.dry_run,
-            )
-        )
+            ),
+        ]
         for hook_name, mode in CURSOR_HOOK_MODES:
             results.append(
                 remove_hook_entry(

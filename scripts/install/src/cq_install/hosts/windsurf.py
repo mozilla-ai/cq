@@ -65,19 +65,16 @@ class WindsurfHost(HostDef):
 
     def uninstall(self, ctx: InstallContext) -> list[ChangeResult]:
         """Remove cq from the Windsurf target."""
-        results: list[ChangeResult] = []
-        results.append(
+        results: list[ChangeResult] = [
             remove_copied_tree(
                 ctx.target / "skills",
                 manifest_name=WINDSURF_HOST_SKILLS_MANIFEST,
                 dry_run=ctx.dry_run,
-            )
-        )
-        results.append(
+            ),
             remove_json_entry(
                 ctx.target / "mcp_config.json",
                 ["mcpServers", "cq"],
                 dry_run=ctx.dry_run,
-            )
-        )
+            ),
+        ]
         return results
