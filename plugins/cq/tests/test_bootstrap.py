@@ -55,16 +55,30 @@ def test_default_data_home_prefers_localappdata_on_windows(monkeypatch):
     assert module.default_data_home() == Path(r"C:\Users\tester\AppData\Local")
 
 
-def test_plugin_root_falls_back_to_script_parent(monkeypatch):
+def test_load_required_version_prefers_neutral_bootstrap_metadata(monkeypatch, tmp_path):
     module = _load_bootstrap_module()
-    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
-    assert module.plugin_root() == BOOTSTRAP_PATH.parent.parent
+    bootstrap_metadata = BOOTSTRAP_PATH.with_name("bootstrap.json")
+    original = bootstrap_metadata.read_text() if bootstrap_metadata.exists() else None
+    try:
+        bootstrap_metadata.write_text('{"cli_version": "9.9.9"}\n')
+        assert module.load_required_version() == "9.9.9"
+    finally:
+        if original is None:
+            bootstrap_metadata.unlink(missing_ok=True)
+        else:
+            bootstrap_metadata.write_text(original)
 
 
-def test_plugin_root_prefers_claude_plugin_root(monkeypatch):
-    module = _load_bootstrap_module()
-    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "/tmp/claude-plugin-root")
-    assert module.plugin_root() == Path("/tmp/claude-plugin-root")
+def test_load_required_version_returns_empty_when_metadata_missing():
+    bootstrap_metadata = BOOTSTRAP_PATH.with_name("bootstrap.json")
+    original = bootstrap_metadata.read_text() if bootstrap_metadata.exists() else None
+    try:
+        bootstrap_metadata.unlink(missing_ok=True)
+        module = _load_bootstrap_module()
+        assert module.load_required_version() == ""
+    finally:
+        if original is not None:
+            bootstrap_metadata.write_text(original)
 
 
 def test_shared_bin_dir_is_under_runtime_root(monkeypatch):

@@ -13,7 +13,7 @@ from cq_install.hosts.windsurf import WindsurfHost
 from cq_install.runtime import runtime_root
 
 RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
-RUNTIME_PLUGIN_JSON = Path(".claude-plugin") / "plugin.json"
+RUNTIME_BOOTSTRAP_METADATA = Path("scripts") / "bootstrap.json"
 
 
 def _ctx(tmp_path: Path, plugin_root: Path) -> InstallContext:
@@ -44,7 +44,7 @@ def test_windsurf_install_writes_mcp_config(tmp_path, plugin_root):
     assert config["mcpServers"]["cq"]["command"] == PYTHON_COMMAND
     assert config["mcpServers"]["cq"]["args"][0] == str(shared_runtime / RUNTIME_BOOTSTRAP)
     assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
-    assert (shared_runtime / RUNTIME_PLUGIN_JSON).exists()
+    assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
 
 
 def test_windsurf_install_creates_shared_skills(tmp_path, plugin_root):

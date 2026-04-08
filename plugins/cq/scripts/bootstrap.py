@@ -26,17 +26,13 @@ from pathlib import Path
 REPO = "mozilla-ai/cq"
 
 
-def main():
+def main() -> None:
     """Ensure the cq binary is available, then exec into the MCP server."""
-    plugin_json = plugin_root() / ".claude-plugin" / "plugin.json"
     bin_dir = shared_bin_dir()
 
-    with plugin_json.open() as f:
-        config = json.load(f)
-
-    required_version = config.get("cliVersion")
+    required_version = load_required_version()
     if not required_version:
-        print("Error: cliVersion not set in plugin.json", file=sys.stderr)
+        print("Error: required CLI version not set in bootstrap metadata", file=sys.stderr)
         sys.exit(1)
 
     system = platform.system()
@@ -48,7 +44,7 @@ def main():
     os.execvp(str(binary), [str(binary), "mcp"])
 
 
-def ensure_binary(binary, required_version, system, bin_dir):
+def ensure_binary(binary: Path, required_version: str, system: str, bin_dir: Path) -> None:
     """Resolve the cq binary, preferring a cached copy over a fresh download."""
     # Fast path: cached binary (file or symlink) already at the right version.
     if binary.is_file() and check_version(binary, required_version):
@@ -70,7 +66,7 @@ def ensure_binary(binary, required_version, system, bin_dir):
     print(f"cq: downloaded v{required_version} to {binary}", file=sys.stderr)
 
 
-def default_data_home():
+def default_data_home() -> Path:
     """Return the default data home directory, respecting XDG_DATA_HOME.
 
     All platforms (Windows, macOS, Linux) support XDG_DATA_HOME.
@@ -97,25 +93,27 @@ def default_data_home():
     return Path.home() / ".local" / "share"
 
 
-def plugin_root():
-    """Return the Claude-managed plugin root for this bootstrap script."""
-    claude_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if claude_plugin_root and Path(claude_plugin_root).is_absolute():
-        return Path(claude_plugin_root)
-    return Path(__file__).resolve().parent.parent
+def load_required_version() -> str:
+    """Return the required cq CLI version from bootstrap metadata."""
+    metadata_path = Path(__file__).resolve().with_name("bootstrap.json")
+    if not metadata_path.exists():
+        return ""
+    with metadata_path.open() as f:
+        config = json.load(f)
+    return config.get("cli_version", "")
 
 
-def runtime_root():
+def runtime_root() -> Path:
     """Return shared runtime root used by every host integration."""
     return default_data_home() / "cq" / "runtime"
 
 
-def shared_bin_dir():
+def shared_bin_dir() -> Path:
     """Return the shared runtime binary cache directory."""
     return runtime_root() / "bin"
 
 
-def parse_version(binary):
+def parse_version(binary: Path) -> str:
     """Extract semver from 'cq --version' output."""
     try:
         output = subprocess.check_output(
@@ -130,12 +128,12 @@ def parse_version(binary):
         return ""
 
 
-def check_version(binary, required):
+def check_version(binary: Path, required: str) -> bool:
     """Check whether the binary reports the required version."""
     return parse_version(binary) == required
 
 
-def link_or_copy(source, dest):
+def link_or_copy(source: Path, dest: Path) -> None:
     """Symlink on Unix, copy on Windows where symlinks need elevation."""
     dest.unlink(missing_ok=True)
     if platform.system() == "Windows":
@@ -144,16 +142,21 @@ def link_or_copy(source, dest):
         dest.symlink_to(source)
 
 
-def download(version, system, bin_dir, binary):
+def download(version: str, system: str, bin_dir: Path, binary: Path) -> None:
     """Fetch the cq binary from GitHub releases for the current platform."""
     machine = platform.machine()
-    arch_map = {"AMD64": "x86_64", "x86_64": "x86_64", "arm64": "arm64", "aarch64": "aarch64"}
+    arch_map: dict[str, str] = {
+        "AMD64": "x86_64",
+        "x86_64": "x86_64",
+        "arm64": "arm64",
+        "aarch64": "aarch64",
+    }
     arch = arch_map.get(machine)
     if not arch:
         print(f"Error: unsupported architecture: {machine}", file=sys.stderr)
         sys.exit(1)
 
-    os_map = {"Darwin": "Darwin", "Linux": "Linux", "Windows": "Windows"}
+    os_map: dict[str, str] = {"Darwin": "Darwin", "Linux": "Linux", "Windows": "Windows"}
     os_name = os_map.get(system)
     if not os_name:
         print(f"Error: unsupported OS: {system}", file=sys.stderr)

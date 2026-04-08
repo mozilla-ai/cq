@@ -11,8 +11,8 @@ from cq_install.hosts.cursor import CursorHost
 from cq_install.runtime import runtime_root
 
 RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
+RUNTIME_BOOTSTRAP_METADATA = Path("scripts") / "bootstrap.json"
 RUNTIME_HOOK = Path("hooks") / "cursor" / "cq_cursor_hook.py"
-RUNTIME_PLUGIN_JSON = Path(".claude-plugin") / "plugin.json"
 
 
 def _ctx(tmp_path: Path, plugin_root: Path) -> InstallContext:
@@ -40,7 +40,7 @@ def test_cursor_install_writes_mcp_servers_entry(tmp_path, plugin_root):
     assert config["mcpServers"]["cq"]["command"] == PYTHON_COMMAND
     assert config["mcpServers"]["cq"]["args"][0] == str(shared_runtime / RUNTIME_BOOTSTRAP)
     assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
-    assert (shared_runtime / RUNTIME_PLUGIN_JSON).exists()
+    assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
 
 
 def test_cursor_install_hook_command_uses_python_command(tmp_path, plugin_root):

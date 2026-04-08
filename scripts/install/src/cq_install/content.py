@@ -13,7 +13,7 @@ from pathlib import Path
 CQ_BLOCK_START = "<!-- cq:start -->"
 CQ_BLOCK_END = "<!-- cq:end -->"
 _CQ_RUNTIME_BASE_RELPATHS = [
-    Path(".claude-plugin") / "plugin.json",
+    Path("scripts") / "bootstrap.json",
     Path("scripts") / "bootstrap.py",
 ]
 _CQ_RUNTIME_MANIFEST = ".cq-install-runtime-manifest.json"

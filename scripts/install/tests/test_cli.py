@@ -28,8 +28,9 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Build a fake plugins/cq tree and point the CLI at it via env var."""
     plugin_root = tmp_path / "plugins" / "cq"
     (plugin_root / ".claude-plugin").mkdir(parents=True)
-    (plugin_root / ".claude-plugin" / "plugin.json").write_text('{"name": "cq", "cliVersion": "0.2.0"}\n')
+    (plugin_root / ".claude-plugin" / "plugin.json").write_text('{"name": "cq", "version": "0.6.0"}\n')
     (plugin_root / "scripts").mkdir(parents=True)
+    (plugin_root / "scripts" / "bootstrap.json").write_text('{"cli_version": "0.2.0"}\n')
     (plugin_root / "scripts" / "bootstrap.py").write_text("# fake\n")
     (plugin_root / "skills" / "cq").mkdir(parents=True)
     (plugin_root / "skills" / "cq" / "SKILL.md").write_text("# cq\n")
@@ -37,6 +38,20 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (plugin_root / "commands" / "cq-status.md").write_text("---\nname: cq-status\n---\nbody\n")
     monkeypatch.setenv("CQ_INSTALL_PLUGIN_ROOT", str(plugin_root))
     return plugin_root
+
+
+def test_install_cursor_prints_hook_names(fake_repo, tmp_path, capsys):
+    project = tmp_path / "myapp"
+    project.mkdir()
+    (fake_repo / "hooks" / "cursor").mkdir(parents=True, exist_ok=True)
+    (fake_repo / "hooks" / "cursor" / "cq_cursor_hook.py").write_text("# fake\n")
+
+    rc = main(["install", "--target", "cursor", "--project", str(project)])
+
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "hooks.json  (sessionStart)" in captured.out
+    assert "hooks.json  (stop)" in captured.out
 
 
 def test_install_requires_at_least_one_target(fake_repo, capsys):

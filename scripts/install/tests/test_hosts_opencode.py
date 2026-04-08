@@ -15,7 +15,7 @@ from cq_install.hosts.opencode import (
 from cq_install.runtime import runtime_root
 
 RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
-RUNTIME_PLUGIN_JSON = Path(".claude-plugin") / "plugin.json"
+RUNTIME_BOOTSTRAP_METADATA = Path("scripts") / "bootstrap.json"
 
 
 def test_opencode_global_target_default(monkeypatch):
@@ -58,7 +58,7 @@ def test_opencode_install_writes_mcp_config(tmp_path, plugin_root):
     assert config["mcp"]["cq"]["command"][0] == PYTHON_COMMAND
     assert config["mcp"]["cq"]["command"][1] == str(shared_runtime / RUNTIME_BOOTSTRAP)
     assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
-    assert (shared_runtime / RUNTIME_PLUGIN_JSON).exists()
+    assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
 
 
 def test_opencode_install_seeds_schema_on_fresh_create(tmp_path, plugin_root):

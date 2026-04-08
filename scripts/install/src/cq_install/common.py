@@ -352,7 +352,7 @@ def upsert_hook_entry(
     hooks[hook_name] = filtered
     if not dry_run:
         _write_json(file, data)
-    return ChangeResult(action=action, path=file)
+    return ChangeResult(action=action, path=file, detail=hook_name)
 
 
 def upsert_json_entry(
