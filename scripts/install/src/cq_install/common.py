@@ -6,6 +6,97 @@ import json
 from pathlib import Path
 
 from cq_install.context import Action, ChangeResult
+from cq_install.manifest import hash_file, load_manifest, write_manifest
+
+
+def copy_tree(
+    src: Path,
+    dst: Path,
+    *,
+    manifest_name: str,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Copy `src` recursively into `dst`, tracking files in a manifest.
+
+    Re-runs are idempotent: unchanged files stay UNCHANGED, modified
+    sources overwrite stale destinations, and files removed from the
+    source are removed from the destination on the next run.
+    """
+    manifest_path = dst / manifest_name
+    desired_files = sorted(p for p in src.rglob("*") if p.is_file())
+
+    new_entries: list[dict] = []
+    any_change = False
+    previous = load_manifest(manifest_path) or {"files": []}
+    previous_paths = {entry["path"] for entry in previous.get("files", [])}
+
+    for source_file in desired_files:
+        rel = source_file.relative_to(src).as_posix()
+        target_file = dst / rel
+        digest = hash_file(source_file)
+        new_entries.append({"path": rel, "sha256": digest})
+
+        if target_file.exists() and hash_file(target_file) == digest:
+            continue
+
+        any_change = True
+        if not dry_run:
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            target_file.write_bytes(source_file.read_bytes())
+
+    desired_paths = {entry["path"] for entry in new_entries}
+    for stale_rel in previous_paths - desired_paths:
+        stale_path = dst / stale_rel
+        if stale_path.exists():
+            any_change = True
+            if not dry_run:
+                stale_path.unlink()
+
+    is_first_install = not manifest_path.exists()
+    if not any_change and not is_first_install:
+        return ChangeResult(action=Action.UNCHANGED, path=dst)
+
+    if not dry_run:
+        write_manifest(manifest_path, new_entries)
+
+    action = Action.CREATED if is_first_install else Action.UPDATED
+    return ChangeResult(action=action, path=dst)
+
+
+def remove_copied_tree(
+    dst: Path,
+    *,
+    manifest_name: str,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Remove files listed in the manifest, skipping any that were user-modified."""
+    manifest_path = dst / manifest_name
+    manifest = load_manifest(manifest_path)
+    if manifest is None:
+        return ChangeResult(action=Action.UNCHANGED, path=dst)
+
+    skipped_any = False
+    for entry in manifest["files"]:
+        target = dst / entry["path"]
+        if not target.exists():
+            continue
+        if hash_file(target) != entry["sha256"]:
+            skipped_any = True
+            continue
+        if not dry_run:
+            target.unlink()
+            _prune_empty_dirs(target.parent, dst)
+
+    if skipped_any:
+        return ChangeResult(
+            action=Action.SKIPPED,
+            path=dst,
+            detail="user-modified files left in place",
+        )
+
+    if not dry_run:
+        manifest_path.unlink(missing_ok=True)
+    return ChangeResult(action=Action.REMOVED, path=dst)
 
 
 def remove_hook_entry(
@@ -261,6 +352,13 @@ def _load_json(file: Path) -> dict:
     if not file.exists():
         return {}
     return json.loads(file.read_text())
+
+
+def _prune_empty_dirs(directory: Path, stop_at: Path) -> None:
+    cursor = directory
+    while cursor != stop_at and cursor.exists() and not any(cursor.iterdir()):
+        cursor.rmdir()
+        cursor = cursor.parent
 
 
 def _walk_or_create(data: dict, path: list[str]) -> dict:
