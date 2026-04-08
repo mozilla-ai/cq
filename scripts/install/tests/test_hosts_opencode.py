@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
+from cq_install.content import PYTHON_COMMAND
 from cq_install.context import Action, InstallContext, RunState
-from cq_install.hosts.opencode import OpenCodeHost
+from cq_install.hosts.opencode import OPENCODE_SCHEMA_URL, OpenCodeHost
 
 
 def _ctx(tmp_path: Path, plugin_root: Path, *, host_isolated: bool = False) -> InstallContext:
@@ -30,9 +30,27 @@ def test_opencode_install_writes_mcp_config(tmp_path, plugin_root):
 
     config = json.loads((ctx.target / "opencode.json").read_text())
     assert config["mcp"]["cq"]["type"] == "local"
-    # Command[0] is sys.executable: absolute path of the Python that ran the installer.
-    assert config["mcp"]["cq"]["command"][0] == sys.executable
+    # Literal python command name resolved by PATH at OpenCode's invocation time.
+    assert config["mcp"]["cq"]["command"][0] == PYTHON_COMMAND
     assert config["mcp"]["cq"]["command"][1].endswith("bootstrap.py")
+
+
+def test_opencode_install_seeds_schema_on_fresh_create(tmp_path, plugin_root):
+    ctx = _ctx(tmp_path, plugin_root)
+    OpenCodeHost().install(ctx)
+
+    config = json.loads((ctx.target / "opencode.json").read_text())
+    assert config["$schema"] == OPENCODE_SCHEMA_URL
+
+
+def test_opencode_install_does_not_touch_schema_on_existing_file(tmp_path, plugin_root):
+    config_file = tmp_path / "target" / "opencode.json"
+    config_file.parent.mkdir(parents=True)
+    config_file.write_text(json.dumps({"$schema": "https://example.com/custom.json"}))
+    ctx = _ctx(tmp_path, plugin_root)
+    OpenCodeHost().install(ctx)
+    config = json.loads(config_file.read_text())
+    assert config["$schema"] == "https://example.com/custom.json"
 
 
 def test_opencode_install_generates_command_files(tmp_path, plugin_root):
@@ -92,7 +110,7 @@ def test_opencode_install_replaces_stale_mcp_command(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
     OpenCodeHost().install(ctx)
     config = json.loads(config_file.read_text())
-    assert config["mcp"]["cq"]["command"][0] == sys.executable
+    assert config["mcp"]["cq"]["command"][0] == PYTHON_COMMAND
 
 
 def test_opencode_install_preserves_user_added_mcp_field(tmp_path, plugin_root):

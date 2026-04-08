@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import sys
+import json
 from pathlib import Path
 
 from cq_install.common import (
@@ -17,12 +17,14 @@ from cq_install.content import (
     CQ_AGENTS_BLOCK,
     CQ_BLOCK_END,
     CQ_BLOCK_START,
+    PYTHON_COMMAND,
 )
 from cq_install.context import Action, ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 from cq_install.opencode_commands import transform_command
 
 OPENCODE_HOST_SKILLS_MANIFEST = ".cq-install-manifest.json"
+OPENCODE_SCHEMA_URL = "https://opencode.ai/config.json"
 
 
 class OpenCodeHost(HostDef):
@@ -95,16 +97,25 @@ class OpenCodeHost(HostDef):
         return results
 
     def _install_mcp(self, ctx: InstallContext) -> ChangeResult:
+        config_path = ctx.target / "opencode.json"
+        # Seed $schema on fresh-file creation only. The URL gives OpenCode
+        # autocomplete and validation for the config shape; writing it when
+        # we're creating the file from scratch is a user-experience nicety.
+        # We never rewrite it on existing files so user overrides (e.g. a
+        # local schema cache URL) survive subsequent re-installs.
+        if not config_path.exists() and not ctx.dry_run:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(json.dumps({"$schema": OPENCODE_SCHEMA_URL}, indent=2) + "\n")
         return upsert_json_entry(
-            ctx.target / "opencode.json",
+            config_path,
             ["mcp", "cq"],
             {
                 "type": "local",
-                # sys.executable is the absolute path of the Python that ran the
-                # installer; avoids the `python` vs `python3` vs `py` mess on
-                # Windows (python.org docs: `python3` is a compatibility stub
-                # "not meant to be widely used or recommended").
-                "command": [sys.executable, str(ctx.bootstrap_path)],
+                # Written as a literal name (not an absolute path) so it
+                # PATH-resolves at OpenCode's invocation time; see the
+                # PYTHON_COMMAND comment in cq_install.content for the
+                # Windows rationale.
+                "command": [PYTHON_COMMAND, str(ctx.bootstrap_path)],
             },
             dry_run=ctx.dry_run,
         )

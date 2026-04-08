@@ -7,6 +7,8 @@ content that is shared across two or more hosts.
 
 from __future__ import annotations
 
+import platform
+
 CQ_BLOCK_START = "<!-- cq:start -->"
 CQ_BLOCK_END = "<!-- cq:end -->"
 
@@ -15,3 +17,12 @@ CQ_AGENTS_BLOCK = f"""{CQ_BLOCK_START}
 
 Before starting any implementation task, load the `cq` skill and follow its Core Protocol.
 {CQ_BLOCK_END}"""
+
+# Canonical Python command name written into every host's MCP config.
+# POSIX uses `python3`; Windows uses `python` per python.org docs which say
+# `python3` on Windows is a compatibility stub "not meant to be widely used
+# or recommended". Written as a literal name (not an absolute path) so it
+# PATH-resolves at the host's invocation time; this avoids baking the
+# installer's own venv location into long-lived user config.
+# Detection matches plugins/cq/scripts/bootstrap.py's `platform.system()` idiom.
+PYTHON_COMMAND = "python" if platform.system() == "Windows" else "python3"
