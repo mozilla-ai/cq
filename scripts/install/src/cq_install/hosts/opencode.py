@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from cq_install.common import (
@@ -17,14 +18,31 @@ from cq_install.content import (
     CQ_AGENTS_BLOCK,
     CQ_BLOCK_END,
     CQ_BLOCK_START,
+    CQ_MCP_KEY,
     PYTHON_COMMAND,
 )
 from cq_install.context import Action, ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 from cq_install.opencode_commands import transform_command
 
+OPENCODE_AGENTS_FILE = "AGENTS.md"
+OPENCODE_COMMANDS_DIR = "commands"
+OPENCODE_CONFIG_FILE = "opencode.json"
 OPENCODE_HOST_SKILLS_MANIFEST = ".cq-install-manifest.json"
+OPENCODE_MCP_KEY = "mcp"
 OPENCODE_SCHEMA_URL = "https://opencode.ai/config.json"
+OPENCODE_SKILLS_DIR = "skills"
+
+# OpenCode's config layout. The path LOOKS XDG-style but OpenCode does not
+# honor XDG_CONFIG_HOME (see https://opencode.ai/docs/config/); it always
+# reads from Path.home() / ".config" / "opencode" unless OPENCODE_CONFIG_DIR
+# is set. On Windows, Path.home() resolves to %USERPROFILE% so the same
+# layout works cross-platform.
+# - Global install: ~/.config/opencode/  (or $OPENCODE_CONFIG_DIR)
+# - Project install: <project>/.opencode/
+OPENCODE_CONFIG_DIR_ENV = "OPENCODE_CONFIG_DIR"
+OPENCODE_GLOBAL_TARGET = Path(".config") / "opencode"
+OPENCODE_PROJECT_TARGET = ".opencode"
 
 
 class OpenCodeHost(HostDef):
@@ -33,12 +51,21 @@ class OpenCodeHost(HostDef):
     name = "opencode"
 
     def global_target(self) -> Path:
-        """Return the global OpenCode config dir."""
-        return Path.home() / ".config" / "opencode"
+        """Return the global OpenCode config dir.
+
+        Honors OPENCODE_CONFIG_DIR the same way OpenCode itself does: if
+        set, the env var wins; otherwise fall back to the default location
+        under the user's home directory. This keeps the installer and
+        OpenCode reading/writing the same file.
+        """
+        override = os.environ.get(OPENCODE_CONFIG_DIR_ENV)
+        if override:
+            return Path(override).resolve()
+        return Path.home() / OPENCODE_GLOBAL_TARGET
 
     def project_target(self, project: Path) -> Path:
         """Return the per-project OpenCode config dir."""
-        return project / ".opencode"
+        return project / OPENCODE_PROJECT_TARGET
 
     def install(self, ctx: InstallContext) -> list[ChangeResult]:
         """Install cq into the OpenCode target."""
@@ -54,7 +81,7 @@ class OpenCodeHost(HostDef):
         results: list[ChangeResult] = []
         results.append(
             remove_copied_tree(
-                ctx.target / "skills",
+                ctx.target / OPENCODE_SKILLS_DIR,
                 manifest_name=OPENCODE_HOST_SKILLS_MANIFEST,
                 dry_run=ctx.dry_run,
             )
@@ -62,14 +89,14 @@ class OpenCodeHost(HostDef):
         results.append(self._uninstall_commands(ctx))
         results.append(
             remove_json_entry(
-                ctx.target / "opencode.json",
-                ["mcp", "cq"],
+                ctx.target / OPENCODE_CONFIG_FILE,
+                [OPENCODE_MCP_KEY, CQ_MCP_KEY],
                 dry_run=ctx.dry_run,
             )
         )
         results.append(
             remove_markdown_block(
-                ctx.target / "AGENTS.md",
+                ctx.target / OPENCODE_AGENTS_FILE,
                 CQ_BLOCK_START,
                 CQ_BLOCK_END,
                 dry_run=ctx.dry_run,
@@ -79,7 +106,7 @@ class OpenCodeHost(HostDef):
 
     def _install_agents_md(self, ctx: InstallContext) -> ChangeResult:
         return upsert_markdown_block(
-            ctx.target / "AGENTS.md",
+            ctx.target / OPENCODE_AGENTS_FILE,
             CQ_BLOCK_START,
             CQ_BLOCK_END,
             CQ_AGENTS_BLOCK,
@@ -88,8 +115,8 @@ class OpenCodeHost(HostDef):
 
     def _install_commands(self, ctx: InstallContext) -> list[ChangeResult]:
         results: list[ChangeResult] = []
-        commands_src = ctx.plugin_root / "commands"
-        commands_dst = ctx.target / "commands"
+        commands_src = ctx.plugin_root / OPENCODE_COMMANDS_DIR
+        commands_dst = ctx.target / OPENCODE_COMMANDS_DIR
         for cmd_file in sorted(commands_src.glob("*.md")):
             transformed = transform_command(cmd_file.read_text())
             target_file = commands_dst / cmd_file.name
@@ -97,7 +124,7 @@ class OpenCodeHost(HostDef):
         return results
 
     def _install_mcp(self, ctx: InstallContext) -> ChangeResult:
-        config_path = ctx.target / "opencode.json"
+        config_path = ctx.target / OPENCODE_CONFIG_FILE
         # Seed $schema on fresh-file creation only. The URL gives OpenCode
         # autocomplete and validation for the config shape; writing it when
         # we're creating the file from scratch is a user-experience nicety.
@@ -108,7 +135,7 @@ class OpenCodeHost(HostDef):
             config_path.write_text(json.dumps({"$schema": OPENCODE_SCHEMA_URL}, indent=2) + "\n")
         return upsert_json_entry(
             config_path,
-            ["mcp", "cq"],
+            [OPENCODE_MCP_KEY, CQ_MCP_KEY],
             {
                 "type": "local",
                 # Written as a literal name (not an absolute path) so it
@@ -124,8 +151,8 @@ class OpenCodeHost(HostDef):
         if ctx.host_isolated_skills:
             return [
                 copy_tree(
-                    ctx.plugin_root / "skills",
-                    ctx.target / "skills",
+                    ctx.plugin_root / OPENCODE_SKILLS_DIR,
+                    ctx.target / OPENCODE_SKILLS_DIR,
                     manifest_name=OPENCODE_HOST_SKILLS_MANIFEST,
                     dry_run=ctx.dry_run,
                 )
@@ -133,8 +160,8 @@ class OpenCodeHost(HostDef):
         return ctx.run_state.ensure_shared_skills(ctx)
 
     def _uninstall_commands(self, ctx: InstallContext) -> ChangeResult:
-        commands_src = ctx.plugin_root / "commands"
-        commands_dst = ctx.target / "commands"
+        commands_src = ctx.plugin_root / OPENCODE_COMMANDS_DIR
+        commands_dst = ctx.target / OPENCODE_COMMANDS_DIR
         removed = False
         for cmd_file in commands_src.glob("*.md"):
             target_file = commands_dst / cmd_file.name

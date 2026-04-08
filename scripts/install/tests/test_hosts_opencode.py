@@ -7,7 +7,26 @@ from pathlib import Path
 
 from cq_install.content import PYTHON_COMMAND
 from cq_install.context import Action, InstallContext, RunState
-from cq_install.hosts.opencode import OPENCODE_SCHEMA_URL, OpenCodeHost
+from cq_install.hosts.opencode import (
+    OPENCODE_CONFIG_DIR_ENV,
+    OPENCODE_SCHEMA_URL,
+    OpenCodeHost,
+)
+
+
+def test_opencode_global_target_default(monkeypatch):
+    """Without OPENCODE_CONFIG_DIR the default is ~/.config/opencode."""
+    monkeypatch.delenv(OPENCODE_CONFIG_DIR_ENV, raising=False)
+    target = OpenCodeHost().global_target()
+    assert target == Path.home() / ".config" / "opencode"
+
+
+def test_opencode_global_target_honors_env_override(tmp_path, monkeypatch):
+    """OPENCODE_CONFIG_DIR overrides the default, matching OpenCode's own resolution."""
+    override = tmp_path / "custom-opencode"
+    monkeypatch.setenv(OPENCODE_CONFIG_DIR_ENV, str(override))
+    target = OpenCodeHost().global_target()
+    assert target == override.resolve()
 
 
 def _ctx(tmp_path: Path, plugin_root: Path, *, host_isolated: bool = False) -> InstallContext:

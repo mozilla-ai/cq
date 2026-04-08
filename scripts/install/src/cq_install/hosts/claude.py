@@ -9,6 +9,11 @@ from pathlib import Path
 from cq_install.context import Action, ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 
+# Claude CLI bin name and marketplace package identifier.
+CLAUDE_CLI = "claude"
+CLAUDE_PLUGIN_NAME = "cq"
+CLAUDE_PLUGIN_PACKAGE = "mozilla-ai/cq"
+
 
 class ClaudeHost(HostDef):
     """Adapter for Claude Code via the plugin marketplace.
@@ -31,8 +36,8 @@ class ClaudeHost(HostDef):
         """Run `claude plugin marketplace add` and `claude plugin install`."""
         self._require_cli()
         commands = [
-            ["claude", "plugin", "marketplace", "add", "mozilla-ai/cq"],
-            ["claude", "plugin", "install", "cq"],
+            [CLAUDE_CLI, "plugin", "marketplace", "add", CLAUDE_PLUGIN_PACKAGE],
+            [CLAUDE_CLI, "plugin", "install", CLAUDE_PLUGIN_NAME],
         ]
         return [self._run_each(commands, ctx, action=Action.CREATED)]
 
@@ -40,13 +45,13 @@ class ClaudeHost(HostDef):
         """Run `claude plugin marketplace remove`."""
         self._require_cli()
         commands = [
-            ["claude", "plugin", "marketplace", "remove", "mozilla-ai/cq"],
+            [CLAUDE_CLI, "plugin", "marketplace", "remove", CLAUDE_PLUGIN_PACKAGE],
         ]
         return [self._run_each(commands, ctx, action=Action.REMOVED)]
 
     def _require_cli(self) -> None:
-        if shutil.which("claude") is None:
-            raise RuntimeError("claude CLI not found on PATH; install Claude Code first.")
+        if shutil.which(CLAUDE_CLI) is None:
+            raise RuntimeError(f"{CLAUDE_CLI} CLI not found on PATH; install Claude Code first.")
 
     def _run_each(
         self,

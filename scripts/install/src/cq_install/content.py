@@ -12,6 +12,11 @@ import platform
 CQ_BLOCK_START = "<!-- cq:start -->"
 CQ_BLOCK_END = "<!-- cq:end -->"
 
+# The key name every host uses for the cq MCP server entry.
+# Wrapping differs by host: OpenCode uses `.mcp.cq`, Cursor / Windsurf use
+# `.mcpServers.cq`. Only the leaf key is shared.
+CQ_MCP_KEY = "cq"
+
 CQ_AGENTS_BLOCK = f"""{CQ_BLOCK_START}
 ## CQ
 

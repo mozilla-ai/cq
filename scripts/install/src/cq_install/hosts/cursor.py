@@ -18,7 +18,7 @@ from cq_install.common import (
     upsert_json_entry,
     write_if_missing,
 )
-from cq_install.content import PYTHON_COMMAND
+from cq_install.content import CQ_MCP_KEY, PYTHON_COMMAND
 from cq_install.context import ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 
@@ -42,8 +42,19 @@ CURSOR_HOOK_MODES: list[tuple[str, str]] = [
 # entry is (re)inserted, giving a clean migration path for stale commands.
 CURSOR_LEGACY_HOOK_COMMANDS: list[str] = []
 
+CURSOR_HOOKS_FILE = "hooks.json"
+CURSOR_HOOK_SCRIPT_RELPATH = Path("hooks") / "cursor" / "cq_cursor_hook.py"
 CURSOR_HOST_SKILLS_MANIFEST = ".cq-install-manifest.json"
+CURSOR_MCP_FILE = "mcp.json"
+CURSOR_MCP_SERVERS_KEY = "mcpServers"
 CURSOR_RULE_HASH = hashlib.sha256(CURSOR_RULE_CONTENT.encode()).hexdigest()
+CURSOR_RULE_RELPATH = Path("rules") / "cq.mdc"
+CURSOR_SKILLS_DIR = "skills"
+CURSOR_STATE_DIR = "cq-hook-state"
+
+# Cursor reads its config from ~/.cursor on every platform and from
+# <project>/.cursor for per-project installs.
+CURSOR_TARGET_DIR = ".cursor"
 
 
 class CursorHost(HostDef):
@@ -53,11 +64,11 @@ class CursorHost(HostDef):
 
     def global_target(self) -> Path:
         """Return the global Cursor config dir."""
-        return Path.home() / ".cursor"
+        return Path.home() / CURSOR_TARGET_DIR
 
     def project_target(self, project: Path) -> Path:
         """Return the per-project Cursor config dir."""
-        return project / ".cursor"
+        return project / CURSOR_TARGET_DIR
 
     def install(self, ctx: InstallContext) -> list[ChangeResult]:
         """Install cq into the Cursor target."""
@@ -66,7 +77,7 @@ class CursorHost(HostDef):
         results.append(self._install_mcp(ctx))
         results.append(
             write_if_missing(
-                ctx.target / "rules" / "cq.mdc",
+                ctx.target / CURSOR_RULE_RELPATH,
                 CURSOR_RULE_CONTENT,
                 dry_run=ctx.dry_run,
             )
@@ -78,17 +89,17 @@ class CursorHost(HostDef):
         """Remove cq from the Cursor target."""
         results: list[ChangeResult] = [
             remove_copied_tree(
-                ctx.target / "skills",
+                ctx.target / CURSOR_SKILLS_DIR,
                 manifest_name=CURSOR_HOST_SKILLS_MANIFEST,
                 dry_run=ctx.dry_run,
             ),
             remove_json_entry(
-                ctx.target / "mcp.json",
-                ["mcpServers", "cq"],
+                ctx.target / CURSOR_MCP_FILE,
+                [CURSOR_MCP_SERVERS_KEY, CQ_MCP_KEY],
                 dry_run=ctx.dry_run,
             ),
             remove_owned_file(
-                ctx.target / "rules" / "cq.mdc",
+                ctx.target / CURSOR_RULE_RELPATH,
                 expected_content_hash=CURSOR_RULE_HASH,
                 dry_run=ctx.dry_run,
             ),
@@ -96,7 +107,7 @@ class CursorHost(HostDef):
         for hook_name, mode in CURSOR_HOOK_MODES:
             results.append(
                 remove_hook_entry(
-                    ctx.target / "hooks.json",
+                    ctx.target / CURSOR_HOOKS_FILE,
                     hook_name=hook_name,
                     command=_hook_command(ctx, mode),
                     dry_run=ctx.dry_run,
@@ -109,7 +120,7 @@ class CursorHost(HostDef):
         for hook_name, mode in CURSOR_HOOK_MODES:
             results.append(
                 upsert_hook_entry(
-                    ctx.target / "hooks.json",
+                    ctx.target / CURSOR_HOOKS_FILE,
                     hook_name=hook_name,
                     command=_hook_command(ctx, mode),
                     legacy_commands=CURSOR_LEGACY_HOOK_COMMANDS,
@@ -120,8 +131,8 @@ class CursorHost(HostDef):
 
     def _install_mcp(self, ctx: InstallContext) -> ChangeResult:
         return upsert_json_entry(
-            ctx.target / "mcp.json",
-            ["mcpServers", "cq"],
+            ctx.target / CURSOR_MCP_FILE,
+            [CURSOR_MCP_SERVERS_KEY, CQ_MCP_KEY],
             {
                 # Literal command name so PATH resolves at Cursor's invocation
                 # time; see PYTHON_COMMAND rationale in cq_install.content.
@@ -135,8 +146,8 @@ class CursorHost(HostDef):
         if ctx.host_isolated_skills:
             return [
                 copy_tree(
-                    ctx.plugin_root / "skills",
-                    ctx.target / "skills",
+                    ctx.plugin_root / CURSOR_SKILLS_DIR,
+                    ctx.target / CURSOR_SKILLS_DIR,
                     manifest_name=CURSOR_HOST_SKILLS_MANIFEST,
                     dry_run=ctx.dry_run,
                 )
@@ -150,8 +161,8 @@ def _hook_command(ctx: InstallContext, mode: str) -> str:
     # so we pick the right stdlib helper at install time. See also
     # cursor/cursor#3386 for a related Cursor-side path-quoting bug on
     # Windows; worth checking if hook commands misbehave there.
-    hook_script = ctx.plugin_root / "hooks" / "cursor" / "cq_cursor_hook.py"
-    state_dir = ctx.target / "cq-hook-state"
+    hook_script = ctx.plugin_root / CURSOR_HOOK_SCRIPT_RELPATH
+    state_dir = ctx.target / CURSOR_STATE_DIR
     parts = [
         PYTHON_COMMAND,
         str(hook_script),
