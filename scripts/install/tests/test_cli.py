@@ -63,10 +63,12 @@ def test_install_dry_run_does_not_write(fake_repo, tmp_path):
     assert not (project / ".opencode" / "opencode.json").exists()
 
 
-@pytest.mark.xfail(reason="Cursor host implemented in Task 13", strict=False)
 def test_install_multi_target_dedups_shared_skills(fake_repo, tmp_path):
     project = tmp_path / "myapp"
     project.mkdir()
+    # Cursor host reads cq_cursor_hook.py from the plugin tree; seed a fake.
+    (fake_repo / "hooks" / "cursor").mkdir(parents=True, exist_ok=True)
+    (fake_repo / "hooks" / "cursor" / "cq_cursor_hook.py").write_text("# fake\n")
     rc = main(
         [
             "install",
@@ -78,11 +80,11 @@ def test_install_multi_target_dedups_shared_skills(fake_repo, tmp_path):
             str(project),
         ]
     )
-    # Cursor not implemented yet; expect non-zero. Once Task 13 lands this test
-    # flips to asserting rc == 0 and both hosts' configs exist (the xfail
-    # decorator is removed and the assertions updated there).
-    assert rc != 0
+    assert rc == 0
     assert (project / ".opencode" / "opencode.json").exists()
+    assert (project / ".cursor" / "mcp.json").exists()
+    # Shared skill commons installed exactly once even though both hosts asked.
+    assert (project / ".agents" / "skills" / "cq" / "SKILL.md").exists()
 
 
 def test_install_windsurf_project_is_invalid(fake_repo, tmp_path, capsys):
