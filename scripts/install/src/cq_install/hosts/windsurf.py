@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cq_install.common import (
+    copy_tree,
+    remove_copied_tree,
+    remove_json_entry,
+    upsert_json_entry,
+)
+from cq_install.content import PYTHON_COMMAND
 from cq_install.context import ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
+
+WINDSURF_HOST_SKILLS_MANIFEST = ".cq-install-manifest.json"
 
 
 class WindsurfHost(HostDef):
@@ -27,8 +36,48 @@ class WindsurfHost(HostDef):
 
     def install(self, ctx: InstallContext) -> list[ChangeResult]:
         """Install cq into the Windsurf target."""
-        raise NotImplementedError
+        results: list[ChangeResult] = []
+        if ctx.host_isolated_skills:
+            results.append(
+                copy_tree(
+                    ctx.plugin_root / "skills",
+                    ctx.target / "skills",
+                    manifest_name=WINDSURF_HOST_SKILLS_MANIFEST,
+                    dry_run=ctx.dry_run,
+                )
+            )
+        else:
+            results.extend(ctx.run_state.ensure_shared_skills(ctx))
+        results.append(
+            upsert_json_entry(
+                ctx.target / "mcp_config.json",
+                ["mcpServers", "cq"],
+                {
+                    # Literal command name so PATH resolves at Windsurf's
+                    # invocation time; see PYTHON_COMMAND in cq_install.content.
+                    "command": PYTHON_COMMAND,
+                    "args": [str(ctx.bootstrap_path)],
+                },
+                dry_run=ctx.dry_run,
+            )
+        )
+        return results
 
     def uninstall(self, ctx: InstallContext) -> list[ChangeResult]:
         """Remove cq from the Windsurf target."""
-        raise NotImplementedError
+        results: list[ChangeResult] = []
+        results.append(
+            remove_copied_tree(
+                ctx.target / "skills",
+                manifest_name=WINDSURF_HOST_SKILLS_MANIFEST,
+                dry_run=ctx.dry_run,
+            )
+        )
+        results.append(
+            remove_json_entry(
+                ctx.target / "mcp_config.json",
+                ["mcpServers", "cq"],
+                dry_run=ctx.dry_run,
+            )
+        )
+        return results
