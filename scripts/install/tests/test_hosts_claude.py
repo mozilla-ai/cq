@@ -9,7 +9,11 @@ from unittest.mock import patch
 import pytest
 
 from cq_install.context import Action, InstallContext, RunState
-from cq_install.hosts.claude import ClaudeHost
+from cq_install.hosts.claude import (
+    CLAUDE_MARKETPLACE_ID,
+    CLAUDE_MARKETPLACE_SOURCE_SLUG,
+    ClaudeHost,
+)
 
 
 def _ctx(tmp_path: Path, plugin_root: Path, *, dry_run: bool = False) -> InstallContext:
@@ -29,8 +33,10 @@ def test_claude_install_runs_marketplace_install(tmp_path, plugin_root):
     with patch("cq_install.hosts.claude.subprocess.run") as run:
         run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
         results = ClaudeHost().install(ctx)
-    run.assert_called()
-    assert any("marketplace" in " ".join(call.args[0]) for call in run.call_args_list)
+    assert [call.args[0] for call in run.call_args_list] == [
+        ["claude", "plugin", "marketplace", "add", CLAUDE_MARKETPLACE_SOURCE_SLUG],
+        ["claude", "plugin", "install", CLAUDE_MARKETPLACE_ID],
+    ]
     assert results[0].action == Action.CREATED
 
 
@@ -56,5 +62,7 @@ def test_claude_uninstall_runs_marketplace_remove(tmp_path, plugin_root):
     with patch("cq_install.hosts.claude.subprocess.run") as run:
         run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
         results = ClaudeHost().uninstall(ctx)
-    assert any("remove" in " ".join(call.args[0]) for call in run.call_args_list)
+    assert [call.args[0] for call in run.call_args_list] == [
+        ["claude", "plugin", "marketplace", "remove", CLAUDE_MARKETPLACE_ID],
+    ]
     assert results[0].action == Action.REMOVED

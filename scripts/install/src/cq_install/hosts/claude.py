@@ -9,17 +9,15 @@ from pathlib import Path
 from cq_install.context import Action, ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 
-# Claude CLI bin name, GitHub source slug, marketplace short name, and plugin name.
-# `claude plugin marketplace add` takes the source slug (owner/repo); `remove`
-# takes the derived short name (just the repo portion). The plugin itself is
-# referenced by the same short name as the marketplace, since the cq marketplace
-# exposes a single plugin of the same name. Removing the marketplace
-# automatically unregisters any plugins installed from it, so uninstall only
-# needs the one call.
+# Claude CLI marketplace semantics:
+# - `claude plugin marketplace add` takes the GitHub source slug.
+# - `claude plugin install` and `claude plugin marketplace remove` both take
+#   the derived marketplace identifier (the repo short name).
+# The cq marketplace currently exposes a single plugin with that same
+# identifier, so one constant is sufficient for both commands.
 CLAUDE_CLI = "claude"
-CLAUDE_MARKETPLACE_NAME = "cq"
-CLAUDE_MARKETPLACE_SOURCE = "mozilla-ai/cq"
-CLAUDE_PLUGIN_NAME = "cq"
+CLAUDE_MARKETPLACE_ID = "cq"
+CLAUDE_MARKETPLACE_SOURCE_SLUG = "mozilla-ai/cq"
 
 
 class ClaudeHost(HostDef):
@@ -43,8 +41,8 @@ class ClaudeHost(HostDef):
         """Run `claude plugin marketplace add` and `claude plugin install`."""
         self._require_cli()
         commands = [
-            [CLAUDE_CLI, "plugin", "marketplace", "add", CLAUDE_MARKETPLACE_SOURCE],
-            [CLAUDE_CLI, "plugin", "install", CLAUDE_PLUGIN_NAME],
+            [CLAUDE_CLI, "plugin", "marketplace", "add", CLAUDE_MARKETPLACE_SOURCE_SLUG],
+            [CLAUDE_CLI, "plugin", "install", CLAUDE_MARKETPLACE_ID],
         ]
         return [self._run_each(commands, ctx, action=Action.CREATED)]
 
@@ -56,7 +54,7 @@ class ClaudeHost(HostDef):
         """
         self._require_cli()
         commands = [
-            [CLAUDE_CLI, "plugin", "marketplace", "remove", CLAUDE_MARKETPLACE_NAME],
+            [CLAUDE_CLI, "plugin", "marketplace", "remove", CLAUDE_MARKETPLACE_ID],
         ]
         return [self._run_each(commands, ctx, action=Action.REMOVED)]
 
