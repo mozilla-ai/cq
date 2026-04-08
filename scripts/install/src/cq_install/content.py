@@ -37,3 +37,11 @@ Before starting any implementation task, load the `cq` skill and follow its Core
 # installer's own venv location into long-lived user config.
 # Detection matches plugins/cq/scripts/bootstrap.py's `platform.system()` idiom.
 PYTHON_COMMAND = "python" if platform.system() == "Windows" else "python3"
+
+
+def cq_binary_name() -> str:
+    """Return the cq binary name for the current platform.
+
+    Returns 'cq.exe' on Windows, 'cq' on other platforms.
+    """
+    return "cq.exe" if platform.system() == "Windows" else "cq"

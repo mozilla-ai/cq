@@ -15,7 +15,7 @@ from cq_install.content import (
     _CQ_RUNTIME_BASE_RELPATHS,
     _CQ_RUNTIME_MANIFEST,
     CQ_MCP_KEY,
-    PYTHON_COMMAND,
+    cq_binary_name,
 )
 from cq_install.context import ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
@@ -63,15 +63,14 @@ class WindsurfHost(HostDef):
         else:
             results.extend(ctx.run_state.ensure_shared_skills(ctx))
         results.append(self._install_runtime(ctx))
+        binary_path = _runtime_root(ctx) / "bin" / cq_binary_name()
         results.append(
             upsert_json_entry(
                 ctx.target / WINDSURF_MCP_FILE,
                 [WINDSURF_MCP_SERVERS_KEY, CQ_MCP_KEY],
                 {
-                    # Literal command name so PATH resolves at Windsurf's
-                    # invocation time; see PYTHON_COMMAND in cq_install.content.
-                    "command": PYTHON_COMMAND,
-                    "args": [str(_runtime_root(ctx) / "scripts" / "bootstrap.py")],
+                    "command": str(binary_path),
+                    "args": ["mcp"],
                 },
                 dry_run=ctx.dry_run,
             )

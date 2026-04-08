@@ -22,7 +22,7 @@ from cq_install.content import (
     CQ_BLOCK_END,
     CQ_BLOCK_START,
     CQ_MCP_KEY,
-    PYTHON_COMMAND,
+    cq_binary_name,
 )
 from cq_install.context import Action, ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
@@ -138,16 +138,13 @@ class OpenCodeHost(HostDef):
         if not config_path.exists() and not ctx.dry_run:
             config_path.parent.mkdir(parents=True, exist_ok=True)
             config_path.write_text(json.dumps({"$schema": OPENCODE_SCHEMA_URL}, indent=2) + "\n")
+        binary_path = _runtime_root(ctx) / "bin" / cq_binary_name()
         return upsert_json_entry(
             config_path,
             [OPENCODE_MCP_KEY, CQ_MCP_KEY],
             {
                 "type": "local",
-                # Written as a literal name (not an absolute path) so it
-                # PATH-resolves at OpenCode's invocation time; see the
-                # PYTHON_COMMAND comment in cq_install.content for the
-                # Windows rationale.
-                "command": [PYTHON_COMMAND, str(_runtime_root(ctx) / "scripts" / "bootstrap.py")],
+                "command": [str(binary_path), "mcp"],
             },
             dry_run=ctx.dry_run,
         )

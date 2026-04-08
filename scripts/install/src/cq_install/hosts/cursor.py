@@ -24,6 +24,7 @@ from cq_install.content import (
     _CQ_RUNTIME_MANIFEST,
     CQ_MCP_KEY,
     PYTHON_COMMAND,
+    cq_binary_name,
 )
 from cq_install.context import ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
@@ -138,14 +139,13 @@ class CursorHost(HostDef):
         return results
 
     def _install_mcp(self, ctx: InstallContext) -> ChangeResult:
+        binary_path = _runtime_root(ctx) / "bin" / cq_binary_name()
         return upsert_json_entry(
             ctx.target / CURSOR_MCP_FILE,
             [CURSOR_MCP_SERVERS_KEY, CQ_MCP_KEY],
             {
-                # Literal command name so PATH resolves at Cursor's invocation
-                # time; see PYTHON_COMMAND rationale in cq_install.content.
-                "command": PYTHON_COMMAND,
-                "args": [str(_runtime_root(ctx) / "scripts" / "bootstrap.py")],
+                "command": str(binary_path),
+                "args": ["mcp"],
             },
             dry_run=ctx.dry_run,
         )

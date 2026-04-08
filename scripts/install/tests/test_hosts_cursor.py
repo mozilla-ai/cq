@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cq_install.content import PYTHON_COMMAND
+from cq_install.content import PYTHON_COMMAND, cq_binary_name
 from cq_install.context import Action, InstallContext, RunState
 from cq_install.hosts.cursor import CursorHost
 from cq_install.runtime import runtime_root
 
-RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
+RUNTIME_BINARY = Path("bin") / cq_binary_name()
 RUNTIME_BOOTSTRAP_METADATA = Path("scripts") / "bootstrap.json"
 RUNTIME_HOOK = Path("hooks") / "cursor" / "cq_cursor_hook.py"
 
@@ -37,9 +37,8 @@ def test_cursor_install_writes_mcp_servers_entry(tmp_path, plugin_root):
     CursorHost().install(ctx)
 
     config = json.loads((ctx.target / "mcp.json").read_text())
-    assert config["mcpServers"]["cq"]["command"] == PYTHON_COMMAND
-    assert config["mcpServers"]["cq"]["args"][0] == str(shared_runtime / RUNTIME_BOOTSTRAP)
-    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    assert config["mcpServers"]["cq"]["command"] == str(shared_runtime / RUNTIME_BINARY)
+    assert config["mcpServers"]["cq"]["args"] == ["mcp"]
     assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
 
 
@@ -114,5 +113,5 @@ def test_cursor_uninstall_removes_assets(tmp_path, plugin_root):
         hooks = json.loads(hooks_path.read_text())["hooks"]
         for entries in hooks.values():
             assert not any("cq_cursor_hook.py" in e["command"] for e in entries)
-    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
     assert (shared_runtime / RUNTIME_HOOK).exists()

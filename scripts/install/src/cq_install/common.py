@@ -442,12 +442,16 @@ def upsert_markdown_block(
 
 
 def write_if_missing(path: Path, content: str, *, dry_run: bool = False) -> ChangeResult:
-    """Create the file with `content` if absent. Never overwrite existing files."""
+    """Create the file with `content` if absent. Never overwrite existing files.
+
+    Uses newline='' to preserve Unix line endings on all platforms, ensuring
+    consistent hash checksums regardless of the OS.
+    """
     if path.exists():
         return ChangeResult(action=Action.UNCHANGED, path=path)
     if not dry_run:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
+        path.write_text(content, newline="\n")
     return ChangeResult(action=Action.CREATED, path=path)
 
 

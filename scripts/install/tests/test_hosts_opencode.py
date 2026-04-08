@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cq_install.content import PYTHON_COMMAND
+from cq_install.content import cq_binary_name
 from cq_install.context import Action, InstallContext, RunState
 from cq_install.hosts.opencode import (
     OPENCODE_CONFIG_DIR_ENV,
@@ -14,7 +14,7 @@ from cq_install.hosts.opencode import (
 )
 from cq_install.runtime import runtime_root
 
-RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
+RUNTIME_BINARY = Path("bin") / cq_binary_name()
 RUNTIME_BOOTSTRAP_METADATA = Path("scripts") / "bootstrap.json"
 
 
@@ -54,10 +54,8 @@ def test_opencode_install_writes_mcp_config(tmp_path, plugin_root):
 
     config = json.loads((ctx.target / "opencode.json").read_text())
     assert config["mcp"]["cq"]["type"] == "local"
-    # Literal python command name resolved by PATH at OpenCode's invocation time.
-    assert config["mcp"]["cq"]["command"][0] == PYTHON_COMMAND
-    assert config["mcp"]["cq"]["command"][1] == str(shared_runtime / RUNTIME_BOOTSTRAP)
-    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    # Command is the absolute path to the binary.
+    assert config["mcp"]["cq"]["command"] == [str(shared_runtime / RUNTIME_BINARY), "mcp"]
     assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
 
 
@@ -134,9 +132,10 @@ def test_opencode_install_replaces_stale_mcp_command(tmp_path, plugin_root):
         )
     )
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     OpenCodeHost().install(ctx)
     config = json.loads(config_file.read_text())
-    assert config["mcp"]["cq"]["command"][0] == PYTHON_COMMAND
+    assert config["mcp"]["cq"]["command"] == [str(shared_runtime / RUNTIME_BINARY), "mcp"]
 
 
 def test_opencode_install_preserves_user_added_mcp_field(tmp_path, plugin_root):
@@ -167,7 +166,7 @@ def test_opencode_uninstall_removes_assets(tmp_path, plugin_root):
     OpenCodeHost().install(ctx)
     OpenCodeHost().uninstall(ctx)
     assert not (ctx.target / "commands" / "cq-status.md").exists()
-    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
     config = json.loads((ctx.target / "opencode.json").read_text())
     assert "mcp" not in config or "cq" not in config.get("mcp", {})
     text = (ctx.target / "AGENTS.md").read_text() if (ctx.target / "AGENTS.md").exists() else ""
