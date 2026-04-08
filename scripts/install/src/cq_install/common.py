@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -208,6 +209,53 @@ def remove_markdown_block(
     return ChangeResult(action=Action.REMOVED, path=file)
 
 
+def remove_owned_file(
+    path: Path,
+    expected_content_hash: str | None,
+    *,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Remove a file we created. Skip with advisory if the user has edited it."""
+    if not path.exists():
+        return ChangeResult(action=Action.UNCHANGED, path=path)
+
+    if expected_content_hash is not None:
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected_content_hash:
+            return ChangeResult(
+                action=Action.SKIPPED,
+                path=path,
+                detail="file modified since install; left in place",
+            )
+
+    if not dry_run:
+        path.unlink()
+    return ChangeResult(action=Action.REMOVED, path=path)
+
+
+def symlink_tree(src: Path, dst: Path, *, dry_run: bool = False) -> ChangeResult:
+    """Create or update a symlink at `dst` pointing at `src`."""
+    if dst.is_symlink():
+        if dst.resolve() == src.resolve():
+            return ChangeResult(action=Action.UNCHANGED, path=dst)
+        if not dry_run:
+            dst.unlink()
+            dst.symlink_to(src)
+        return ChangeResult(action=Action.UPDATED, path=dst)
+
+    if dst.exists():
+        return ChangeResult(
+            action=Action.SKIPPED,
+            path=dst,
+            detail="destination exists and is not a symlink",
+        )
+
+    if not dry_run:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.symlink_to(src)
+    return ChangeResult(action=Action.CREATED, path=dst)
+
+
 def upsert_hook_entry(
     file: Path,
     hook_name: str,
@@ -346,6 +394,16 @@ def upsert_markdown_block(
     if not dry_run:
         file.write_text(new_text)
     return ChangeResult(action=Action.UPDATED, path=file)
+
+
+def write_if_missing(path: Path, content: str, *, dry_run: bool = False) -> ChangeResult:
+    """Create the file with `content` if absent. Never overwrite existing files."""
+    if path.exists():
+        return ChangeResult(action=Action.UNCHANGED, path=path)
+    if not dry_run:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    return ChangeResult(action=Action.CREATED, path=path)
 
 
 def _load_json(file: Path) -> dict:
