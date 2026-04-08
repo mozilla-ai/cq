@@ -106,3 +106,85 @@ def _walk_or_create(data: dict, path: list[str]) -> dict:
             cursor[key] = {}
         cursor = cursor[key]
     return cursor
+
+
+def upsert_hook_entry(
+    file: Path,
+    hook_name: str,
+    command: str,
+    *,
+    extra_fields: dict | None = None,
+    legacy_commands: list[str] | None = None,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Add or update a single hook entry under `hooks.<hook_name>`.
+
+    Removes any entry whose `command` matches a string in `legacy_commands`
+    before inserting the desired entry. Idempotent: a second call with the
+    same arguments returns UNCHANGED.
+    """
+    data = _load_json(file)
+    hooks = data.setdefault("hooks", {})
+    entries: list[dict] = list(hooks.get(hook_name, []))
+
+    legacy = set(legacy_commands or [])
+    filtered = [entry for entry in entries if entry.get("command") not in legacy]
+    legacy_removed = len(filtered) != len(entries)
+
+    desired_entry: dict = {"command": command}
+    if extra_fields:
+        desired_entry.update(extra_fields)
+
+    found_index = next(
+        (i for i, entry in enumerate(filtered) if entry.get("command") == command),
+        None,
+    )
+
+    if found_index is None:
+        filtered.append(desired_entry)
+        action = Action.CREATED if not legacy_removed else Action.UPDATED
+    else:
+        existing = filtered[found_index]
+        merged = dict(existing)
+        changed = legacy_removed
+        for key, value in desired_entry.items():
+            if merged.get(key) != value:
+                merged[key] = value
+                changed = True
+        if not changed:
+            return ChangeResult(action=Action.UNCHANGED, path=file)
+        filtered[found_index] = merged
+        action = Action.UPDATED
+
+    hooks[hook_name] = filtered
+    if not dry_run:
+        _write_json(file, data)
+    return ChangeResult(action=action, path=file)
+
+
+def remove_hook_entry(
+    file: Path,
+    hook_name: str,
+    command: str,
+    *,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Remove a hook entry whose `command` matches exactly. Prune empty lists."""
+    if not file.exists():
+        return ChangeResult(action=Action.UNCHANGED, path=file)
+
+    data = _load_json(file)
+    hooks = data.get("hooks", {})
+    entries = hooks.get(hook_name, [])
+    remaining = [entry for entry in entries if entry.get("command") != command]
+    if len(remaining) == len(entries):
+        return ChangeResult(action=Action.UNCHANGED, path=file)
+
+    if remaining:
+        hooks[hook_name] = remaining
+    else:
+        del hooks[hook_name]
+
+    if not dry_run:
+        _write_json(file, data)
+    return ChangeResult(action=Action.REMOVED, path=file)
