@@ -449,6 +449,7 @@ func TestConfirmRemoteUnit(t *testing.T) {
 }
 
 func TestDrain(t *testing.T) {
+	testClearEnv(t)
 
 	var pushCount int
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
