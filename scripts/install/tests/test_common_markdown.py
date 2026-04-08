@@ -1,4 +1,4 @@
-"""Tests for markdown block primitives in common.py."""
+"""Tests for Markdown block primitives in common.py."""
 
 from __future__ import annotations
 

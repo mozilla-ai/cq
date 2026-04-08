@@ -5,7 +5,7 @@ Invoked once per lifecycle event by Cursor. Stdlib-only because the
 host has no Python venv guarantees at this point.
 
 Modes (passed via --mode):
-  session-start         Initialise per-session state and sweep old state files.
+  session-start         Initialize per-session state and sweep old state files.
   post-tool-use         Per-tool observer. Currently a no-op placeholder.
   post-tool-use-failure Capture failed tool calls into per-session state.
   stop                  Emit a summary of any captured failures, then clear state.

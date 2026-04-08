@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 def transform_command(source: str) -> str:
-    """Return the OpenCode-flavoured version of a Claude Code command file."""
+    """Return the OpenCode-flavored version of a Claude Code command file."""
     lines = source.splitlines(keepends=True)
     if not lines or lines[0].rstrip("\n") != "---":
         return source

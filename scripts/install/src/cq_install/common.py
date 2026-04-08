@@ -177,7 +177,7 @@ def remove_markdown_block(
     *,
     dry_run: bool = False,
 ) -> ChangeResult:
-    """Remove a delimited block from a markdown file.
+    """Remove a delimited block from a Markdown file.
 
     Deletes the file entirely if it becomes empty after the block is removed.
     """
@@ -356,10 +356,10 @@ def upsert_markdown_block(
     *,
     dry_run: bool = False,
 ) -> ChangeResult:
-    """Insert or replace a delimited block in a markdown file.
+    """Insert or replace a delimited block in a Markdown file.
 
     `content` must include the start and end markers; the primitive does
-    not synthesise them. The block is appended to existing files (with a
+    not synthesize them. The block is appended to existing files (with a
     leading blank line separator) or used as the file body when creating.
     """
     if not file.exists():
