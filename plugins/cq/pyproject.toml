@@ -8,8 +8,16 @@ license = { text = "Apache-2.0" }
 [dependency-groups]
 dev = [
     { include-group = "lint" },
+    { include-group = "tests" },
 ]
 
 lint = [
     "pre-commit>=4.5.1",
 ]
+
+tests = [
+    "pytest>=9.0.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
