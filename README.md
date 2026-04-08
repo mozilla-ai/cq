@@ -8,7 +8,7 @@ An open standard for shared agent learning. Agents find, share, and confirm coll
 
 ## Installation
 
-Requires: `uv`
+Requires: `uv`, Python 3.11+
 
 Optional (for Go SDK and Go CLI): `go` 1.26+
 
@@ -41,8 +41,6 @@ If you configured remote sync, you may also want to remove `CQ_ADDR` and `CQ_API
 
 ### OpenCode (MCP server)
 
-Also requires: `jq`
-
 ```bash
 git clone https://github.com/mozilla-ai/cq.git
 cd cq
@@ -64,6 +62,92 @@ make uninstall-opencode PROJECT=/path/to/your/project
 ```
 
 If you configured remote sync, you may also want to remove the `environment` block from the cq entry in your OpenCode config.
+
+### Cursor
+
+```bash
+git clone https://github.com/mozilla-ai/cq.git
+cd cq
+make install-cursor
+```
+
+Or for a specific project:
+
+```bash
+make install-cursor PROJECT=/path/to/your/project
+```
+
+This writes:
+
+- `~/.cursor/mcp.json` — adds the cq MCP server entry, preserving any other servers and any hand-added fields (such as `env`).
+- `~/.cursor/rules/cq.mdc` — created on first install only; never overwritten if you've edited it.
+- `~/.cursor/hooks.json` — four lifecycle hooks (sessionStart, postToolUse, postToolUseFailure, stop) pointing at `plugins/cq/hooks/cursor/cq_cursor_hook.py`.
+- `~/.agents/skills/cq/` — the shared skill commons (see "Shared skills" below).
+
+To uninstall:
+
+```bash
+make uninstall-cursor
+# or for a specific project:
+make uninstall-cursor PROJECT=/path/to/your/project
+```
+
+### Windsurf
+
+```bash
+git clone https://github.com/mozilla-ai/cq.git
+cd cq
+make install-windsurf
+```
+
+Windsurf has no per-project MCP config, so only a global install is supported. This writes:
+
+- `~/.codeium/windsurf/mcp_config.json` — adds the cq MCP server entry.
+- `~/.agents/skills/cq/` — the shared skill commons.
+
+To uninstall:
+
+```bash
+make uninstall-windsurf
+```
+
+### Shared skills
+
+By default, every host install drops the cq skill into `~/.agents/skills/cq/` (or `<project>/.agents/skills/cq/` for project installs). All hosts discover skills from the `.agents/skills/` convention, so one shared copy is picked up by Cursor, Windsurf, and OpenCode without per-host duplication.
+
+If you'd rather keep skills isolated per host, pass `--host-isolated-skills` to the installer directly:
+
+```bash
+cd scripts/install && uv run python -m cq_install install --target cursor --global --host-isolated-skills
+```
+
+### Windows
+
+Windows doesn't ship `make`, so the Makefile targets aren't available. Use the PowerShell wrapper instead:
+
+```powershell
+.\scripts\install.ps1 install --target cursor --global
+.\scripts\install.ps1 install --target windsurf --global
+.\scripts\install.ps1 install --target opencode --global
+```
+
+Or invoke the installer directly:
+
+```powershell
+cd scripts\install
+uv run python -m cq_install install --target cursor --global
+```
+
+Uninstall works the same way — replace `install` with `uninstall`. Config paths are home-directory-relative, same as POSIX (`Path.home()` resolves to `%USERPROFILE%` on Windows):
+
+| Host | Windows path |
+|---|---|
+| Cursor | `%USERPROFILE%\.cursor\mcp.json` |
+| Windsurf | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` |
+| OpenCode | `%USERPROFILE%\.config\opencode\opencode.json` |
+| Shared skills | `%USERPROFILE%\.agents\skills\cq\` |
+
+The installer writes the literal command `python` into the generated config on Windows (`python3` on POSIX) — whichever is canonical for the platform per [python.org docs](https://docs.python.org/3/using/windows.html). You need Python 3.11+ on `PATH` under that name for the MCP server to launch; the installer itself requires `uv`.
 
 ### Go SDK
 

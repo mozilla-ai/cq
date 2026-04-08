@@ -6,17 +6,17 @@
 - [uv](https://docs.astral.sh/uv/)
 - [pnpm](https://pnpm.io/)
 - Docker and Docker Compose
-- jq (only needed for `make install-opencode`)
 
 ## Repository Structure
 
-| Directory    | Component                              | Stack                              |
-|--------------|----------------------------------------|------------------------------------|
-| `cli`        | CLI (with MCP server)                  | Go, Cobra, mcp-go                  |
-| `sdk/go`     | Go SDK                                 | Go                                 |
-| `sdk/python` | Python SDK                             | Python                             |
-| `plugins/cq` | Agent plugin (skills, commands, hooks) | Markdown, Python                   |
-| `server`     | Remote knowledge server                | Python, FastAPI, TypeScript, React |
+| Directory         | Component                              | Stack                              |
+|-------------------|----------------------------------------|------------------------------------|
+| `cli`             | CLI (with MCP server)                  | Go, Cobra, mcp-go                  |
+| `sdk/go`          | Go SDK                                 | Go                                 |
+| `sdk/python`      | Python SDK                             | Python                             |
+| `plugins/cq`      | Agent plugin (skills, commands, hooks) | Markdown, Python                   |
+| `scripts/install` | Multi-host installer                   | Python (stdlib only at runtime)    |
+| `server`          | Remote knowledge server                | Python, FastAPI, TypeScript, React |
 
 ## Initial Setup
 
