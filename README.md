@@ -107,8 +107,7 @@ This writes:
 - `~/.cursor/rules/cq.mdc` — created on first install only; never overwritten if you've edited it.
 - `~/.cursor/hooks.json` — four lifecycle hooks (sessionStart, postToolUse, postToolUseFailure, stop) pointing at the shared cq runtime copy.
 - Shared runtime bundle — one per user, reused by all hosts:
-  - macOS: `~/Library/Application Support/cq/runtime/`
-  - Linux: `$XDG_DATA_HOME/cq/runtime/` (fallback `~/.local/share/cq/runtime/`)
+  - macOS/Linux: `$XDG_DATA_HOME/cq/runtime/` (fallback `~/.local/share/cq/runtime/`)
   - Windows: `%LOCALAPPDATA%\\cq\\runtime\\`
 - `~/.agents/skills/cq/` — the shared skill commons (see "Shared skills" below).
 
