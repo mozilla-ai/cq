@@ -17,6 +17,7 @@ help:
 	@echo "Development:"
 	@echo "  make setup                  Install all dependencies"
 	@echo "    - make setup-cli            CLI"
+	@echo "    - make setup-install        Multi-host installer"
 	@echo "    - make setup-plugin         Plugin"
 	@echo "    - make setup-sdk-go         Go SDK"
 	@echo "    - make setup-sdk-python     Python SDK"
@@ -25,6 +26,7 @@ help:
 	@echo "      - make setup-server-frontend Frontend"
 	@echo "  make lint                   Lint all components"
 	@echo "    - make lint-cli             CLI"
+	@echo "    - make lint-install         Multi-host installer"
 	@echo "    - make lint-plugin          Plugin"
 	@echo "    - make lint-sdk-go          Go SDK"
 	@echo "    - make lint-sdk-python      Python SDK"
@@ -33,6 +35,7 @@ help:
 	@echo "      - make lint-server-frontend Frontend"
 	@echo "  make test                   Run all tests"
 	@echo "    - make test-cli             CLI"
+	@echo "    - make test-install         Multi-host installer"
 	@echo "    - make test-plugin          Plugin (Cursor hook helper)"
 	@echo "    - make test-sdk-go          Go SDK"
 	@echo "    - make test-sdk-python      Python SDK"
@@ -53,6 +56,10 @@ help:
 .PHONY: setup-cli
 setup-cli:
 	cd cli && go mod download
+
+.PHONY: setup-install
+setup-install:
+	cd scripts/install && uv sync --group dev
 
 .PHONY: setup-plugin
 setup-plugin:
@@ -78,7 +85,7 @@ setup-server-frontend:
 setup-server: setup-server-backend setup-server-frontend
 
 .PHONY: setup
-setup: setup-cli setup-plugin setup-sdk-go setup-sdk-python setup-server
+setup: setup-cli setup-install setup-plugin setup-sdk-go setup-sdk-python setup-server
 
 .PHONY: install-claude
 install-claude:
@@ -168,6 +175,10 @@ validate-schema:
 lint-cli:
 	cd cli && $(MAKE) lint
 
+.PHONY: lint-install
+lint-install:
+	cd scripts/install && uv run --locked pre-commit run --files src/**/*.py tests/*.py pyproject.toml uv.lock
+
 .PHONY: lint-plugin
 lint-plugin:
 	cd plugins/cq && uv run --locked pre-commit run --files scripts/*.py pyproject.toml uv.lock
@@ -192,11 +203,15 @@ lint-server-frontend:
 lint-server: lint-server-backend lint-server-frontend
 
 .PHONY: lint
-lint: lint-cli lint-plugin lint-sdk-go lint-sdk-python lint-server
+lint: lint-cli lint-install lint-plugin lint-sdk-go lint-sdk-python lint-server
 
 .PHONY: test-cli
 test-cli:
 	cd cli && $(MAKE) test
+
+.PHONY: test-install
+test-install:
+	cd scripts/install && uv run pytest
 
 .PHONY: test-plugin
 test-plugin:
@@ -222,4 +237,4 @@ test-server-frontend:
 test-server: test-server-backend test-server-frontend
 
 .PHONY: test
-test: test-cli test-plugin test-sdk-go test-sdk-python test-server
+test: test-cli test-install test-plugin test-sdk-go test-sdk-python test-server
