@@ -32,6 +32,20 @@ class RunState:
 
     _done: set[tuple[str, str]] = field(default_factory=set)
 
+    def ensure_shared_skills(self, ctx: InstallContext) -> list[ChangeResult]:
+        """Run the shared-skill install for ctx exactly once per target path."""
+        from cq_install.common import copy_tree
+
+        if not self.mark_done("shared-skills", ctx.shared_skills_path):
+            return []
+        result = copy_tree(
+            ctx.plugin_root / "skills",
+            ctx.shared_skills_path,
+            manifest_name=".cq-install-manifest.json",
+            dry_run=ctx.dry_run,
+        )
+        return [result]
+
     def mark_done(self, step: str, target: Path) -> bool:
         """Record that `step` ran for `target`. Returns True if this is the first time."""
         key = (step, str(target))
