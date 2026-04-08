@@ -74,8 +74,13 @@ def _resolve_plugin_root() -> Path:
     override = os.environ.get("CQ_INSTALL_PLUGIN_ROOT")
     if override:
         return Path(override).resolve()
-    # scripts/install/src/cq_install/cli.py -> repo_root/plugins/cq.
-    return (Path(__file__).resolve().parents[3] / "plugins" / "cq").resolve()
+    # scripts/install/src/cq_install/cli.py
+    #   parents[0] = cq_install/
+    #   parents[1] = src/
+    #   parents[2] = install/
+    #   parents[3] = scripts/
+    #   parents[4] = repo root
+    return (Path(__file__).resolve().parents[4] / "plugins" / "cq").resolve()
 
 
 def _resolve_target(host: HostDef, args: argparse.Namespace) -> Path:

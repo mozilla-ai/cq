@@ -7,7 +7,20 @@ from pathlib import Path
 
 import pytest
 
-from cq_install.cli import main
+from cq_install.cli import _resolve_plugin_root, main
+
+
+def test_resolve_plugin_root_defaults_to_repo_plugin(monkeypatch):
+    """Without the env var, the resolver walks up to <repo>/plugins/cq."""
+    monkeypatch.delenv("CQ_INSTALL_PLUGIN_ROOT", raising=False)
+    root = _resolve_plugin_root()
+    assert root.name == "cq"
+    assert root.parent.name == "plugins"
+    # The resolved path must contain the plugin's bootstrap script, otherwise
+    # install() will silently skip commands and fail to find skills.
+    assert (root / "scripts" / "bootstrap.py").exists()
+    assert (root / "commands").is_dir()
+    assert (root / "skills").is_dir()
 
 
 @pytest.fixture
