@@ -559,6 +559,30 @@ class TestRemoteIntegration:
         assert stats.total_count == 4
         c.close()
 
+    def test_status_merges_remote_domain_counts(self, tmp_path: Path, httpx_mock):
+        """status() merges remote domain counts into local domain counts, accumulating overlaps."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/stats"),
+            json={
+                "total_units": 5,
+                "tiers": {"private": 5, "public": 0},
+                "domains": {"api": 3, "db": 2},
+            },
+        )
+
+        # Local unit contributes to the "api" domain so we can verify accumulation.
+        local_client = Client(local_db_path=tmp_path / "test.db")
+        local_client.propose(summary="S", detail="D", action="A", domains=["api"])
+        local_client.close()
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        # "api" appears locally (1) and remotely (3) — counts must accumulate.
+        assert stats.domain_counts["api"] == 4
+        # "db" only appears on the remote.
+        assert stats.domain_counts["db"] == 2
+        c.close()
+
     def test_status_remote_unreachable_returns_local_only(self, tmp_path: Path, httpx_mock):
         """status() returns local-only tier counts when remote is unreachable."""
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
