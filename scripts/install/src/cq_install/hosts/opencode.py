@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from cq_install.common import (
+    _copy_selected_paths,
     copy_tree,
     remove_copied_tree,
     remove_json_entry,
@@ -15,6 +16,8 @@ from cq_install.common import (
     upsert_markdown_block,
 )
 from cq_install.content import (
+    _CQ_RUNTIME_BASE_RELPATHS,
+    _CQ_RUNTIME_MANIFEST,
     CQ_AGENTS_BLOCK,
     CQ_BLOCK_END,
     CQ_BLOCK_START,
@@ -24,6 +27,7 @@ from cq_install.content import (
 from cq_install.context import Action, ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 from cq_install.opencode_commands import transform_command
+from cq_install.runtime import runtime_root
 
 OPENCODE_AGENTS_FILE = "AGENTS.md"
 OPENCODE_COMMANDS_DIR = "commands"
@@ -63,18 +67,19 @@ class OpenCodeHost(HostDef):
             return Path(override).resolve()
         return Path.home() / OPENCODE_GLOBAL_TARGET
 
-    def project_target(self, project: Path) -> Path:
-        """Return the per-project OpenCode config dir."""
-        return project / OPENCODE_PROJECT_TARGET
-
     def install(self, ctx: InstallContext) -> list[ChangeResult]:
         """Install cq into the OpenCode target."""
         results: list[ChangeResult] = []
         results.extend(self._install_skills(ctx))
         results.extend(self._install_commands(ctx))
+        results.append(self._install_runtime(ctx))
         results.append(self._install_mcp(ctx))
         results.append(self._install_agents_md(ctx))
         return results
+
+    def project_target(self, project: Path) -> Path:
+        """Return the per-project OpenCode config dir."""
+        return project / OPENCODE_PROJECT_TARGET
 
     def uninstall(self, ctx: InstallContext) -> list[ChangeResult]:
         """Remove cq from the OpenCode target."""
@@ -142,8 +147,17 @@ class OpenCodeHost(HostDef):
                 # PATH-resolves at OpenCode's invocation time; see the
                 # PYTHON_COMMAND comment in cq_install.content for the
                 # Windows rationale.
-                "command": [PYTHON_COMMAND, str(ctx.bootstrap_path)],
+                "command": [PYTHON_COMMAND, str(_runtime_root(ctx) / "scripts" / "bootstrap.py")],
             },
+            dry_run=ctx.dry_run,
+        )
+
+    def _install_runtime(self, ctx: InstallContext) -> ChangeResult:
+        return _copy_selected_paths(
+            ctx.plugin_root,
+            _runtime_root(ctx),
+            relpaths=_CQ_RUNTIME_BASE_RELPATHS,
+            manifest_name=_CQ_RUNTIME_MANIFEST,
             dry_run=ctx.dry_run,
         )
 
@@ -175,6 +189,11 @@ class OpenCodeHost(HostDef):
             action=Action.REMOVED if removed else Action.UNCHANGED,
             path=commands_dst,
         )
+
+
+def _runtime_root(ctx: InstallContext) -> Path:
+    del ctx
+    return runtime_root()
 
 
 def _write_text_idempotent(path: Path, content: str, *, dry_run: bool) -> ChangeResult:

@@ -8,6 +8,11 @@ from pathlib import Path
 from cq_install.content import PYTHON_COMMAND
 from cq_install.context import Action, InstallContext, RunState
 from cq_install.hosts.cursor import CursorHost
+from cq_install.runtime import runtime_root
+
+RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
+RUNTIME_HOOK = Path("hooks") / "cursor" / "cq_cursor_hook.py"
+RUNTIME_PLUGIN_JSON = Path(".claude-plugin") / "plugin.json"
 
 
 def _ctx(tmp_path: Path, plugin_root: Path) -> InstallContext:
@@ -28,11 +33,14 @@ def _ctx(tmp_path: Path, plugin_root: Path) -> InstallContext:
 
 def test_cursor_install_writes_mcp_servers_entry(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     CursorHost().install(ctx)
 
     config = json.loads((ctx.target / "mcp.json").read_text())
     assert config["mcpServers"]["cq"]["command"] == PYTHON_COMMAND
-    assert config["mcpServers"]["cq"]["args"][0].endswith("bootstrap.py")
+    assert config["mcpServers"]["cq"]["args"][0] == str(shared_runtime / RUNTIME_BOOTSTRAP)
+    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    assert (shared_runtime / RUNTIME_PLUGIN_JSON).exists()
 
 
 def test_cursor_install_hook_command_uses_python_command(tmp_path, plugin_root):
@@ -63,11 +71,12 @@ def test_cursor_install_does_not_overwrite_user_rule(tmp_path, plugin_root):
 
 def test_cursor_install_writes_all_four_hooks(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     CursorHost().install(ctx)
     hooks = json.loads((ctx.target / "hooks.json").read_text())["hooks"]
     assert set(hooks) == {"sessionStart", "postToolUseFailure", "postToolUse", "stop"}
     for entries in hooks.values():
-        assert any("cq_cursor_hook.py" in e["command"] for e in entries)
+        assert any(str(shared_runtime / RUNTIME_HOOK) in e["command"] for e in entries)
 
 
 def test_cursor_install_hook_command_includes_state_dir(tmp_path, plugin_root):
@@ -93,6 +102,7 @@ def test_cursor_install_shared_skills(tmp_path, plugin_root):
 
 def test_cursor_uninstall_removes_assets(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     CursorHost().install(ctx)
     CursorHost().uninstall(ctx)
     config_path = ctx.target / "mcp.json"
@@ -104,3 +114,5 @@ def test_cursor_uninstall_removes_assets(tmp_path, plugin_root):
         hooks = json.loads(hooks_path.read_text())["hooks"]
         for entries in hooks.values():
             assert not any("cq_cursor_hook.py" in e["command"] for e in entries)
+    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    assert (shared_runtime / RUNTIME_HOOK).exists()

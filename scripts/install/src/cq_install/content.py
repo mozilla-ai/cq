@@ -8,9 +8,15 @@ content that is shared across two or more hosts.
 from __future__ import annotations
 
 import platform
+from pathlib import Path
 
 CQ_BLOCK_START = "<!-- cq:start -->"
 CQ_BLOCK_END = "<!-- cq:end -->"
+_CQ_RUNTIME_BASE_RELPATHS = [
+    Path(".claude-plugin") / "plugin.json",
+    Path("scripts") / "bootstrap.py",
+]
+_CQ_RUNTIME_MANIFEST = ".cq-install-runtime-manifest.json"
 
 # The key name every host uses for the cq MCP server entry.
 # Wrapping differs by host: OpenCode uses `.mcp.cq`, Cursor / Windsurf use

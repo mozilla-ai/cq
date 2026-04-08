@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 from cq_install.common import (
+    _copy_selected_paths,
     copy_tree,
     remove_copied_tree,
     remove_hook_entry,
@@ -18,9 +19,15 @@ from cq_install.common import (
     upsert_json_entry,
     write_if_missing,
 )
-from cq_install.content import CQ_MCP_KEY, PYTHON_COMMAND
+from cq_install.content import (
+    _CQ_RUNTIME_BASE_RELPATHS,
+    _CQ_RUNTIME_MANIFEST,
+    CQ_MCP_KEY,
+    PYTHON_COMMAND,
+)
 from cq_install.context import ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
+from cq_install.runtime import runtime_root
 
 CURSOR_RULE_CONTENT = """---
 description: cq shared knowledge commons
@@ -66,14 +73,11 @@ class CursorHost(HostDef):
         """Return the global Cursor config dir."""
         return Path.home() / CURSOR_TARGET_DIR
 
-    def project_target(self, project: Path) -> Path:
-        """Return the per-project Cursor config dir."""
-        return project / CURSOR_TARGET_DIR
-
     def install(self, ctx: InstallContext) -> list[ChangeResult]:
         """Install cq into the Cursor target."""
         results: list[ChangeResult] = []
         results.extend(self._install_skills(ctx))
+        results.append(self._install_runtime(ctx))
         results.append(self._install_mcp(ctx))
         results.append(
             write_if_missing(
@@ -84,6 +88,10 @@ class CursorHost(HostDef):
         )
         results.extend(self._install_hooks(ctx))
         return results
+
+    def project_target(self, project: Path) -> Path:
+        """Return the per-project Cursor config dir."""
+        return project / CURSOR_TARGET_DIR
 
     def uninstall(self, ctx: InstallContext) -> list[ChangeResult]:
         """Remove cq from the Cursor target."""
@@ -137,8 +145,17 @@ class CursorHost(HostDef):
                 # Literal command name so PATH resolves at Cursor's invocation
                 # time; see PYTHON_COMMAND rationale in cq_install.content.
                 "command": PYTHON_COMMAND,
-                "args": [str(ctx.bootstrap_path)],
+                "args": [str(_runtime_root(ctx) / "scripts" / "bootstrap.py")],
             },
+            dry_run=ctx.dry_run,
+        )
+
+    def _install_runtime(self, ctx: InstallContext) -> ChangeResult:
+        return _copy_selected_paths(
+            ctx.plugin_root,
+            _runtime_root(ctx),
+            relpaths=[*_CQ_RUNTIME_BASE_RELPATHS, CURSOR_HOOK_SCRIPT_RELPATH],
+            manifest_name=_CQ_RUNTIME_MANIFEST,
             dry_run=ctx.dry_run,
         )
 
@@ -161,7 +178,7 @@ def _hook_command(ctx: InstallContext, mode: str) -> str:
     # so we pick the right stdlib helper at install time. See also
     # cursor/cursor#3386 for a related Cursor-side path-quoting bug on
     # Windows; worth checking if hook commands misbehave there.
-    hook_script = ctx.plugin_root / CURSOR_HOOK_SCRIPT_RELPATH
+    hook_script = _runtime_root(ctx) / CURSOR_HOOK_SCRIPT_RELPATH
     state_dir = ctx.target / CURSOR_STATE_DIR
     parts = [
         PYTHON_COMMAND,
@@ -174,3 +191,8 @@ def _hook_command(ctx: InstallContext, mode: str) -> str:
     if platform.system() == "Windows":
         return subprocess.list2cmdline(parts)
     return shlex.join(parts)
+
+
+def _runtime_root(ctx: InstallContext) -> Path:
+    del ctx
+    return runtime_root()

@@ -30,7 +30,10 @@ def _ctx(tmp_path: Path, plugin_root: Path, *, dry_run: bool = False) -> Install
 
 def test_claude_install_runs_marketplace_install(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
-    with patch("cq_install.hosts.claude.subprocess.run") as run:
+    with (
+        patch("cq_install.hosts.claude.shutil.which", return_value="/usr/bin/claude"),
+        patch("cq_install.hosts.claude.subprocess.run") as run,
+    ):
         run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
         results = ClaudeHost().install(ctx)
     assert [call.args[0] for call in run.call_args_list] == [
@@ -42,7 +45,10 @@ def test_claude_install_runs_marketplace_install(tmp_path, plugin_root):
 
 def test_claude_install_dry_run_does_not_invoke_subprocess(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root, dry_run=True)
-    with patch("cq_install.hosts.claude.subprocess.run") as run:
+    with (
+        patch("cq_install.hosts.claude.shutil.which", return_value=None),
+        patch("cq_install.hosts.claude.subprocess.run") as run,
+    ):
         results = ClaudeHost().install(ctx)
     run.assert_not_called()
     assert results[0].action == Action.CREATED
@@ -59,7 +65,10 @@ def test_claude_install_missing_cli_raises_clear_error(tmp_path, plugin_root):
 
 def test_claude_uninstall_runs_marketplace_remove(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
-    with patch("cq_install.hosts.claude.subprocess.run") as run:
+    with (
+        patch("cq_install.hosts.claude.shutil.which", return_value="/usr/bin/claude"),
+        patch("cq_install.hosts.claude.subprocess.run") as run,
+    ):
         run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
         results = ClaudeHost().uninstall(ctx)
     assert [call.args[0] for call in run.call_args_list] == [

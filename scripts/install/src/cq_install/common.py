@@ -23,17 +23,27 @@ def copy_tree(
     sources overwrite stale destinations, and files removed from the
     source are removed from the destination on the next run.
     """
-    manifest_path = dst / manifest_name
     desired_files = sorted(p for p in src.rglob("*") if p.is_file())
+    return _copy_files(src, dst, desired_files, manifest_name=manifest_name, dry_run=dry_run)
 
+
+def _copy_files(
+    src_root: Path,
+    dst_root: Path,
+    desired_files: list[Path],
+    *,
+    manifest_name: str,
+    dry_run: bool = False,
+) -> ChangeResult:
+    manifest_path = dst_root / manifest_name
     new_entries: list[dict] = []
     any_change = False
     previous = load_manifest(manifest_path) or {"files": []}
     previous_paths = {entry["path"] for entry in previous.get("files", [])}
 
     for source_file in desired_files:
-        rel = source_file.relative_to(src).as_posix()
-        target_file = dst / rel
+        rel = source_file.relative_to(src_root).as_posix()
+        target_file = dst_root / rel
         digest = hash_file(source_file)
         new_entries.append({"path": rel, "sha256": digest})
 
@@ -47,7 +57,7 @@ def copy_tree(
 
     desired_paths = {entry["path"] for entry in new_entries}
     for stale_rel in previous_paths - desired_paths:
-        stale_path = dst / stale_rel
+        stale_path = dst_root / stale_rel
         if stale_path.exists():
             any_change = True
             if not dry_run:
@@ -55,13 +65,48 @@ def copy_tree(
 
     is_first_install = not manifest_path.exists()
     if not any_change and not is_first_install:
-        return ChangeResult(action=Action.UNCHANGED, path=dst)
+        return ChangeResult(action=Action.UNCHANGED, path=dst_root)
 
     if not dry_run:
         write_manifest(manifest_path, new_entries)
 
     action = Action.CREATED if is_first_install else Action.UPDATED
-    return ChangeResult(action=action, path=dst)
+    return ChangeResult(action=action, path=dst_root)
+
+
+def _copy_selected_paths(
+    src_root: Path,
+    dst_root: Path,
+    *,
+    relpaths: list[Path],
+    manifest_name: str,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Copy selected files or directories under `src_root` into `dst_root`.
+
+    Each entry in `relpaths` is relative to `src_root`. Directory entries are
+    copied recursively. The manifest records files relative to `src_root`, so
+    re-runs remain idempotent and uninstall can remove only installer-owned
+    files.
+    """
+    desired_files: list[Path] = []
+    for relpath in relpaths:
+        source = src_root / relpath
+        if source.is_file():
+            desired_files.append(source)
+            continue
+        if source.is_dir():
+            desired_files.extend(sorted(path for path in source.rglob("*") if path.is_file()))
+            continue
+        raise FileNotFoundError(f"installer source path missing: {source}")
+
+    return _copy_files(
+        src_root,
+        dst_root,
+        desired_files,
+        manifest_name=manifest_name,
+        dry_run=dry_run,
+    )
 
 
 def remove_copied_tree(

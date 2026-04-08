@@ -25,6 +25,12 @@ Or from a cloned repo:
 make install-claude
 ```
 
+Note: Claude runs the plugin from its own installed plugin root (via
+`CLAUDE_PLUGIN_ROOT`), so `scripts/bootstrap.py` and `.claude-plugin/plugin.json`
+are resolved from that managed install location, not from your repository
+checkout. The `cq` binary cache is shared per user under the XDG data runtime
+path (`$XDG_DATA_HOME/cq/runtime`, fallback `~/.local/share/cq/runtime`).
+
 To uninstall:
 
 ```
@@ -38,6 +44,24 @@ make uninstall-claude
 ```
 
 If you configured remote sync, you may also want to remove `CQ_ADDR` and `CQ_API_KEY` from `~/.claude/settings.json`.
+
+### Installer and Plugin Environment Variables
+
+These variables are used by the multi-host installer and plugin bootstrap runtime.
+
+| Variable                 | Used by                      | Required                           | Default                            | Purpose                                                                         |
+|--------------------------|------------------------------|------------------------------------|------------------------------------|---------------------------------------------------------------------------------|
+| `CLAUDE_PLUGIN_ROOT`     | Claude plugin bootstrap      | No (provided by Claude at runtime) | fallback to script-relative path   | Points bootstrap to the Claude-managed installed plugin root.                   |
+| `CQ_INSTALL_PLUGIN_ROOT` | Installer CLI                | No                                 | auto-detected `plugins/cq` in repo | Dev/test override for resolving plugin source tree during installer runs.       |
+| `OPENCODE_CONFIG_DIR`    | Installer (OpenCode host)    | No                                 | `~/.config/opencode`               | Overrides OpenCode global config target directory for install/uninstall.        |
+| `XDG_DATA_HOME`          | Installer + plugin bootstrap | No                                 | `~/.local/share`                   | Base data directory for shared cq runtime assets (`$XDG_DATA_HOME/cq/runtime`). |
+
+Windows-only fallbacks:
+
+| Variable       | Used by                                | Required | Default                                  | Purpose                                                       |
+|----------------|----------------------------------------|----------|------------------------------------------|---------------------------------------------------------------|
+| `APPDATA`      | Installer + plugin bootstrap (Windows) | No       | used if `LOCALAPPDATA` unset             | Secondary Windows fallback for shared runtime base directory. |
+| `LOCALAPPDATA` | Installer + plugin bootstrap (Windows) | No       | `%USERPROFILE%\\AppData\\Local` fallback | Windows per-user fallback when `XDG_DATA_HOME` is unset.      |
 
 ### OpenCode (MCP server)
 
@@ -81,7 +105,11 @@ This writes:
 
 - `~/.cursor/mcp.json` — adds the cq MCP server entry, preserving any other servers and any hand-added fields (such as `env`).
 - `~/.cursor/rules/cq.mdc` — created on first install only; never overwritten if you've edited it.
-- `~/.cursor/hooks.json` — four lifecycle hooks (sessionStart, postToolUse, postToolUseFailure, stop) pointing at `plugins/cq/hooks/cursor/cq_cursor_hook.py`.
+- `~/.cursor/hooks.json` — four lifecycle hooks (sessionStart, postToolUse, postToolUseFailure, stop) pointing at the shared cq runtime copy.
+- Shared runtime bundle — one per user, reused by all hosts:
+  - macOS: `~/Library/Application Support/cq/runtime/`
+  - Linux: `$XDG_DATA_HOME/cq/runtime/` (fallback `~/.local/share/cq/runtime/`)
+  - Windows: `%LOCALAPPDATA%\\cq\\runtime\\`
 - `~/.agents/skills/cq/` — the shared skill commons (see "Shared skills" below).
 
 To uninstall:
@@ -103,6 +131,7 @@ make install-windsurf
 Windsurf has no per-project MCP config, so only a global install is supported. This writes:
 
 - `~/.codeium/windsurf/mcp_config.json` — adds the cq MCP server entry.
+- Shared runtime bundle — same path set as Cursor above, reused across hosts.
 - `~/.agents/skills/cq/` — the shared skill commons.
 
 To uninstall:

@@ -4,8 +4,9 @@
 Ensures the cq binary is available, then replaces this process with
 'cq mcp' so the host talks directly to the Go MCP server over stdio.
 
-Resolves the binary from: a local copy in bin/, the system PATH, or
-a GitHub release download. Cross-platform (macOS, Linux, Windows),
+Resolves the binary from: a shared per-user runtime bin cache, the
+system PATH, or a GitHub release download. Cross-platform (macOS,
+Linux, Windows),
 stdlib only.
 """
 
@@ -27,9 +28,8 @@ REPO = "mozilla-ai/cq"
 
 def main():
     """Ensure the cq binary is available, then exec into the MCP server."""
-    plugin_root = Path(__file__).resolve().parent.parent
-    plugin_json = plugin_root / ".claude-plugin" / "plugin.json"
-    bin_dir = plugin_root / "bin"
+    plugin_json = plugin_root() / ".claude-plugin" / "plugin.json"
+    bin_dir = shared_bin_dir()
 
     with plugin_json.open() as f:
         config = json.load(f)
@@ -50,8 +50,8 @@ def main():
 
 def ensure_binary(binary, required_version, system, bin_dir):
     """Resolve the cq binary, preferring a cached copy over a fresh download."""
-    # Fast path: a real binary (not a symlink) already at the right version.
-    if binary.is_file() and not binary.is_symlink() and check_version(binary, required_version):
+    # Fast path: cached binary (file or symlink) already at the right version.
+    if binary.is_file() and check_version(binary, required_version):
         return
 
     # Discard any stale binary or broken symlink before resolving fresh.
@@ -68,6 +68,51 @@ def ensure_binary(binary, required_version, system, bin_dir):
 
     download(required_version, system, bin_dir, binary)
     print(f"cq: downloaded v{required_version} to {binary}", file=sys.stderr)
+
+
+def default_data_home():
+    """Return the default data home directory, respecting XDG_DATA_HOME.
+
+    All platforms (Windows, macOS, Linux) support XDG_DATA_HOME.
+    Falls back to platform default if XDG_DATA_HOME is not set or relative.
+    """
+    system = platform.system()
+
+    # Check XDG_DATA_HOME first on all platforms
+    xdg_data_home = os.environ.get("XDG_DATA_HOME")
+    if xdg_data_home and Path(xdg_data_home).is_absolute():
+        return Path(xdg_data_home)
+
+    # Windows fallbacks
+    if system == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            return Path(local_app_data)
+        app_data = os.environ.get("APPDATA")
+        if app_data:
+            return Path(app_data)
+        return Path.home() / "AppData" / "Local"
+
+    # Unix fallback (macOS, Linux, etc.)
+    return Path.home() / ".local" / "share"
+
+
+def plugin_root():
+    """Return the Claude-managed plugin root for this bootstrap script."""
+    claude_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if claude_plugin_root and Path(claude_plugin_root).is_absolute():
+        return Path(claude_plugin_root)
+    return Path(__file__).resolve().parent.parent
+
+
+def runtime_root():
+    """Return shared runtime root used by every host integration."""
+    return default_data_home() / "cq" / "runtime"
+
+
+def shared_bin_dir():
+    """Return the shared runtime binary cache directory."""
+    return runtime_root() / "bin"
 
 
 def parse_version(binary):

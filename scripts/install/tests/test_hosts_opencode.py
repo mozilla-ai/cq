@@ -12,6 +12,10 @@ from cq_install.hosts.opencode import (
     OPENCODE_SCHEMA_URL,
     OpenCodeHost,
 )
+from cq_install.runtime import runtime_root
+
+RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
+RUNTIME_PLUGIN_JSON = Path(".claude-plugin") / "plugin.json"
 
 
 def test_opencode_global_target_default(monkeypatch):
@@ -45,13 +49,16 @@ def _ctx(tmp_path: Path, plugin_root: Path, *, host_isolated: bool = False) -> I
 
 def test_opencode_install_writes_mcp_config(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     OpenCodeHost().install(ctx)
 
     config = json.loads((ctx.target / "opencode.json").read_text())
     assert config["mcp"]["cq"]["type"] == "local"
     # Literal python command name resolved by PATH at OpenCode's invocation time.
     assert config["mcp"]["cq"]["command"][0] == PYTHON_COMMAND
-    assert config["mcp"]["cq"]["command"][1].endswith("bootstrap.py")
+    assert config["mcp"]["cq"]["command"][1] == str(shared_runtime / RUNTIME_BOOTSTRAP)
+    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    assert (shared_runtime / RUNTIME_PLUGIN_JSON).exists()
 
 
 def test_opencode_install_seeds_schema_on_fresh_create(tmp_path, plugin_root):
@@ -156,9 +163,11 @@ def test_opencode_install_preserves_user_added_mcp_field(tmp_path, plugin_root):
 
 def test_opencode_uninstall_removes_assets(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     OpenCodeHost().install(ctx)
     OpenCodeHost().uninstall(ctx)
     assert not (ctx.target / "commands" / "cq-status.md").exists()
+    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
     config = json.loads((ctx.target / "opencode.json").read_text())
     assert "mcp" not in config or "cq" not in config.get("mcp", {})
     text = (ctx.target / "AGENTS.md").read_text() if (ctx.target / "AGENTS.md").exists() else ""

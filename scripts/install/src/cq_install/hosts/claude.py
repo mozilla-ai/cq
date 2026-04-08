@@ -39,7 +39,8 @@ class ClaudeHost(HostDef):
 
     def install(self, ctx: InstallContext) -> list[ChangeResult]:
         """Run `claude plugin marketplace add` and `claude plugin install`."""
-        self._require_cli()
+        if not ctx.dry_run:
+            self._require_cli()
         commands = [
             [CLAUDE_CLI, "plugin", "marketplace", "add", CLAUDE_MARKETPLACE_SOURCE_SLUG],
             [CLAUDE_CLI, "plugin", "install", CLAUDE_MARKETPLACE_ID],
@@ -52,7 +53,8 @@ class ClaudeHost(HostDef):
         Removing the marketplace unregisters the plugin as well, so no
         separate `claude plugin uninstall` call is needed.
         """
-        self._require_cli()
+        if not ctx.dry_run:
+            self._require_cli()
         commands = [
             [CLAUDE_CLI, "plugin", "marketplace", "remove", CLAUDE_MARKETPLACE_ID],
         ]

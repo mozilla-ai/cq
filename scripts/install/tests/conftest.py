@@ -7,10 +7,18 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_xdg(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Isolate XDG_DATA_HOME to tmp_path for test isolation."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+
 @pytest.fixture
 def plugin_root(tmp_path: Path) -> Path:
     """Build a fake `plugins/cq` tree under tmp_path that mirrors the real layout."""
     root = tmp_path / "plugins" / "cq"
+    (root / ".claude-plugin").mkdir(parents=True)
+    (root / ".claude-plugin" / "plugin.json").write_text('{"name": "cq", "cliVersion": "0.2.0"}\n')
     (root / "scripts").mkdir(parents=True)
     (root / "scripts" / "bootstrap.py").write_text("# fake bootstrap\n")
     (root / "skills" / "cq").mkdir(parents=True)

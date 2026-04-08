@@ -10,6 +10,10 @@ import pytest
 from cq_install.content import PYTHON_COMMAND
 from cq_install.context import Action, InstallContext, RunState
 from cq_install.hosts.windsurf import WindsurfHost
+from cq_install.runtime import runtime_root
+
+RUNTIME_BOOTSTRAP = Path("scripts") / "bootstrap.py"
+RUNTIME_PLUGIN_JSON = Path(".claude-plugin") / "plugin.json"
 
 
 def _ctx(tmp_path: Path, plugin_root: Path) -> InstallContext:
@@ -34,10 +38,13 @@ def test_windsurf_does_not_support_project():
 
 def test_windsurf_install_writes_mcp_config(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     WindsurfHost().install(ctx)
     config = json.loads((ctx.target / "mcp_config.json").read_text())
     assert config["mcpServers"]["cq"]["command"] == PYTHON_COMMAND
-    assert config["mcpServers"]["cq"]["args"][0].endswith("bootstrap.py")
+    assert config["mcpServers"]["cq"]["args"][0] == str(shared_runtime / RUNTIME_BOOTSTRAP)
+    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
+    assert (shared_runtime / RUNTIME_PLUGIN_JSON).exists()
 
 
 def test_windsurf_install_creates_shared_skills(tmp_path, plugin_root):
@@ -54,9 +61,11 @@ def test_windsurf_install_idempotent(tmp_path, plugin_root):
 
 def test_windsurf_uninstall_removes_mcp_entry(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
     WindsurfHost().install(ctx)
     WindsurfHost().uninstall(ctx)
     config_path = ctx.target / "mcp_config.json"
     if config_path.exists():
         config = json.loads(config_path.read_text())
         assert "mcpServers" not in config or "cq" not in config.get("mcpServers", {})
+    assert (shared_runtime / RUNTIME_BOOTSTRAP).exists()
