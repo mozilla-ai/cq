@@ -295,6 +295,8 @@ class Client:
                         continue
                     stats.tier_counts[tier] = count
                     stats.total_count += count
+                for domain, count in remote.get("domains", {}).items():
+                    stats.domain_counts[domain] = stats.domain_counts.get(domain, 0) + count
 
         return stats
 

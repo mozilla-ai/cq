@@ -404,6 +404,9 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 				stats.TierCounts[tier] = count
 				stats.TotalCount += count
 			}
+			for domain, count := range remote.Domains {
+				stats.DomainCounts[domain] += count
+			}
 		}
 	}
 
