@@ -23,6 +23,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: ty-check-install
+        name: ty (scripts/install)
+        entry: bash -c 'cd scripts/install && uvx ty check src/cq_install --python .venv'
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^scripts/install/
       - id: ty-check-plugin
         name: ty (plugin)
         entry: bash -c 'uvx ty check plugins/cq/scripts/'
@@ -47,6 +54,12 @@ repos:
 
   - repo: local
     hooks:
+      - id: uv-lock-check-install
+        name: uv lock --check (scripts/install)
+        entry: uv lock --check --directory scripts/install
+        language: system
+        pass_filenames: false
+        files: ^scripts/install/(pyproject\.toml|uv\.lock|uv\.toml)$
       - id: uv-lock-check-plugin
         name: uv lock --check (plugins/cq)
         entry: uv lock --check --directory plugins/cq
