@@ -8,42 +8,32 @@ from pathlib import Path
 from cq_install.context import Action, ChangeResult
 
 
-def upsert_json_entry(
+def remove_hook_entry(
     file: Path,
-    path: list[str],
-    desired: dict,
+    hook_name: str,
+    command: str,
     *,
-    dry_run: bool,
+    dry_run: bool = False,
 ) -> ChangeResult:
-    """Merge `desired` into `file` at the dotted path, preserving sibling fields.
+    """Remove a hook entry whose `command` matches exactly. Prune empty lists."""
+    if not file.exists():
+        return ChangeResult(action=Action.UNCHANGED, path=file)
 
-    Creates the file and any intermediate objects on the path if missing.
-    Returns CREATED if the leaf entry was absent, UPDATED if any managed
-    field changed, UNCHANGED otherwise.
-    """
     data = _load_json(file)
-    parent = _walk_or_create(data, path[:-1])
-    leaf_key = path[-1]
+    hooks = data.get("hooks", {})
+    entries = hooks.get(hook_name, [])
+    remaining = [entry for entry in entries if entry.get("command") != command]
+    if len(remaining) == len(entries):
+        return ChangeResult(action=Action.UNCHANGED, path=file)
 
-    existing = parent.get(leaf_key)
-    if existing is None:
-        parent[leaf_key] = dict(desired)
-        action = Action.CREATED
+    if remaining:
+        hooks[hook_name] = remaining
     else:
-        merged = dict(existing)
-        changed = False
-        for key, value in desired.items():
-            if merged.get(key) != value:
-                merged[key] = value
-                changed = True
-        if not changed:
-            return ChangeResult(action=Action.UNCHANGED, path=file)
-        parent[leaf_key] = merged
-        action = Action.UPDATED
+        del hooks[hook_name]
 
     if not dry_run:
         _write_json(file, data)
-    return ChangeResult(action=action, path=file)
+    return ChangeResult(action=Action.REMOVED, path=file)
 
 
 def remove_json_entry(
@@ -86,26 +76,6 @@ def remove_json_entry(
     if not dry_run:
         _write_json(file, data)
     return ChangeResult(action=Action.REMOVED, path=file)
-
-
-def _load_json(file: Path) -> dict:
-    if not file.exists():
-        return {}
-    return json.loads(file.read_text())
-
-
-def _write_json(file: Path, data: dict) -> None:
-    file.parent.mkdir(parents=True, exist_ok=True)
-    file.write_text(json.dumps(data, indent=2) + "\n")
-
-
-def _walk_or_create(data: dict, path: list[str]) -> dict:
-    cursor = data
-    for key in path:
-        if key not in cursor or not isinstance(cursor[key], dict):
-            cursor[key] = {}
-        cursor = cursor[key]
-    return cursor
 
 
 def upsert_hook_entry(
@@ -162,29 +132,59 @@ def upsert_hook_entry(
     return ChangeResult(action=action, path=file)
 
 
-def remove_hook_entry(
+def upsert_json_entry(
     file: Path,
-    hook_name: str,
-    command: str,
+    path: list[str],
+    desired: dict,
     *,
-    dry_run: bool = False,
+    dry_run: bool,
 ) -> ChangeResult:
-    """Remove a hook entry whose `command` matches exactly. Prune empty lists."""
-    if not file.exists():
-        return ChangeResult(action=Action.UNCHANGED, path=file)
+    """Merge `desired` into `file` at the dotted path, preserving sibling fields.
 
+    Creates the file and any intermediate objects on the path if missing.
+    Returns CREATED if the leaf entry was absent, UPDATED if any managed
+    field changed, UNCHANGED otherwise.
+    """
     data = _load_json(file)
-    hooks = data.get("hooks", {})
-    entries = hooks.get(hook_name, [])
-    remaining = [entry for entry in entries if entry.get("command") != command]
-    if len(remaining) == len(entries):
-        return ChangeResult(action=Action.UNCHANGED, path=file)
+    parent = _walk_or_create(data, path[:-1])
+    leaf_key = path[-1]
 
-    if remaining:
-        hooks[hook_name] = remaining
+    existing = parent.get(leaf_key)
+    if existing is None:
+        parent[leaf_key] = dict(desired)
+        action = Action.CREATED
     else:
-        del hooks[hook_name]
+        merged = dict(existing)
+        changed = False
+        for key, value in desired.items():
+            if merged.get(key) != value:
+                merged[key] = value
+                changed = True
+        if not changed:
+            return ChangeResult(action=Action.UNCHANGED, path=file)
+        parent[leaf_key] = merged
+        action = Action.UPDATED
 
     if not dry_run:
         _write_json(file, data)
-    return ChangeResult(action=Action.REMOVED, path=file)
+    return ChangeResult(action=action, path=file)
+
+
+def _load_json(file: Path) -> dict:
+    if not file.exists():
+        return {}
+    return json.loads(file.read_text())
+
+
+def _walk_or_create(data: dict, path: list[str]) -> dict:
+    cursor = data
+    for key in path:
+        if key not in cursor or not isinstance(cursor[key], dict):
+            cursor[key] = {}
+        cursor = cursor[key]
+    return cursor
+
+
+def _write_json(file: Path, data: dict) -> None:
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(json.dumps(data, indent=2) + "\n")
