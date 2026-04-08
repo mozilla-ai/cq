@@ -7,6 +7,14 @@ from pathlib import Path
 from cq_install.context import ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 
+CURSOR_RULE_CONTENT = """---
+description: cq shared knowledge commons
+alwaysApply: true
+---
+
+Before starting any implementation task, load the `cq` skill and follow its Core Protocol.
+"""
+
 
 class CursorHost(HostDef):
     """Adapter for the Cursor editor host."""
