@@ -78,6 +78,45 @@ def remove_json_entry(
     return ChangeResult(action=Action.REMOVED, path=file)
 
 
+def remove_markdown_block(
+    file: Path,
+    start_marker: str,
+    end_marker: str,
+    *,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Remove a delimited block from a markdown file.
+
+    Deletes the file entirely if it becomes empty after the block is removed.
+    """
+    if not file.exists():
+        return ChangeResult(action=Action.UNCHANGED, path=file)
+
+    text = file.read_text()
+    start_idx = text.find(start_marker)
+    end_idx = text.find(end_marker)
+    if start_idx == -1:
+        return ChangeResult(action=Action.UNCHANGED, path=file)
+    if end_idx == -1 or end_idx < start_idx:
+        return ChangeResult(
+            action=Action.SKIPPED,
+            path=file,
+            detail="start marker present without matching end marker",
+        )
+
+    block_end = end_idx + len(end_marker)
+    new_text = (text[:start_idx] + text[block_end:]).strip("\n")
+
+    if not new_text:
+        if not dry_run:
+            file.unlink()
+        return ChangeResult(action=Action.REMOVED, path=file)
+
+    if not dry_run:
+        file.write_text(new_text + "\n")
+    return ChangeResult(action=Action.REMOVED, path=file)
+
+
 def upsert_hook_entry(
     file: Path,
     hook_name: str,
@@ -168,6 +207,54 @@ def upsert_json_entry(
     if not dry_run:
         _write_json(file, data)
     return ChangeResult(action=action, path=file)
+
+
+def upsert_markdown_block(
+    file: Path,
+    start_marker: str,
+    end_marker: str,
+    content: str,
+    *,
+    dry_run: bool = False,
+) -> ChangeResult:
+    """Insert or replace a delimited block in a markdown file.
+
+    `content` must include the start and end markers; the primitive does
+    not synthesise them. The block is appended to existing files (with a
+    leading blank line separator) or used as the file body when creating.
+    """
+    if not file.exists():
+        if not dry_run:
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(content + "\n")
+        return ChangeResult(action=Action.CREATED, path=file)
+
+    text = file.read_text()
+    start_idx = text.find(start_marker)
+    end_idx = text.find(end_marker)
+
+    if start_idx == -1:
+        new_text = text.rstrip("\n") + "\n\n" + content + "\n"
+        if not dry_run:
+            file.write_text(new_text)
+        return ChangeResult(action=Action.CREATED, path=file)
+
+    if end_idx == -1 or end_idx < start_idx:
+        return ChangeResult(
+            action=Action.SKIPPED,
+            path=file,
+            detail="start marker present without matching end marker",
+        )
+
+    block_end = end_idx + len(end_marker)
+    existing_block = text[start_idx:block_end]
+    if existing_block == content:
+        return ChangeResult(action=Action.UNCHANGED, path=file)
+
+    new_text = text[:start_idx] + content + text[block_end:]
+    if not dry_run:
+        file.write_text(new_text)
+    return ChangeResult(action=Action.UPDATED, path=file)
 
 
 def _load_json(file: Path) -> dict:
