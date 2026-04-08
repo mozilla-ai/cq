@@ -5,14 +5,28 @@ help:
 	@echo "cq - shared agent knowledge commons"
 	@echo ""
 	@echo "Claude Code (recommended):"
-	@echo "  make install-claude                          Install cq plugin"
-	@echo "  make uninstall-claude                        Remove cq plugin"
+	@echo "  make install-claude                          Install cq plugin via Claude marketplace"
+	@echo "  make uninstall-claude                        Remove cq plugin via Claude marketplace"
 	@echo ""
 	@echo "OpenCode:"
 	@echo "  make install-opencode                        Install globally (~/.config/opencode/)"
 	@echo "  make install-opencode PROJECT=/path/to/app   Install into a specific project"
 	@echo "  make uninstall-opencode                      Remove global OpenCode install"
 	@echo "  make uninstall-opencode PROJECT=/path/to/app Remove from a specific project"
+	@echo ""
+	@echo "Cursor:"
+	@echo "  make install-cursor                          Install globally (~/.cursor/)"
+	@echo "  make install-cursor PROJECT=/path/to/app     Install into a specific project"
+	@echo "  make uninstall-cursor                        Remove global Cursor install"
+	@echo "  make uninstall-cursor PROJECT=/path/to/app   Remove from a specific project"
+	@echo ""
+	@echo "Windsurf:"
+	@echo "  make install-windsurf                        Install globally (~/.codeium/windsurf/)"
+	@echo "  make uninstall-windsurf                      Remove global Windsurf install"
+	@echo ""
+	@echo "All hosts at once:"
+	@echo "  make install-all                             Install every host globally"
+	@echo "  make install-all PROJECT=/path/to/app        Install every project-capable host into a project"
 	@echo ""
 	@echo "Development:"
 	@echo "  make setup                  Install all dependencies"
@@ -89,27 +103,66 @@ setup: setup-cli setup-install setup-plugin setup-sdk-go setup-sdk-python setup-
 
 .PHONY: install-claude
 install-claude:
-	claude plugin marketplace add mozilla-ai/cq
-	claude plugin install cq
+	cd scripts/install && uv run python -m cq_install install --target claude
 
 .PHONY: uninstall-claude
 uninstall-claude:
-	claude plugin marketplace remove mozilla-ai/cq
+	cd scripts/install && uv run python -m cq_install uninstall --target claude
+
+.PHONY: install-cursor
+install-cursor:
+ifdef PROJECT
+	cd scripts/install && uv run python -m cq_install install --target cursor --project "$(PROJECT)"
+else
+	cd scripts/install && uv run python -m cq_install install --target cursor --global
+endif
+
+.PHONY: uninstall-cursor
+uninstall-cursor:
+ifdef PROJECT
+	cd scripts/install && uv run python -m cq_install uninstall --target cursor --project "$(PROJECT)"
+else
+	cd scripts/install && uv run python -m cq_install uninstall --target cursor --global
+endif
 
 .PHONY: install-opencode
 install-opencode:
 ifdef PROJECT
-	@bash "$(CURDIR)/scripts/install-opencode.sh" install --project "$(PROJECT)"
+	cd scripts/install && uv run python -m cq_install install --target opencode --project "$(PROJECT)"
 else
-	@bash "$(CURDIR)/scripts/install-opencode.sh" install
+	cd scripts/install && uv run python -m cq_install install --target opencode --global
 endif
 
 .PHONY: uninstall-opencode
 uninstall-opencode:
 ifdef PROJECT
-	@bash "$(CURDIR)/scripts/install-opencode.sh" uninstall --project "$(PROJECT)"
+	cd scripts/install && uv run python -m cq_install uninstall --target opencode --project "$(PROJECT)"
 else
-	@bash "$(CURDIR)/scripts/install-opencode.sh" uninstall
+	cd scripts/install && uv run python -m cq_install uninstall --target opencode --global
+endif
+
+.PHONY: install-windsurf
+install-windsurf:
+ifdef PROJECT
+	@echo "Note: Windsurf has no per-project MCP config; installing globally and ignoring PROJECT=$(PROJECT)."
+endif
+	cd scripts/install && uv run python -m cq_install install --target windsurf --global
+
+.PHONY: uninstall-windsurf
+uninstall-windsurf:
+ifdef PROJECT
+	@echo "Note: Windsurf has no per-project MCP config; uninstalling globally and ignoring PROJECT=$(PROJECT)."
+endif
+	cd scripts/install && uv run python -m cq_install uninstall --target windsurf --global
+
+.PHONY: install-all
+install-all:
+ifdef PROJECT
+	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target claude --project "$(PROJECT)"
+	@echo "Note: Windsurf has no per-project MCP config; installing it globally."
+	cd scripts/install && uv run python -m cq_install install --target windsurf --global
+else
+	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --global
 endif
 
 .PHONY: compose-up
