@@ -33,6 +33,7 @@ help:
 	@echo "      - make lint-server-frontend Frontend"
 	@echo "  make test                   Run all tests"
 	@echo "    - make test-cli             CLI"
+	@echo "    - make test-plugin          Plugin (Cursor hook helper)"
 	@echo "    - make test-sdk-go          Go SDK"
 	@echo "    - make test-sdk-python      Python SDK"
 	@echo "    - make test-server          Server"
@@ -197,6 +198,10 @@ lint: lint-cli lint-plugin lint-sdk-go lint-sdk-python lint-server
 test-cli:
 	cd cli && $(MAKE) test
 
+.PHONY: test-plugin
+test-plugin:
+	cd plugins/cq && uv run pytest
+
 .PHONY: test-sdk-go
 test-sdk-go:
 	cd sdk/go && $(MAKE) test
@@ -217,4 +222,4 @@ test-server-frontend:
 test-server: test-server-backend test-server-frontend
 
 .PHONY: test
-test: test-cli test-sdk-go test-sdk-python test-server
+test: test-cli test-plugin test-sdk-go test-sdk-python test-server
