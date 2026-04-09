@@ -42,7 +42,7 @@ def plugin_root(tmp_path: Path) -> Path:
     """Build a fake `plugins/cq` tree under tmp_path that mirrors the real layout."""
     root = tmp_path / "plugins" / "cq"
     (root / ".claude-plugin").mkdir(parents=True)
-    (root / ".claude-plugin" / "plugin.json").write_text('{"name": "cq", "version": "0.6.0"}\n')
+    (root / ".claude-plugin" / "plugin.json").write_text('{"name": "cq", "version": "0.7.0"}\n')
     (root / "scripts").mkdir(parents=True)
     (root / "scripts" / "bootstrap.json").write_text('{"cli_version": "0.2.0"}\n')
     (root / "scripts" / "bootstrap.py").write_text("# fake bootstrap\n")
