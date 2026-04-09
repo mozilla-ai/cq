@@ -41,11 +41,13 @@ def ensure_cq_binary(plugin_root: Path, *, dry_run: bool = False) -> list[Change
     binary = bin_dir / module.cq_binary_name()
 
     already_valid = binary.is_file() and module.meets_min_version(binary, min_version)
-    detail_cached = f"cq v{min_version}"
+
+    if already_valid:
+        actual = module.parse_version(binary)
+        detail = f"cq v{actual}"
+        return [ChangeResult(action=Action.UNCHANGED, path=binary, detail=detail)]
 
     if dry_run:
-        if already_valid:
-            return [ChangeResult(action=Action.UNCHANGED, path=binary, detail=detail_cached)]
         return [
             ChangeResult(
                 action=Action.SKIPPED,
@@ -54,11 +56,8 @@ def ensure_cq_binary(plugin_root: Path, *, dry_run: bool = False) -> list[Change
             )
         ]
 
-    if already_valid:
-        return [ChangeResult(action=Action.UNCHANGED, path=binary, detail=detail_cached)]
-
     module.ensure_binary(binary, min_version, bin_dir)
-    return [ChangeResult(action=Action.CREATED, path=binary, detail=detail_cached)]
+    return [ChangeResult(action=Action.CREATED, path=binary, detail=f"cq v{min_version}")]
 
 
 def _load_cq_binary(plugin_root: Path) -> ModuleType:

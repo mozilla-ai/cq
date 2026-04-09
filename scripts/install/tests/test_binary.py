@@ -41,6 +41,12 @@ FAKE_CQ_BINARY = dedent(
         return binary.read_text().strip() == min_version
 
 
+    def parse_version(binary):
+        if not binary.is_file():
+            return ""
+        return binary.read_text().strip()
+
+
     def ensure_binary(binary, min_version, bin_dir):
         bin_dir.mkdir(parents=True, exist_ok=True)
         binary.write_text(min_version)
