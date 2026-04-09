@@ -1,6 +1,10 @@
 ---
 name: cq
-description: Shared knowledge commons for AI agents — query, propose, confirm, and flag reusable insights via MCP tools.
+description: >-
+  Query the knowledge commons before starting ANY task or addressing an error;
+  cq catches blind spots your training data missed, especially stale versions
+  and subtle integration gotchas. Propose discoveries after resolving
+  non-obvious issues. Confirm or flag retrieved guidance before completing work.
 ---
 
 # cq Skill
