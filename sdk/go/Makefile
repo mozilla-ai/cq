@@ -46,11 +46,11 @@ check-skill-sync:
 	@echo "✓ SKILL.md is in sync."
 
 .PHONY: lint
-lint: sync-skill check-notice check-licenses
+lint: check-skill-sync check-notice check-licenses
 	golangci-lint run --fix -v
 
 .PHONY: test
-test: sync-skill
+test: check-skill-sync
 	go test ./... -v
 
 .PHONY: check-licenses

@@ -31,7 +31,7 @@ check-skill-sync:
 	@echo "✓ SKILL.md is in sync."
 
 .PHONY: test
-test: sync-skill
+test: check-skill-sync
 	uv run pytest -x -q
 
 .PHONY: lint

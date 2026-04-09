@@ -56,6 +56,7 @@ help:
 	@echo "    - make test-server          Server"
 	@echo "      - make test-server-backend  Backend"
 	@echo "      - make test-server-frontend Frontend"
+	@echo "  make sync-skill             Copy SKILL.md from plugin source to all SDKs"
 	@echo "  make check-skill-sync       Verify all SKILL.md copies match plugin source"
 	@echo "    - make check-skill-sync-sdk-go      Go SDK"
 	@echo "    - make check-skill-sync-sdk-python   Python SDK"
@@ -257,6 +258,11 @@ lint-server-frontend:
 
 .PHONY: lint-server
 lint-server: lint-server-backend lint-server-frontend
+
+.PHONY: sync-skill
+sync-skill:
+	cd sdk/go && $(MAKE) sync-skill
+	cd sdk/python && $(MAKE) sync-skill
 
 .PHONY: check-skill-sync-sdk-go
 check-skill-sync-sdk-go:
