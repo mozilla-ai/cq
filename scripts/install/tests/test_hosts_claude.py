@@ -20,7 +20,6 @@ def _ctx(tmp_path: Path, plugin_root: Path, *, dry_run: bool = False) -> Install
     return InstallContext(
         target=Path("/dev/null"),
         plugin_root=plugin_root,
-        bootstrap_path=plugin_root / "scripts" / "bootstrap.py",
         shared_skills_path=tmp_path / "shared",
         host_isolated_skills=False,
         dry_run=dry_run,

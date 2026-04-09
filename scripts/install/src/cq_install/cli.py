@@ -18,7 +18,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     plugin_root = _resolve_plugin_root()
-    bootstrap = plugin_root / "scripts" / "bootstrap.py"
 
     try:
         targets = [get_host(name) for name in args.target]
@@ -26,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    return _run(args.action, targets, args, plugin_root, bootstrap)
+    return _run(args.action, targets, args, plugin_root)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -96,7 +95,6 @@ def _run(
     targets: list[HostDef],
     args: argparse.Namespace,
     plugin_root: Path,
-    bootstrap: Path,
 ) -> int:
     run_state = RunState()
     for host in targets:
@@ -109,7 +107,6 @@ def _run(
         ctx = InstallContext(
             target=target_dir,
             plugin_root=plugin_root,
-            bootstrap_path=bootstrap,
             shared_skills_path=_shared_skills_path(args),
             host_isolated_skills=args.host_isolated_skills,
             dry_run=args.dry_run,

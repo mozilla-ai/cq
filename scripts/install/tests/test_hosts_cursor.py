@@ -11,7 +11,6 @@ from cq_install.hosts.cursor import CursorHost
 from cq_install.runtime import runtime_root
 
 RUNTIME_BINARY = Path("bin") / cq_binary_name()
-RUNTIME_BOOTSTRAP_METADATA = Path("scripts") / "bootstrap.json"
 RUNTIME_HOOK = Path("hooks") / "cursor" / "cq_cursor_hook.py"
 
 
@@ -23,7 +22,6 @@ def _ctx(tmp_path: Path, plugin_root: Path) -> InstallContext:
     return InstallContext(
         target=target,
         plugin_root=plugin_root,
-        bootstrap_path=plugin_root / "scripts" / "bootstrap.py",
         shared_skills_path=tmp_path / "shared",
         host_isolated_skills=False,
         dry_run=False,
@@ -39,7 +37,42 @@ def test_cursor_install_writes_mcp_servers_entry(tmp_path, plugin_root):
     config = json.loads((ctx.target / "mcp.json").read_text())
     assert config["mcpServers"]["cq"]["command"] == str(shared_runtime / RUNTIME_BINARY)
     assert config["mcpServers"]["cq"]["args"] == ["mcp"]
-    assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
+    assert (shared_runtime / RUNTIME_HOOK).exists()
+
+
+def test_cursor_install_runtime_bundle_contains_only_hook_script(tmp_path, plugin_root):
+    ctx = _ctx(tmp_path, plugin_root)
+    shared_runtime = runtime_root()
+    CursorHost().install(ctx)
+
+    assert (shared_runtime / RUNTIME_HOOK).exists()
+    assert not (shared_runtime / "scripts" / "bootstrap.py").exists()
+    assert not (shared_runtime / "scripts" / "bootstrap.json").exists()
+
+
+def test_cursor_install_calls_ensure_cq_binary(tmp_path, plugin_root, monkeypatch):
+    fetch_calls: list[Path] = []
+
+    def _record(plugin_root_arg: Path, *, dry_run: bool = False):
+        from cq_install.context import ChangeResult
+
+        del dry_run
+        fetch_calls.append(plugin_root_arg)
+        return [
+            ChangeResult(
+                action=Action.CREATED,
+                path=runtime_root() / "bin" / cq_binary_name(),
+                detail="cq v0.2.0",
+            )
+        ]
+
+    monkeypatch.setattr("cq_install.binary.ensure_cq_binary", _record)
+
+    ctx = _ctx(tmp_path, plugin_root)
+    results = CursorHost().install(ctx)
+
+    assert fetch_calls == [plugin_root]
+    assert any(r.detail == "cq v0.2.0" for r in results)
 
 
 def test_cursor_install_hook_command_uses_python_command(tmp_path, plugin_root):
@@ -113,5 +146,4 @@ def test_cursor_uninstall_removes_assets(tmp_path, plugin_root):
         hooks = json.loads(hooks_path.read_text())["hooks"]
         for entries in hooks.values():
             assert not any("cq_cursor_hook.py" in e["command"] for e in entries)
-    assert (shared_runtime / RUNTIME_BOOTSTRAP_METADATA).exists()
     assert (shared_runtime / RUNTIME_HOOK).exists()

@@ -8,15 +8,11 @@ content that is shared across two or more hosts.
 from __future__ import annotations
 
 import platform
-from pathlib import Path
 
 CQ_BLOCK_START = "<!-- cq:start -->"
 CQ_BLOCK_END = "<!-- cq:end -->"
-_CQ_RUNTIME_BASE_RELPATHS = [
-    Path("scripts") / "bootstrap.json",
-    Path("scripts") / "bootstrap.py",
-]
-_CQ_RUNTIME_MANIFEST = ".cq-install-runtime-manifest.json"
+
+CQ_RUNTIME_MANIFEST = ".cq-install-runtime-manifest.json"
 
 # The key name every host uses for the cq MCP server entry.
 # Wrapping differs by host: OpenCode uses `.mcp.cq`, Cursor / Windsurf use
@@ -35,7 +31,7 @@ Before starting any implementation task, load the `cq` skill and follow its Core
 # or recommended". Written as a literal name (not an absolute path) so it
 # PATH-resolves at the host's invocation time; this avoids baking the
 # installer's own venv location into long-lived user config.
-# Detection matches plugins/cq/scripts/bootstrap.py's `platform.system()` idiom.
+# Detection matches plugins/cq/scripts/cq_binary.py's `platform.system()` idiom.
 PYTHON_COMMAND = "python" if platform.system() == "Windows" else "python3"
 
 

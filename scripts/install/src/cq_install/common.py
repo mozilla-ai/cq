@@ -74,7 +74,7 @@ def _copy_files(
     return ChangeResult(action=action, path=dst_root)
 
 
-def _copy_selected_paths(
+def copy_selected_paths(
     src_root: Path,
     dst_root: Path,
     *,

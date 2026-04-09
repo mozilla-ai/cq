@@ -5,18 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from cq_install.common import (
-    _copy_selected_paths,
     copy_tree,
     remove_copied_tree,
     remove_json_entry,
     upsert_json_entry,
 )
-from cq_install.content import (
-    _CQ_RUNTIME_BASE_RELPATHS,
-    _CQ_RUNTIME_MANIFEST,
-    CQ_MCP_KEY,
-    cq_binary_name,
-)
+from cq_install.content import CQ_MCP_KEY, cq_binary_name
 from cq_install.context import ChangeResult, InstallContext
 from cq_install.hosts.base import HostDef
 from cq_install.runtime import runtime_root
@@ -62,8 +56,8 @@ class WindsurfHost(HostDef):
             )
         else:
             results.extend(ctx.run_state.ensure_shared_skills(ctx))
-        results.append(self._install_runtime(ctx))
-        binary_path = _runtime_root(ctx) / "bin" / cq_binary_name()
+        results.extend(ctx.run_state.ensure_cq_binary(ctx))
+        binary_path = runtime_root() / "bin" / cq_binary_name()
         results.append(
             upsert_json_entry(
                 ctx.target / WINDSURF_MCP_FILE,
@@ -92,17 +86,3 @@ class WindsurfHost(HostDef):
             ),
         ]
         return results
-
-    def _install_runtime(self, ctx: InstallContext) -> ChangeResult:
-        return _copy_selected_paths(
-            ctx.plugin_root,
-            _runtime_root(ctx),
-            relpaths=_CQ_RUNTIME_BASE_RELPATHS,
-            manifest_name=_CQ_RUNTIME_MANIFEST,
-            dry_run=ctx.dry_run,
-        )
-
-
-def _runtime_root(ctx: InstallContext) -> Path:
-    del ctx
-    return runtime_root()

@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from cq_install.common import (
-    _copy_selected_paths,
+    copy_selected_paths,
     copy_tree,
     remove_copied_tree,
     remove_hook_entry,
@@ -20,9 +20,8 @@ from cq_install.common import (
     write_if_missing,
 )
 from cq_install.content import (
-    _CQ_RUNTIME_BASE_RELPATHS,
-    _CQ_RUNTIME_MANIFEST,
     CQ_MCP_KEY,
+    CQ_RUNTIME_MANIFEST,
     PYTHON_COMMAND,
     cq_binary_name,
 )
@@ -78,6 +77,7 @@ class CursorHost(HostDef):
         """Install cq into the Cursor target."""
         results: list[ChangeResult] = []
         results.extend(self._install_skills(ctx))
+        results.extend(ctx.run_state.ensure_cq_binary(ctx))
         results.append(self._install_runtime(ctx))
         results.append(self._install_mcp(ctx))
         results.append(
@@ -139,7 +139,7 @@ class CursorHost(HostDef):
         return results
 
     def _install_mcp(self, ctx: InstallContext) -> ChangeResult:
-        binary_path = _runtime_root(ctx) / "bin" / cq_binary_name()
+        binary_path = runtime_root() / "bin" / cq_binary_name()
         return upsert_json_entry(
             ctx.target / CURSOR_MCP_FILE,
             [CURSOR_MCP_SERVERS_KEY, CQ_MCP_KEY],
@@ -151,11 +151,11 @@ class CursorHost(HostDef):
         )
 
     def _install_runtime(self, ctx: InstallContext) -> ChangeResult:
-        return _copy_selected_paths(
+        return copy_selected_paths(
             ctx.plugin_root,
-            _runtime_root(ctx),
-            relpaths=[*_CQ_RUNTIME_BASE_RELPATHS, CURSOR_HOOK_SCRIPT_RELPATH],
-            manifest_name=_CQ_RUNTIME_MANIFEST,
+            runtime_root(),
+            relpaths=[CURSOR_HOOK_SCRIPT_RELPATH],
+            manifest_name=CQ_RUNTIME_MANIFEST,
             dry_run=ctx.dry_run,
         )
 
@@ -178,7 +178,7 @@ def _hook_command(ctx: InstallContext, mode: str) -> str:
     # so we pick the right stdlib helper at install time. See also
     # cursor/cursor#3386 for a related Cursor-side path-quoting bug on
     # Windows; worth checking if hook commands misbehave there.
-    hook_script = _runtime_root(ctx) / CURSOR_HOOK_SCRIPT_RELPATH
+    hook_script = runtime_root() / CURSOR_HOOK_SCRIPT_RELPATH
     state_dir = ctx.target / CURSOR_STATE_DIR
     parts = [
         PYTHON_COMMAND,
@@ -191,8 +191,3 @@ def _hook_command(ctx: InstallContext, mode: str) -> str:
     if platform.system() == "Windows":
         return subprocess.list2cmdline(parts)
     return shlex.join(parts)
-
-
-def _runtime_root(ctx: InstallContext) -> Path:
-    del ctx
-    return runtime_root()

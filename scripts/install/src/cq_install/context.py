@@ -31,6 +31,21 @@ class RunState:
     """In-memory dedup tracker for a single installer invocation."""
 
     _done: set[tuple[str, str]] = field(default_factory=set)
+    _cq_binary_result: list[ChangeResult] | None = None
+
+    def ensure_cq_binary(self, ctx: InstallContext) -> list[ChangeResult]:
+        """Fetch the cq binary exactly once per installer run.
+
+        Multi-target installs share the single shared runtime bin dir, so
+        re-running the fetch for every host would be wasted work. The
+        first call delegates to ``cq_install.binary.ensure_cq_binary``;
+        subsequent calls return the cached result.
+        """
+        from cq_install.binary import ensure_cq_binary
+
+        if self._cq_binary_result is None:
+            self._cq_binary_result = ensure_cq_binary(ctx.plugin_root, dry_run=ctx.dry_run)
+        return self._cq_binary_result
 
     def ensure_shared_skills(self, ctx: InstallContext) -> list[ChangeResult]:
         """Run the shared-skill install for ctx exactly once per target path."""
@@ -61,7 +76,6 @@ class InstallContext:
 
     target: Path
     plugin_root: Path
-    bootstrap_path: Path
     shared_skills_path: Path
     host_isolated_skills: bool
     dry_run: bool

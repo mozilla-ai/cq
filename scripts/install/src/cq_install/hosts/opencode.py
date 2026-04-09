@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 
 from cq_install.common import (
-    _copy_selected_paths,
     copy_tree,
     remove_copied_tree,
     remove_json_entry,
@@ -16,8 +15,6 @@ from cq_install.common import (
     upsert_markdown_block,
 )
 from cq_install.content import (
-    _CQ_RUNTIME_BASE_RELPATHS,
-    _CQ_RUNTIME_MANIFEST,
     CQ_AGENTS_BLOCK,
     CQ_BLOCK_END,
     CQ_BLOCK_START,
@@ -72,7 +69,7 @@ class OpenCodeHost(HostDef):
         results: list[ChangeResult] = []
         results.extend(self._install_skills(ctx))
         results.extend(self._install_commands(ctx))
-        results.append(self._install_runtime(ctx))
+        results.extend(ctx.run_state.ensure_cq_binary(ctx))
         results.append(self._install_mcp(ctx))
         results.append(self._install_agents_md(ctx))
         return results
@@ -138,7 +135,7 @@ class OpenCodeHost(HostDef):
         if not config_path.exists() and not ctx.dry_run:
             config_path.parent.mkdir(parents=True, exist_ok=True)
             config_path.write_text(json.dumps({"$schema": OPENCODE_SCHEMA_URL}, indent=2) + "\n")
-        binary_path = _runtime_root(ctx) / "bin" / cq_binary_name()
+        binary_path = runtime_root() / "bin" / cq_binary_name()
         return upsert_json_entry(
             config_path,
             [OPENCODE_MCP_KEY, CQ_MCP_KEY],
@@ -146,15 +143,6 @@ class OpenCodeHost(HostDef):
                 "type": "local",
                 "command": [str(binary_path), "mcp"],
             },
-            dry_run=ctx.dry_run,
-        )
-
-    def _install_runtime(self, ctx: InstallContext) -> ChangeResult:
-        return _copy_selected_paths(
-            ctx.plugin_root,
-            _runtime_root(ctx),
-            relpaths=_CQ_RUNTIME_BASE_RELPATHS,
-            manifest_name=_CQ_RUNTIME_MANIFEST,
             dry_run=ctx.dry_run,
         )
 
@@ -186,11 +174,6 @@ class OpenCodeHost(HostDef):
             action=Action.REMOVED if removed else Action.UNCHANGED,
             path=commands_dst,
         )
-
-
-def _runtime_root(ctx: InstallContext) -> Path:
-    del ctx
-    return runtime_root()
 
 
 def _write_text_idempotent(path: Path, content: str, *, dry_run: bool) -> ChangeResult:
