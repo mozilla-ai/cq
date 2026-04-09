@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from cq_install.common import remove_hook_entry, upsert_hook_entry
 from cq_install.context import Action
 
@@ -122,3 +124,44 @@ def test_remove_hook_entry_prunes_empty_hook_list(tmp_path: Path):
     )
     data = json.loads(target.read_text())
     assert "stop" not in data["hooks"]
+
+
+def test_upsert_hook_raises_when_top_level_is_not_object(tmp_path: Path):
+    target = tmp_path / "hooks.json"
+    target.write_text(json.dumps(["not", "an", "object"]))
+    with pytest.raises(ValueError) as exc_info:
+        upsert_hook_entry(
+            target,
+            hook_name="sessionStart",
+            command="python3 /x/h.py",
+            dry_run=False,
+        )
+    assert str(target) in str(exc_info.value)
+
+
+def test_upsert_hook_raises_when_hooks_is_not_object(tmp_path: Path):
+    target = tmp_path / "hooks.json"
+    target.write_text(json.dumps({"hooks": ["not", "an", "object"]}))
+    with pytest.raises(ValueError) as exc_info:
+        upsert_hook_entry(
+            target,
+            hook_name="sessionStart",
+            command="python3 /x/h.py",
+            dry_run=False,
+        )
+    assert str(target) in str(exc_info.value)
+    assert "hooks" in str(exc_info.value)
+
+
+def test_upsert_hook_raises_when_hook_entries_is_not_list(tmp_path: Path):
+    target = tmp_path / "hooks.json"
+    target.write_text(json.dumps({"hooks": {"sessionStart": {"not": "a list"}}}))
+    with pytest.raises(ValueError) as exc_info:
+        upsert_hook_entry(
+            target,
+            hook_name="sessionStart",
+            command="python3 /x/h.py",
+            dry_run=False,
+        )
+    assert str(target) in str(exc_info.value)
+    assert "sessionStart" in str(exc_info.value)

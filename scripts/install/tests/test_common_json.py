@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from cq_install.common import remove_json_entry, upsert_json_entry
 from cq_install.context import Action
 
@@ -127,3 +129,30 @@ def test_remove_no_op_when_file_missing(tmp_path: Path):
     target = tmp_path / "mcp.json"
     result = remove_json_entry(target, ["mcpServers", "cq"], dry_run=False)
     assert result.action == Action.UNCHANGED
+
+
+def test_upsert_malformed_json_raises_with_path(tmp_path: Path):
+    target = tmp_path / "mcp.json"
+    target.write_text("{ not valid json")
+    with pytest.raises(RuntimeError) as exc_info:
+        upsert_json_entry(
+            target,
+            ["mcpServers", "cq"],
+            {"command": "python3"},
+            dry_run=False,
+        )
+    assert str(target) in str(exc_info.value)
+
+
+def test_upsert_non_dict_leaf_raises_with_path(tmp_path: Path):
+    target = tmp_path / "mcp.json"
+    target.write_text(json.dumps({"mcpServers": {"cq": "not-a-dict"}}))
+    with pytest.raises(ValueError) as exc_info:
+        upsert_json_entry(
+            target,
+            ["mcpServers", "cq"],
+            {"command": "python3"},
+            dry_run=False,
+        )
+    assert str(target) in str(exc_info.value)
+    assert "mcpServers" in str(exc_info.value)

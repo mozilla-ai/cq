@@ -317,8 +317,20 @@ def upsert_hook_entry(
     same arguments returns UNCHANGED.
     """
     data = _load_json(file)
+    if not isinstance(data, dict):
+        raise ValueError(f"invalid hooks config in {file}: expected top-level JSON object, found {type(data).__name__}")
     hooks = data.setdefault("hooks", {})
-    entries: list[dict] = list(hooks.get(hook_name, []))
+    if not isinstance(hooks, dict):
+        raise ValueError(
+            f"invalid hooks config in {file}: expected 'hooks' to be an object, found {type(hooks).__name__}"
+        )
+    raw_entries = hooks.get(hook_name, [])
+    if not isinstance(raw_entries, list):
+        raise ValueError(
+            f"invalid hooks config in {file}: expected hooks.{hook_name} to be a list, "
+            f"found {type(raw_entries).__name__}"
+        )
+    entries: list[dict] = [dict(entry) for entry in raw_entries if isinstance(entry, dict)]
 
     legacy = set(legacy_commands or [])
     filtered = [entry for entry in entries if entry.get("command") not in legacy]
@@ -377,6 +389,9 @@ def upsert_json_entry(
         parent[leaf_key] = dict(desired)
         action = Action.CREATED
     else:
+        if not isinstance(existing, dict):
+            dotted = ".".join(path)
+            raise ValueError(f"invalid config in {file}: expected object at {dotted}, found {type(existing).__name__}")
         merged = dict(existing)
         changed = False
         for key, value in desired.items():
@@ -458,7 +473,10 @@ def write_if_missing(path: Path, content: str, *, dry_run: bool = False) -> Chan
 def _load_json(file: Path) -> dict:
     if not file.exists():
         return {}
-    return json.loads(file.read_text())
+    try:
+        return json.loads(file.read_text())
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"invalid JSON in config file {file}: {exc}") from exc
 
 
 def _prune_empty_dirs(directory: Path, stop_at: Path) -> None:

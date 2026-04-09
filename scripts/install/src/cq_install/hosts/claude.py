@@ -74,7 +74,17 @@ class ClaudeHost(HostDef):
         for cmd in commands:
             if ctx.dry_run:
                 continue
-            result = subprocess.run(cmd, check=False)
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True)
             if result.returncode != 0:
-                raise RuntimeError(f"command failed: {' '.join(cmd)}")
+                details = [
+                    f"command failed: {' '.join(cmd)}",
+                    f"return code: {result.returncode}",
+                ]
+                stderr = (result.stderr or "").strip()
+                if stderr:
+                    details.append(f"stderr: {stderr}")
+                stdout = (result.stdout or "").strip()
+                if stdout:
+                    details.append(f"stdout: {stdout}")
+                raise RuntimeError("\n".join(details))
         return ChangeResult(action=action, path=Path("claude marketplace"))

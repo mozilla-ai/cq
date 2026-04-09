@@ -74,3 +74,23 @@ def test_claude_uninstall_runs_marketplace_remove(tmp_path, plugin_root):
         ["claude", "plugin", "marketplace", "remove", CLAUDE_MARKETPLACE_ID],
     ]
     assert results[0].action == Action.REMOVED
+
+
+def test_claude_install_surfaces_returncode_and_stderr_on_failure(tmp_path, plugin_root):
+    ctx = _ctx(tmp_path, plugin_root)
+    failure = subprocess.CompletedProcess(
+        args=["claude", "plugin", "marketplace", "add", CLAUDE_MARKETPLACE_SOURCE_SLUG],
+        returncode=3,
+        stdout="",
+        stderr="error: marketplace not found\n",
+    )
+    with (
+        patch("cq_install.hosts.claude.shutil.which", return_value="/usr/bin/claude"),
+        patch("cq_install.hosts.claude.subprocess.run", return_value=failure),
+        pytest.raises(RuntimeError) as exc_info,
+    ):
+        ClaudeHost().install(ctx)
+
+    message = str(exc_info.value)
+    assert "3" in message
+    assert "marketplace not found" in message

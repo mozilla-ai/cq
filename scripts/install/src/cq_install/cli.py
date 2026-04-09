@@ -25,6 +25,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    if args.host_isolated_skills:
+        unsupported = [host.name for host in targets if not host.supports_host_isolated]
+        if unsupported:
+            names = ", ".join(unsupported)
+            print(
+                f"error: --host-isolated-skills is not supported for host {names}",
+                file=sys.stderr,
+            )
+            return 2
+
     return _run(args.action, targets, args, plugin_root)
 
 

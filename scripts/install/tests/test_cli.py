@@ -127,6 +127,15 @@ def test_install_windsurf_project_is_invalid(fake_repo, tmp_path, capsys):
     assert "windsurf" in captured.err.lower()
 
 
+def test_install_host_isolated_skills_rejected_for_unsupported_host(fake_repo, capsys):
+    del fake_repo
+    rc = main(["install", "--target", "claude", "--host-isolated-skills", "--global"])
+    captured = capsys.readouterr()
+    assert rc != 0
+    assert "claude" in captured.err.lower()
+    assert "host-isolated-skills" in captured.err.lower()
+
+
 def test_uninstall_opencode_project(fake_repo, tmp_path):
     project = tmp_path / "myapp"
     project.mkdir()
