@@ -22,9 +22,9 @@ import cq_binary
 def main() -> None:
     """Ensure the cq binary is cached, then exec into the MCP server."""
     metadata_path = Path(__file__).resolve().with_name("bootstrap.json")
-    required_version = cq_binary.load_required_version(metadata_path)
+    required_version = cq_binary.load_min_version(metadata_path)
     if not required_version:
-        print("Error: required CLI version not set in bootstrap metadata", file=sys.stderr)
+        print("Error: minimum CLI version not set in bootstrap metadata", file=sys.stderr)
         sys.exit(1)
 
     bin_dir = cq_binary.shared_bin_dir()

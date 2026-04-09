@@ -20,11 +20,11 @@ FAKE_CQ_BINARY = dedent(
     _MARKER_DIR = Path(__file__).resolve().parent.parent
 
 
-    def load_required_version(metadata_path):
+    def load_min_version(metadata_path):
         if not metadata_path.exists():
             return ""
         with open(metadata_path) as f:
-            return json.load(f).get("cli_version", "")
+            return json.load(f).get("cli_min_version", "")
 
 
     def shared_bin_dir():
@@ -35,27 +35,27 @@ FAKE_CQ_BINARY = dedent(
         return "cq"
 
 
-    def check_version(binary, required):
+    def meets_min_version(binary, min_version):
         if not binary.is_file():
             return False
-        return binary.read_text().strip() == required
+        return binary.read_text().strip() == min_version
 
 
-    def ensure_binary(binary, required_version, bin_dir):
+    def ensure_binary(binary, min_version, bin_dir):
         bin_dir.mkdir(parents=True, exist_ok=True)
-        binary.write_text(required_version)
+        binary.write_text(min_version)
         (_MARKER_DIR / ".ensure_called").write_text(
-            f"{binary}|{required_version}|{bin_dir}"
+            f"{binary}|{min_version}|{bin_dir}"
         )
     '''
 )
 
 
-def _seed_plugin_tree(plugin_root: Path, *, cli_version: str | None = "0.2.0") -> None:
+def _seed_plugin_tree(plugin_root: Path, *, cli_min_version: str | None = "0.2.0") -> None:
     scripts = plugin_root / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
-    if cli_version is not None:
-        (scripts / "bootstrap.json").write_text(f'{{"cli_version": "{cli_version}"}}\n')
+    if cli_min_version is not None:
+        (scripts / "bootstrap.json").write_text(f'{{"cli_min_version": "{cli_min_version}"}}\n')
     (scripts / "cq_binary.py").write_text(FAKE_CQ_BINARY)
 
 
@@ -116,7 +116,7 @@ def test_ensure_cq_binary_dry_run_is_unchanged_when_already_valid(tmp_path):
 def test_ensure_cq_binary_raises_when_cq_binary_missing(tmp_path):
     plugin_root = tmp_path / "plugins" / "cq"
     (plugin_root / "scripts").mkdir(parents=True)
-    (plugin_root / "scripts" / "bootstrap.json").write_text('{"cli_version": "0.2.0"}\n')
+    (plugin_root / "scripts" / "bootstrap.json").write_text('{"cli_min_version": "0.2.0"}\n')
 
     with pytest.raises(RuntimeError, match="cq_binary.py"):
         ensure_cq_binary(plugin_root)
@@ -124,7 +124,7 @@ def test_ensure_cq_binary_raises_when_cq_binary_missing(tmp_path):
 
 def test_ensure_cq_binary_raises_when_version_missing(tmp_path):
     plugin_root = tmp_path / "plugins" / "cq"
-    _seed_plugin_tree(plugin_root, cli_version=None)
+    _seed_plugin_tree(plugin_root, cli_min_version=None)
 
-    with pytest.raises(RuntimeError, match="cli_version"):
+    with pytest.raises(RuntimeError, match="cli_min_version"):
         ensure_cq_binary(plugin_root)

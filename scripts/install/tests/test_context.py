@@ -59,7 +59,7 @@ def test_ensure_cq_binary_runs_once_per_run_state(tmp_path: Path, monkeypatch: p
     plugin_root = tmp_path / "plugins" / "cq"
     (plugin_root / "scripts").mkdir(parents=True)
     (plugin_root / "scripts" / "cq_binary.py").touch()
-    (plugin_root / "scripts" / "bootstrap.json").write_text('{"cli_version": "0.2.0"}\n')
+    (plugin_root / "scripts" / "bootstrap.json").write_text('{"cli_min_version": "0.2.0"}\n')
 
     calls: list[Path] = []
     sample_result = ChangeResult(action=Action.CREATED, path=tmp_path / "cq", detail="cq v0.2.0")
