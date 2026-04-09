@@ -27,6 +27,7 @@ help:
 	@echo "cq Go SDK"
 	@echo ""
 	@echo "  make sync-skill       Copy skill prompt from golden source"
+	@echo "  make check-skill-sync Verify SKILL.md matches golden source"
 	@echo "  make lint             Run golangci-lint"
 	@echo "  make test             Run all tests"
 	@echo "  make check-licenses   Verify dependency licenses"
@@ -35,15 +36,21 @@ help:
 
 .PHONY: sync-skill
 sync-skill:
-	@cp ../../plugins/cq/skills/cq/SKILL.md internal/protocol/skill.md
+	@cp ../../plugins/cq/skills/cq/SKILL.md internal/protocol/SKILL.md
 	@echo "✓ Skill prompt synced."
 
+.PHONY: check-skill-sync
+check-skill-sync:
+	@diff -q ../../plugins/cq/skills/cq/SKILL.md internal/protocol/SKILL.md > /dev/null 2>&1 \
+		|| (echo "internal/protocol/SKILL.md is out of sync. Run: make sync-skill" && exit 1)
+	@echo "✓ SKILL.md is in sync."
+
 .PHONY: lint
-lint: sync-skill check-notice check-licenses
+lint: check-skill-sync check-notice check-licenses
 	golangci-lint run --fix -v
 
 .PHONY: test
-test: sync-skill
+test: check-skill-sync
 	go test ./... -v
 
 .PHONY: check-licenses

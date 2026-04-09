@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 SKILL_SRC := ../../plugins/cq/skills/cq/SKILL.md
-SKILL_DST := src/cq/protocol/skill.md
+SKILL_DST := src/cq/protocol/SKILL.md
 
 .PHONY: help
 help:
@@ -13,7 +13,8 @@ help:
 	@echo "  make lint           Run pre-commit hooks (format, lint, detect-secrets)"
 	@echo "  make format         Auto-format Python files"
 	@echo "  make format-check   Check formatting without modifying files"
-	@echo "  make sync-skill     Copy canonical skill prompt into package"
+	@echo "  make sync-skill       Copy canonical skill prompt into package"
+	@echo "  make check-skill-sync Verify SKILL.md matches golden source"
 
 .PHONY: setup
 setup:
@@ -23,8 +24,14 @@ setup:
 sync-skill:
 	cp $(SKILL_SRC) $(SKILL_DST)
 
+.PHONY: check-skill-sync
+check-skill-sync:
+	@diff -q $(SKILL_SRC) $(SKILL_DST) > /dev/null 2>&1 \
+		|| (echo "$(SKILL_DST) is out of sync. Run: make sync-skill" && exit 1)
+	@echo "✓ SKILL.md is in sync."
+
 .PHONY: test
-test: sync-skill
+test: check-skill-sync
 	uv run pytest -x -q
 
 .PHONY: lint

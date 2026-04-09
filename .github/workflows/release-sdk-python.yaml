@@ -56,10 +56,6 @@ jobs:
         env:
           VERSION: ${{ steps.tag.outputs.version }}
 
-      - name: Copy skill prompt into package
-        working-directory: sdk/python
-        run: make sync-skill
-
       - name: Build package
         working-directory: sdk/python
         run: uv build

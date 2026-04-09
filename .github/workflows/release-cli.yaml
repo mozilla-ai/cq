@@ -74,9 +74,6 @@ jobs:
         with:
           go-version-file: cli/go.mod
 
-      - name: Sync skill
-        run: make -C sdk/go sync-skill
-
       - name: Build
         env:
           CGO_ENABLED: "0"

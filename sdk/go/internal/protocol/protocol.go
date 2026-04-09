@@ -3,7 +3,7 @@ package protocol
 
 import _ "embed"
 
-//go:embed skill.md
+//go:embed SKILL.md
 var skill string
 
 // Prompt returns the full agent protocol prompt.
