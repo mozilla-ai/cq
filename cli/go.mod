@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/mark3labs/mcp-go v0.46.0
-	github.com/mozilla-ai/cq/sdk/go v0.2.1
+	github.com/mozilla-ai/cq/sdk/go v0.2.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	github.com/stretchr/testify v1.11.1
@@ -30,6 +30,5 @@ require (
 	modernc.org/sqlite v1.48.0 // indirect
 )
 
-// Monorepo: the SDK embeds skill.md which is synced at build time (make sync-skill),
-// so the module proxy copy is incomplete. The replace directive is required.
-replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
+// Monorepo: uncomment to use the local SDK during development.
+// replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
