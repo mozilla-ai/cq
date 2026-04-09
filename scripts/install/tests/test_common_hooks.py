@@ -165,3 +165,28 @@ def test_upsert_hook_raises_when_hook_entries_is_not_list(tmp_path: Path):
         )
     assert str(target) in str(exc_info.value)
     assert "sessionStart" in str(exc_info.value)
+
+
+def test_remove_hook_entry_skips_when_top_level_not_object(tmp_path: Path):
+    target = tmp_path / "hooks.json"
+    target.write_text(json.dumps(["not", "an", "object"]))
+    result = remove_hook_entry(
+        target,
+        hook_name="stop",
+        command="python3 /x/h.py --mode stop",
+        dry_run=False,
+    )
+    assert result.action == Action.SKIPPED
+    assert str(target) in result.detail
+
+
+def test_remove_hook_entry_skips_when_hooks_not_object(tmp_path: Path):
+    target = tmp_path / "hooks.json"
+    target.write_text(json.dumps({"hooks": "not-a-dict"}))
+    result = remove_hook_entry(
+        target,
+        hook_name="stop",
+        command="python3 /x/h.py --mode stop",
+        dry_run=False,
+    )
+    assert result.action == Action.SKIPPED

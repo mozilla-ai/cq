@@ -162,14 +162,26 @@ class OpenCodeHost(HostDef):
         commands_src = ctx.plugin_root / OPENCODE_COMMANDS_DIR
         commands_dst = ctx.target / OPENCODE_COMMANDS_DIR
         removed = False
-        for cmd_file in commands_src.glob("*.md"):
+        skipped = False
+        for cmd_file in sorted(commands_src.glob("*.md")):
             target_file = commands_dst / cmd_file.name
-            if target_file.exists():
-                if not ctx.dry_run:
-                    target_file.unlink()
-                removed = True
+            if not target_file.exists():
+                continue
+            expected = transform_command(cmd_file.read_text())
+            if target_file.read_text() != expected:
+                skipped = True
+                continue
+            if not ctx.dry_run:
+                target_file.unlink()
+            removed = True
         if removed and commands_dst.exists() and not any(commands_dst.iterdir()) and not ctx.dry_run:
             commands_dst.rmdir()
+        if skipped:
+            return ChangeResult(
+                action=Action.SKIPPED,
+                path=commands_dst,
+                detail="user-modified command files left in place",
+            )
         return ChangeResult(
             action=Action.REMOVED if removed else Action.UNCHANGED,
             path=commands_dst,

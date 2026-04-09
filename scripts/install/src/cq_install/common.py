@@ -157,7 +157,19 @@ def remove_hook_entry(
         return ChangeResult(action=Action.UNCHANGED, path=file)
 
     data = _load_json(file)
+    if not isinstance(data, dict):
+        return ChangeResult(
+            action=Action.SKIPPED,
+            path=file,
+            detail=f"invalid hooks config in {file}: expected top-level JSON object",
+        )
     hooks = data.get("hooks", {})
+    if not isinstance(hooks, dict):
+        return ChangeResult(
+            action=Action.SKIPPED,
+            path=file,
+            detail=f"invalid hooks config in {file}: expected 'hooks' to be an object",
+        )
     entries = hooks.get(hook_name, [])
     remaining = [entry for entry in entries if entry.get("command") != command]
     if len(remaining) == len(entries):
@@ -285,7 +297,7 @@ def symlink_tree(src: Path, dst: Path, *, dry_run: bool = False) -> ChangeResult
             return ChangeResult(action=Action.UNCHANGED, path=dst)
         if not dry_run:
             dst.unlink()
-            dst.symlink_to(src)
+            dst.symlink_to(src, target_is_directory=src.is_dir())
         return ChangeResult(action=Action.UPDATED, path=dst)
 
     if dst.exists():
@@ -297,7 +309,7 @@ def symlink_tree(src: Path, dst: Path, *, dry_run: bool = False) -> ChangeResult
 
     if not dry_run:
         dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.symlink_to(src)
+        dst.symlink_to(src, target_is_directory=src.is_dir())
     return ChangeResult(action=Action.CREATED, path=dst)
 
 
@@ -381,7 +393,7 @@ def upsert_json_entry(
     field changed, UNCHANGED otherwise.
     """
     data = _load_json(file)
-    parent = _walk_or_create(data, path[:-1])
+    parent = _walk_or_create(data, path[:-1], file=file)
     leaf_key = path[-1]
 
     existing = parent.get(leaf_key)
@@ -436,7 +448,7 @@ def upsert_markdown_block(
         new_text = text.rstrip("\n") + "\n\n" + content + "\n"
         if not dry_run:
             file.write_text(new_text)
-        return ChangeResult(action=Action.CREATED, path=file)
+        return ChangeResult(action=Action.UPDATED, path=file)
 
     if end_idx == -1 or end_idx < start_idx:
         return ChangeResult(
@@ -457,10 +469,10 @@ def upsert_markdown_block(
 
 
 def write_if_missing(path: Path, content: str, *, dry_run: bool = False) -> ChangeResult:
-    """Create the file with `content` if absent. Never overwrite existing files.
+    r"""Create the file with `content` if absent. Never overwrite existing files.
 
-    Uses newline='' to preserve Unix line endings on all platforms, ensuring
-    consistent hash checksums regardless of the OS.
+    Uses newline="\n" to preserve Unix line endings on all platforms,
+    ensuring consistent hash checksums regardless of the OS.
     """
     if path.exists():
         return ChangeResult(action=Action.UNCHANGED, path=path)
@@ -486,11 +498,18 @@ def _prune_empty_dirs(directory: Path, stop_at: Path) -> None:
         cursor = cursor.parent
 
 
-def _walk_or_create(data: dict, path: list[str]) -> dict:
+def _walk_or_create(data: dict, path: list[str], *, file: Path | None = None) -> dict:
     cursor = data
+    traversed: list[str] = []
     for key in path:
-        if key not in cursor or not isinstance(cursor[key], dict):
+        traversed.append(key)
+        existing = cursor.get(key)
+        if existing is None:
             cursor[key] = {}
+        elif not isinstance(existing, dict):
+            dotted = ".".join(traversed)
+            location = f" in {file}" if file else ""
+            raise ValueError(f"invalid config{location}: expected object at {dotted}, found {type(existing).__name__}")
         cursor = cursor[key]
     return cursor
 

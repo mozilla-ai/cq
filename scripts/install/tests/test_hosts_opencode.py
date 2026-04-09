@@ -190,6 +190,16 @@ def test_opencode_install_preserves_user_added_mcp_field(tmp_path, plugin_root):
     assert config["mcp"]["cq"]["env"] == {"CQ_API_KEY": "secret"}  # pragma: allowlist secret
 
 
+def test_opencode_uninstall_preserves_user_edited_commands(tmp_path, plugin_root):
+    ctx = _ctx(tmp_path, plugin_root)
+    OpenCodeHost().install(ctx)
+    cmd_file = ctx.target / "commands" / "cq-status.md"
+    cmd_file.write_text("user-edited content\n")
+    OpenCodeHost().uninstall(ctx)
+    assert cmd_file.exists()
+    assert cmd_file.read_text() == "user-edited content\n"
+
+
 def test_opencode_uninstall_removes_assets(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
     OpenCodeHost().install(ctx)

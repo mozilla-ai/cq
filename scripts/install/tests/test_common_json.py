@@ -156,3 +156,17 @@ def test_upsert_non_dict_leaf_raises_with_path(tmp_path: Path):
         )
     assert str(target) in str(exc_info.value)
     assert "mcpServers" in str(exc_info.value)
+
+
+def test_upsert_raises_on_non_dict_intermediate(tmp_path: Path):
+    target = tmp_path / "mcp.json"
+    target.write_text(json.dumps({"mcpServers": "not-a-dict"}))
+    with pytest.raises(ValueError) as exc_info:
+        upsert_json_entry(
+            target,
+            ["mcpServers", "cq"],
+            {"command": "python3"},
+            dry_run=False,
+        )
+    assert str(target) in str(exc_info.value)
+    assert "mcpServers" in str(exc_info.value)

@@ -20,13 +20,14 @@ def test_upsert_creates_file_with_block(tmp_path: Path):
     assert END in target.read_text()
 
 
-def test_upsert_appends_to_existing_file(tmp_path: Path):
+def test_upsert_appends_to_existing_file_and_returns_updated(tmp_path: Path):
     target = tmp_path / "AGENTS.md"
     target.write_text("# Existing\n\nUser content.\n")
-    upsert_markdown_block(target, START, END, BLOCK, dry_run=False)
+    result = upsert_markdown_block(target, START, END, BLOCK, dry_run=False)
     text = target.read_text()
     assert "User content." in text
     assert START in text
+    assert result.action == Action.UPDATED
 
 
 def test_upsert_unchanged_when_block_present_and_identical(tmp_path: Path):
