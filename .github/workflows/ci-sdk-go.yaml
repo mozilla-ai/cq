@@ -40,10 +40,6 @@ jobs:
         with:
           go-version-file: sdk/go/go.mod
 
-      - name: Sync skill prompt
-        working-directory: sdk/go
-        run: make sync-skill
-
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

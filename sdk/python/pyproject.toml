@@ -41,7 +41,7 @@ namespaces = false
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]
-"cq.protocol" = ["skill.md"]
+"cq.protocol" = ["SKILL.md"]
 
 # Dynamic versioning via setuptools_scm is configured in the release
 # workflow. The tag pattern is sdk/python/X.Y.Z. During development,
