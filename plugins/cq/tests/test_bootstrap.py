@@ -33,7 +33,7 @@ def _load_bootstrap() -> ModuleType:
 
 def test_main_loads_version_ensures_binary_and_replaces_process(monkeypatch, tmp_path):
     metadata = tmp_path / "bootstrap.json"
-    metadata.write_text('{"cli_version": "0.2.0"}\n')
+    metadata.write_text('{"cli_min_version": "0.2.0"}\n')
 
     bootstrap = _load_bootstrap()
     calls: list[tuple[str, tuple]] = []
@@ -81,4 +81,4 @@ def test_main_exits_when_metadata_missing_version(monkeypatch, tmp_path, capsys)
         bootstrap.main()
 
     assert exc_info.value.code == 1
-    assert "required CLI version not set" in capsys.readouterr().err
+    assert "minimum CLI version not set" in capsys.readouterr().err

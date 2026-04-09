@@ -87,31 +87,69 @@ def test_cq_binary_name_on_unix(cq_binary, monkeypatch):
     assert cq_binary.cq_binary_name() == "cq"
 
 
-def test_load_required_version_reads_cli_version(cq_binary, tmp_path):
+def test_load_min_version_reads_cli_min_version(cq_binary, tmp_path):
     metadata = tmp_path / "bootstrap.json"
-    metadata.write_text('{"cli_version": "9.9.9"}\n')
-    assert cq_binary.load_required_version(metadata) == "9.9.9"
+    metadata.write_text('{"cli_min_version": "9.9.9"}\n')
+    assert cq_binary.load_min_version(metadata) == "9.9.9"
 
 
-def test_load_required_version_returns_empty_when_missing_file(cq_binary, tmp_path):
+def test_load_min_version_returns_empty_when_missing_file(cq_binary, tmp_path):
     metadata = tmp_path / "bootstrap.json"
-    assert cq_binary.load_required_version(metadata) == ""
+    assert cq_binary.load_min_version(metadata) == ""
 
 
-def test_load_required_version_returns_empty_when_missing_key(cq_binary, tmp_path):
+def test_load_min_version_returns_empty_when_missing_key(cq_binary, tmp_path):
     metadata = tmp_path / "bootstrap.json"
     metadata.write_text('{"other": "value"}\n')
-    assert cq_binary.load_required_version(metadata) == ""
+    assert cq_binary.load_min_version(metadata) == ""
 
 
-def test_check_version_returns_true_on_match(cq_binary, monkeypatch):
+def test_load_min_version_ignores_old_cli_version_key(cq_binary, tmp_path):
+    metadata = tmp_path / "bootstrap.json"
+    metadata.write_text('{"cli_version": "1.0.0"}\n')
+    assert cq_binary.load_min_version(metadata) == ""
+
+
+def test_meets_min_version_returns_true_on_exact_match(cq_binary, monkeypatch):
     monkeypatch.setattr(cq_binary, "parse_version", lambda _binary: "1.2.3")
-    assert cq_binary.check_version(Path("/fake/cq"), "1.2.3") is True
+    assert cq_binary.meets_min_version(Path("/fake/cq"), "1.2.3") is True
 
 
-def test_check_version_returns_false_on_mismatch(cq_binary, monkeypatch):
+def test_meets_min_version_returns_true_when_newer(cq_binary, monkeypatch):
+    monkeypatch.setattr(cq_binary, "parse_version", lambda _binary: "1.3.0")
+    assert cq_binary.meets_min_version(Path("/fake/cq"), "1.2.3") is True
+
+
+def test_meets_min_version_returns_true_when_newer_patch(cq_binary, monkeypatch):
+    monkeypatch.setattr(cq_binary, "parse_version", lambda _binary: "0.2.5")
+    assert cq_binary.meets_min_version(Path("/fake/cq"), "0.2.1") is True
+
+
+def test_meets_min_version_returns_false_when_older(cq_binary, monkeypatch):
     monkeypatch.setattr(cq_binary, "parse_version", lambda _binary: "1.2.3")
-    assert cq_binary.check_version(Path("/fake/cq"), "9.9.9") is False
+    assert cq_binary.meets_min_version(Path("/fake/cq"), "9.9.9") is False
+
+
+def test_meets_min_version_returns_false_when_older_minor(cq_binary, monkeypatch):
+    monkeypatch.setattr(cq_binary, "parse_version", lambda _binary: "0.1.9")
+    assert cq_binary.meets_min_version(Path("/fake/cq"), "0.2.1") is False
+
+
+def test_meets_min_version_returns_false_on_empty_version(cq_binary, monkeypatch):
+    monkeypatch.setattr(cq_binary, "parse_version", lambda _binary: "")
+    assert cq_binary.meets_min_version(Path("/fake/cq"), "1.2.3") is False
+
+
+def test_parse_semver_splits_valid_version(cq_binary):
+    assert cq_binary.parse_semver("1.2.3") == (1, 2, 3)
+
+
+def test_parse_semver_returns_empty_tuple_for_empty_string(cq_binary):
+    assert cq_binary.parse_semver("") == ()
+
+
+def test_parse_semver_returns_empty_tuple_for_invalid_input(cq_binary):
+    assert cq_binary.parse_semver("abc") == ()
 
 
 def test_ensure_binary_fast_path_leaves_existing_binary_alone(cq_binary, monkeypatch, tmp_path):
@@ -120,7 +158,7 @@ def test_ensure_binary_fast_path_leaves_existing_binary_alone(cq_binary, monkeyp
     binary = bin_dir / "cq"
     binary.write_text("existing")
 
-    monkeypatch.setattr(cq_binary, "check_version", lambda _b, _v: True)
+    monkeypatch.setattr(cq_binary, "meets_min_version", lambda _b, _v: True)
 
     def _download_should_not_run(*_args, **_kwargs):
         raise AssertionError("download should not run on fast path")
@@ -142,7 +180,7 @@ def test_ensure_binary_reuses_valid_symlink(cq_binary, monkeypatch, tmp_path):
     binary = bin_dir / "cq"
     binary.symlink_to(system_binary)
 
-    monkeypatch.setattr(cq_binary, "check_version", lambda _b, _v: True)
+    monkeypatch.setattr(cq_binary, "meets_min_version", lambda _b, _v: True)
     monkeypatch.setattr(cq_binary.shutil, "which", lambda _name: None)
 
     def _download_should_not_run(*_args, **_kwargs):
@@ -164,7 +202,8 @@ def test_ensure_binary_falls_back_to_system_cq(cq_binary, monkeypatch, tmp_path)
     system_binary = tmp_path / "usr-local-bin-cq"
     system_binary.write_text("real")
 
-    monkeypatch.setattr(cq_binary, "check_version", lambda _b, _v: True)
+    monkeypatch.setattr(cq_binary, "meets_min_version", lambda _b, _v: True)
+    monkeypatch.setattr(cq_binary, "parse_version", lambda _b: "0.2.0")
     monkeypatch.setattr(cq_binary.shutil, "which", lambda _name: str(system_binary))
 
     def _download_should_not_run(*_args, **_kwargs):
@@ -182,7 +221,7 @@ def test_ensure_binary_downloads_when_no_system_cq(cq_binary, monkeypatch, tmp_p
     bin_dir = tmp_path / "bin"
     binary = bin_dir / "cq"
 
-    monkeypatch.setattr(cq_binary, "check_version", lambda _b, _v: False)
+    monkeypatch.setattr(cq_binary, "meets_min_version", lambda _b, _v: False)
     monkeypatch.setattr(cq_binary.shutil, "which", lambda _name: None)
     monkeypatch.setattr(cq_binary.platform, "system", lambda: "Linux")
 
@@ -217,7 +256,8 @@ def test_ensure_binary_unlinks_broken_symlink_before_resolving(cq_binary, monkey
     real_cq = tmp_path / "real-cq"
     real_cq.write_text("real")
 
-    monkeypatch.setattr(cq_binary, "check_version", lambda _b, _v: True)
+    monkeypatch.setattr(cq_binary, "meets_min_version", lambda _b, _v: True)
+    monkeypatch.setattr(cq_binary, "parse_version", lambda _b: "0.2.0")
     monkeypatch.setattr(cq_binary.shutil, "which", lambda _name: str(real_cq))
     monkeypatch.setattr(cq_binary, "download", lambda *_a, **_k: None)
 

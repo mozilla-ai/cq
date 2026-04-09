@@ -26,39 +26,38 @@ def ensure_cq_binary(plugin_root: Path, *, dry_run: bool = False) -> list[Change
     """Guarantee the cq binary is cached at the shared runtime path.
 
     Loads ``plugin_root/scripts/cq_binary.py`` via importlib and calls
-    its ``ensure_binary`` with the required version from
+    its ``ensure_binary`` with the minimum version from
     ``bootstrap.json``. Returns a single-element list of ``ChangeResult``
     so callers can extend their own result lists uniformly.
     """
     module = _load_cq_binary(plugin_root)
 
     metadata_path = plugin_root / BOOTSTRAP_METADATA_RELPATH
-    required_version = module.load_required_version(metadata_path)
-    if not required_version:
-        raise RuntimeError(f"cq bootstrap metadata missing cli_version at {metadata_path}")
+    min_version = module.load_min_version(metadata_path)
+    if not min_version:
+        raise RuntimeError(f"cq bootstrap metadata missing cli_min_version at {metadata_path}")
 
     bin_dir = module.shared_bin_dir()
     binary = bin_dir / module.cq_binary_name()
 
-    already_valid = binary.is_file() and module.check_version(binary, required_version)
-    detail_cached = f"cq v{required_version}"
+    already_valid = binary.is_file() and module.meets_min_version(binary, min_version)
+
+    if already_valid:
+        actual = module.parse_version(binary)
+        detail = f"cq v{actual}"
+        return [ChangeResult(action=Action.UNCHANGED, path=binary, detail=detail)]
 
     if dry_run:
-        if already_valid:
-            return [ChangeResult(action=Action.UNCHANGED, path=binary, detail=detail_cached)]
         return [
             ChangeResult(
                 action=Action.SKIPPED,
                 path=binary,
-                detail=f"would fetch cq v{required_version}",
+                detail=f"would fetch cq v{min_version}",
             )
         ]
 
-    if already_valid:
-        return [ChangeResult(action=Action.UNCHANGED, path=binary, detail=detail_cached)]
-
-    module.ensure_binary(binary, required_version, bin_dir)
-    return [ChangeResult(action=Action.CREATED, path=binary, detail=detail_cached)]
+    module.ensure_binary(binary, min_version, bin_dir)
+    return [ChangeResult(action=Action.CREATED, path=binary, detail=f"cq v{min_version}")]
 
 
 def _load_cq_binary(plugin_root: Path) -> ModuleType:

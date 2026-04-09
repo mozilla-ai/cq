@@ -27,11 +27,6 @@ from pathlib import Path
 REPO = "mozilla-ai/cq"
 
 
-def check_version(binary: Path, required: str) -> bool:
-    """Check whether the binary reports the required version."""
-    return parse_version(binary) == required
-
-
 def cq_binary_name() -> str:
     """Return the cq binary filename for the current platform."""
     return "cq.exe" if platform.system() == "Windows" else "cq"
@@ -114,10 +109,10 @@ def download(version: str, system: str, bin_dir: Path, binary: Path) -> None:
         tmp_path.unlink(missing_ok=True)
 
 
-def ensure_binary(binary: Path, required_version: str, bin_dir: Path) -> None:
+def ensure_binary(binary: Path, min_version: str, bin_dir: Path) -> None:
     """Resolve the cq binary, preferring a cached copy over a fresh download."""
-    # Fast path: cached binary (file or symlink) already at the right version.
-    if binary.is_file() and check_version(binary, required_version):
+    # Fast path: cached binary (file or symlink) already meets the minimum.
+    if binary.is_file() and meets_min_version(binary, min_version):
         return
 
     # Discard any stale binary or broken symlink before resolving fresh.
@@ -127,13 +122,14 @@ def ensure_binary(binary: Path, required_version: str, bin_dir: Path) -> None:
     bin_dir.mkdir(parents=True, exist_ok=True)
 
     system_cq = shutil.which("cq")
-    if system_cq and check_version(Path(system_cq), required_version):
+    if system_cq and meets_min_version(Path(system_cq), min_version):
         link_or_copy(Path(system_cq), binary)
-        print(f"cq: using system v{required_version} from {system_cq}", file=sys.stderr)
+        actual = parse_version(Path(system_cq))
+        print(f"cq: using system v{actual} from {system_cq}", file=sys.stderr)
         return
 
-    download(required_version, platform.system(), bin_dir, binary)
-    print(f"cq: downloaded v{required_version} to {binary}", file=sys.stderr)
+    download(min_version, platform.system(), bin_dir, binary)
+    print(f"cq: downloaded v{min_version} to {binary}", file=sys.stderr)
 
 
 def link_or_copy(source: Path, dest: Path) -> None:
@@ -145,13 +141,30 @@ def link_or_copy(source: Path, dest: Path) -> None:
         dest.symlink_to(source)
 
 
-def load_required_version(metadata_path: Path) -> str:
-    """Return the required cq CLI version from bootstrap metadata."""
+def load_min_version(metadata_path: Path) -> str:
+    """Return the minimum required cq CLI version from bootstrap metadata."""
     if not metadata_path.exists():
         return ""
     with metadata_path.open() as f:
         config = json.load(f)
-    return config.get("cli_version", "")
+    return config.get("cli_min_version", "")
+
+
+def meets_min_version(binary: Path, min_version: str) -> bool:
+    """Check whether the binary version is at least min_version."""
+    actual = parse_semver(parse_version(binary))
+    required = parse_semver(min_version)
+    if not actual or not required:
+        return False
+    return actual >= required
+
+
+def parse_semver(version: str) -> tuple[int, ...]:
+    """Split a semver string into a comparable integer tuple."""
+    try:
+        return tuple(int(p) for p in version.split("."))
+    except (ValueError, AttributeError):
+        return ()
 
 
 def parse_version(binary: Path) -> str:
