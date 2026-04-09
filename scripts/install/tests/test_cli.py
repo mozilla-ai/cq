@@ -28,7 +28,7 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Build a fake plugins/cq tree and point the CLI at it via env var."""
     plugin_root = tmp_path / "plugins" / "cq"
     (plugin_root / ".claude-plugin").mkdir(parents=True)
-    (plugin_root / ".claude-plugin" / "plugin.json").write_text('{"name": "cq", "version": "0.6.0"}\n')
+    (plugin_root / ".claude-plugin" / "plugin.json").write_text('{"name": "cq", "version": "0.7.0"}\n')
     (plugin_root / "scripts").mkdir(parents=True)
     (plugin_root / "scripts" / "bootstrap.json").write_text('{"cli_version": "0.2.0"}\n')
     (plugin_root / "scripts" / "bootstrap.py").write_text("# fake\n")
