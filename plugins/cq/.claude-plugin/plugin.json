@@ -1,6 +1,6 @@
 {
   "name": "cq",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
   "author": {
     "name": "Mozilla AI",

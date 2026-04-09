@@ -1,6 +1,6 @@
 [project]
 name = "cq-plugin"
-version = "0.7.0"
+version = "0.7.1"
 description = "cq Plugin for coding agents (e.g. Claude Code, OpenCode) - shared agent knowledge commons"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
