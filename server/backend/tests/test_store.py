@@ -248,9 +248,7 @@ class TestTierColumn:
         """Insert should write the unit's tier value to the tier column."""
         unit = _make_unit(tier=Tier.PRIVATE)
         store.insert(unit)
-        row = store._conn.execute(
-            "SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)
-        ).fetchone()
+        row = store._conn.execute("SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)).fetchone()
         assert row[0] == "private"
 
     def test_update_syncs_tier_column(self, store: RemoteStore) -> None:
@@ -259,9 +257,7 @@ class TestTierColumn:
         store.insert(unit)
         updated = unit.model_copy(update={"tier": Tier.PUBLIC})
         store.update(updated)
-        row = store._conn.execute(
-            "SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)
-        ).fetchone()
+        row = store._conn.execute("SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)).fetchone()
         assert row[0] == "public"
 
     def test_counts_by_tier_empty(self, store: RemoteStore) -> None:
