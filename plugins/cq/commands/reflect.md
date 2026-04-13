@@ -61,17 +61,58 @@ For each candidate, assign:
   - 0.2–0.5: applicable only under narrow conditions.
 - Optionally: **languages**, **frameworks**, **pattern** if relevant.
 
+#### VIBE√ safety criteria
+
+Each candidate must also be evaluated against four safety dimensions before it can be presented:
+
+- **V — Vulnerabilities**: Does the candidate contain or reveal credentials, API keys, tokens, internal hostnames, IP addresses, file paths that disclose user identity, or any other secret that should not leave this machine? Does the action it recommends introduce a security risk if applied blindly (e.g. disabling auth checks, weakening TLS, executing untrusted input)?
+- **I — Impact**: If another agent applied this candidate verbatim in an unrelated codebase, what is the worst plausible outcome? Could it cause data loss, production incidents, or cascading failures?
+- **B — Biases**: Is the framing tied to a specific person, team, vendor, or commercial product in a way that isn't load-bearing for the lesson? Does it present one tool/approach as universally correct when the evidence supports only a narrow context?
+- **E — Edge cases**: Was the lesson learned from a single observation, or has it been validated across multiple cases? Are there obvious conditions (OS, version, scale, concurrency) under which it would not hold and that the candidate fails to acknowledge?
+
 If the session contained no events meeting the above criteria, skip Steps 3–5 and follow the "no candidates" instruction in Step 6.
+
+### Step 2.5 — Run the VIBE√ check on each candidate
+
+Before presenting candidates to the user, evaluate every candidate from Step 2 against the four VIBE√ criteria. Classify each finding into one of two tiers. Candidates are never dropped automatically — `/cq:reflect` writes to the user's local cq tier, and the user owns the decision about what is acceptable to store there.
+
+**Hard findings** — the candidate is presented in Step 3 with both the original and a sanitized rewrite, so the user can choose which (if either) to store:
+
+- Literal credentials, API keys, access tokens, private keys, or session cookies.
+- Personally identifying information: real names, email addresses, phone numbers, government IDs, physical addresses.
+- Internal-only identifiers that uniquely fingerprint a private system: non-public hostnames, internal service names, customer IDs, ticket numbers from private trackers.
+- Recommendations whose primary effect is to weaken security (disable auth, skip signature verification, suppress sandboxing) without a clearly scoped, defensive justification.
+
+For each hard finding, generate a single sanitized rewrite that removes or generalizes the violating content while preserving the underlying lesson. If no coherent lesson survives sanitization, present the original alongside an empty-rewrite note ("no sanitized version possible — original would not generalize once stripped"); the user can still choose to keep the original locally or skip.
+
+**Soft concerns** — the candidate is presented as-is, with a one-line concern flag the user can weigh during approval:
+
+- Framing that overgeneralizes from a single observation.
+- Vendor- or product-specific advice presented as universal.
+- Missing acknowledgement of an edge case the session itself surfaced.
+- Wording that could read as biased toward a specific team, person, or commercial product.
+- Impact that the agent cannot fully predict (e.g. action mutates shared state).
+
+Track outcomes for the Step 3 and Step 6 reports:
+
+- Candidates that passed cleanly.
+- Candidates with hard findings (record the concern; have the sanitized rewrite ready for presentation).
+- Candidates with soft concerns (record the concern per candidate).
 
 ### Step 3 — Present candidates to the user
 
 Open with:
 
 ```
-I identified {N} potential learning candidates from this session worth sharing with the commons.
+I identified {N_total} potential learning candidates from this session.
+{N_hard} have hard concerns and are shown with both the original and a sanitized rewrite — pick which (if either) to store.
+{N_soft} have soft concerns flagged with ⚠️ for your awareness.
+{N_clean} passed the VIBE√ check cleanly.
 ```
 
-Present each candidate as a numbered entry:
+Present each candidate as a numbered entry. Use one of three templates depending on what Step 2.5 produced.
+
+**Clean candidate:**
 
 ```
 {N}. {summary}
@@ -82,11 +123,42 @@ Present each candidate as a numbered entry:
    Action: {action}
 ```
 
+**Soft-concern candidate** (add the `⚠️` line above the divider):
+
+```
+{N}. {summary}
+   Domains: {domain tags}
+   Relevance: {estimated_relevance}
+   ⚠️ {one-line concern}
+   ---
+   {detail}
+   Action: {action}
+```
+
+**Hard-finding candidate** (show both versions side by side, with the concern annotated):
+
+```
+{N}. {summary}
+   Domains: {domain tags}
+   Relevance: {estimated_relevance}
+   ⚠️ Hard concern: {one-line concern}
+   ---
+   Original:
+     {original detail}
+     Action: {original action}
+   Sanitized:
+     {rewritten detail}
+     Action: {rewritten action}
+```
+
+If the sanitized rewrite is not coherent (per the Step 2.5 fallback), substitute the Sanitized block with: `Sanitized: (no sanitized version possible — original would not generalize once stripped)`.
+
 After listing all candidates, ask:
 
 ```
 Reply with a number to approve, "skip {N}" to discard, or "edit {N}" to revise.
-You can also reply "all" to approve everything, or "none" to discard everything.
+For candidates with both an Original and a Sanitized version shown, use "{N} original" or "{N} sanitized" to choose which to store.
+You can also reply "all" to approve everything (sanitized version where applicable), or "none" to discard everything.
 ```
 
 ### Step 4 — Handle edits
@@ -123,12 +195,23 @@ Stored: {id} — "{summary}"
 ## Session Reflect Complete
 
 {approved} of {total} candidates proposed to cq.
-{skipped} skipped.
+{skipped} skipped by user.
+
+VIBE√ findings this session:
+- Hard concerns (candidates {numbers}): {one-line concern per candidate}
+- Soft concerns (candidates {numbers}): {one-line concern per candidate}
 
 IDs stored this session:
-- {id}: "{summary}"
+- {id}: "{summary}" [{clean | soft | sanitized | original}]
 - ...
 ```
+
+The bracketed annotation on each stored ID records the VIBE√ provenance of what was stored:
+
+- `clean` — no VIBE√ findings; stored as identified.
+- `soft` — soft concern present; stored as-is after the user weighed the flag.
+- `sanitized` — hard finding; the user picked the sanitized rewrite.
+- `original` — hard finding; the user explicitly picked the unmodified version.
 
 If no candidates were identified, display:
 
@@ -141,3 +224,5 @@ No shareable learnings identified in this session. Sessions with debugging, work
 - **Empty session** — If the session contained only routine tasks, say so and stop after Step 2.
 - **All candidates skipped** — Display the summary with 0 proposed.
 - **`propose` error** — Report the error inline for that candidate and continue with the next one. Do not abort.
+- **`reflect` returns candidates** — Present them alongside any additional candidates you identified. Deduplicate by summary similarity before presenting.
+- **No coherent sanitized rewrite possible** — Present the original with the empty-rewrite note from Step 2.5. The user can still choose to keep the original locally or skip; do not silently drop the candidate.
