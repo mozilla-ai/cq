@@ -15,7 +15,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+import sqlite_vec
 from pydantic import BaseModel, Field
+from sentence_transformers import SentenceTransformer
 
 from ._util import _as_list
 from .models import KnowledgeUnit
@@ -87,6 +89,14 @@ CREATE TABLE IF NOT EXISTS metadata (
 );
 """
 
+_VEC_SCHEMA_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_units_vec
+    USING vec0(
+        id TEXT PRIMARY KEY,
+        embedding float[384]
+    );
+"""
+
 
 def _normalize_domains(domains: list[str]) -> list[str]:
     """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
@@ -134,10 +144,11 @@ class LocalStore:
     can be shared across asyncio.to_thread() executor threads.
     """
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(self, embedding_model: SentenceTransformer, db_path: Path | None = None) -> None:
         """Initialize the store, creating the database and schema if needed.
 
         Args:
+            embedding_model: SentenceTransformer model for encoding insights.
             db_path: Path to the SQLite database file.
                      Defaults to $XDG_DATA_HOME/cq/local.db.
         """
@@ -149,10 +160,14 @@ class LocalStore:
         self._closed = False
         self._conn = self._open_connection()
         self._ensure_schema()
+        self._embedding_model = embedding_model
 
     def _open_connection(self) -> sqlite3.Connection:
         """Open and configure a SQLite connection."""
         conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
         conn.execute("PRAGMA foreign_keys = ON")
         fk_enabled = conn.execute("PRAGMA foreign_keys").fetchone()
         if not fk_enabled or fk_enabled[0] != 1:
@@ -167,6 +182,7 @@ class LocalStore:
         self._conn.executescript(_SCHEMA_SQL)
         self._conn.executescript(_FTS_SCHEMA_SQL)
         self._conn.executescript(_METADATA_SQL)
+        self._conn.executescript(_VEC_SCHEMA_SQL)
         self._stamp_writer()
 
     def _stamp_writer(self) -> None:
@@ -233,6 +249,7 @@ class LocalStore:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json()
+        embedding = self._embedding_model.encode(unit.insight.detail)
         with self._lock:
             self._check_open()
             with self._conn:
@@ -248,6 +265,10 @@ class LocalStore:
                 self._conn.execute(
                     fts_sql,
                     (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
+                )
+                self._conn.execute(
+                    "INSERT INTO knowledge_units_vec (id, embedding) VALUES (?, ?)",
+                    (unit.id, embedding),
                 )
 
     def get(self, unit_id: str) -> KnowledgeUnit | None:
@@ -278,10 +299,14 @@ class LocalStore:
         with self._lock:
             self._check_open()
             with self._conn:
-                # Delete FTS first (virtual tables have no CASCADE).
+                # Delete FTS and vec first (virtual tables have no CASCADE).
                 # Domain rows are handled by ON DELETE CASCADE.
                 self._conn.execute(
                     "DELETE FROM knowledge_units_fts WHERE id = ?",
+                    (unit_id,),
+                )
+                self._conn.execute(
+                    "DELETE FROM knowledge_units_vec WHERE id = ?",
                     (unit_id,),
                 )
                 cursor = self._conn.execute(
@@ -303,6 +328,7 @@ class LocalStore:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json()
+        embedding = self._embedding_model.encode(unit.insight.detail)
         with self._lock:
             self._check_open()
             with self._conn:
@@ -328,6 +354,14 @@ class LocalStore:
                 self._conn.execute(
                     fts_sql,
                     (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
+                )
+                self._conn.execute(
+                    "DELETE FROM knowledge_units_vec WHERE id = ?",
+                    (unit.id,),
+                )
+                self._conn.execute(
+                    "INSERT INTO knowledge_units_vec (id, embedding) VALUES (?, ?)",
+                    (unit.id, embedding),
                 )
 
     def query(
@@ -402,10 +436,25 @@ class LocalStore:
                         exc_info=True,
                     )
 
+        # Also search VEC0 for units matching query terms in their text.
+        vec_emb_search = self._embedding_model.encode(" ".join(normalized))
+        vec_sql = """
+            SELECT ku.data
+            FROM knowledge_units_vec vec
+            JOIN knowledge_units ku ON ku.id = vec.id
+            WHERE knowledge_units_vec MATCH ?
+            ORDER BY distance
+            LIMIT 1
+        """
+        try:
+            vec_rows = self._conn.execute(vec_sql, (vec_emb_search,)).fetchall()
+        except sqlite3.OperationalError:
+            vec_rows = []
+
         # Merge and deduplicate by ID.
         seen: set[str] = set()
         units: list[KnowledgeUnit] = []
-        for row in [*rows, *fts_rows]:
+        for row in [*rows, *fts_rows, *vec_rows]:
             unit = KnowledgeUnit.model_validate_json(row[0])
             if unit.id not in seen:
                 seen.add(unit.id)
