@@ -449,6 +449,7 @@ func TestConfirmRemoteUnit(t *testing.T) {
 }
 
 func TestDrain(t *testing.T) {
+	testClearEnv(t)
 
 	var pushCount int
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -622,6 +623,37 @@ func TestStatusWithRemoteMergesTierCounts(t *testing.T) {
 	require.Equal(t, 1, stats.TierCounts[Local])
 	require.Equal(t, 3, stats.TierCounts[Private])
 	require.Equal(t, 0, stats.TierCounts[Public])
+}
+
+func TestStatusWithRemoteMergesDomainCounts(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/stats" && r.Method == "GET" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_units": 5,
+				"tiers":       map[string]int{"private": 5, "public": 0},
+				"domains":     map[string]int{"api": 3, "db": 2},
+			})
+			return
+		}
+		// Propose unreachable — forces local fallback.
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	c := newTestClientWithRemote(t, handler)
+	ctx := context.Background()
+
+	// Local unit contributes to the "api" domain so we can verify accumulation.
+	_, err := c.Propose(ctx, ProposeParams{
+		Summary: "Local", Detail: "D.", Action: "A.", Domains: []string{"api"},
+	})
+	require.NoError(t, err)
+
+	stats, err := c.Status(ctx)
+	require.NoError(t, err)
+	// "api" appears locally (1) and remotely (3) — counts must accumulate.
+	require.Equal(t, 4, stats.DomainCounts["api"])
+	// "db" only appears on the remote.
+	require.Equal(t, 2, stats.DomainCounts["db"])
 }
 
 func TestStatusRemoteUnreachableStillReturnsLocal(t *testing.T) {

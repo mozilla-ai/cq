@@ -37,9 +37,6 @@ htmlcov/
 CLAUDE.local.md
 opencode.json
 
-# Copied at build time from plugins/cq/skills/cq/SKILL.md.
-sdk/python/src/cq/protocol/skill.md
-sdk/go/internal/protocol/skill.md
 cli/cq
 
 # Downloaded plugin binary.

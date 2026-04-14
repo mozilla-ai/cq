@@ -58,6 +58,18 @@ The CLI works out of the box in local-only mode with no configuration.
 | `CQ_LOCAL_DB_PATH` | Local SQLite path     | `~/.local/share/cq/local.db` |
 | `CQ_TIMEOUT`      | CLI operation timeout | 30s                          |
 
+## Knowledge tiers
+
+Knowledge units live in one of three tiers:
+
+- **local** — on-disk SQLite, never leaves your machine.
+- **private** — stored on the remote at `CQ_ADDR`, visible to every client that can reach the same remote (e.g. teammates pointing at the same server).
+- **public** — open commons; not yet available.
+
+With `CQ_ADDR` set, `cq propose` sends the unit straight to the remote as `private` (falling back to local if the remote is unreachable). With no remote, everything stays local. `cq status` shows the count in each tier.
+
+See the [top-level README](../README.md#knowledge-tiers) for the full description.
+
 ## Development
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for build requirements and setup.

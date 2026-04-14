@@ -66,6 +66,14 @@ c, err := cq.NewClient(
 
 The default database path follows the [XDG Base Directory spec](https://specifications.freedesktop.org/basedir/latest/).
 
+## Knowledge tiers
+
+Every knowledge unit has a tier: `cq.Local` (on-disk SQLite, never leaves the machine), `cq.Private` (stored on the remote API at `CQ_ADDR`, visible to every client pointing at the same remote), or `cq.Public` (open commons; not yet available).
+
+With a remote configured, `Propose` sends the unit to the remote and returns it tagged `cq.Private`; with no remote, or if the remote is unreachable, it writes the unit locally as `cq.Local`.
+
+See the [top-level README](../../README.md#knowledge-tiers) for the full description.
+
 ## Storage Format
 
 Knowledge units are stored as JSON in SQLite. The database schema is shared

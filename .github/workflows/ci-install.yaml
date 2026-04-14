@@ -1,0 +1,43 @@
+name: Installer CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-install.yaml
+      - scripts/install/**
+      - plugins/cq/**
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-install.yaml
+      - scripts/install/**
+      - plugins/cq/**
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Setup
+        run: |
+          make setup-install
+          make setup-plugin
+
+      - name: Lint installer
+        run: make lint-install
+
+      - name: Test installer
+        run: make test-install
+
+      - name: Test plugin (cursor hook)
+        run: make test-plugin
