@@ -22,7 +22,7 @@ func QueryTool() mcp.Tool {
 		mcp.WithDescription(
 			"Search for relevant knowledge units by domain tags.",
 		),
-		mcp.WithArray("domain",
+		mcp.WithArray("domains",
 			mcp.Required(),
 			mcp.Description("Domain tags to search."),
 			mcp.WithStringItems(),
@@ -41,12 +41,12 @@ func QueryTool() mcp.Tool {
 
 // HandleQuery searches knowledge units by domain.
 func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	domains, err := req.RequireStringSlice("domain")
+	domains, err := req.RequireStringSlice("domains")
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domain' argument: '%s'", err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domains' argument: '%s'", err)), nil
 	}
 	if len(domains) == 0 {
-		return mcp.NewToolResultError("domain must contain at least one tag"), nil
+		return mcp.NewToolResultError("domains must contain at least one tag"), nil
 	}
 
 	language := req.GetString("language", "")

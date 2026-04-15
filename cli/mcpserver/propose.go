@@ -26,7 +26,7 @@ func ProposeTool() mcp.Tool {
 			mcp.Required(),
 			mcp.Description("Recommended action for agents encountering this situation."),
 		),
-		mcp.WithArray("domain",
+		mcp.WithArray("domains",
 			mcp.Required(),
 			mcp.Description("Domain tags for this knowledge."),
 			mcp.WithStringItems(),
@@ -51,12 +51,12 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err != nil {
 		return mcp.NewToolResultError("action is required"), nil
 	}
-	domains, err := req.RequireStringSlice("domain")
+	domains, err := req.RequireStringSlice("domains")
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domain' argument: '%s'", err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domains' argument: '%s'", err)), nil
 	}
 	if len(domains) == 0 {
-		return mcp.NewToolResultError("domain must contain at least one tag"), nil
+		return mcp.NewToolResultError("domains must contain at least one tag"), nil
 	}
 
 	language := req.GetString("language", "")

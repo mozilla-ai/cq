@@ -32,7 +32,7 @@ func TestHandlePropose(t *testing.T) {
 					"summary":   "summary",
 					"detail":    "detail",
 					"action":    "action",
-					"domain":    []any{"api"},
+					"domains":   []any{"api"},
 					"language":  "go",
 					"framework": "cobra",
 					"pattern":   "cli",

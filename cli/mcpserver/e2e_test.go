@@ -63,7 +63,7 @@ func TestE2EProposeQueryConfirmFlagStatus(t *testing.T) {
 				"summary": "E2E insight",
 				"detail":  "Proposed over MCP.",
 				"action":  "Use this in tests.",
-				"domain":  []any{"testing"},
+				"domains": []any{"testing"},
 			},
 		},
 	})
@@ -76,7 +76,7 @@ func TestE2EProposeQueryConfirmFlagStatus(t *testing.T) {
 	require.NotEmpty(t, proposed.ID)
 
 	queryResult, err := c.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{Name: "query", Arguments: map[string]any{"domain": []any{"testing"}}},
+		Params: mcp.CallToolParams{Name: "query", Arguments: map[string]any{"domains": []any{"testing"}}},
 	})
 	require.NoError(t, err)
 	require.False(t, queryResult.IsError)
