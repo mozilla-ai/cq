@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
 // NewApproveCmd returns the approve command.
