@@ -257,3 +257,40 @@ func TestRemoteStatsTransportError(t *testing.T) {
 	_, err := rc.stats(context.Background())
 	require.ErrorIs(t, err, errUnreachable)
 }
+
+func TestRemoteQueryAddsPatternToURL(t *testing.T) {
+	t.Parallel()
+
+	var capturedURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedURL = r.URL.String()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(srv.Close)
+
+	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second)
+	rc.query(context.Background(), QueryParams{
+		Domains: []string{"api"},
+		Pattern: "api-client",
+	})
+
+	require.Contains(t, capturedURL, "pattern=api-client")
+}
+
+func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
+	t.Parallel()
+
+	var capturedURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedURL = r.URL.String()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(srv.Close)
+
+	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second)
+	rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+
+	require.NotContains(t, capturedURL, "pattern=")
+}

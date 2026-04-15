@@ -207,6 +207,10 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) []Knowledg
 		qv.Add("frameworks", f)
 	}
 
+	if params.Pattern != "" {
+		qv.Set("pattern", params.Pattern)
+	}
+
 	if params.Limit > 0 {
 		qv.Set("limit", fmt.Sprintf("%d", params.Limit))
 	}
