@@ -265,3 +265,28 @@ def test_ensure_binary_unlinks_broken_symlink_before_resolving(cq_binary, monkey
 
     assert binary.exists()
     assert binary.resolve() == real_cq.resolve()
+
+
+def test_download_constructs_correct_url_for_aarch64_on_linux(cq_binary, monkeypatch, tmp_path):
+    """Verify that aarch64 machines download arm64 binaries."""
+    bin_dir = tmp_path / "bin"
+    binary = bin_dir / "cq"
+
+    monkeypatch.setattr(cq_binary.platform, "machine", lambda: "aarch64")
+    monkeypatch.setattr(cq_binary.platform, "system", lambda: "Linux")
+
+    captured_url = None
+
+    def _fake_urlretrieve(url, path):
+        nonlocal captured_url
+        captured_url = url
+
+    monkeypatch.setattr(cq_binary.urllib.request, "urlretrieve", _fake_urlretrieve)
+    monkeypatch.setattr(cq_binary.tarfile, "open", lambda *_a, **_k: None)
+
+    try:
+        cq_binary.download("0.2.2", "Linux", bin_dir, binary)
+    except AttributeError:
+        pass
+
+    assert captured_url == "https://github.com/mozilla-ai/cq/releases/download/cli/v0.2.2/cq_Linux_arm64.tar.gz"

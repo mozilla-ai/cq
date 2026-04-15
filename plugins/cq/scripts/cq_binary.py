@@ -24,7 +24,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-REPO = "mozilla-ai/cq"
+REPO = "mozilla-ai/cq"  # Always download from upstream, even when installed from forks
 
 
 def cq_binary_name() -> str:
@@ -67,7 +67,7 @@ def download(version: str, system: str, bin_dir: Path, binary: Path) -> None:
         "AMD64": "x86_64",
         "x86_64": "x86_64",
         "arm64": "arm64",
-        "aarch64": "aarch64",
+        "aarch64": "arm64",  # cq publishes aarch64 binaries as arm64
     }
     arch = arch_map.get(machine)
     if not arch:
