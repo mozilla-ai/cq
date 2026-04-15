@@ -52,8 +52,11 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 		return mcp.NewToolResultError("action is required"), nil
 	}
 	domains, err := req.RequireStringSlice("domain")
-	if err != nil || len(domains) == 0 {
-		return mcp.NewToolResultError("domain is required (string array with at least one tag)"), nil
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domain' argument: '%s'", err)), nil
+	}
+	if len(domains) == 0 {
+		return mcp.NewToolResultError("domain must contain at least one tag"), nil
 	}
 
 	language := req.GetString("language", "")

@@ -43,7 +43,7 @@ func QueryTool() mcp.Tool {
 func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	domains, err := req.RequireStringSlice("domain")
 	if err != nil {
-		return mcp.NewToolResultError("domain is required (string array)"), nil
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domain' argument: '%s'", err)), nil
 	}
 	if len(domains) == 0 {
 		return mcp.NewToolResultError("domain must contain at least one tag"), nil
