@@ -704,3 +704,28 @@ func TestStatusIgnoresLocalTierFromRemote(t *testing.T) {
 	// Total is local (1) + private (4) + public (1) = 6. The remote's "local: 1" is excluded.
 	require.Equal(t, 6, stats.TotalCount)
 }
+
+func TestClientQueryPassesPatternToStore(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Propose(context.Background(), ProposeParams{
+		Summary: "s", Detail: "d", Action: "a",
+		Domains: []string{"api"},
+		Pattern: "api-client",
+	})
+	require.NoError(t, err)
+
+	_, err = c.Propose(context.Background(), ProposeParams{
+		Summary: "s2", Detail: "d2", Action: "a2",
+		Domains: []string{"api"},
+	})
+	require.NoError(t, err)
+
+	withPattern, err := c.Query(context.Background(), QueryParams{
+		Domains: []string{"api"},
+		Pattern: "api-client",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, withPattern.Units)
+	require.Equal(t, "s", withPattern.Units[0].Insight.Summary, "the unit with matching pattern should rank first")
+}

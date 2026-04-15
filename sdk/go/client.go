@@ -343,6 +343,10 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 		qOpts = append(qOpts, withFramework(f))
 	}
 
+	if params.Pattern != "" {
+		qOpts = append(qOpts, withPattern(params.Pattern))
+	}
+
 	storeResult, err := c.store.query(qOpts...)
 	if err != nil {
 		return QueryResult{}, fmt.Errorf("querying store: %w", err)
