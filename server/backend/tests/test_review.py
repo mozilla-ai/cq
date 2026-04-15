@@ -119,6 +119,50 @@ class TestReject:
         assert len(resp.json()) == 0
 
 
+class TestDelete:
+    def test_delete_approved_unit(self, client: TestClient) -> None:
+        token = _login(client)
+        unit = _propose(client)
+        client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
+        resp = client.delete(f"/review/{unit['id']}", headers=_auth_header(token))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "deleted"
+        assert body["reviewed_by"] == "reviewer"
+
+    def test_delete_pending_unit(self, client: TestClient) -> None:
+        token = _login(client)
+        unit = _propose(client)
+        resp = client.delete(f"/review/{unit['id']}", headers=_auth_header(token))
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "deleted"
+
+    def test_deleted_unit_not_in_query(self, client: TestClient) -> None:
+        token = _login(client)
+        unit = _propose(client, domains=["deletable"])
+        client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
+        client.delete(f"/review/{unit['id']}", headers=_auth_header(token))
+        resp = client.get("/query", params={"domains": ["deletable"]})
+        assert len(resp.json()) == 0
+
+    def test_deleted_unit_not_found_on_get(self, client: TestClient) -> None:
+        token = _login(client)
+        unit = _propose(client)
+        client.delete(f"/review/{unit['id']}", headers=_auth_header(token))
+        resp = client.get(f"/review/{unit['id']}", headers=_auth_header(token))
+        assert resp.status_code == 404
+
+    def test_delete_nonexistent_returns_404(self, client: TestClient) -> None:
+        token = _login(client)
+        resp = client.delete("/review/ku_nonexistent", headers=_auth_header(token))
+        assert resp.status_code == 404
+
+    def test_delete_requires_auth(self, client: TestClient) -> None:
+        unit = _propose(client)
+        resp = client.delete(f"/review/{unit['id']}")
+        assert resp.status_code == 401
+
+
 class TestListUnits:
     def test_filter_by_domain(self, client: TestClient) -> None:
         token = _login(client)

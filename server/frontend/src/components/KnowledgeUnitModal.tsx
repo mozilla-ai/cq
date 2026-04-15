@@ -22,6 +22,8 @@ const MODAL_TITLE_ID = "ku-modal-title";
 export function KnowledgeUnitModal({ unitId, onClose }: Props) {
   const [item, setItem] = useState<ReviewItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -174,6 +176,49 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
               <span className="font-mono">{item.knowledge_unit.id}</span>
               {item.knowledge_unit.evidence.first_observed && (
                 <span>{timeAgo(item.knowledge_unit.evidence.first_observed)}</span>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-gray-100">
+              {!confirmingDelete ? (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  Delete knowledge unit
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-600">Are you sure?</span>
+                  <button
+                    onClick={async () => {
+                      setDeleting(true);
+                      try {
+                        await api.deleteUnit(item.knowledge_unit.id);
+                        onClose();
+                      } catch (err) {
+                        if (err instanceof ApiError) {
+                          setError(err.message);
+                        } else {
+                          setError("Failed to delete knowledge unit.");
+                        }
+                        setConfirmingDelete(false);
+                      } finally {
+                        setDeleting(false);
+                      }
+                    }}
+                    disabled={deleting}
+                    className="text-xs font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 px-3 py-1 rounded"
+                  >
+                    {deleting ? "Deleting..." : "Confirm"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
               )}
             </div>
           </div>

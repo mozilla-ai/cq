@@ -222,6 +222,24 @@ class RemoteStore:
             if cursor.rowcount == 0:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
 
+    def delete(self, unit_id: str) -> None:
+        """Delete a knowledge unit and its domain associations.
+
+        Args:
+            unit_id: The knowledge unit identifier.
+
+        Raises:
+            KeyError: If no unit with the given ID exists.
+        """
+        self._check_open()
+        with self._lock, self._conn:
+            cursor = self._conn.execute(
+                "DELETE FROM knowledge_units WHERE id = ?",
+                (unit_id,),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Knowledge unit not found: {unit_id}")
+
     def update(self, unit: KnowledgeUnit) -> None:
         """Replace an existing knowledge unit in the store.
 
