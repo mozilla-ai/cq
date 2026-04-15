@@ -336,6 +336,7 @@ class LocalStore:
         *,
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
+        pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Search for knowledge units by domain tags with relevance ranking.
@@ -343,7 +344,7 @@ class LocalStore:
         Retrieves units whose domain tags overlap with the query, then
         adds additional candidates from the FTS5 full-text index (these
         may have no domain overlap). All candidates are scored, optionally
-        boosted by language or framework context, and ranked by
+        boosted by language, framework, or pattern context, and ranked by
         relevance * confidence.
 
         Raises:
@@ -418,6 +419,7 @@ class LocalStore:
                 normalized,
                 query_languages=languages,
                 query_frameworks=frameworks,
+                query_pattern=pattern,
             )
             scored.append((relevance * unit.evidence.confidence, unit))
 
