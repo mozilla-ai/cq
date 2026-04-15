@@ -30,10 +30,10 @@ func TestHandleQuery(t *testing.T) {
 			Params: mcp.CallToolParams{
 				Name: "query",
 				Arguments: map[string]any{
-					"domains":   []any{"api", "go"},
-					"language":  "go",
-					"framework": "cobra",
-					"limit":     7,
+					"domains":    []any{"api", "go"},
+					"languages":  []any{"go"},
+					"frameworks": []any{"cobra"},
+					"limit":      7,
 				},
 			},
 		})

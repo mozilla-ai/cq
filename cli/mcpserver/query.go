@@ -27,11 +27,13 @@ func QueryTool() mcp.Tool {
 			mcp.Description("Domain tags to search."),
 			mcp.WithStringItems(),
 		),
-		mcp.WithString("language",
-			mcp.Description("Filter by programming language."),
+		mcp.WithArray("languages",
+			mcp.Description("Filter by programming languages."),
+			mcp.WithStringItems(),
 		),
-		mcp.WithString("framework",
-			mcp.Description("Filter by framework."),
+		mcp.WithArray("frameworks",
+			mcp.Description("Filter by frameworks."),
+			mcp.WithStringItems(),
 		),
 		mcp.WithNumber("limit",
 			mcp.Description("Maximum results to return (default 5, max 50)."),
@@ -49,8 +51,6 @@ func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError("domains must contain at least one tag"), nil
 	}
 
-	language := req.GetString("language", "")
-	framework := req.GetString("framework", "")
 	limit := req.GetInt("limit", defaultQueryLimit)
 	if limit <= 0 {
 		limit = defaultQueryLimit
@@ -60,14 +60,10 @@ func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	}
 
 	params := cq.QueryParams{
-		Domains: domains,
-		Limit:   limit,
-	}
-	if language != "" {
-		params.Languages = []string{language}
-	}
-	if framework != "" {
-		params.Frameworks = []string{framework}
+		Domains:    domains,
+		Languages:  req.GetStringSlice("languages", nil),
+		Frameworks: req.GetStringSlice("frameworks", nil),
+		Limit:      limit,
 	}
 
 	result, err := s.client.Query(ctx, params)

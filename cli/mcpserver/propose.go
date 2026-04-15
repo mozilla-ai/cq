@@ -31,8 +31,14 @@ func ProposeTool() mcp.Tool {
 			mcp.Description("Domain tags for this knowledge."),
 			mcp.WithStringItems(),
 		),
-		mcp.WithString("language", mcp.Description("Programming language context.")),
-		mcp.WithString("framework", mcp.Description("Framework context.")),
+		mcp.WithArray("languages",
+			mcp.Description("Programming language context."),
+			mcp.WithStringItems(),
+		),
+		mcp.WithArray("frameworks",
+			mcp.Description("Framework context."),
+			mcp.WithStringItems(),
+		),
 		mcp.WithString("pattern", mcp.Description("Pattern name.")),
 	)
 }
@@ -59,21 +65,14 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 		return mcp.NewToolResultError("domains must contain at least one tag"), nil
 	}
 
-	language := req.GetString("language", "")
-	framework := req.GetString("framework", "")
-
 	params := cq.ProposeParams{
-		Summary: summary,
-		Detail:  detail,
-		Action:  action,
-		Domains: domains,
-		Pattern: req.GetString("pattern", ""),
-	}
-	if language != "" {
-		params.Languages = []string{language}
-	}
-	if framework != "" {
-		params.Frameworks = []string{framework}
+		Summary:    summary,
+		Detail:     detail,
+		Action:     action,
+		Domains:    domains,
+		Languages:  req.GetStringSlice("languages", nil),
+		Frameworks: req.GetStringSlice("frameworks", nil),
+		Pattern:    req.GetString("pattern", ""),
 	}
 
 	result, err := s.client.Propose(ctx, params)
