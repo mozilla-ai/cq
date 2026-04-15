@@ -43,6 +43,7 @@ func newRootCmd() *cobra.Command {
 	rootCmd.AddGroup(&cobra.Group{ID: "core", Title: "Core Commands:"})
 
 	for _, fn := range []func() *cobra.Command{
+		cmd.NewApproveCmd,
 		cmd.NewConfirmCmd,
 		cmd.NewDrainCmd,
 		cmd.NewFlagCmd,

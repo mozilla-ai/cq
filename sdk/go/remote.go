@@ -33,6 +33,38 @@ func newRemoteClient(baseURL string, apiKey string, timeout time.Duration) *remo
 	}
 }
 
+// approve approves a pending unit on the remote API.
+// Returns errUnreachable on transport/5xx, RemoteError on 4xx.
+func (r *remoteClient) approve(ctx context.Context, unitID string) (ApproveResult, error) {
+	approveURL, err := r.url("/review/" + url.PathEscape(unitID) + "/approve")
+	if err != nil {
+		return ApproveResult{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+
+	resp, err := r.do(ctx, http.MethodPost, approveURL, nil)
+	if err != nil {
+		return ApproveResult{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 500 {
+		return ApproveResult{}, errUnreachable
+	}
+
+	if resp.StatusCode >= 400 {
+		detail, _ := io.ReadAll(resp.Body)
+
+		return ApproveResult{}, &RemoteError{StatusCode: resp.StatusCode, Detail: string(detail)}
+	}
+
+	var result ApproveResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ApproveResult{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
+	}
+
+	return result, nil
+}
+
 // confirm confirms a unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
 func (r *remoteClient) confirm(ctx context.Context, unitID string) (KnowledgeUnit, error) {

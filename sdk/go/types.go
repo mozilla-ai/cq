@@ -12,6 +12,14 @@ type Context struct {
 	Pattern    string   `json:"pattern"`
 }
 
+// ApproveResult holds the outcome of an approve operation.
+type ApproveResult struct {
+	UnitID     string `json:"unit_id"`
+	Status     string `json:"status"`
+	ReviewedBy string `json:"reviewed_by"`
+	ReviewedAt string `json:"reviewed_at"`
+}
+
 // DrainResult holds the outcome of a drain operation.
 type DrainResult struct {
 	Pushed   int      `json:"pushed"`
