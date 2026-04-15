@@ -117,7 +117,7 @@ class TestCalculateRelevance:
         score_without_fw = calculate_relevance(unit, ["databases"], query_frameworks=None)
         assert score_with_fw > score_without_fw
 
-    def test_full_match_returns_one(self):
+    def test_full_match_on_domain_language_framework(self):
         unit = _make_unit(
             domains=["databases"],
             context=Context(languages=["python"], frameworks=["django"]),
@@ -128,7 +128,7 @@ class TestCalculateRelevance:
             query_languages=["python"],
             query_frameworks=["django"],
         )
-        assert score == pytest.approx(1.0)
+        assert score == pytest.approx(0.85)
 
     def test_multi_language_query_boosts_on_any_overlap(self):
         unit = _make_unit(context=Context(languages=["python"], frameworks=[]))
@@ -208,3 +208,53 @@ class TestCalculateRelevance:
         )
         expected = calculate_relevance(unit, ["databases"], query_frameworks=["django"])
         assert score == expected
+
+
+class TestPatternBoost:
+    def test_matching_pattern_boosts_score(self):
+        unit = _make_unit(
+            domains=["api"],
+            context=Context(pattern="api-client"),
+        )
+        with_p = calculate_relevance(unit, ["api"], query_pattern="api-client")
+        without = calculate_relevance(unit, ["api"])
+        assert with_p > without
+        assert abs((without + 0.15) - with_p) < 1e-9
+
+    def test_non_matching_pattern_adds_nothing(self):
+        unit = _make_unit(
+            domains=["api"],
+            context=Context(pattern="api-client"),
+        )
+        with_p = calculate_relevance(unit, ["api"], query_pattern="cli-tool")
+        without = calculate_relevance(unit, ["api"])
+        assert with_p == without
+
+    def test_pattern_match_is_case_insensitive(self):
+        unit = _make_unit(
+            domains=["api"],
+            context=Context(pattern="api-client"),
+        )
+        upper = calculate_relevance(unit, ["api"], query_pattern="API-Client")
+        lower = calculate_relevance(unit, ["api"], query_pattern="api-client")
+        assert upper == lower
+
+    def test_empty_stored_pattern_never_matches(self):
+        unit = _make_unit(domains=["api"])
+        score = calculate_relevance(unit, ["api"], query_pattern="any")
+        baseline = calculate_relevance(unit, ["api"])
+        assert score == baseline
+
+    def test_all_signals_match_reaches_one(self):
+        unit = _make_unit(
+            domains=["api"],
+            context=Context(languages=["python"], frameworks=["fastapi"], pattern="api-client"),
+        )
+        score = calculate_relevance(
+            unit,
+            ["api"],
+            query_languages=["python"],
+            query_frameworks=["fastapi"],
+            query_pattern="api-client",
+        )
+        assert abs(score - 1.0) < 1e-9
