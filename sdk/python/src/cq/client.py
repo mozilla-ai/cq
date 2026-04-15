@@ -129,6 +129,7 @@ class Client:
         *,
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
+        pattern: str = "",
         limit: int = 5,
     ) -> QueryResult:
         """Search for knowledge units by domain tags.
@@ -148,7 +149,13 @@ class Client:
 
         source = "local"
         warnings: list[str] = []
-        local_results = self._store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
+        local_results = self._store.query(
+            domains,
+            languages=languages,
+            frameworks=frameworks,
+            pattern=pattern,
+            limit=limit,
+        )
 
         if self._http is None:
             return QueryResult(units=local_results, source=source)
@@ -159,6 +166,7 @@ class Client:
                 domains,
                 languages=languages,
                 frameworks=frameworks,
+                pattern=pattern,
                 limit=limit,
             )
             source = "remote"
@@ -357,6 +365,7 @@ class Client:
         *,
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
+        pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Query the remote API.
@@ -372,6 +381,8 @@ class Client:
             params["languages"] = languages
         if frameworks:
             params["frameworks"] = frameworks
+        if pattern:
+            params["pattern"] = pattern
         resp = self._http.get("/query", params=params)
         resp.raise_for_status()
         return [KnowledgeUnit.model_validate(item) for item in resp.json()]

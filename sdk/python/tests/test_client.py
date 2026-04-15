@@ -217,6 +217,25 @@ class TestLocalOnlyMode:
         assert len(result.units) == 2
         assert result.units[0].context.languages == ["python"]
 
+    def test_query_pattern_forwarded_to_store(self, client: Client):
+        """Client.query should pass `pattern` into the local store call so matching units rank first."""
+        client.propose(
+            summary="Pattern match",
+            detail="Detail.",
+            action="Action.",
+            domains=["api"],
+            pattern="api-client",
+        )
+        client.propose(
+            summary="Pattern miss",
+            detail="Detail.",
+            action="Action.",
+            domains=["api"],
+        )
+        result = client.query(["api"], pattern="api-client")
+        assert len(result.units) == 2
+        assert result.units[0].insight.summary == "Pattern match"
+
 
 class TestFullLifecycle:
     def test_propose_confirm_query_flag(self, client: Client):
@@ -346,6 +365,48 @@ class TestRemoteIntegration:
         assert result.source == "remote"
         assert len(result.units) == 1
         assert result.units[0].id == "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01"
+        c.close()
+
+    def test_remote_query_includes_pattern_param_when_non_empty(self, tmp_path: Path, httpx_mock):
+        """`_remote_query` should include `pattern` in the outgoing HTTP params when non-empty."""
+        remote_unit = {
+            "id": "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01",
+            "domains": ["api"],
+            "insight": {"summary": "S", "detail": "D", "action": "A"},
+            "tier": "private",
+        }
+        httpx_mock.add_response(
+            url=httpx.URL(
+                "http://test-remote/query",
+                params={"domains": ["api"], "limit": "5", "pattern": "api-client"},
+            ),
+            json=[remote_unit],
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        result = c.query(["api"], pattern="api-client")
+        assert result.source == "remote"
+        assert len(result.units) == 1
+        assert result.units[0].id == "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01"
+        c.close()
+
+    def test_remote_query_omits_pattern_param_when_empty(self, tmp_path: Path, httpx_mock):
+        """`_remote_query` should omit `pattern` from outgoing params when empty."""
+        remote_unit = {
+            "id": "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01",
+            "domains": ["api"],
+            "insight": {"summary": "S", "detail": "D", "action": "A"},
+            "tier": "private",
+        }
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/query", params={"domains": ["api"], "limit": "5"}),
+            json=[remote_unit],
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        result = c.query(["api"])
+        assert result.source == "remote"
+        assert len(result.units) == 1
         c.close()
 
     def test_propose_returns_server_response_when_remote_accepts(self, tmp_path: Path, httpx_mock):
