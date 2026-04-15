@@ -86,6 +86,11 @@ export const api = {
       method: "POST",
     }),
 
+  deleteUnit: (unitId: string) =>
+    request<ReviewDecisionResponse>(`/review/${unitId}`, {
+      method: "DELETE",
+    }),
+
   reviewStats: () => request<ReviewStatsResponse>("/review/stats"),
 
   getUnit: (unitId: string) => request<ReviewItem>(`/review/${unitId}`),

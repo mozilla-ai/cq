@@ -1,5 +1,7 @@
 """Review queue endpoints for the review API."""
 
+from datetime import UTC, datetime
+
 from cq.models import KnowledgeUnit
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -180,6 +182,40 @@ def reject_unit(
     updated = store.get_review_status(unit_id)
     assert updated is not None  # Unit exists; we just wrote to it.
     return _build_decision(unit_id, updated)
+
+
+@router.delete("/{unit_id}")
+def delete_unit(
+    unit_id: str,
+    username: str = Depends(get_current_user),
+    store: RemoteStore = Depends(get_store),
+) -> ReviewDecisionResponse:
+    """Permanently delete a knowledge unit.
+
+    Removes the unit and its domain associations from the store.
+    Only authenticated reviewers can delete units.
+
+    Args:
+        unit_id: The knowledge unit identifier.
+        username: The authenticated reviewer's username.
+        store: The remote store dependency.
+
+    Returns:
+        A confirmation with the deleted unit's ID and reviewer details.
+
+    Raises:
+        HTTPException: With status 404 if the unit does not exist.
+    """
+    status = store.get_review_status(unit_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail="Knowledge unit not found")
+    store.delete(unit_id)
+    return ReviewDecisionResponse(
+        unit_id=unit_id,
+        status="deleted",
+        reviewed_by=username,
+        reviewed_at=datetime.now(UTC).isoformat(),
+    )
 
 
 @router.get("/stats")

@@ -74,6 +74,35 @@ class TestInsertAndGet:
             store.insert(unit)
 
 
+class TestDelete:
+    def test_delete_removes_unit(self, store: RemoteStore) -> None:
+        unit = _make_unit()
+        store.insert(unit)
+        store.delete(unit.id)
+        assert store.get_any(unit.id) is None
+
+    def test_delete_removes_domain_associations(self, store: RemoteStore) -> None:
+        unit = _make_unit(domains=["api", "payments"])
+        store.insert(unit)
+        store.delete(unit.id)
+        with store._lock:
+            rows = store._conn.execute(
+                "SELECT COUNT(*) FROM knowledge_unit_domains WHERE unit_id = ?",
+                (unit.id,),
+            ).fetchone()
+        assert rows[0] == 0
+
+    def test_delete_missing_unit_raises(self, store: RemoteStore) -> None:
+        with pytest.raises(KeyError, match="Knowledge unit not found"):
+            store.delete("ku_nonexistent")
+
+    def test_delete_approved_unit(self, store: RemoteStore) -> None:
+        unit = _insert_and_approve(store, domains=["api"])
+        store.delete(unit.id)
+        assert store.get(unit.id) is None
+        assert store.query(["api"]) == []
+
+
 class TestUpdate:
     def test_update_persists_changes(self, store: RemoteStore) -> None:
         unit = _insert_and_approve(store)
