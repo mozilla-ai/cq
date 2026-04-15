@@ -71,6 +71,28 @@ func (c *Client) HasRemote() bool {
 	return c.remote != nil
 }
 
+// Approve approves a pending knowledge unit on the remote API.
+// This operation is only available for remote units and requires authentication.
+func (c *Client) Approve(ctx context.Context, unitID string) (ApproveResult, error) {
+	ctx, cancel := c.operationContext(ctx)
+	defer cancel()
+
+	if err := ctx.Err(); err != nil {
+		return ApproveResult{}, err
+	}
+
+	if c.remote == nil {
+		return ApproveResult{}, fmt.Errorf("no remote API configured")
+	}
+
+	result, err := c.remote.approve(ctx, unitID)
+	if err != nil {
+		return ApproveResult{}, fmt.Errorf("remote approve failed: %w", err)
+	}
+
+	return result, nil
+}
+
 // Confirm boosts the confidence of a knowledge unit.
 // Routes to local store or remote API based on the unit's tier.
 func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, error) {
