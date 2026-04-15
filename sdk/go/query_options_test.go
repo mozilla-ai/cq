@@ -321,3 +321,31 @@ func TestQueryOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestWithPattern(t *testing.T) {
+	t.Parallel()
+
+	t.Run("lowercases and trims", func(t *testing.T) {
+		t.Parallel()
+
+		opts, err := newQueryOptions(withPattern("  Api-Client  "))
+		require.NoError(t, err)
+		require.Equal(t, "api-client", opts.pattern)
+	})
+
+	t.Run("empty input is a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		opts, err := newQueryOptions(withPattern(""), withPattern("   "))
+		require.NoError(t, err)
+		require.Empty(t, opts.pattern)
+	})
+
+	t.Run("last value wins", func(t *testing.T) {
+		t.Parallel()
+
+		opts, err := newQueryOptions(withPattern("first"), withPattern("second"))
+		require.NoError(t, err)
+		require.Equal(t, "second", opts.pattern)
+	})
+}

@@ -28,6 +28,7 @@ type queryOptions struct {
 	domains    map[string]struct{}
 	languages  map[string]struct{}
 	frameworks map[string]struct{}
+	pattern    string
 	limit      int
 }
 
@@ -125,6 +126,21 @@ func withFramework(framework string) queryOption {
 		}
 
 		p.frameworks[f] = struct{}{}
+
+		return nil
+	}
+}
+
+// withPattern sets the pattern filter on the query. Last call wins; empty input is a no-op.
+func withPattern(pattern string) queryOption {
+	return func(p *queryOptions) error {
+		v := strings.ToLower(strings.TrimSpace(pattern))
+
+		if v == "" {
+			return nil
+		}
+
+		p.pattern = v
 
 		return nil
 	}
