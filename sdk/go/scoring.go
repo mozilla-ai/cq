@@ -2,6 +2,7 @@ package cq
 
 import (
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -13,9 +14,10 @@ const (
 	confirmationBoost = 0.1
 	flagPenalty       = 0.15
 
-	domainWeight    = 0.7
+	domainWeight    = 0.55
 	frameworkWeight = 0.15
 	languageWeight  = 0.15
+	patternWeight   = 0.15
 )
 
 // relevance scores how relevant ku is to the given query parameters.
@@ -23,16 +25,20 @@ func (ku KnowledgeUnit) relevance(
 	queryDomains []string,
 	queryLanguages []string,
 	queryFrameworks []string,
+	queryPattern string,
 ) float64 {
 	domainScore := jaccardSimilarity(ku.Domains, queryDomains)
-	var languageScore, frameworkScore float64
+	var languageScore, frameworkScore, patternScore float64
 	if anyMatch(ku.Context.Languages, queryLanguages) {
 		languageScore = 1.0
 	}
 	if anyMatch(ku.Context.Frameworks, queryFrameworks) {
 		frameworkScore = 1.0
 	}
-	score := domainWeight*domainScore + languageWeight*languageScore + frameworkWeight*frameworkScore
+	if queryPattern != "" && ku.Context.Pattern != "" && strings.EqualFold(queryPattern, ku.Context.Pattern) {
+		patternScore = 1.0
+	}
+	score := domainWeight*domainScore + languageWeight*languageScore + frameworkWeight*frameworkScore + patternWeight*patternScore
 	return min(max(score, confidenceFloor), confidenceCeiling)
 }
 

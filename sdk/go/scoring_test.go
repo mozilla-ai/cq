@@ -153,8 +153,8 @@ func TestKnowledgeUnitRelevance(t *testing.T) {
 		exact := newTestKU(t, []string{"go", "testing"}, 0.5, 1)
 		partial := newTestKU(t, []string{"go", "python"}, 0.5, 1)
 
-		exactScore := exact.relevance([]string{"go", "testing"}, nil, nil)
-		partialScore := partial.relevance([]string{"go", "testing"}, nil, nil)
+		exactScore := exact.relevance([]string{"go", "testing"}, nil, nil, "")
+		partialScore := partial.relevance([]string{"go", "testing"}, nil, nil, "")
 
 		require.Greater(t, exactScore, partialScore)
 	})
@@ -164,7 +164,7 @@ func TestKnowledgeUnitRelevance(t *testing.T) {
 
 		ku := newTestKU(t, []string{"python"}, 0.5, 1)
 		ku.Context = Context{}
-		score := ku.relevance([]string{"rust"}, nil, nil)
+		score := ku.relevance([]string{"rust"}, nil, nil, "")
 
 		require.InDelta(t, 0.0, score, 1e-9)
 	})
@@ -175,8 +175,8 @@ func TestKnowledgeUnitRelevance(t *testing.T) {
 		ku := newTestKU(t, []string{"testing"}, 0.5, 1)
 		ku.Context = Context{Languages: []string{"go"}}
 
-		withLang := ku.relevance([]string{"testing"}, []string{"go"}, nil)
-		withoutLang := ku.relevance([]string{"testing"}, nil, nil)
+		withLang := ku.relevance([]string{"testing"}, []string{"go"}, nil, "")
+		withoutLang := ku.relevance([]string{"testing"}, nil, nil, "")
 
 		require.Greater(t, withLang, withoutLang)
 	})
@@ -187,13 +187,13 @@ func TestKnowledgeUnitRelevance(t *testing.T) {
 		ku := newTestKU(t, []string{"testing"}, 0.5, 1)
 		ku.Context = Context{Frameworks: []string{"grpc"}}
 
-		withFw := ku.relevance([]string{"testing"}, nil, []string{"grpc"})
-		withoutFw := ku.relevance([]string{"testing"}, nil, nil)
+		withFw := ku.relevance([]string{"testing"}, nil, []string{"grpc"}, "")
+		withoutFw := ku.relevance([]string{"testing"}, nil, nil, "")
 
 		require.Greater(t, withFw, withoutFw)
 	})
 
-	t.Run("full match returns 1.0", func(t *testing.T) {
+	t.Run("full match on domain, language, and framework returns 0.85", func(t *testing.T) {
 		t.Parallel()
 
 		ku := newTestKU(t, []string{"go", "testing"}, 0.5, 1)
@@ -202,9 +202,9 @@ func TestKnowledgeUnitRelevance(t *testing.T) {
 			Frameworks: []string{"grpc"},
 		}
 
-		score := ku.relevance([]string{"go", "testing"}, []string{"go"}, []string{"grpc"})
+		score := ku.relevance([]string{"go", "testing"}, []string{"go"}, []string{"grpc"}, "")
 
-		require.InDelta(t, 1.0, score, 1e-9)
+		require.InDelta(t, 0.85, score, 1e-9)
 	})
 
 	t.Run("score is bounded between 0 and 1", func(t *testing.T) {
@@ -228,7 +228,7 @@ func TestKnowledgeUnitRelevance(t *testing.T) {
 		}
 
 		for _, q := range queries {
-			score := ku.relevance(q.domains, q.languages, q.frameworks)
+			score := ku.relevance(q.domains, q.languages, q.frameworks, "")
 			require.True(t, score >= 0.0 && score <= 1.0,
 				"score %f out of bounds for domains=%v languages=%v frameworks=%v",
 				score, q.domains, q.languages, q.frameworks)
@@ -241,8 +241,72 @@ func TestKnowledgeUnitRelevance(t *testing.T) {
 
 		ku := newTestKU(t, []string{}, 0.5, 1)
 		ku.Context = Context{}
-		score := ku.relevance([]string{}, nil, nil)
+		score := ku.relevance([]string{}, nil, nil, "")
 
 		require.InDelta(t, 0.0, score, 1e-9)
 	})
+}
+
+func TestRelevancePatternBoost(t *testing.T) {
+	t.Parallel()
+
+	ku := KnowledgeUnit{
+		Domains: []string{"api"},
+		Context: Context{Pattern: "api-client"},
+	}
+
+	t.Run("matching pattern boosts score", func(t *testing.T) {
+		t.Parallel()
+
+		with := ku.relevance([]string{"api"}, nil, nil, "api-client")
+		without := ku.relevance([]string{"api"}, nil, nil, "")
+
+		require.Greater(t, with, without)
+		require.InDelta(t, without+0.15, with, 1e-9)
+	})
+
+	t.Run("non-matching pattern adds nothing", func(t *testing.T) {
+		t.Parallel()
+
+		with := ku.relevance([]string{"api"}, nil, nil, "cli-tool")
+		without := ku.relevance([]string{"api"}, nil, nil, "")
+
+		require.InDelta(t, without, with, 1e-9)
+	})
+
+	t.Run("pattern match is case-insensitive", func(t *testing.T) {
+		t.Parallel()
+
+		got := ku.relevance([]string{"api"}, nil, nil, "API-Client")
+		expected := ku.relevance([]string{"api"}, nil, nil, "api-client")
+
+		require.InDelta(t, expected, got, 1e-9)
+	})
+
+	t.Run("empty stored pattern never matches", func(t *testing.T) {
+		t.Parallel()
+
+		ku2 := KnowledgeUnit{Domains: []string{"api"}}
+		score := ku2.relevance([]string{"api"}, nil, nil, "any")
+		baseline := ku2.relevance([]string{"api"}, nil, nil, "")
+
+		require.InDelta(t, baseline, score, 1e-9)
+	})
+}
+
+func TestRelevanceWeightsRebalanced(t *testing.T) {
+	t.Parallel()
+
+	ku := KnowledgeUnit{
+		Domains: []string{"api"},
+		Context: Context{Languages: []string{"go"}, Frameworks: []string{"net/http"}, Pattern: "api-client"},
+	}
+
+	score := ku.relevance(
+		[]string{"api"},
+		[]string{"go"},
+		[]string{"net/http"},
+		"api-client",
+	)
+	require.InDelta(t, 1.0, score, 1e-9)
 }
