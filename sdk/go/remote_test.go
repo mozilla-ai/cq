@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -261,9 +262,14 @@ func TestRemoteStatsTransportError(t *testing.T) {
 func TestRemoteQueryAddsPatternToURL(t *testing.T) {
 	t.Parallel()
 
-	var capturedURL string
+	var (
+		mu           sync.Mutex
+		capturedURL  string
+	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		capturedURL = r.URL.String()
+		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[]`))
 	}))
@@ -275,15 +281,22 @@ func TestRemoteQueryAddsPatternToURL(t *testing.T) {
 		Pattern: "api-client",
 	})
 
+	mu.Lock()
+	defer mu.Unlock()
 	require.Contains(t, capturedURL, "pattern=api-client")
 }
 
 func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
 	t.Parallel()
 
-	var capturedURL string
+	var (
+		mu          sync.Mutex
+		capturedURL string
+	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		capturedURL = r.URL.String()
+		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[]`))
 	}))
@@ -292,5 +305,7 @@ func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
 	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second)
 	rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 
+	mu.Lock()
+	defer mu.Unlock()
 	require.NotContains(t, capturedURL, "pattern=")
 }
