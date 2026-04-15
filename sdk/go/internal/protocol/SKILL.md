@@ -181,7 +181,7 @@ The server returns a list of candidate knowledge units. Each candidate contains:
 - **summary** — One-line description of the insight.
 - **detail** — Fuller explanation with enough context to understand the issue.
 - **action** — Concrete instruction on what to do about it.
-- **domain** — Suggested domain tags.
+- **domains** — Suggested domain tags.
 - **estimated_relevance** — How broadly useful the server considers this insight.
 
 #### How to Present Candidates
@@ -190,7 +190,7 @@ Present candidates as a numbered list to the user, showing the summary and estim
 
 #### What Happens After Approval
 
-For each approved candidate, call `propose` with the candidate's fields (`summary`, `detail`, `action`, `domain`, and any relevant `context`). If the user edits a candidate before approving, use the edited values.
+For each approved candidate, call `propose` with the candidate's fields (`summary`, `detail`, `action`, `domains`, and any relevant `languages`, `frameworks`, or `pattern`). If the user edits a candidate before approving, use the edited values.
 
 ### Examples
 
@@ -231,7 +231,7 @@ The developer asks you to configure a webpack build. You encounter a cryptic err
 The developer asks you to set up a Rust CI pipeline with GitHub Actions using a matrix strategy for multiple toolchain versions.
 
 1. Recognize the trigger: CI/CD configuration.
-2. Call `query` with `domain: ["ci", "github-actions", "rust"]`.
+2. Call `query` with `domains: ["ci", "github-actions", "rust"]`.
 3. cq returns a knowledge unit. Present the reference table to the user:
 
    | ID | Confidence | Summary |
