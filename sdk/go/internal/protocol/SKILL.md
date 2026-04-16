@@ -65,7 +65,7 @@ Do not query cq for:
 
 Choose domain tags that capture the technology, layer, and integration point. Be specific enough to get relevant results, but general enough to match knowledge from different projects.
 
-Both `query` and `propose` use the same plural-array keys for `domains`, `languages`, and `frameworks`. Each is a flat top-level argument; there is no `context` wrapper.
+Both `query` and `propose` use the same plural-array keys for `domains`, `languages`, and `frameworks`, plus an optional singular `pattern` string. Each is a flat top-level argument; there is no `context` wrapper.
 
 | Scenario | `domains` | other call args |
 |----------|-----------|------------------|
