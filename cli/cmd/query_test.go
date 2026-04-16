@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
 func TestQueryRepeatedDomainFlags(t *testing.T) {
@@ -127,24 +130,44 @@ func TestQueryUnsupportedFormat(t *testing.T) {
 func TestQueryPatternFlag(t *testing.T) {
 	testSetup(t)
 
-	propose := NewProposeCmd()
-	propose.SetArgs([]string{
+	// Seed two KUs on the same domain so domain match alone cannot decide ranking.
+	// Only one carries the pattern; the other is a plain domain match.
+	// The plain KU is inserted first so a "pattern flag is silently dropped" regression
+	// would leave it ranked first by insertion order, distinguishing it from the correct
+	// behavior where the pattern boost lifts the matching KU above the plain one.
+	proposePlain := NewProposeCmd()
+	proposePlain.SetArgs([]string{
+		"--summary", "plain insight",
+		"--detail", "d",
+		"--action", "a",
+		"--domain", "api",
+	})
+	require.NoError(t, proposePlain.Execute())
+
+	proposeMatch := NewProposeCmd()
+	proposeMatch.SetArgs([]string{
 		"--summary", "pattern insight",
 		"--detail", "d",
 		"--action", "a",
 		"--domain", "api",
 		"--pattern", "api-client",
 	})
-	require.NoError(t, propose.Execute())
+	require.NoError(t, proposeMatch.Execute())
 
+	// Use JSON output so the ranking order is observable as an array index.
 	query := NewQueryCmd()
 	var buf bytes.Buffer
 	query.SetOut(&buf)
 	query.SetArgs([]string{
 		"--domain", "api",
 		"--pattern", "api-client",
-		"--format", "text",
+		"--format", "json",
 	})
 	require.NoError(t, query.Execute())
-	require.Contains(t, buf.String(), "pattern insight")
+
+	var units []cq.KnowledgeUnit
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &units))
+	require.Len(t, units, 2)
+	require.Equal(t, "pattern insight", units[0].Insight.Summary,
+		"the unit with matching pattern should rank first when --pattern is threaded into QueryParams")
 }
