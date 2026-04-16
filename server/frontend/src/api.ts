@@ -1,4 +1,6 @@
 import type {
+  ApiKeyPublic,
+  CreatedApiKey,
   ReviewItem,
   ReviewQueueResponse,
   ReviewDecisionResponse,
@@ -59,6 +61,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const body = await resp.json().catch(() => ({}));
     throw new ApiError(resp.status, body.detail || `HTTP ${resp.status}`);
   }
+  if (resp.status === 204) {
+    return undefined as T;
+  }
   return resp.json();
 }
 
@@ -106,6 +111,17 @@ export const api = {
     const query = qs.toString();
     return request<ReviewItem[]>(`/review/units${query ? `?${query}` : ""}`);
   },
+
+  listApiKeys: () => request<ApiKeyPublic[]>("/auth/api-keys"),
+
+  createApiKey: (name: string, ttl: string, labels: string[] = []) =>
+    request<CreatedApiKey>("/auth/api-keys", {
+      method: "POST",
+      body: JSON.stringify({ name, ttl, labels }),
+    }),
+
+  revokeApiKey: (id: string) =>
+    request<void>(`/auth/api-keys/${id}`, { method: "DELETE" }),
 };
 
 export { ApiError };

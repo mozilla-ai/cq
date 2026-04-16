@@ -48,6 +48,7 @@ export function Layout() {
             <span className="text-lg font-bold text-indigo-600">cq</span>
             {navLink("/review", "Review")}
             {navLink("/dashboard", "Dashboard")}
+            {navLink("/settings/api-keys", "API Keys")}
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden md:inline text-sm text-gray-500">{username}</span>
