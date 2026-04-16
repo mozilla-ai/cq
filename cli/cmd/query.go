@@ -15,6 +15,7 @@ func NewQueryCmd() *cobra.Command {
 		domains    []string
 		languages  []string
 		frameworks []string
+		pattern    string
 		limit      int
 		format     string
 	)
@@ -40,6 +41,7 @@ func NewQueryCmd() *cobra.Command {
 				Domains:    domains,
 				Languages:  languages,
 				Frameworks: frameworks,
+				Pattern:    pattern,
 				Limit:      limit,
 			}
 
@@ -75,6 +77,7 @@ func NewQueryCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&domains, "domain", nil, "Domain tags to search (required, repeatable)")
 	cmd.Flags().StringArrayVar(&languages, "language", nil, "Filter by programming language (repeatable)")
 	cmd.Flags().StringArrayVar(&frameworks, "framework", nil, "Filter by framework (repeatable)")
+	cmd.Flags().StringVar(&pattern, "pattern", "", "Filter by pattern")
 	cmd.Flags().IntVar(&limit, "limit", 5, "Maximum results")
 	cmd.Flags().StringVar(&format, "format", "text", "Output format: text or json")
 	_ = cmd.MarkFlagRequired("domain")

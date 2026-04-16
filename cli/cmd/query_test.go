@@ -123,3 +123,28 @@ func TestQueryUnsupportedFormat(t *testing.T) {
 	query.SetArgs([]string{"--domain", "api", "--format", "xml"})
 	require.Error(t, query.Execute())
 }
+
+func TestQueryPatternFlag(t *testing.T) {
+	testSetup(t)
+
+	propose := NewProposeCmd()
+	propose.SetArgs([]string{
+		"--summary", "pattern insight",
+		"--detail", "d",
+		"--action", "a",
+		"--domain", "api",
+		"--pattern", "api-client",
+	})
+	require.NoError(t, propose.Execute())
+
+	query := NewQueryCmd()
+	var buf bytes.Buffer
+	query.SetOut(&buf)
+	query.SetArgs([]string{
+		"--domain", "api",
+		"--pattern", "api-client",
+		"--format", "text",
+	})
+	require.NoError(t, query.Execute())
+	require.Contains(t, buf.String(), "pattern insight")
+}
