@@ -31,4 +31,4 @@ require (
 )
 
 // Monorepo: uncomment to use the local SDK during development.
-// replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
+replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
