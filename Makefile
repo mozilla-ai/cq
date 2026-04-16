@@ -63,7 +63,7 @@ help:
 	@echo "  make validate-schema        Validate JSON Schema fixtures"
 	@echo ""
 	@echo "Docker Compose:"
-	@echo "  make compose-up                              Build and start services"
+	@echo "  make compose-up                              Build and start services (creates server/.env from example if missing)"
 	@echo "  make compose-down                            Stop services"
 	@echo "  make compose-reset                           Stop services and wipe database"
 	@echo "  make seed-users USER=demo PASS=demo123       Create a user"
@@ -170,8 +170,12 @@ else
 endif
 
 .PHONY: compose-up
-compose-up:
+compose-up: server/.env
 	docker compose up --build
+
+server/.env:
+	cp server/.env.example server/.env
+	@echo "Created server/.env from server/.env.example — edit secrets before deploying."
 
 .PHONY: compose-down
 compose-down:
@@ -203,7 +207,7 @@ endif
 ifndef PASS
 	$(error PASS is required. Usage: make seed-kus USER=demo PASS=demo123)
 endif
-	docker compose exec cq-server /app/.venv/bin/python /app/scripts/seed-kus.py --user "$(USER)" --pass "$(PASS)" --url http://localhost:3000
+	docker compose exec cq-server sh -c '/app/.venv/bin/python /app/scripts/seed-kus.py --user "$(USER)" --pass "$(PASS)" --url "http://localhost:$${CQ_PORT:-3000}"'
 
 .PHONY: seed-all
 seed-all:
@@ -218,7 +222,7 @@ endif
 
 .PHONY: dev-api
 dev-api:
-	cd server/backend && CQ_DB_PATH=./dev.db CQ_JWT_SECRET=dev-secret CQ_PORT=8742 uv run cq-server
+	cd server/backend && CQ_DB_PATH=./dev.db CQ_JWT_SECRET=dev-secret CQ_API_KEY_PEPPER=dev-pepper CQ_PORT=8742 uv run cq-server
 
 .PHONY: dev-ui
 dev-ui:
