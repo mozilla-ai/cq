@@ -500,6 +500,206 @@ class TestReviewQueue:
         assert counts == {}
 
 
+class TestApiKeys:
+    @staticmethod
+    def _seed_user(store: RemoteStore, username: str = "alice") -> int:
+        store.create_user(username, "hash-unused")
+        user = store.get_user(username)
+        assert user is not None
+        return int(user["id"])
+
+    @staticmethod
+    def _future(days: int = 30) -> str:
+        return (datetime.now(UTC) + timedelta(days=days)).isoformat()
+
+    @staticmethod
+    def _past(days: int = 1) -> str:
+        return (datetime.now(UTC) - timedelta(days=days)).isoformat()
+
+    def test_create_and_fetch_by_hash(self, store: RemoteStore) -> None:
+        user_id = self._seed_user(store)
+        row = store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="laptop",
+            labels=[],
+            key_prefix="cqa_abcd",
+            key_hash="hash-1",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        assert row["id"] == "k1"
+        assert row["revoked_at"] is None
+
+        fetched = store.get_api_key_by_hash("hash-1")
+        assert fetched is not None
+        assert fetched["id"] == "k1"
+        assert fetched["username"] == "alice"
+        assert fetched["user_id"] == user_id
+        assert fetched["name"] == "laptop"
+
+    def test_get_by_hash_missing(self, store: RemoteStore) -> None:
+        assert store.get_api_key_by_hash("nope") is None
+
+    def test_create_rejects_duplicate_hash(self, store: RemoteStore) -> None:
+        user_id = self._seed_user(store)
+        store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="a",
+            labels=[],
+            key_prefix="cqa_1",
+            key_hash="dup",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            store.create_api_key(
+                key_id="k2",
+                user_id=user_id,
+                name="b",
+                labels=[],
+                key_prefix="cqa_2",
+                key_hash="dup",
+                ttl="30d",
+                expires_at=self._future(),
+            )
+
+    def test_list_for_user_orders_newest_first(self, store: RemoteStore) -> None:
+        user_id = self._seed_user(store)
+        store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="first",
+            labels=[],
+            key_prefix="cqa_1",
+            key_hash="h1",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        store.create_api_key(
+            key_id="k2",
+            user_id=user_id,
+            name="second",
+            labels=[],
+            key_prefix="cqa_2",
+            key_hash="h2",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        rows = store.list_api_keys_for_user(user_id)
+        assert [r["id"] for r in rows] == ["k2", "k1"]
+        assert all("key_hash" not in r for r in rows)
+
+    def test_list_scoped_by_user(self, store: RemoteStore) -> None:
+        alice_id = self._seed_user(store, "alice")
+        bob_id = self._seed_user(store, "bob")
+        store.create_api_key(
+            key_id="k-alice",
+            user_id=alice_id,
+            name="a",
+            labels=[],
+            key_prefix="cqa_a",
+            key_hash="ha",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        store.create_api_key(
+            key_id="k-bob",
+            user_id=bob_id,
+            name="b",
+            labels=[],
+            key_prefix="cqa_b",
+            key_hash="hb",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        assert [r["id"] for r in store.list_api_keys_for_user(alice_id)] == ["k-alice"]
+        assert [r["id"] for r in store.list_api_keys_for_user(bob_id)] == ["k-bob"]
+
+    def test_count_active_excludes_revoked_and_expired(self, store: RemoteStore) -> None:
+        user_id = self._seed_user(store)
+        store.create_api_key(
+            key_id="active",
+            user_id=user_id,
+            name="a",
+            labels=[],
+            key_prefix="cqa_a",
+            key_hash="h-a",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        store.create_api_key(
+            key_id="expired",
+            user_id=user_id,
+            name="e",
+            labels=[],
+            key_prefix="cqa_e",
+            key_hash="h-e",
+            ttl="30d",
+            expires_at=self._past(),
+        )
+        store.create_api_key(
+            key_id="revoked",
+            user_id=user_id,
+            name="r",
+            labels=[],
+            key_prefix="cqa_r",
+            key_hash="h-r",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        assert store.revoke_api_key(user_id=user_id, key_id="revoked") is True
+
+        assert store.count_active_api_keys_for_user(user_id) == 1
+
+    def test_revoke_scoped_to_owner(self, store: RemoteStore) -> None:
+        alice_id = self._seed_user(store, "alice")
+        bob_id = self._seed_user(store, "bob")
+        store.create_api_key(
+            key_id="k",
+            user_id=alice_id,
+            name="a",
+            labels=[],
+            key_prefix="cqa_",
+            key_hash="h",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        assert store.revoke_api_key(user_id=bob_id, key_id="k") is False
+        assert store.revoke_api_key(user_id=alice_id, key_id="k") is True
+        assert store.revoke_api_key(user_id=alice_id, key_id="k") is False
+
+    def test_revoke_missing_key(self, store: RemoteStore) -> None:
+        user_id = self._seed_user(store)
+        assert store.revoke_api_key(user_id=user_id, key_id="nope") is False
+
+    def test_touch_last_used_updates_timestamp(self, store: RemoteStore) -> None:
+        user_id = self._seed_user(store)
+        store.create_api_key(
+            key_id="k",
+            user_id=user_id,
+            name="a",
+            labels=[],
+            key_prefix="cqa_",
+            key_hash="h",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        assert store.get_api_key_by_hash("h")["last_used_at"] is None
+        store.touch_api_key_last_used("k")
+        assert store.get_api_key_by_hash("h")["last_used_at"] is not None
+
+    def test_touch_last_used_missing_key_swallowed(self, store: RemoteStore) -> None:
+        store.touch_api_key_last_used("nonexistent")  # No raise.
+
+    def test_get_user_includes_id(self, store: RemoteStore) -> None:
+        store.create_user("alice", "hash")
+        user = store.get_user("alice")
+        assert user is not None
+        assert isinstance(user["id"], int)
+
+
 class TestEndToEnd:
     def test_propose_confirm_flag_lifecycle(self, store: RemoteStore) -> None:
         _insert_and_approve(
