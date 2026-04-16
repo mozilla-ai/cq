@@ -158,6 +158,23 @@ class TestQuery:
         resp = client.get("/query", params={"domains": ["api"], "limit": 0})
         assert resp.status_code == 422
 
+    def test_query_boosts_matching_pattern(self, client: TestClient) -> None:
+        self._insert_unit(
+            client,
+            domains=["api"],
+            context={"languages": [], "frameworks": [], "pattern": "api-client"},
+        )
+        self._insert_unit(
+            client,
+            domains=["api"],
+            context={"languages": [], "frameworks": [], "pattern": "other-pattern"},
+        )
+        resp = client.get("/query", params={"domains": ["api"], "pattern": "api-client"})
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) == 2
+        assert results[0]["context"]["pattern"] == "api-client"
+
 
 class TestConfirm:
     def test_confirm_boosts_confidence(self, client: TestClient) -> None:

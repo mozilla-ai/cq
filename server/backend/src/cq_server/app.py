@@ -93,11 +93,18 @@ def query_units(
     domains: Annotated[list[str], Query()],
     languages: Annotated[list[str] | None, Query()] = None,
     frameworks: Annotated[list[str] | None, Query()] = None,
+    pattern: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(gt=0)] = 5,
 ) -> list[KnowledgeUnit]:
     """Search knowledge units by domain tags with relevance ranking."""
     store = _get_store()
-    return store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
+    return store.query(
+        domains,
+        languages=languages,
+        frameworks=frameworks,
+        pattern=pattern or "",
+        limit=limit,
+    )
 
 
 @api_router.post("/propose", status_code=201)
