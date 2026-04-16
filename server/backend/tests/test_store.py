@@ -197,6 +197,19 @@ class TestQuery:
         assert matched_ids == {fastapi.id, django.id}
         assert results[2].id == flask.id
 
+    def test_pattern_filter_boosts_matching_unit(self, store: RemoteStore) -> None:
+        """KUs whose context.pattern matches the query pattern should rank above those that do not."""
+        matching = _insert_and_approve(
+            store,
+            domains=["api"],
+            context=Context(pattern="api-client"),
+        )
+        plain = _insert_and_approve(store, domains=["api"])
+        results = store.query(["api"], pattern="api-client")
+        assert len(results) == 2
+        assert results[0].id == matching.id
+        assert results[1].id == plain.id
+
     def test_rejects_non_positive_limit(self, store: RemoteStore) -> None:
         with pytest.raises(ValueError, match="limit must be positive"):
             store.query(["databases"], limit=0)

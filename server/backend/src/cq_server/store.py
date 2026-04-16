@@ -260,6 +260,7 @@ class RemoteStore:
         *,
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
+        pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Search for knowledge units by domain tags with relevance ranking.
@@ -270,6 +271,8 @@ class RemoteStore:
                 listed language rank higher but non-matching KUs are still returned.
             frameworks: Optional framework ranking signal. KUs matching any
                 listed framework rank higher but non-matching KUs are still returned.
+            pattern: Optional pattern ranking signal. KUs whose context.pattern
+                matches rank higher but non-matching KUs are still returned.
             limit: Maximum number of results to return. Must be positive.
 
         Returns:
@@ -313,6 +316,7 @@ class RemoteStore:
                 normalized,
                 query_languages=languages,
                 query_frameworks=frameworks,
+                query_pattern=pattern,
             )
             scored.append((relevance * unit.evidence.confidence, unit))
 
