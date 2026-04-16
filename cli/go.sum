@@ -25,8 +25,8 @@ github.com/mark3labs/mcp-go v0.46.0 h1:8KRibF4wcKejbLsHxCA/QBVUr5fQ9nwz/n8lGqmaA
 github.com/mark3labs/mcp-go v0.46.0/go.mod h1:JKTC7R2LLVagkEWK7Kwu7DbmA6iIvnNAod6yrHiQMag=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
-github.com/mozilla-ai/cq/sdk/go v0.2.2 h1:bGDdwxcniwfmkQqP+WyBvHY2W1tFjldaMVsI/bDeD+g=
-github.com/mozilla-ai/cq/sdk/go v0.2.2/go.mod h1:gqXCbhabJXzN+UT8kfmhUcLYrfcaWDP45XgmQf4baN0=
+github.com/mozilla-ai/cq/sdk/go v0.3.0 h1:p465l6jOb0w0uKsQunmNolS/hZ46SRUfVSmzY/NYGzI=
+github.com/mozilla-ai/cq/sdk/go v0.3.0/go.mod h1:gqXCbhabJXzN+UT8kfmhUcLYrfcaWDP45XgmQf4baN0=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
