@@ -35,6 +35,9 @@ func QueryTool() mcp.Tool {
 			mcp.Description("Filter by frameworks."),
 			mcp.WithStringItems(),
 		),
+		mcp.WithString("pattern",
+			mcp.Description("Filter by pattern."),
+		),
 		mcp.WithNumber("limit",
 			mcp.Description("Maximum results to return (default 5, max 50)."),
 		),
@@ -63,6 +66,7 @@ func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		Domains:    domains,
 		Languages:  req.GetStringSlice("languages", nil),
 		Frameworks: req.GetStringSlice("frameworks", nil),
+		Pattern:    req.GetString("pattern", ""),
 		Limit:      limit,
 	}
 

@@ -51,6 +51,31 @@ func TestHandleQuery(t *testing.T) {
 		require.Len(t, units, 1)
 	})
 
+	t.Run("passes pattern through to QueryParams", func(t *testing.T) {
+		t.Parallel()
+
+		var got cq.QueryParams
+		s := New(&mockClient{
+			queryFn: func(_ context.Context, params cq.QueryParams) (cq.QueryResult, error) {
+				got = params
+				return cq.QueryResult{}, nil
+			},
+		}, "test")
+
+		result, err := s.HandleQuery(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "query",
+				Arguments: map[string]any{
+					"domains": []any{"api"},
+					"pattern": "api-client",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.Equal(t, "api-client", got.Pattern)
+	})
+
 	t.Run("errors when domains missing", func(t *testing.T) {
 		t.Parallel()
 
