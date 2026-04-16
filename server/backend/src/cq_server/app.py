@@ -1,5 +1,6 @@
 """cq knowledge store API."""
 
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,15 +16,18 @@ from cq.models import (
     Tier,
     create_knowledge_unit,
 )
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.responses import FileResponse
 
 from .auth import router as auth_router
+from .deps import API_KEY_PEPPER_ENV, is_api_key_auth_disabled, require_api_key
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
 from .store import RemoteStore, normalize_domains
+
+_logger = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -68,9 +72,19 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     jwt_secret = os.environ.get("CQ_JWT_SECRET")
     if not jwt_secret:
         raise RuntimeError("CQ_JWT_SECRET environment variable is required")
+    auth_enabled = not is_api_key_auth_disabled()
+    pepper = os.environ.get(API_KEY_PEPPER_ENV, "")
+    if auth_enabled and not pepper:
+        raise RuntimeError(f"{API_KEY_PEPPER_ENV} environment variable is required when API key auth is enforced")
     db_path = Path(os.environ.get("CQ_DB_PATH", "/data/cq.db"))
     _store = RemoteStore(db_path=db_path)
     app_instance.state.store = _store
+    app_instance.state.api_key_pepper = pepper
+    if auth_enabled and _store.count_api_keys() == 0:
+        _logger.warning(
+            "API key enforcement is enabled but no keys exist. "
+            "Create one via POST /auth/api-keys, or set CQ_DISABLE_API_KEY_AUTH=1 to opt out for this release."
+        )
     yield
     _store.close()
 
@@ -108,8 +122,15 @@ def query_units(
 
 
 @api_router.post("/propose", status_code=201)
-def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
-    """Submit a new knowledge unit."""
+def propose_unit(
+    request: ProposeRequest,
+    username: str = Depends(require_api_key),
+) -> KnowledgeUnit:
+    """Submit a new knowledge unit.
+
+    ``created_by`` is always set to the authenticated caller's username; any
+    value supplied by the client is discarded.
+    """
     store = _get_store()
     normalized = normalize_domains(request.domains)
     if not normalized:
@@ -119,14 +140,14 @@ def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
         insight=request.insight,
         context=request.context,
         tier=Tier.PRIVATE,
-        created_by=request.created_by,
+        created_by=username,
     )
     store.insert(unit)
     return unit
 
 
 @api_router.post("/confirm/{unit_id}")
-def confirm_unit(unit_id: str) -> KnowledgeUnit:
+def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Confirm a knowledge unit, boosting its confidence."""
     store = _get_store()
     unit = store.get(unit_id)
@@ -138,7 +159,7 @@ def confirm_unit(unit_id: str) -> KnowledgeUnit:
 
 
 @api_router.post("/flag/{unit_id}")
-def flag_unit(unit_id: str, request: FlagRequest) -> KnowledgeUnit:
+def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Flag a knowledge unit, reducing its confidence."""
     store = _get_store()
     unit = store.get(unit_id)
