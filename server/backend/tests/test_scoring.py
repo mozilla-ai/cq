@@ -43,3 +43,23 @@ class TestServerPatternBoost:
         upper = calculate_relevance(unit, ["api"], query_pattern="API-Client")
         lower = calculate_relevance(unit, ["api"], query_pattern="api-client")
         assert upper == lower
+
+    def test_empty_stored_pattern_never_matches(self):
+        unit = _make_unit(domains=["api"])
+        score = calculate_relevance(unit, ["api"], query_pattern="any")
+        baseline = calculate_relevance(unit, ["api"])
+        assert score == baseline
+
+    def test_all_signals_match_reaches_one(self):
+        unit = _make_unit(
+            domains=["api"],
+            context=Context(languages=["python"], frameworks=["fastapi"], pattern="api-client"),
+        )
+        score = calculate_relevance(
+            unit,
+            ["api"],
+            query_languages=["python"],
+            query_frameworks=["fastapi"],
+            query_pattern="api-client",
+        )
+        assert abs(score - 1.0) < 1e-9
