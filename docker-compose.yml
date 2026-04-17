@@ -1,20 +1,16 @@
 services:
   cq-server:
     build: ./server
+    environment:
+      CQ_JWT_SECRET: ${CQ_JWT_SECRET:?Set CQ_JWT_SECRET in .env}
+      CQ_API_KEY_PEPPER: ${CQ_API_KEY_PEPPER:?Set CQ_API_KEY_PEPPER in .env}
+      CQ_DB_PATH: ${CQ_DB_PATH:-/data/cq.db}
+      CQ_PORT: ${CQ_PORT:-3000}
     ports:
       - "${CQ_PORT:-3000}:${CQ_PORT:-3000}"
     volumes:
       - cq-data:/data
       - ./server/scripts:/app/scripts:ro
-    env_file:
-      - ./server/.env
-    # Variables below are declared for documentation; values come from env_file.
-    environment:
-      - CQ_JWT_SECRET
-      - CQ_API_KEY_PEPPER
-      - CQ_DISABLE_API_KEY_AUTH
-      - CQ_DB_PATH
-      - CQ_PORT
 
 volumes:
   cq-data:

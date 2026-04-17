@@ -10,15 +10,18 @@ from fastapi.testclient import TestClient
 
 from cq_server.app import app
 from cq_server.auth import create_token, hash_password, verify_password, verify_token
+from cq_server.deps import require_api_key
 
 
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setenv("CQ_JWT_SECRET", "test-secret")
-    monkeypatch.setenv("CQ_DISABLE_API_KEY_AUTH", "1")
+    monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
+    app.dependency_overrides[require_api_key] = lambda: "test-user"
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.pop(require_api_key, None)
 
 
 def _seed_user(client: TestClient, username: str = "peter", password: str = "secret123") -> None:
@@ -113,11 +116,11 @@ class TestAuthMe:
 
 @pytest.fixture()
 def api_key_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """Client fixture with API key enforcement enabled and a pepper configured."""
+    """Client fixture with real API key enforcement (no dep override)."""
     monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setenv("CQ_JWT_SECRET", "test-secret")
     monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
-    monkeypatch.delenv("CQ_DISABLE_API_KEY_AUTH", raising=False)
+    app.dependency_overrides.pop(require_api_key, None)
     with TestClient(app) as c:
         yield c
 

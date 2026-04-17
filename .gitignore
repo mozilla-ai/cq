@@ -25,7 +25,6 @@ node_modules/
 .env
 .env.*
 !.env.example
-!**/.env.example
 
 .mypy_cache/
 .dmypy.json

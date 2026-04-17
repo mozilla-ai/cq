@@ -57,3 +57,7 @@ class TestParseTtlRejections:
     def test_rejects_over_max(self) -> None:
         with pytest.raises(ValueError):
             parse_ttl("366d")
+
+    def test_rejects_absurdly_large_quantity(self) -> None:
+        with pytest.raises(ValueError):
+            parse_ttl("999999999999999999999d")

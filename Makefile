@@ -63,7 +63,7 @@ help:
 	@echo "  make validate-schema        Validate JSON Schema fixtures"
 	@echo ""
 	@echo "Docker Compose:"
-	@echo "  make compose-up                              Build and start services (creates server/.env from example if missing)"
+	@echo "  make compose-up                              Build and start services (creates .env from example if missing)"
 	@echo "  make compose-down                            Stop services"
 	@echo "  make compose-reset                           Stop services and wipe database"
 	@echo "  make seed-users USER=demo PASS=demo123       Create a user"
@@ -170,12 +170,12 @@ else
 endif
 
 .PHONY: compose-up
-compose-up: server/.env
+compose-up: .env
 	docker compose up --build
 
-server/.env:
-	cp server/.env.example server/.env
-	@echo "Created server/.env from server/.env.example — edit secrets before deploying."
+.env:
+	cp .env.example .env
+	@echo "Created .env from .env.example — edit secrets before deploying."
 
 .PHONY: compose-down
 compose-down:

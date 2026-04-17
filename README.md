@@ -256,14 +256,13 @@ Running the server (see `server/`) requires a few environment variables:
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `CQ_JWT_SECRET` | Yes | — | Secret used to sign JWTs issued by `/auth/login`. |
-| `CQ_API_KEY_PEPPER` | Yes (unless opted out) | — | Server-side pepper combined with each API key under HMAC-SHA256; required whenever API key enforcement is enabled. |
-| `CQ_DISABLE_API_KEY_AUTH` | No | `0` | Set to `1` to temporarily opt out of API key enforcement on the data plane. Intended as a one-release migration window and will be removed in a future release. |
+| `CQ_API_KEY_PEPPER` | Yes | — | Server-side pepper combined with each API key under HMAC-SHA256. |
 | `CQ_DB_PATH` | No | `/data/cq.db` | Path to the SQLite database. |
 | `CQ_PORT` | No | `3000` | HTTP listen port. |
 
-API keys are created per user from the web UI: log in, open **API Keys**, pick a label, choose a TTL, and copy the plaintext token when it is shown. The token is displayed exactly once. Set it as `CQ_API_KEY` on each client (plugin, SDK, CLI) that should authenticate against this server.
+API keys are created per user from the web UI: log in, open **API Keys**, give the key a name, choose a TTL, and copy the plaintext token when it is shown. The token is displayed exactly once. Set it as `CQ_API_KEY` on each client (plugin, SDK, CLI) that should authenticate against this server.
 
-The data-plane write routes (`/propose`, `/confirm`, `/flag`) require a valid API key when enforcement is on. Reads (`/query`, `/stats`, `/health`) remain open.
+The data-plane write routes (`/propose`, `/confirm`, `/flag`) require a valid API key. Reads (`/query`, `/stats`, `/health`) remain open.
 
 ### Claude Code
 

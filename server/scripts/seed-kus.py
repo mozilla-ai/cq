@@ -43,7 +43,8 @@ def _request(
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read())
+            raw = resp.read()
+            return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as exc:
         body_text = exc.read().decode(errors="replace")
         raise SystemExit(f"HTTP {exc.code} from {url}: {body_text}") from exc

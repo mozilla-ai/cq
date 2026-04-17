@@ -212,7 +212,6 @@ export function ApiKeysPage() {
               list="ttl-suggestions"
               value={ttl}
               onChange={(e) => setTtl(e.target.value)}
-              pattern="\d+[smhd]"
               maxLength={16}
               aria-invalid={ttl.length > 0 && !ttlIsValid}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none"

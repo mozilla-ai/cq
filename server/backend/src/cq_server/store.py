@@ -509,13 +509,6 @@ class RemoteStore:
             return None
         return {"id": row[0], "username": row[1], "password_hash": row[2], "created_at": row[3]}
 
-    def count_api_keys(self) -> int:
-        """Return the total number of API key rows in the store."""
-        self._check_open()
-        with self._lock:
-            row = self._conn.execute("SELECT COUNT(*) FROM api_keys").fetchone()
-        return int(row[0])
-
     def count_active_api_keys_for_user(self, user_id: int) -> int:
         """Return the number of active API keys for the given user.
 

@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from cq_server.api_keys import hash_token
-from cq_server.deps import ANONYMOUS_USERNAME, require_api_key
+from cq_server.deps import require_api_key
 
 
 class _StubStore:
@@ -129,16 +129,3 @@ class TestRequireApiKeyRejections:
         client = TestClient(_app_with_store(store, pepper=None))
         resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 500
-
-
-class TestOptOutFlag:
-    def test_disable_flag_returns_anonymous(
-        self, monkeypatch: pytest.MonkeyPatch, token_and_store: tuple[str, _StubStore]
-    ) -> None:
-        monkeypatch.setenv("CQ_DISABLE_API_KEY_AUTH", "1")
-        _token, store = token_and_store
-        client = TestClient(_app_with_store(store))
-        resp = client.get("/protected")
-        assert resp.status_code == 200
-        assert resp.json() == {"username": ANONYMOUS_USERNAME}
-        assert store.touched == []
