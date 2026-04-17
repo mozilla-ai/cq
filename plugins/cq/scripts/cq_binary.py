@@ -67,7 +67,7 @@ def download(version: str, system: str, bin_dir: Path, binary: Path) -> None:
         "AMD64": "x86_64",
         "x86_64": "x86_64",
         "arm64": "arm64",
-        "aarch64": "aarch64",
+        "aarch64": "arm64",  # Release assets use "arm64" on Linux, not "aarch64".
     }
     arch = arch_map.get(machine)
     if not arch:
