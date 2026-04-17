@@ -41,3 +41,25 @@ func TestProposeTextFormat(t *testing.T) {
 	require.NoError(t, propose.Execute())
 	require.Contains(t, buf.String(), "Proposed: ku_")
 }
+
+// When a remote is configured but unreachable, propose must still succeed
+// (unit stored locally) and surface a warning on stderr.
+func TestProposeRemoteUnreachableWarns(t *testing.T) {
+	testSetup(t)
+	setFlag(t, &flagAddr, "http://127.0.0.1:1")
+
+	propose := NewProposeCmd()
+	var out, errBuf bytes.Buffer
+	propose.SetOut(&out)
+	propose.SetErr(&errBuf)
+	propose.SetArgs([]string{
+		"--summary", "fallback",
+		"--detail", "d",
+		"--action", "a",
+		"--domain", "test",
+	})
+	require.NoError(t, propose.Execute())
+	require.Contains(t, out.String(), "Proposed: ku_")
+	require.Contains(t, errBuf.String(), "warning:")
+	require.Contains(t, errBuf.String(), "stored locally after remote failure")
+}

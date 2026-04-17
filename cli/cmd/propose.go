@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -48,6 +49,13 @@ func NewProposeCmd() *cobra.Command {
 				Frameworks: frameworks,
 				Pattern:    pattern,
 			})
+			// Remote unreachable/rejected: unit was stored locally. Warn but succeed.
+			var fb *cq.FallbackError
+			if errors.As(err, &fb) {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", err)
+				ku = fb.LocalUnit
+				err = nil
+			}
 			if err != nil {
 				return err
 			}
