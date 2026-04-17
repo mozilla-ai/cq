@@ -185,7 +185,16 @@ func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (Knowledge
 
 	var result KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return KnowledgeUnit{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
+		// Server accepted (2xx) but response isn't a parseable KU.
+		// Return the unit with tier promoted and server-assigned fields
+		// cleared; callers should not trust values that only the server
+		// sets. Returning errUnreachable here would cause drain to
+		// re-send the unit and create a duplicate on the server.
+		ku.Tier = Private
+		ku.CreatedBy = ""
+		ku.Evidence.FirstObserved = nil
+		ku.Evidence.LastConfirmed = nil
+		return ku, nil
 	}
 
 	return result, nil

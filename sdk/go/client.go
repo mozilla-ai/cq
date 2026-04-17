@@ -317,10 +317,11 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	ku.Evidence.LastConfirmed = &now
 
 	if err := c.store.insert(ku); err != nil {
+		insertErr := fmt.Errorf("inserting knowledge unit: %w", err)
 		if remoteErr != nil {
-			return KnowledgeUnit{}, fmt.Errorf("fallback insert after remote failure (%s): %w", remoteErr, err)
+			return KnowledgeUnit{}, fmt.Errorf("fallback insert after remote failure: %w", errors.Join(remoteErr, insertErr))
 		}
-		return KnowledgeUnit{}, fmt.Errorf("inserting knowledge unit: %w", err)
+		return KnowledgeUnit{}, insertErr
 	}
 
 	if remoteErr != nil {
