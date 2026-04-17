@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -112,6 +113,72 @@ func TestHandlePropose(t *testing.T) {
 				require.Equal(t, tc.wantMsg, result.Content[0].(mcp.TextContent).Text)
 			})
 		}
+	})
+
+	t.Run("surfaces fallback warning when remote unreachable", func(t *testing.T) {
+		t.Parallel()
+
+		localUnit := cq.KnowledgeUnit{ID: "ku_0123456789abcdef0123456789abcdef"}
+		s := New(&mockClient{
+			proposeFn: func(_ context.Context, _ cq.ProposeParams) (cq.KnowledgeUnit, error) {
+				return cq.KnowledgeUnit{}, &cq.FallbackError{
+					LocalUnit: localUnit,
+					Err:       errors.New("remote API unreachable: connection refused"),
+				}
+			},
+		}, "test")
+
+		result, err := s.HandlePropose(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "propose",
+				Arguments: map[string]any{
+					"summary": "s",
+					"detail":  "d",
+					"action":  "a",
+					"domains": []any{"api"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		require.Contains(t, text, "warning: stored locally after remote failure")
+		require.Contains(t, text, "remote API unreachable: connection refused")
+		require.Contains(t, text, "ku_0123456789abcdef0123456789abcdef")
+	})
+
+	t.Run("surfaces fallback warning when remote rejects with RemoteError", func(t *testing.T) {
+		t.Parallel()
+
+		localUnit := cq.KnowledgeUnit{ID: "ku_fedcba9876543210fedcba9876543210"}
+		s := New(&mockClient{
+			proposeFn: func(_ context.Context, _ cq.ProposeParams) (cq.KnowledgeUnit, error) {
+				return cq.KnowledgeUnit{}, &cq.FallbackError{
+					LocalUnit: localUnit,
+					Err:       &cq.RemoteError{StatusCode: 401, Detail: "Invalid API key"},
+				}
+			},
+		}, "test")
+
+		result, err := s.HandlePropose(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "propose",
+				Arguments: map[string]any{
+					"summary": "s",
+					"detail":  "d",
+					"action":  "a",
+					"domains": []any{"api"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		require.Contains(t, text, "warning: stored locally after remote failure")
+		require.Contains(t, text, "remote API rejected request (401): Invalid API key")
+		require.Contains(t, text, "ku_fedcba9876543210fedcba9876543210")
 	})
 
 	t.Run("empty domains slice yields distinct message", func(t *testing.T) {

@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -76,6 +77,17 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 	}
 
 	result, err := s.client.Propose(ctx, params)
+	// Remote unreachable/rejected: unit was stored locally. Surface the unit
+	// alongside a warning so the caller can summarise the partial success.
+	var fb *cq.FallbackError
+	if errors.As(err, &fb) {
+		data, mErr := json.Marshal(fb.LocalUnit)
+		if mErr != nil {
+			return nil, fmt.Errorf("encoding result: %w", mErr)
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("warning: %s\n%s", fb, data)), nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("proposing: %w", err)
 	}
