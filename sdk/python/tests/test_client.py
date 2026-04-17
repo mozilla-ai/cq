@@ -7,7 +7,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-from cq.client import Client, RemoteError
+from cq.client import Client, FallbackError, RemoteError
 from cq.models import FlagReason, Tier
 
 
@@ -428,15 +428,17 @@ class TestRemoteIntegration:
         c.close()
 
     def test_propose_falls_back_to_local_when_remote_unreachable(self, tmp_path: Path, httpx_mock):
-        """When remote is unreachable, the unit is stored locally as fallback."""
+        """When remote is unreachable, raise FallbackError with local_unit."""
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
 
         c = Client(addr="http://unreachable", local_db_path=tmp_path / "test.db")
-        c.propose(summary="Local fallback", detail="D", action="A", domains=["api"])
+        with pytest.raises(FallbackError) as exc_info:
+            c.propose(summary="Local fallback", detail="D", action="A", domains=["api"])
 
-        units = c._store.all()
-        assert len(units) == 1
-        assert units[0].insight.summary == "Local fallback"
+        fb = exc_info.value
+        assert fb.local_unit.insight.summary == "Local fallback"
+        assert not isinstance(fb.__cause__, RemoteError)
+        assert len(c._store.all()) == 1
         c.close()
 
     def test_propose_raises_when_remote_rejects(self, tmp_path: Path, httpx_mock):
@@ -448,6 +450,36 @@ class TestRemoteIntegration:
             c.propose(summary="Rejected", detail="D", action="A", domains=["api"])
 
         assert c._store.all() == []
+        c.close()
+
+    def test_fallback_error_message_and_cause(self, tmp_path: Path, httpx_mock):
+        """FallbackError exposes local_unit and chains __cause__ to the underlying error."""
+        httpx_mock.add_response(json={"detail": "Invalid API key"}, status_code=401)
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        with pytest.raises(FallbackError) as exc_info:
+            c.propose(summary="Chain", detail="D", action="A", domains=["api"])
+
+        fb = exc_info.value
+        assert str(fb) == "Stored locally after remote failure"
+        assert isinstance(fb.__cause__, RemoteError)
+        assert fb.__cause__.status_code == 401
+        c.close()
+
+    @pytest.mark.parametrize("status_code", [401, 403])
+    def test_propose_auth_reject_falls_back_to_local(self, tmp_path: Path, httpx_mock, status_code: int):
+        """When remote returns 401 or 403, raise FallbackError with local_unit."""
+        httpx_mock.add_response(json={"detail": "Invalid API key"}, status_code=status_code)
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        with pytest.raises(FallbackError) as exc_info:
+            c.propose(summary="Auth fallback", detail="D", action="A", domains=["api"])
+
+        fb = exc_info.value
+        assert fb.local_unit.insight.summary == "Auth fallback"
+        assert isinstance(fb.__cause__, RemoteError)
+        assert fb.__cause__.status_code == status_code
+        assert len(c._store.all()) == 1
         c.close()
 
     def test_drain_deletes_local_units_after_push(self, tmp_path: Path, httpx_mock):
@@ -485,19 +517,20 @@ class TestRemoteIntegration:
         c.close()
 
     def test_remote_failure_falls_back_to_local(self, tmp_path: Path, httpx_mock):
-        """When remote API is unreachable, local results still returned."""
+        """When remote API is unreachable, propose raises FallbackError; query still works."""
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
 
         c = Client(
             addr="http://unreachable",
             local_db_path=tmp_path / "test.db",
         )
-        c.propose(
-            summary="Local only",
-            detail="D",
-            action="A",
-            domains=["api"],
-        )
+        with pytest.raises(FallbackError):
+            c.propose(
+                summary="Local only",
+                detail="D",
+                action="A",
+                domains=["api"],
+            )
 
         result = c.query(["api"])
         assert result.source == "local"

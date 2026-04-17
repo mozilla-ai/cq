@@ -68,6 +68,21 @@ class RemoteError(Exception):
         super().__init__(f"Remote API rejected request ({status_code}): {detail}")
 
 
+class FallbackError(Exception):
+    """Raised when propose stored a unit locally after a remote failure.
+
+    The unit has been persisted to the local store and will drain to the
+    remote on the next successful connection. The underlying cause is
+    available via ``__cause__`` (set automatically by ``raise ... from``);
+    this is a ``RemoteError`` for auth rejection (401/403) or a transport
+    exception for connectivity issues.
+    """
+
+    def __init__(self, local_unit: "KnowledgeUnit") -> None:
+        self.local_unit = local_unit
+        super().__init__("Stored locally after remote failure")
+
+
 class Client:
     """Client for the cq shared knowledge commons.
 
@@ -190,9 +205,19 @@ class Client:
     ) -> KnowledgeUnit:
         """Propose a new knowledge unit.
 
-        When a remote API is configured, sends to remote only. Falls back
-        to local storage when the remote is unreachable. Raises RemoteError
-        if the remote explicitly rejects the unit.
+        When a remote API is configured and reachable, the unit is sent to
+        the remote only and returned with no exception. The remote is the
+        source of truth for server-assigned fields; in particular, ``tier``
+        is promoted to ``PRIVATE`` and ``created_by`` is overwritten with
+        the authenticated caller. If the remote is unreachable
+        (transport/5xx) or rejects the request with an auth error
+        (401/403), the unit is stored locally with ``tier=LOCAL`` and
+        ``FallbackError`` is raised carrying the local unit and the
+        underlying cause; the unit will drain on the next successful
+        connection. Other 4xx errors (400, 409, 422) raise ``RemoteError``
+        with nothing stored — the data is the problem, not connectivity.
+        With no remote configured, always stores locally with no
+        exception.
         """
         domains = _as_list(domains)
         if languages is not None:
@@ -210,13 +235,32 @@ class Client:
             context=context,
             created_by=created_by,
         )
+        remote_cause: Exception | None = None
+
         if self._http is not None:
-            result = self._remote_propose(unit)
+            try:
+                result = self._remote_propose(unit)
+            except RemoteError as exc:
+                if exc.status_code not in (401, 403):
+                    raise
+                remote_cause = exc
+                result = None
+            if result is None and remote_cause is None:
+                remote_cause = ConnectionError("remote unreachable")
             if result is not None:
                 return result
-            # Remote unreachable — fall back to local storage.
 
-        self._store.insert(unit)
+        try:
+            self._store.insert(unit)
+        except Exception as insert_exc:
+            if remote_cause is not None:
+                raise RuntimeError(
+                    f"fallback insert after remote failure ({remote_cause}): {insert_exc}"
+                ) from insert_exc
+            raise
+
+        if remote_cause is not None:
+            raise FallbackError(local_unit=unit) from remote_cause
         return unit
 
     def confirm(self, unit_id: str, *, tier: Tier = Tier.LOCAL) -> KnowledgeUnit:
