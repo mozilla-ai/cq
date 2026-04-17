@@ -241,7 +241,7 @@ class Client:
             try:
                 result = self._remote_propose(unit)
             except RemoteError as exc:
-                if exc.status_code not in (401, 403):
+                if exc.status_code not in (401, 403) and not (500 <= exc.status_code < 600):
                     raise
                 remote_cause = exc
                 result = None
@@ -254,9 +254,7 @@ class Client:
             self._store.insert(unit)
         except Exception as insert_exc:
             if remote_cause is not None:
-                raise RuntimeError(
-                    f"fallback insert after remote failure ({remote_cause}): {insert_exc}"
-                ) from insert_exc
+                raise RuntimeError(f"fallback insert after remote failure: {insert_exc}") from remote_cause
             raise
 
         if remote_cause is not None:
@@ -463,8 +461,12 @@ class Client:
             unit_data = data.get("knowledge_unit", data) if isinstance(data, dict) else data
             return KnowledgeUnit.model_validate(unit_data)
         except (ValueError, ValidationError):
-            # Server accepted but response is not a parseable KU.
-            return unit
+            # Server accepted (2xx) but response is not a parseable KU.
+            # Return the unit with tier promoted and server-assigned fields
+            # cleared; callers should not trust values that only the server
+            # sets.
+            cleared_evidence = unit.evidence.model_copy(update={"first_observed": None, "last_confirmed": None})
+            return unit.model_copy(update={"tier": Tier.PRIVATE, "created_by": "", "evidence": cleared_evidence})
 
     def _remote_confirm(self, unit_id: str) -> KnowledgeUnit | None:
         """Confirm a unit on the remote API.

@@ -482,6 +482,22 @@ class TestRemoteIntegration:
         assert len(c._store.all()) == 1
         c.close()
 
+    @pytest.mark.parametrize("status_code", [500, 502, 503])
+    def test_propose_server_error_falls_back_to_local(self, tmp_path: Path, httpx_mock, status_code: int):
+        """When remote returns 5xx, raise FallbackError and persist the unit locally."""
+        httpx_mock.add_response(json={"detail": "Upstream failure"}, status_code=status_code)
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        with pytest.raises(FallbackError) as exc_info:
+            c.propose(summary="Server fallback", detail="D", action="A", domains=["api"])
+
+        fb = exc_info.value
+        assert fb.local_unit.insight.summary == "Server fallback"
+        assert isinstance(fb.__cause__, RemoteError)
+        assert fb.__cause__.status_code == status_code
+        assert len(c._store.all()) == 1
+        c.close()
+
     def test_drain_deletes_local_units_after_push(self, tmp_path: Path, httpx_mock):
         """After drain pushes a unit to remote, it is deleted from local store."""
         # First, create a local-only client and propose a unit.
