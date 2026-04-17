@@ -437,7 +437,8 @@ class TestRemoteIntegration:
 
         fb = exc_info.value
         assert fb.local_unit.insight.summary == "Local fallback"
-        assert not isinstance(fb.__cause__, RemoteError)
+        assert isinstance(fb.__cause__, httpx.ConnectError)
+        assert "Connection refused" in str(fb.__cause__)
         assert len(c._store.all()) == 1
         c.close()
 

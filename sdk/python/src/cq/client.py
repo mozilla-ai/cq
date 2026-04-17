@@ -236,6 +236,7 @@ class Client:
             created_by=created_by,
         )
         remote_cause: Exception | None = None
+        result: KnowledgeUnit | None = None
 
         if self._http is not None:
             try:
@@ -244,9 +245,8 @@ class Client:
                 if exc.status_code not in (401, 403) and not (500 <= exc.status_code < 600):
                     raise
                 remote_cause = exc
-                result = None
-            if result is None and remote_cause is None:
-                remote_cause = ConnectionError("remote unreachable")
+            except httpx.HTTPError as exc:
+                remote_cause = exc
             if result is not None:
                 return result
 
@@ -375,13 +375,12 @@ class Client:
         for unit in units:
             if unit.tier == Tier.LOCAL:
                 try:
-                    result = self._remote_propose(unit)
-                    if result is not None:
-                        self._store.delete(unit.id)
-                        pushed += 1
-                    else:
-                        warnings.append(f"Failed to drain unit {unit.id}: remote unreachable")
+                    self._remote_propose(unit)
+                    self._store.delete(unit.id)
+                    pushed += 1
                 except RemoteError as exc:
+                    warnings.append(f"Failed to drain unit {unit.id}: {exc}")
+                except httpx.HTTPError as exc:
                     warnings.append(f"Failed to drain unit {unit.id}: {exc}")
         return DrainResult(pushed=pushed, warnings=warnings)
 
@@ -429,15 +428,16 @@ class Client:
         resp.raise_for_status()
         return [KnowledgeUnit.model_validate(item) for item in resp.json()]
 
-    def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit | None:
+    def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit:
         """Push a unit to the remote API.
 
         Returns:
-            The server-created KnowledgeUnit on success, None on transport error.
+            The server-created KnowledgeUnit on success.
 
         Raises:
-            RemoteError: If the remote API explicitly rejects the request
-                or returns an unparseable response.
+            RemoteError: If the remote API explicitly rejects the request.
+            httpx.HTTPError: For transport-layer failures (connect, timeout,
+                read, network errors). Callers decide how to classify.
         """
         assert self._http is not None
         body = {
@@ -454,8 +454,6 @@ class Client:
                 status_code=exc.response.status_code,
                 detail=exc.response.text,
             ) from exc
-        except httpx.HTTPError:
-            return None
         try:
             data = resp.json()
             unit_data = data.get("knowledge_unit", data) if isinstance(data, dict) else data
