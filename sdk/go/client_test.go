@@ -236,12 +236,6 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, 1, stats.TotalCount)
 }
 
-func TestPromptMethod(t *testing.T) {
-
-	c := newTestClient(t)
-	require.NotEmpty(t, c.Prompt())
-}
-
 func TestLifecycle(t *testing.T) {
 
 	c := newTestClient(t)

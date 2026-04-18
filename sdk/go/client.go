@@ -246,12 +246,6 @@ func (c *Client) Flag(ctx context.Context, ku KnowledgeUnit, reason FlagReason, 
 	return result, nil
 }
 
-// Prompt returns the canonical cq agent protocol prompt.
-// This is a convenience method that delegates to the package-level Prompt function.
-func (c *Client) Prompt() string {
-	return Prompt()
-}
-
 // Propose creates a new knowledge unit.
 // When a remote API is configured and reachable, the unit is sent to the
 // remote only and returned with no error. The remote is the source of
