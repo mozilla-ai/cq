@@ -11,7 +11,7 @@ Retrospectively mine this session for shareable knowledge units and submit appro
 
 ### Step 1 — Summarize the session context
 
-Before calling any tool, construct a compact session summary covering:
+Construct a compact session summary covering:
 
 - External APIs, libraries, or frameworks used.
 - Errors encountered and how each was resolved.
@@ -23,21 +23,9 @@ Before calling any tool, construct a compact session summary covering:
 
 The summary should be dense prose — enough for a reader with no prior context to reconstruct the session's technical events. Omit routine file edits, standard library calls, and anything already well-documented.
 
-### Step 2 — Call `reflect`
+### Step 2 — Identify candidate knowledge units
 
-Call the `reflect` MCP tool, passing the session summary as `session_context`.
-
-```
-reflect(session_context="<your session summary>")
-```
-
-The tool may return a `candidates` list or may return an empty list with `status: "stub"`. In both cases, proceed to Step 3.
-
-If the tool call fails (MCP server unavailable, timeout, or any error), note this briefly to the user and continue to Step 3 using local reasoning only — the reflect flow does not require the tool to succeed.
-
-### Step 3 — Identify candidate knowledge units
-
-Using your own reasoning, scan the session for insights worth sharing. Use any candidates returned by `reflect` as a starting point; if none were returned, identify candidates independently.
+Reflection is agent-led — there is no MCP tool for this step. Using your own reasoning, scan the session for insights worth sharing.
 
 A candidate is worth sharing if it meets **all** of these criteria:
 
@@ -66,16 +54,16 @@ For each candidate, assign:
 - **summary** — one concise sentence describing what was discovered.
 - **detail** — two to four sentences explaining the context and why this behavior exists or matters.
 - **action** — a concrete instruction on what to do (start with an imperative verb).
-- **domain** — two to five lowercase domain tags (e.g. `["api", "stripe", "rate-limiting"]`).
+- **domains** — two to five lowercase domain tags (e.g. `["api", "stripe", "rate-limiting"]`).
 - **estimated_relevance** — a float between 0.0 and 1.0:
   - 0.8–1.0: broadly applicable across many languages, frameworks, or teams.
   - 0.5–0.8: applicable to a specific ecosystem or toolchain.
   - 0.2–0.5: applicable only under narrow conditions.
-- Optionally: **language**, **framework**, **pattern** if relevant.
+- Optionally: **languages**, **frameworks**, **pattern** if relevant.
 
-If the session contained no events meeting the above criteria, skip Steps 4–6 and follow the "no candidates" instruction in Step 7.
+If the session contained no events meeting the above criteria, skip Steps 3–5 and follow the "no candidates" instruction in Step 6.
 
-### Step 4 — Present candidates to the user
+### Step 3 — Present candidates to the user
 
 Open with:
 
@@ -87,7 +75,7 @@ Present each candidate as a numbered entry:
 
 ```
 {N}. {summary}
-   Domain: {domain tags}
+   Domains: {domain tags}
    Relevance: {estimated_relevance}
    ---
    {detail}
@@ -101,11 +89,11 @@ Reply with a number to approve, "skip {N}" to discard, or "edit {N}" to revise.
 You can also reply "all" to approve everything, or "none" to discard everything.
 ```
 
-### Step 5 — Handle edits
+### Step 4 — Handle edits
 
 If the user requests an edit, show the current field values and ask which field to change. Apply the changes and confirm the updated candidate before proposing.
 
-### Step 6 — Propose approved candidates
+### Step 5 — Propose approved candidates
 
 For each approved candidate, call `propose`:
 
@@ -114,12 +102,14 @@ propose(
   summary=<summary>,
   detail=<detail>,
   action=<action>,
-  domain=<domain list>,
-  language=<language or omit>,
-  framework=<framework or omit>,
+  domains=<domain list>,
+  languages=<language list or omit>,
+  frameworks=<framework list or omit>,
   pattern=<pattern or omit>
 )
 ```
+
+`domains`, `languages`, and `frameworks` are arrays of strings. `pattern` is a single string. Omit optional arguments entirely when not relevant.
 
 Confirm each inline after the call:
 
@@ -127,7 +117,7 @@ Confirm each inline after the call:
 Stored: {id} — "{summary}"
 ```
 
-### Step 7 — Final summary
+### Step 6 — Final summary
 
 ```
 ## Session Reflect Complete
@@ -148,7 +138,6 @@ No shareable learnings identified in this session. Sessions with debugging, work
 
 ## Edge Cases
 
-- **Empty session** — If the session contained only routine tasks, say so and stop after Step 3.
+- **Empty session** — If the session contained only routine tasks, say so and stop after Step 2.
 - **All candidates skipped** — Display the summary with 0 proposed.
 - **`propose` error** — Report the error inline for that candidate and continue with the next one. Do not abort.
-- **`reflect` returns candidates** — Present them alongside any additional candidates you identified. Deduplicate by summary similarity before presenting.
