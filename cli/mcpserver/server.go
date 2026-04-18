@@ -15,7 +15,6 @@ type Client interface {
 	Drain(ctx context.Context) (cq.DrainResult, error)
 	Flag(ctx context.Context, ku cq.KnowledgeUnit, reason cq.FlagReason, opts ...cq.FlagOption) (cq.KnowledgeUnit, error)
 	HasRemote() bool
-	Prompt() string
 	Propose(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
 	Query(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
 	Status(ctx context.Context) (cq.StoreStats, error)

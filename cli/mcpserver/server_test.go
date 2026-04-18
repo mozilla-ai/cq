@@ -13,8 +13,7 @@ type mockClient struct {
 	confirmFn   func(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
 	drainFn     func(ctx context.Context) (cq.DrainResult, error)
 	flagFn      func(ctx context.Context, ku cq.KnowledgeUnit, reason cq.FlagReason, opts ...cq.FlagOption) (cq.KnowledgeUnit, error)
-	hasRemote bool
-	promptFn    func() string
+	hasRemote   bool
 	proposeFn   func(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
 	queryFn     func(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
 	statusFn    func(ctx context.Context) (cq.StoreStats, error)
@@ -51,14 +50,6 @@ func (m *mockClient) Flag(
 
 func (m *mockClient) HasRemote() bool {
 	return m.hasRemote
-}
-
-func (m *mockClient) Prompt() string {
-	if m.promptFn == nil {
-		return ""
-	}
-
-	return m.promptFn()
 }
 
 func (m *mockClient) Propose(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error) {
