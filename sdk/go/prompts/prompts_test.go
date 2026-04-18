@@ -7,8 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// normalize collapses CRLF to LF so frontmatter assertions are not sensitive
+// to Windows checkouts where `core.autocrlf` rewrites the embedded Markdown.
+func normalize(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
 func TestSkillContainsSkillFrontmatter(t *testing.T) {
-	body := Skill()
+	body := normalize(Skill())
 	require.NotEmpty(t, body)
 	require.True(t, strings.HasPrefix(body, "---\n"), "skill prompt must start with frontmatter")
 	require.Contains(t, body, "name: cq")
@@ -16,7 +22,7 @@ func TestSkillContainsSkillFrontmatter(t *testing.T) {
 }
 
 func TestReflectContainsReflectFrontmatter(t *testing.T) {
-	body := Reflect()
+	body := normalize(Reflect())
 	require.NotEmpty(t, body)
 	require.True(t, strings.HasPrefix(body, "---\n"), "reflect prompt must start with frontmatter")
 	require.Contains(t, body, "name: cq:reflect")

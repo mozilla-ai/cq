@@ -7,12 +7,19 @@ changes in the authoring sources.
 from cq.prompts import reflect, skill
 
 
+def _normalize(body: str) -> str:
+    """Collapse CRLF to LF so frontmatter assertions are not sensitive to
+    Windows checkouts where ``core.autocrlf`` rewrites package-data Markdown.
+    """
+    return body.replace("\r\n", "\n")
+
+
 def test_skill_not_empty():
     assert len(skill()) > 0
 
 
 def test_skill_has_frontmatter():
-    p = skill()
+    p = _normalize(skill())
     assert p.startswith("---\n")
     parts = p.split("---\n", 2)
     assert len(parts) == 3
@@ -80,7 +87,7 @@ def test_reflect_not_empty():
 
 
 def test_reflect_has_frontmatter():
-    p = reflect()
+    p = _normalize(reflect())
     assert p.startswith("---\n")
     parts = p.split("---\n", 2)
     assert len(parts) == 3
