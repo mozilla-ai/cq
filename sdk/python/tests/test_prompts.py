@@ -1,18 +1,18 @@
-"""Tests for the protocol module.
+"""Tests for the prompts module.
 
-Validates the structure of the cq skill prompt to catch upstream changes.
-Ported from cq-go/internal/protocol/protocol_test.go.
+Validates the structure of the canonical cq agent prompts to catch upstream
+changes in the authoring sources.
 """
 
-from cq.protocol import prompt
+from cq.prompts import reflect, skill
 
 
-def test_prompt_not_empty():
-    assert len(prompt()) > 0
+def test_skill_not_empty():
+    assert len(skill()) > 0
 
 
-def test_prompt_has_frontmatter():
-    p = prompt()
+def test_skill_has_frontmatter():
+    p = skill()
     assert p.startswith("---\n")
     parts = p.split("---\n", 2)
     assert len(parts) == 3
@@ -20,8 +20,8 @@ def test_prompt_has_frontmatter():
     assert "description:" in parts[1]
 
 
-def test_prompt_contains_core_protocol():
-    p = prompt()
+def test_skill_contains_core_protocol():
+    p = skill()
     assert "## Core Protocol" in p
     assert "Before acting" in p
     assert "Apply guidance" in p
@@ -29,8 +29,8 @@ def test_prompt_contains_core_protocol():
     assert "before completing the task" in p
 
 
-def test_prompt_contains_tool_sections():
-    p = prompt()
+def test_skill_contains_tool_sections():
+    p = skill()
     sections = [
         "### Querying Knowledge (`query`)",
         "### Proposing Knowledge (`propose`)",
@@ -44,8 +44,8 @@ def test_prompt_contains_tool_sections():
         assert section in p, f"missing section: {section}"
 
 
-def test_prompt_contains_query_guidance():
-    p = prompt()
+def test_skill_contains_query_guidance():
+    p = skill()
     assert "#### When Not to Query" in p
     assert "#### Formulating Domain Tags" in p
     assert "#### Interpreting Results" in p
@@ -54,22 +54,49 @@ def test_prompt_contains_query_guidance():
     assert "Confidence < 0.5" in p
 
 
-def test_prompt_contains_proposal_guidance():
-    p = prompt()
+def test_skill_contains_proposal_guidance():
+    p = skill()
     assert "#### Writing Good Proposals" in p
     assert "#### Longevity Check" in p
     assert "#### Proposal Fields" in p
 
 
-def test_prompt_contains_flag_reasons():
-    p = prompt()
+def test_skill_contains_flag_reasons():
+    p = skill()
     assert "stale" in p
     assert "incorrect" in p
     assert "duplicate" in p
 
 
-def test_prompt_contains_examples():
-    p = prompt()
+def test_skill_contains_examples():
+    p = skill()
     assert "#### Example 1" in p
     assert "#### Example 2" in p
     assert "#### Example 3" in p
+
+
+def test_reflect_not_empty():
+    assert len(reflect()) > 0
+
+
+def test_reflect_has_frontmatter():
+    p = reflect()
+    assert p.startswith("---\n")
+    parts = p.split("---\n", 2)
+    assert len(parts) == 3
+    assert "name: cq:reflect" in parts[1]
+    assert "description:" in parts[1]
+
+
+def test_reflect_contains_workflow_steps():
+    p = reflect()
+    sections = [
+        "### Step 1",
+        "### Step 2",
+        "### Step 3",
+        "### Step 4",
+        "### Step 5",
+        "### Step 6",
+    ]
+    for section in sections:
+        assert section in p, f"missing section: {section}"

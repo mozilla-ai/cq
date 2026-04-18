@@ -350,13 +350,6 @@ class Client:
 
         return stats
 
-    @staticmethod
-    def prompt() -> str:
-        """Return the canonical cq agent protocol prompt."""
-        from .protocol import prompt as _prompt
-
-        return _prompt()
-
     def drain(self) -> DrainResult:
         """Push all local-only units to the remote API.
 
