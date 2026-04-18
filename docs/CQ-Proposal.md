@@ -189,8 +189,8 @@ cq-plugin/
 ├── hooks/
 │   └── hooks.json            # Post-error hook: auto-query commons on failure
 ├── commands/
-│   ├── cq-status.md       # /cq:status — show local store stats
-│   └── cq-reflect.md      # /cq:reflect — mine session for shareable learnings
+│   ├── status.md          # /cq:status — show local store stats
+│   └── reflect.md         # /cq:reflect — mine session for shareable learnings
 ├── .mcp.json                 # cq MCP server configuration
 └── README.md
 ```

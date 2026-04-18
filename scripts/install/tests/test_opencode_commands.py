@@ -6,16 +6,16 @@ from cq_install.opencode_commands import transform_command
 
 
 def test_transform_strips_name_and_adds_agent():
-    src = "---\nname: cq-status\ndescription: show status\n---\nbody\n"
+    src = "---\nname: cq:status\ndescription: show status\n---\nbody\n"
     result = transform_command(src)
-    assert "name: cq-status" not in result
+    assert "name: cq:status" not in result
     assert "agent: build" in result
     assert "description: show status" in result
     assert result.endswith("body\n")
 
 
 def test_transform_preserves_body_with_dashes():
-    src = "---\nname: cq-status\n---\n## Heading\n\n- bullet\n---\ntrailing\n"
+    src = "---\nname: cq:status\n---\n## Heading\n\n- bullet\n---\ntrailing\n"
     result = transform_command(src)
     assert "## Heading" in result
     assert "- bullet" in result

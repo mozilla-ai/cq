@@ -36,7 +36,7 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (plugin_root / "skills" / "cq").mkdir(parents=True)
     (plugin_root / "skills" / "cq" / "SKILL.md").write_text("# cq\n")
     (plugin_root / "commands").mkdir()
-    (plugin_root / "commands" / "cq-status.md").write_text("---\nname: cq-status\n---\nbody\n")
+    (plugin_root / "commands" / "status.md").write_text("---\nname: cq:status\n---\nbody\n")
     monkeypatch.setenv("CQ_INSTALL_PLUGIN_ROOT", str(plugin_root))
     return plugin_root
 

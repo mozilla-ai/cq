@@ -50,6 +50,6 @@ def plugin_root(tmp_path: Path) -> Path:
     (root / "skills" / "cq").mkdir(parents=True)
     (root / "skills" / "cq" / "SKILL.md").write_text("# cq skill\n")
     (root / "commands").mkdir()
-    (root / "commands" / "cq-status.md").write_text("---\nname: cq-status\n---\nbody\n")
-    (root / "commands" / "cq-reflect.md").write_text("---\nname: cq-reflect\n---\nbody\n")
+    (root / "commands" / "status.md").write_text("---\nname: cq:status\n---\nbody\n")
+    (root / "commands" / "reflect.md").write_text("---\nname: cq:reflect\n---\nbody\n")
     return root
