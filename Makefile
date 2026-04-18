@@ -56,10 +56,10 @@ help:
 	@echo "    - make test-server          Server"
 	@echo "      - make test-server-backend  Backend"
 	@echo "      - make test-server-frontend Frontend"
-	@echo "  make sync-skill             Copy SKILL.md from plugin source to all SDKs"
-	@echo "  make check-skill-sync       Verify all SKILL.md copies match plugin source"
-	@echo "    - make check-skill-sync-sdk-go      Go SDK"
-	@echo "    - make check-skill-sync-sdk-python   Python SDK"
+	@echo "  make sync-prompts           Copy canonical prompts from plugin source to all SDKs"
+	@echo "  make check-prompts-sync     Verify all prompt copies match plugin source"
+	@echo "    - make check-prompts-sync-sdk-go      Go SDK"
+	@echo "    - make check-prompts-sync-sdk-python   Python SDK"
 	@echo "  make validate-schema        Validate JSON Schema fixtures"
 	@echo ""
 	@echo "Docker Compose:"
@@ -85,7 +85,7 @@ setup-plugin:
 
 .PHONY: setup-sdk-go
 setup-sdk-go:
-	cd sdk/go && $(MAKE) sync-skill
+	cd sdk/go && $(MAKE) sync-prompts
 
 .PHONY: setup-sdk-python
 setup-sdk-python:
@@ -245,11 +245,11 @@ lint-plugin:
 	cd plugins/cq && uv run --locked pre-commit run --files scripts/*.py pyproject.toml uv.lock
 
 .PHONY: lint-sdk-go
-lint-sdk-go: check-skill-sync-sdk-go
+lint-sdk-go: check-prompts-sync-sdk-go
 	cd sdk/go && $(MAKE) lint
 
 .PHONY: lint-sdk-python
-lint-sdk-python: check-skill-sync-sdk-python
+lint-sdk-python: check-prompts-sync-sdk-python
 	cd sdk/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
 
 .PHONY: lint-server-backend
@@ -263,24 +263,24 @@ lint-server-frontend:
 .PHONY: lint-server
 lint-server: lint-server-backend lint-server-frontend
 
-.PHONY: sync-skill
-sync-skill:
-	cd sdk/go && $(MAKE) sync-skill
-	cd sdk/python && $(MAKE) sync-skill
+.PHONY: sync-prompts
+sync-prompts:
+	cd sdk/go && $(MAKE) sync-prompts
+	cd sdk/python && $(MAKE) sync-prompts
 
-.PHONY: check-skill-sync-sdk-go
-check-skill-sync-sdk-go:
-	cd sdk/go && $(MAKE) check-skill-sync
+.PHONY: check-prompts-sync-sdk-go
+check-prompts-sync-sdk-go:
+	cd sdk/go && $(MAKE) check-prompts-sync
 
-.PHONY: check-skill-sync-sdk-python
-check-skill-sync-sdk-python:
-	cd sdk/python && $(MAKE) check-skill-sync
+.PHONY: check-prompts-sync-sdk-python
+check-prompts-sync-sdk-python:
+	cd sdk/python && $(MAKE) check-prompts-sync
 
-.PHONY: check-skill-sync
-check-skill-sync: check-skill-sync-sdk-go check-skill-sync-sdk-python
+.PHONY: check-prompts-sync
+check-prompts-sync: check-prompts-sync-sdk-go check-prompts-sync-sdk-python
 
 .PHONY: lint
-lint: check-skill-sync lint-cli lint-install lint-plugin lint-sdk-go lint-sdk-python lint-server
+lint: check-prompts-sync lint-cli lint-install lint-plugin lint-sdk-go lint-sdk-python lint-server
 
 .PHONY: test-cli
 test-cli:
