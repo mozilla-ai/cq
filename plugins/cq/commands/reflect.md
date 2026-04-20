@@ -74,7 +74,7 @@ If the session contained no events meeting the above criteria, skip Steps 3–5 
 
 ### Step 2.5 — Run the VIBE√ check on each candidate
 
-Before presenting candidates to the user, evaluate every candidate from Step 2 against the four VIBE√ criteria. Classify each finding into one of two tiers. Candidates are never dropped automatically — `/cq:reflect` writes to the user's local cq tier, and the user owns the decision about what is acceptable to store there.
+Before presenting candidates to the user, evaluate every candidate from Step 2 against the four VIBE√ criteria. Classify each finding into one of two tiers. Candidates are never dropped automatically — `/cq:reflect` proposes each approved candidate via `propose`, which routes to the configured remote cq server when `CQ_ADDR` is set (falling back to local on auth reject or unreachable) and to the local store otherwise. The user owns the decision about what is acceptable to submit.
 
 **Hard findings** — the candidate is presented in Step 3 with both the original and a sanitized rewrite, so the user can choose which (if either) to store:
 
