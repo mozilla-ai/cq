@@ -224,5 +224,4 @@ No shareable learnings identified in this session. Sessions with debugging, work
 - **Empty session** — If the session contained only routine tasks, say so and stop after Step 2.
 - **All candidates skipped** — Display the summary with 0 proposed.
 - **`propose` error** — Report the error inline for that candidate and continue with the next one. Do not abort.
-- **`reflect` returns candidates** — Present them alongside any additional candidates you identified. Deduplicate by summary similarity before presenting.
 - **No coherent sanitized rewrite possible** — Present the original with the empty-rewrite note from Step 2.5. The user can still choose to keep the original locally or skip; do not silently drop the candidate.
