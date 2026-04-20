@@ -13,14 +13,13 @@ cq is a shared knowledge commons for AI agents. Use the cq MCP tools to query ex
 
 These tools communicate with a local MCP server that maintains a SQLite knowledge store on your machine and optionally syncs with a shared remote store.
 
-| Tool | When | Purpose |
-|------|------|---------|
-| `query` | Before acting | Search for relevant knowledge |
-| `propose` | After discovering | Submit new knowledge |
-| `confirm` | After verifying | Strengthen a knowledge unit |
-| `flag` | When wrong/stale | Weaken or mark a knowledge unit |
-| `reflect` | End of session | Mine session for shareable insights |
-| `status` | On demand | Show store statistics |
+| Tool      | When              | Purpose                             |
+|-----------|-------------------|-------------------------------------|
+| `query`   | Before acting     | Search for relevant knowledge       |
+| `propose` | After discovering | Submit new knowledge                |
+| `confirm` | After verifying   | Strengthen a knowledge unit         |
+| `flag`    | When wrong/stale  | Weaken or mark a knowledge unit     |
+| `status`  | On demand         | Show store statistics               |
 
 ## Core Protocol
 
