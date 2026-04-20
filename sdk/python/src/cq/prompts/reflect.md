@@ -63,15 +63,26 @@ For each candidate, assign:
 
 If the session contained no events meeting the above criteria, skip Steps 3–5 and follow the "no candidates" instruction in Step 6.
 
+### Step 2.5 — Run the VIBE√ safety check on each candidate
+
+Apply the VIBE√ safety check as defined in the cq skill against every candidate from Step 2. Classify each finding as clean, soft-concern, or hard-finding; for hard findings, generate the sanitized rewrite. Record the classification per candidate — Steps 3 and 6 use these results for presentation and the final summary.
+
+`/cq:reflect` never drops candidates automatically; the user owns the final decision about what to submit.
+
 ### Step 3 — Present candidates to the user
 
 Open with:
 
 ```
-I identified {N} potential learning candidates from this session worth sharing with the commons.
+I identified {N_total} potential learning candidates from this session.
+{N_hard} have hard concerns and are shown with both the original and a sanitized rewrite — pick which (if either) to store.
+{N_soft} have soft concerns flagged with ⚠️ for your awareness.
+{N_clean} passed the VIBE√ check cleanly.
 ```
 
-Present each candidate as a numbered entry:
+Present each candidate as a numbered entry. Use one of three templates depending on what Step 2.5 produced.
+
+**Clean candidate:**
 
 ```
 {N}. {summary}
@@ -82,11 +93,42 @@ Present each candidate as a numbered entry:
    Action: {action}
 ```
 
+**Soft-concern candidate** (add the `⚠️` line above the divider):
+
+```
+{N}. {summary}
+   Domains: {domain tags}
+   Relevance: {estimated_relevance}
+   ⚠️ {one-line concern}
+   ---
+   {detail}
+   Action: {action}
+```
+
+**Hard-finding candidate** (show both versions side by side, with the concern annotated):
+
+```
+{N}. {summary}
+   Domains: {domain tags}
+   Relevance: {estimated_relevance}
+   ⚠️ Hard concern: {one-line concern}
+   ---
+   Original:
+     {original detail}
+     Action: {original action}
+   Sanitized:
+     {rewritten detail}
+     Action: {rewritten action}
+```
+
+If the sanitized rewrite is not coherent (per the Step 2.5 fallback), substitute the Sanitized block with: `Sanitized: (no sanitized version possible — original would not generalize once stripped)`.
+
 After listing all candidates, ask:
 
 ```
 Reply with a number to approve, "skip {N}" to discard, or "edit {N}" to revise.
-You can also reply "all" to approve everything, or "none" to discard everything.
+For candidates with both an Original and a Sanitized version shown, use "{N} original" or "{N} sanitized" to choose which to store.
+You can also reply "all" to approve everything (sanitized version where applicable), or "none" to discard everything.
 ```
 
 ### Step 4 — Handle edits
@@ -123,12 +165,23 @@ Stored: {id} — "{summary}"
 ## Session Reflect Complete
 
 {approved} of {total} candidates proposed to cq.
-{skipped} skipped.
+{skipped} skipped by user.
+
+VIBE√ findings this session:
+- Hard concerns (candidates {numbers}): {one-line concern per candidate}
+- Soft concerns (candidates {numbers}): {one-line concern per candidate}
 
 IDs stored this session:
-- {id}: "{summary}"
+- {id}: "{summary}" [{clean | soft | sanitized | original}]
 - ...
 ```
+
+The bracketed annotation on each stored ID records the VIBE√ provenance of what was stored:
+
+- `clean` — no VIBE√ findings; stored as identified.
+- `soft` — soft concern present; stored as-is after the user weighed the flag.
+- `sanitized` — hard finding; the user picked the sanitized rewrite.
+- `original` — hard finding; the user explicitly picked the unmodified version.
 
 If no candidates were identified, display:
 
@@ -141,3 +194,4 @@ No shareable learnings identified in this session. Sessions with debugging, work
 - **Empty session** — If the session contained only routine tasks, say so and stop after Step 2.
 - **All candidates skipped** — Display the summary with 0 proposed.
 - **`propose` error** — Report the error inline for that candidate and continue with the next one. Do not abort.
+- **No coherent sanitized rewrite possible** — Present the original with the empty-rewrite note from Step 2.5. The user can still choose to keep the original locally or skip; do not silently drop the candidate.

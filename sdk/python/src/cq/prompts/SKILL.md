@@ -136,6 +136,39 @@ Provide all three insight fields:
 - **detail** — Fuller explanation with enough context to understand the issue. Include a timestamp and source where possible.
 - **action** — Concrete instruction on what to do about it. Prefer principle + verification method over exact values.
 
+#### VIBE√ safety check
+
+Before calling `propose`, evaluate every candidate against four safety dimensions. This applies to all propose calls — those triggered by `/cq:reflect` and direct proposes made while working on a task.
+
+- **V — Vulnerabilities**: Does the candidate contain or reveal credentials, API keys, tokens, internal hostnames, IP addresses, file paths that disclose user identity, or any other secret? Does the action it recommends introduce a security risk if applied blindly (e.g. disabling auth checks, weakening TLS, executing untrusted input)?
+- **I — Impact**: If another agent applied this candidate verbatim in an unrelated codebase, what is the worst plausible outcome? Could it cause data loss, production incidents, or cascading failures?
+- **B — Biases**: Is the framing tied to a specific person, team, vendor, or commercial product in a way that isn't load-bearing for the lesson? Does it present one tool/approach as universally correct when the evidence supports only a narrow context?
+- **E — Edge cases**: Was the lesson learned from a single observation, or has it been validated across multiple cases? Are there obvious conditions (OS, version, scale, concurrency) under which it would not hold and that the candidate fails to acknowledge?
+
+Classify each finding into one of two tiers. Candidates are never dropped automatically — the user owns the final decision.
+
+**Hard findings** — produce a sanitized rewrite before calling `propose`:
+
+- Literal credentials, API keys, access tokens, private keys, or session cookies.
+- Personally identifying information: real names, email addresses, phone numbers, government IDs, physical addresses.
+- Internal-only identifiers that uniquely fingerprint a private system: non-public hostnames, internal service names, customer IDs, ticket numbers from private trackers.
+- Recommendations whose primary effect is to weaken security (disable auth, skip signature verification, suppress sandboxing) without a clearly scoped, defensive justification.
+
+Generate a single sanitized rewrite that removes or generalizes the violating content while preserving the underlying lesson. If no coherent lesson survives sanitization, flag the candidate as having no coherent rewrite — the user can still choose to keep the original or skip.
+
+**Soft concerns** — proceed with the candidate, flag the concern to the user before calling `propose`:
+
+- Framing that overgeneralizes from a single observation.
+- Vendor- or product-specific advice presented as universal.
+- Missing acknowledgement of an edge case the session itself surfaced.
+- Wording that could read as biased toward a specific team, person, or commercial product.
+- Impact that the agent cannot fully predict (e.g. action mutates shared state).
+
+#### Applying VIBE√
+
+- **Direct `propose` calls** (outside `/cq:reflect`) — run the check on the single candidate. If a hard finding exists, present both the original and the sanitized rewrite to the user and let them pick (or skip). If only a soft concern exists, present the concern for awareness before proceeding.
+- **Batch proposals via `/cq:reflect`** — see the `/cq:reflect` command for the batch presentation UX (three templates, provenance annotation). The underlying V/I/B/E classification rules are the same.
+
 ### Confirming Knowledge (`confirm`)
 
 Call `confirm` when a knowledge unit retrieved from a query proved correct during your session. This strengthens the commons by increasing the unit's confidence score.
