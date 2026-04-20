@@ -61,43 +61,13 @@ For each candidate, assign:
   - 0.2–0.5: applicable only under narrow conditions.
 - Optionally: **languages**, **frameworks**, **pattern** if relevant.
 
-#### VIBE√ safety criteria
-
-Each candidate must also be evaluated against four safety dimensions before it can be presented:
-
-- **V — Vulnerabilities**: Does the candidate contain or reveal credentials, API keys, tokens, internal hostnames, IP addresses, file paths that disclose user identity, or any other secret that should not leave this machine? Does the action it recommends introduce a security risk if applied blindly (e.g. disabling auth checks, weakening TLS, executing untrusted input)?
-- **I — Impact**: If another agent applied this candidate verbatim in an unrelated codebase, what is the worst plausible outcome? Could it cause data loss, production incidents, or cascading failures?
-- **B — Biases**: Is the framing tied to a specific person, team, vendor, or commercial product in a way that isn't load-bearing for the lesson? Does it present one tool/approach as universally correct when the evidence supports only a narrow context?
-- **E — Edge cases**: Was the lesson learned from a single observation, or has it been validated across multiple cases? Are there obvious conditions (OS, version, scale, concurrency) under which it would not hold and that the candidate fails to acknowledge?
-
 If the session contained no events meeting the above criteria, skip Steps 3–5 and follow the "no candidates" instruction in Step 6.
 
-### Step 2.5 — Run the VIBE√ check on each candidate
+### Step 2.5 — Run the VIBE√ safety check on each candidate
 
-Before presenting candidates to the user, evaluate every candidate from Step 2 against the four VIBE√ criteria. Classify each finding into one of two tiers. Candidates are never dropped automatically — `/cq:reflect` proposes each approved candidate via `propose`, which routes to the configured remote cq server when `CQ_ADDR` is set (falling back to local on auth reject or unreachable) and to the local store otherwise. The user owns the decision about what is acceptable to submit.
+Apply the VIBE√ safety check as defined in the cq skill against every candidate from Step 2. Classify each finding as clean, soft-concern, or hard-finding; for hard findings, generate the sanitized rewrite. Record the classification per candidate — Steps 3 and 6 use these results for presentation and the final summary.
 
-**Hard findings** — the candidate is presented in Step 3 with both the original and a sanitized rewrite, so the user can choose which (if either) to store:
-
-- Literal credentials, API keys, access tokens, private keys, or session cookies.
-- Personally identifying information: real names, email addresses, phone numbers, government IDs, physical addresses.
-- Internal-only identifiers that uniquely fingerprint a private system: non-public hostnames, internal service names, customer IDs, ticket numbers from private trackers.
-- Recommendations whose primary effect is to weaken security (disable auth, skip signature verification, suppress sandboxing) without a clearly scoped, defensive justification.
-
-For each hard finding, generate a single sanitized rewrite that removes or generalizes the violating content while preserving the underlying lesson. If no coherent lesson survives sanitization, present the original alongside an empty-rewrite note ("no sanitized version possible — original would not generalize once stripped"); the user can still choose to keep the original locally or skip.
-
-**Soft concerns** — the candidate is presented as-is, with a one-line concern flag the user can weigh during approval:
-
-- Framing that overgeneralizes from a single observation.
-- Vendor- or product-specific advice presented as universal.
-- Missing acknowledgement of an edge case the session itself surfaced.
-- Wording that could read as biased toward a specific team, person, or commercial product.
-- Impact that the agent cannot fully predict (e.g. action mutates shared state).
-
-Track outcomes for the Step 3 and Step 6 reports:
-
-- Candidates that passed cleanly.
-- Candidates with hard findings (record the concern; have the sanitized rewrite ready for presentation).
-- Candidates with soft concerns (record the concern per candidate).
+`/cq:reflect` never drops candidates automatically; the user owns the final decision about what to submit.
 
 ### Step 3 — Present candidates to the user
 
