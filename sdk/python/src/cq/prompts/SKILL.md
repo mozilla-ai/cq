@@ -145,7 +145,7 @@ Before calling `propose`, evaluate every candidate against four safety dimension
 - **B — Biases**: Is the framing tied to a specific person, team, vendor, or commercial product in a way that isn't load-bearing for the lesson? Does it present one tool/approach as universally correct when the evidence supports only a narrow context?
 - **E — Edge cases**: Was the lesson learned from a single observation, or has it been validated across multiple cases? Are there obvious conditions (OS, version, scale, concurrency) under which it would not hold and that the candidate fails to acknowledge?
 
-Classify each finding into one of two tiers. Candidates are never dropped automatically — the user owns the final decision.
+Classify each finding into one of two tiers. The user owns the final decision on every candidate that reaches review — candidates are never silently dropped at that stage. Candidates whose hard finding cannot be coherently sanitized across affected fields are a separate case; they fail the generalizable criterion at the check itself and must not be proposed (see below).
 
 **Hard findings** — produce a sanitized rewrite before calling `propose`:
 

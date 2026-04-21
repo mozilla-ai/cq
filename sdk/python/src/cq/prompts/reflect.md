@@ -176,7 +176,8 @@ Stored: {id} — "{summary}"
 ```
 ## Session Reflect Complete
 
-{total} candidates identified. {excluded} dropped by VIBE√ (not generalizable; not presented).
+{total} candidates identified.
+{excluded} dropped by VIBE√ (not generalizable; not presented).
 {approved} proposed to cq. {skipped} skipped by user.
 
 VIBE√ findings this session:
@@ -189,7 +190,7 @@ IDs stored this session:
 - ...
 ```
 
-Omit any VIBE√ findings line whose category has no entries, and omit the `excluded` count sentence if zero.
+Always show the `{total} candidates identified.` line. Omit the `{excluded} dropped by VIBE√ ...` sentence when `{excluded}` is zero. Omit any VIBE√ findings bullet whose category has no entries.
 
 The bracketed annotation on each stored ID records the VIBE√ provenance of what was stored:
 
