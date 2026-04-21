@@ -154,7 +154,9 @@ Classify each finding into one of two tiers. Candidates are never dropped automa
 - Internal-only identifiers that uniquely fingerprint a private system: non-public hostnames, internal service names, customer IDs, ticket numbers from private trackers.
 - Recommendations whose primary effect is to weaken security (disable auth, skip signature verification, suppress sandboxing) without a clearly scoped, defensive justification.
 
-Generate a single sanitized rewrite that removes or generalizes the violating content while preserving the underlying lesson. If no coherent lesson survives sanitization, flag the candidate as having no coherent rewrite — the user can still choose to keep the original or skip.
+Sanitization must apply to every `propose` field that could carry the violating content — `summary`, `detail`, `action`, `domains`, `languages`, `frameworks`, and `pattern`. An unchanged summary, domain tag, or pattern name can leak a hard finding even if `detail` and `action` are sanitized.
+
+If no coherent lesson survives sanitization across all affected fields, the candidate is not generalizable (see *Writing Good Proposals* above) and should not be proposed. Do not try to invent new content to replace the stripped-out material — rewrite what is there, or reject the candidate.
 
 **Soft concerns** — proceed with the candidate, flag the concern to the user before calling `propose`:
 
