@@ -22,7 +22,7 @@ wheels = [
 
 [[package]]
 name = "cq-plugin"
-version = "0.7.5"
+version = "0.8.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
