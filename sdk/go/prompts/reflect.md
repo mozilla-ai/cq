@@ -63,18 +63,33 @@ For each candidate, assign:
 
 If the session contained no events meeting the above criteria, skip Steps 3–5 and follow the "no candidates" instruction in Step 6.
 
+### Step 2.5 — Run the VIBE√ safety check on each candidate
+
+Apply the VIBE√ safety check as defined in the cq skill against every candidate from Step 2. Classify each finding as clean, soft-concern, or hard-finding. For hard findings, generate the sanitized rewrite covering every `propose` field that could carry the violating content (`summary`, `detail`, `action`, `domains`, `languages`, `frameworks`, `pattern`). Record the classification per candidate — Steps 3 and 6 use these results for presentation and the final summary.
+
+If a hard finding cannot be coherently sanitized, the candidate fails Step 2's generalizable criterion — drop it from the candidate list and record the exclusion in Step 6's summary. Do not present it. `/cq:reflect` never silently drops *presented* candidates; the user owns the final decision on every candidate that reaches Step 3.
+
 ### Step 3 — Present candidates to the user
 
 Open with:
 
 ```
-I identified {N} potential learning candidates from this session worth sharing with the commons.
+cq identified {total} potential learning candidates from this session...
+
+{hard} have hard concerns and are shown with both the original and a sanitized rewrite — pick which (if either) to store.
+{soft} have soft concerns flagged with ⚠️ for your awareness.
+{clean} passed the VIBE√ check cleanly.
 ```
 
-Present each candidate as a numbered entry:
+Omit any count line whose value is zero.
+
+Present each candidate as a numbered entry. Use one of three templates depending on what Step 2.5 produced. Every template has a blank line after the `{N}. {summary}` header so the metadata block is visually distinct.
+
+**Clean candidate:**
 
 ```
 {N}. {summary}
+
    Domains: {domain tags}
    Relevance: {estimated_relevance}
    ---
@@ -82,11 +97,50 @@ Present each candidate as a numbered entry:
    Action: {action}
 ```
 
-After listing all candidates, ask:
+**Soft-concern candidate** (add the `⚠️` line as the first line of the metadata block, above `Domains`):
 
 ```
-Reply with a number to approve, "skip {N}" to discard, or "edit {N}" to revise.
-You can also reply "all" to approve everything, or "none" to discard everything.
+{N}. {summary}
+
+   ⚠️ {one-line concern}
+   Domains: {domain tags}
+   Relevance: {estimated_relevance}
+   ---
+   {detail}
+   Action: {action}
+```
+
+**Hard-finding candidate.** The header `summary` and `Domains` use the sanitized values — the header never shows hard-finding content. The Original block shows the full original fields (summary, domains, detail, action). The Sanitized block shows only fields that differ from the header, i.e. detail and action.
+
+```
+{N}. {sanitized summary}
+
+   ⚠️ Hard concern: {one-line concern}
+   Domains: {sanitized domain tags}
+   Relevance: {estimated_relevance}
+   ---
+   Original:
+     Summary: {original summary}
+     Domains: {original domain tags}
+     Detail: {original detail}
+     Action: {original action}
+   Sanitized:
+     Detail: {sanitized detail}
+     Action: {sanitized action}
+```
+
+After listing all candidates, show the command reference:
+
+```
+Commands:
+  N              approve (sanitized version for hard-findings)
+  N original     approve original instead (hard-findings only)
+  edit N         revise before storing
+  skip N         discard
+  all            approve every candidate's default
+  none           discard everything
+
+Combine with commas: e.g. "1, 3 original, skip 2" applies each command in order.
 ```
 
 ### Step 4 — Handle edits
@@ -122,13 +176,28 @@ Stored: {id} — "{summary}"
 ```
 ## Session Reflect Complete
 
-{approved} of {total} candidates proposed to cq.
-{skipped} skipped.
+{total} candidates identified.
+{excluded} dropped by VIBE√ (not generalizable; not presented).
+{approved} proposed to cq. {skipped} skipped by user.
+
+VIBE√ findings this session:
+- Hard concerns (candidates {numbers}): {one-line concern per candidate}
+- Soft concerns (candidates {numbers}): {one-line concern per candidate}
+- Excluded (not presented): {one-line reason per excluded candidate}
 
 IDs stored this session:
-- {id}: "{summary}"
+- {id}: "{summary}" [{clean | soft | sanitized | original}]
 - ...
 ```
+
+Always show the `{total} candidates identified.` line. Omit the `{excluded} dropped by VIBE√ ...` sentence when `{excluded}` is zero. Omit any VIBE√ findings bullet whose category has no entries.
+
+The bracketed annotation on each stored ID records the VIBE√ provenance of what was stored:
+
+- `clean` — no VIBE√ findings; stored as identified.
+- `soft` — soft concern present; stored as-is after the user weighed the flag.
+- `sanitized` — hard finding; the user picked the sanitized rewrite.
+- `original` — hard finding; the user explicitly picked the unmodified version.
 
 If no candidates were identified, display:
 
