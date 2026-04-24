@@ -16,8 +16,11 @@ from typing import Any
 
 from cq.models import KnowledgeUnit
 
-from .scoring import calculate_relevance
-from .tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
+from ..scoring import calculate_relevance
+from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
+from ._protocol import Store
+
+__all__ = ["DEFAULT_DB_PATH", "RemoteStore", "Store", "normalize_domains"]
 
 _logger = logging.getLogger(__name__)
 
