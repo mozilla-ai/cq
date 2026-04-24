@@ -94,7 +94,7 @@ def health() -> dict[str, str]:
 
 
 @api_router.get("/query")
-def query_units(
+async def query_units(
     domains: Annotated[list[str], Query()],
     languages: Annotated[list[str] | None, Query()] = None,
     frameworks: Annotated[list[str] | None, Query()] = None,
@@ -103,7 +103,7 @@ def query_units(
 ) -> list[KnowledgeUnit]:
     """Search knowledge units by domain tags with relevance ranking."""
     store = _get_store()
-    return store.query(
+    return await store.query(
         domains,
         languages=languages,
         frameworks=frameworks,
@@ -113,7 +113,7 @@ def query_units(
 
 
 @api_router.post("/propose", status_code=201)
-def propose_unit(
+async def propose_unit(
     request: ProposeRequest,
     username: str = Depends(require_api_key),
 ) -> KnowledgeUnit:
@@ -133,42 +133,42 @@ def propose_unit(
         tier=Tier.PRIVATE,
         created_by=username,
     )
-    store.insert(unit)
+    await store.insert(unit)
     return unit
 
 
 @api_router.post("/confirm/{unit_id}")
-def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
+async def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Confirm a knowledge unit, boosting its confidence."""
     store = _get_store()
-    unit = store.get(unit_id)
+    unit = await store.get(unit_id)
     if unit is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     confirmed = apply_confirmation(unit)
-    store.update(confirmed)
+    await store.update(confirmed)
     return confirmed
 
 
 @api_router.post("/flag/{unit_id}")
-def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
+async def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Flag a knowledge unit, reducing its confidence."""
     store = _get_store()
-    unit = store.get(unit_id)
+    unit = await store.get(unit_id)
     if unit is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     flagged = apply_flag(unit, request.reason)
-    store.update(flagged)
+    await store.update(flagged)
     return flagged
 
 
 @api_router.get("/stats")
-def stats() -> StatsResponse:
+async def stats() -> StatsResponse:
     """Return store statistics."""
     store = _get_store()
     return StatsResponse(
-        total_units=store.count(),
-        tiers=store.counts_by_tier(),
-        domains=store.domain_counts(),
+        total_units=await store.count(),
+        tiers=await store.counts_by_tier(),
+        domains=await store.domain_counts(),
     )
 
 

@@ -16,6 +16,7 @@ from typing import Any
 
 from cq.models import KnowledgeUnit
 
+from . import semsearch
 from .scoring import calculate_relevance
 from .tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
 
@@ -71,6 +72,7 @@ class RemoteStore:
     def _open_connection(self) -> sqlite3.Connection:
         """Open and configure a SQLite connection."""
         conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        semsearch.load(conn)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
@@ -82,6 +84,8 @@ class RemoteStore:
         self._conn.executescript(_SCHEMA_SQL)
         ensure_review_columns(self._conn)
         ensure_users_table(self._conn)
+        semsearch.ensure_schema(self._conn)
+
         ensure_api_keys_table(self._conn)
 
     def _check_open(self) -> None:
@@ -114,7 +118,7 @@ class RemoteStore:
         """Path to the SQLite database file."""
         return self._db_path
 
-    def insert(self, unit: KnowledgeUnit) -> None:
+    async def insert(self, unit: KnowledgeUnit) -> None:
         """Insert a knowledge unit into the store.
 
         Args:
@@ -142,8 +146,9 @@ class RemoteStore:
                 "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
                 [(unit.id, d) for d in domains],
             )
+        await semsearch.upsert_unit(self._conn, unit)
 
-    def get(self, unit_id: str) -> KnowledgeUnit | None:
+    async def get(self, unit_id: str) -> KnowledgeUnit | None:
         """Retrieve an approved knowledge unit by ID.
 
         Agent-facing: only returns KUs that have passed human review.
@@ -165,7 +170,7 @@ class RemoteStore:
             return None
         return KnowledgeUnit.model_validate_json(row[0])
 
-    def get_any(self, unit_id: str) -> KnowledgeUnit | None:
+    async def get_any(self, unit_id: str) -> KnowledgeUnit | None:
         """Retrieve a knowledge unit by ID regardless of review status.
 
         Internal use only — review endpoints and activity feed.
@@ -186,7 +191,7 @@ class RemoteStore:
             return None
         return KnowledgeUnit.model_validate_json(row[0])
 
-    def get_review_status(self, unit_id: str) -> dict[str, str | None] | None:
+    async def get_review_status(self, unit_id: str) -> dict[str, str | None] | None:
         """Return review metadata for a knowledge unit.
 
         Args:
@@ -206,7 +211,7 @@ class RemoteStore:
             return None
         return {"status": row[0], "reviewed_by": row[1], "reviewed_at": row[2]}
 
-    def set_review_status(self, unit_id: str, status: str, reviewed_by: str) -> None:
+    async def set_review_status(self, unit_id: str, status: str, reviewed_by: str) -> None:
         """Update the review status of a knowledge unit.
 
         Args:
@@ -227,7 +232,7 @@ class RemoteStore:
             if cursor.rowcount == 0:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
 
-    def update(self, unit: KnowledgeUnit) -> None:
+    async def update(self, unit: KnowledgeUnit) -> None:
         """Replace an existing knowledge unit in the store.
 
         Args:
@@ -258,8 +263,9 @@ class RemoteStore:
                 "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
                 [(unit.id, d) for d in domains],
             )
+        await semsearch.upsert_unit(self._conn, unit)
 
-    def query(
+    async def query(
         self,
         domains: list[str],
         *,
@@ -295,7 +301,12 @@ class RemoteStore:
         normalized = normalize_domains(domains)
         if not normalized:
             return []
-        # Safe: placeholders is only '?' characters, never user input.
+
+        try:
+            semantic_units = await semsearch.query(self._conn, normalized, limit=limit)
+        except Exception:
+            semantic_units = []
+
         placeholders = ",".join("?" for _ in normalized)
         sql = f"""
             SELECT ku.data
@@ -310,10 +321,13 @@ class RemoteStore:
         with self._lock:
             rows = self._conn.execute(sql, normalized).fetchall()
 
-        # PoC: all filtering and scoring is in-memory after deserialization.
-        # For larger stores, push coarse filters into SQL.
-        units = [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
+        semantic_rank = {unit.id: idx for idx, unit in enumerate(semantic_units)}
+        units_by_id: dict[str, KnowledgeUnit] = {unit.id: unit for unit in semantic_units}
+        for row in rows:
+            unit = KnowledgeUnit.model_validate_json(row[0])
+            units_by_id[unit.id] = unit
 
+        units = list(units_by_id.values())
         scored = []
         for unit in units:
             relevance = calculate_relevance(
@@ -323,19 +337,21 @@ class RemoteStore:
                 query_frameworks=frameworks,
                 query_pattern=pattern,
             )
-            scored.append((relevance * unit.evidence.confidence, unit))
+            # Keep semantic ordering as a stable tiebreaker when lexical relevance ties.
+            sem_idx = semantic_rank.get(unit.id, 10**9)
+            scored.append((relevance * unit.evidence.confidence, sem_idx, unit))
 
-        scored.sort(key=lambda pair: (pair[0], pair[1].id), reverse=True)
-        return [unit for _, unit in scored[:limit]]
+        scored.sort(key=lambda item: (-item[0], item[1], item[2].id))
+        return [unit for _, _, unit in scored[:limit]]
 
-    def count(self) -> int:
+    async def count(self) -> int:
         """Return the total number of knowledge units in the store."""
         self._check_open()
         with self._lock:
             row = self._conn.execute("SELECT COUNT(*) FROM knowledge_units").fetchone()
         return row[0]
 
-    def domain_counts(self) -> dict[str, int]:
+    async def domain_counts(self) -> dict[str, int]:
         """Return the count of approved knowledge units per domain tag."""
         self._check_open()
         with self._lock:
@@ -348,7 +364,7 @@ class RemoteStore:
             ).fetchall()
         return {row[0]: row[1] for row in rows}
 
-    def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
+    async def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
         """Return pending KUs with review metadata, oldest first.
 
         Args:
@@ -377,21 +393,21 @@ class RemoteStore:
             for row in rows
         ]
 
-    def pending_count(self) -> int:
+    async def pending_count(self) -> int:
         """Return the number of pending KUs."""
         self._check_open()
         with self._lock:
             row = self._conn.execute("SELECT COUNT(*) FROM knowledge_units WHERE status = 'pending'").fetchone()
         return row[0]
 
-    def counts_by_status(self) -> dict[str, int]:
+    async def counts_by_status(self) -> dict[str, int]:
         """Return KU counts grouped by review status."""
         self._check_open()
         with self._lock:
             rows = self._conn.execute("SELECT status, COUNT(*) FROM knowledge_units GROUP BY status").fetchall()
         return {row[0]: row[1] for row in rows}
 
-    def counts_by_tier(self) -> dict[str, int]:
+    async def counts_by_tier(self) -> dict[str, int]:
         """Return approved KU counts grouped by tier."""
         self._check_open()
         with self._lock:
@@ -400,7 +416,7 @@ class RemoteStore:
             ).fetchall()
         return {row[0]: row[1] for row in rows}
 
-    def list_units(
+    async def list_units(
         self,
         *,
         domain: str | None = None,
@@ -471,7 +487,7 @@ class RemoteStore:
                 break
         return results
 
-    def create_user(self, username: str, password_hash: str) -> None:
+    async def create_user(self, username: str, password_hash: str) -> None:
         """Insert a new user.
 
         Args:
@@ -489,7 +505,7 @@ class RemoteStore:
                 (username, password_hash, now),
             )
 
-    def get_user(self, username: str) -> dict[str, Any] | None:
+    async def get_user(self, username: str) -> dict[str, Any] | None:
         """Retrieve a user by username.
 
         Args:
@@ -724,7 +740,7 @@ class RemoteStore:
         except sqlite3.Error:
             _logger.exception("Failed to update last_used_at for api key %s", key_id)
 
-    def confidence_distribution(self) -> dict[str, int]:
+    async def confidence_distribution(self) -> dict[str, int]:
         """Return confidence distribution buckets for approved KUs."""
         self._check_open()
         with self._lock:
@@ -743,7 +759,7 @@ class RemoteStore:
                 buckets["0.8-1.0"] += 1
         return buckets
 
-    def recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
+    async def recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
         """Return recent activity as one event per knowledge unit.
 
         Each KU appears once: reviewed KUs show as approved/rejected,
@@ -792,7 +808,7 @@ class RemoteStore:
         activity.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
         return activity[:limit]
 
-    def daily_counts(self, *, days: int = 30) -> list[dict[str, Any]]:
+    async def daily_counts(self, *, days: int = 30) -> list[dict[str, Any]]:
         """Return daily proposal and approval counts with contiguous dates.
 
         Returns one entry per day from the earliest activity (within the

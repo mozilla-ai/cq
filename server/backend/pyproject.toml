@@ -16,6 +16,13 @@ dependencies = [
     "cq-sdk~=0.9.1",
 ]
 
+[project.optional-dependencies]
+semsearch = [
+    "sqlite_vec",
+    "numpy",
+    "httpx",
+]
+
 [project.scripts]
 cq-server = "cq_server.app:main"
 
