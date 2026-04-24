@@ -1,8 +1,16 @@
+"""Semantic-search helpers backed by sqlite-vec and remote token embeddings.
+
+This module provides optional semantic indexing and retrieval for knowledge units.
+Semantic search is enabled only when `TOKEN_EMBEDDING_URL` is configured and the
+embedding dependencies are installed.
+"""
+
 import logging
 import os
 import sqlite3
-import numpy as np
 
+import numpy as np
+import numpy.typing as npt
 from cq.models import KnowledgeUnit
 
 logger = logging.getLogger(__name__)
@@ -16,6 +24,7 @@ if _TOKEN_EMBEDDING_URL:
     try:
         import sqlite_vec
         from httpx import AsyncClient
+
         _ENABLED = True
 
         logger.info(f"Token embedding enabled using encoderfile endpoint at {_TOKEN_EMBEDDING_URL}")
@@ -50,18 +59,23 @@ _VEC_DELETE_SQL = "DELETE FROM knowledge_units_vec WHERE id = ?"
 _VEC_INSERT_SQL = "INSERT INTO knowledge_units_vec (id, embedding) VALUES (?, ?)"
 
 
-async def _get_embeddings(wordlist: list[str]) -> list[np.array]:
+async def _get_embeddings(wordlist: list[str]) -> list[npt.ArrayLike]:
     """Get embeddings for a list of words using the embedding API."""
     if not _ENABLED:
-        raise RuntimeError("Semantic search is not enabled. Set TOKEN_EMBEDDING_URL and install required packages to enable.")
-    async with AsyncClient(base_url=_TOKEN_EMBEDDING_URL) as client:
+        raise RuntimeError(
+            "Semantic search is not enabled. Set TOKEN_EMBEDDING_URL and install required packages to enable."
+        )
+    async with AsyncClient(base_url=_TOKEN_EMBEDDING_URL) as client:  # ty: ignore[invalid-argument-type]
         request_data = {"inputs": wordlist}
         response = await client.post("/predict", json=request_data)
         response.raise_for_status()
         results = response.json().get("results")
         if not results:
             raise RuntimeError(f"Embedding API returned no embeddings for input: {request_data}")
-        return [np.average(np.array([embedding.get("embedding") for embedding in embeddings["embeddings"]]), axis=0) for embeddings in results]
+        return [
+            np.average(np.array([embedding.get("embedding") for embedding in embeddings["embeddings"]]), axis=0)
+            for embeddings in results
+        ]
 
 
 def is_enabled() -> bool:
@@ -69,13 +83,16 @@ def is_enabled() -> bool:
     return _ENABLED
 
 
-def _serialize_embedding(vec: np.ndarray) -> bytes:
+def _serialize_embedding(vec: npt.ArrayLike) -> bytes:
+    """Convert an embedding vector to sqlite-vec compatible bytes."""
     arr = np.asarray(vec, dtype=np.float32)
     if hasattr(sqlite_vec, "serialize_float32"):
-        return sqlite_vec.serialize_float32(arr)
+        return sqlite_vec.serialize_float32(arr)  # ty: ignore[invalid-argument-type]
     return arr.tobytes()
 
+
 def load(conn: sqlite3.Connection) -> None:
+    """Load the sqlite-vec extension into an SQLite connection."""
     if not _ENABLED:
         return
     conn.enable_load_extension(True)

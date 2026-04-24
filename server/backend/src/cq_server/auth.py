@@ -209,20 +209,20 @@ async def me(username: str = Depends(get_current_user), store: RemoteStore = Dep
     return MeResponse(username=user["username"], created_at=user["created_at"])
 
 
-def _require_user_id(store: RemoteStore, username: str) -> int:
+async def _require_user_id(store: RemoteStore, username: str) -> int:
     """Return the integer user id for the authenticated caller.
 
     Raises:
         HTTPException: 404 if the user record has been removed while the JWT remains valid.
     """
-    user = store.get_user(username)
+    user = await store.get_user(username)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return int(user["id"])
 
 
 @router.post("/api-keys", status_code=201)
-def create_api_key_route(
+async def create_api_key_route(
     request: CreateApiKeyRequest,
     username: str = Depends(get_current_user),
     store: RemoteStore = Depends(get_store),
@@ -242,7 +242,7 @@ def create_api_key_route(
         duration = parse_ttl(request.ttl)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    user_id = _require_user_id(store, username)
+    user_id = await _require_user_id(store, username)
     if store.count_active_api_keys_for_user(user_id) >= MAX_ACTIVE_API_KEYS_PER_USER:
         raise HTTPException(
             status_code=409,
@@ -265,17 +265,17 @@ def create_api_key_route(
 
 
 @router.get("/api-keys")
-def list_api_keys_route(
+async def list_api_keys_route(
     username: str = Depends(get_current_user),
     store: RemoteStore = Depends(get_store),
 ) -> list[ApiKeyPublic]:
     """Return the authenticated user's API keys. Never returns plaintext."""
-    user_id = _require_user_id(store, username)
+    user_id = await _require_user_id(store, username)
     return [_to_public(row) for row in store.list_api_keys_for_user(user_id)]
 
 
 @router.delete("/api-keys/{key_id}", status_code=204)
-def revoke_api_key_route(
+async def revoke_api_key_route(
     key_id: str,
     username: str = Depends(get_current_user),
     store: RemoteStore = Depends(get_store),
@@ -286,7 +286,7 @@ def revoke_api_key_route(
     204. A 404 is returned only when the key does not exist or is owned by
     a different user (uniform response, no enumeration oracle).
     """
-    user_id = _require_user_id(store, username)
+    user_id = await _require_user_id(store, username)
     if store.get_api_key_for_user(user_id=user_id, key_id=key_id) is None:
         raise HTTPException(status_code=404, detail="API key not found")
     store.revoke_api_key(user_id=user_id, key_id=key_id)

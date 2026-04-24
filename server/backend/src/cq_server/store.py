@@ -16,10 +16,9 @@ from typing import Any
 
 from cq.models import KnowledgeUnit
 
+from . import semsearch
 from .scoring import calculate_relevance
 from .tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
-
-from . import semsearch
 
 _logger = logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ class RemoteStore:
 
     def __init__(self, db_path: Path | None = None) -> None:
         """Initialise the store, creating the database and schema if needed.
-    
+
         Args:
             db_path: Path to the SQLite database file. Defaults to /data/cq.db.
         """
@@ -86,7 +85,7 @@ class RemoteStore:
         ensure_review_columns(self._conn)
         ensure_users_table(self._conn)
         semsearch.ensure_schema(self._conn)
-        
+
         ensure_api_keys_table(self._conn)
 
     def _check_open(self) -> None:
