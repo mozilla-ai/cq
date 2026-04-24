@@ -1,6 +1,7 @@
 """Tests for the cq remote API endpoints."""
 
 from collections.abc import Iterator
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cq_server.app import app
+from cq_server import semsearch
 
 
 @pytest.fixture()
@@ -30,23 +32,23 @@ def _propose_payload(**overrides: Any) -> dict[str, Any]:
     return {**defaults, **overrides}
 
 
-def _approve_unit(client: TestClient, unit_id: str) -> None:
+async def _approve_unit(client: TestClient, unit_id: str) -> None:
     """Approve a unit via the store for testing."""
     from cq_server.app import _get_store
 
     store = _get_store()
-    store.set_review_status(unit_id, "approved", "test-reviewer")
+    await store.set_review_status(unit_id, "approved", "test-reviewer")
 
 
 class TestHealth:
-    def test_health_returns_ok(self, client: TestClient) -> None:
+    async def test_health_returns_ok(self, client: TestClient) -> None:
         resp = client.get("/health")
         assert resp.status_code == 200
         assert resp.json() == {"status": "ok"}
 
 
 class TestPropose:
-    def test_propose_creates_unit(self, client: TestClient) -> None:
+    async def test_propose_creates_unit(self, client: TestClient) -> None:
         resp = client.post("/propose", json=_propose_payload())
         assert resp.status_code == 201
         body = resp.json()
@@ -55,7 +57,7 @@ class TestPropose:
         assert body["insight"]["summary"] == "Use connection pooling"
         assert body["evidence"]["confidence"] == 0.5
 
-    def test_propose_with_context(self, client: TestClient) -> None:
+    async def test_propose_with_context(self, client: TestClient) -> None:
         payload = _propose_payload(
             context={"languages": ["python"], "frameworks": ["fastapi"]},
         )
@@ -65,17 +67,17 @@ class TestPropose:
         assert "python" in body["context"]["languages"]
         assert "fastapi" in body["context"]["frameworks"]
 
-    def test_propose_with_empty_domains_rejected(self, client: TestClient) -> None:
+    async def test_propose_with_empty_domains_rejected(self, client: TestClient) -> None:
         payload = _propose_payload(domains=[])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
 
-    def test_propose_with_whitespace_only_domains_rejected(self, client: TestClient) -> None:
+    async def test_propose_with_whitespace_only_domains_rejected(self, client: TestClient) -> None:
         payload = _propose_payload(domains=["  ", ""])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
 
-    def test_propose_normalizes_domains(self, client: TestClient) -> None:
+    async def test_propose_normalizes_domains(self, client: TestClient) -> None:
         payload = _propose_payload(domains=["API", " Databases "])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 201
@@ -83,34 +85,34 @@ class TestPropose:
 
 
 class TestQuery:
-    def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:
+    async def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:
         resp = client.post("/propose", json=_propose_payload(**overrides))
         assert resp.status_code == 201
         body = resp.json()
-        _approve_unit(client, body["id"])
+        await _approve_unit(client, body["id"])
         return body
 
-    def test_query_returns_matching_units(self, client: TestClient) -> None:
-        self._insert_unit(client, domains=["databases"])
+    async def test_query_returns_matching_units(self, client: TestClient) -> None:
+        await self._insert_unit(client, domains=["databases"])
         resp = client.get("/query", params={"domains": ["databases"]})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 1
         assert results[0]["domains"] == ["databases"]
 
-    def test_query_returns_empty_for_no_match(self, client: TestClient) -> None:
-        self._insert_unit(client, domains=["databases"])
+    async def test_query_returns_empty_for_no_match(self, client: TestClient) -> None:
+        await self._insert_unit(client, domains=["databases"])
         resp = client.get("/query", params={"domains": ["networking"]})
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_query_boosts_matching_language(self, client: TestClient) -> None:
-        self._insert_unit(
+    async def test_query_boosts_matching_language(self, client: TestClient) -> None:
+        await self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["python"], "frameworks": []},
         )
-        self._insert_unit(
+        await self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["go"], "frameworks": []},
@@ -121,18 +123,18 @@ class TestQuery:
         assert len(results) == 2
         assert "python" in results[0]["context"]["languages"]
 
-    def test_query_boosts_any_matching_language(self, client: TestClient) -> None:
-        self._insert_unit(
+    async def test_query_boosts_any_matching_language(self, client: TestClient) -> None:
+        await self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["python"], "frameworks": []},
         )
-        self._insert_unit(
+        await self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["go"], "frameworks": []},
         )
-        self._insert_unit(
+        await self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["rust"], "frameworks": []},
@@ -147,66 +149,145 @@ class TestQuery:
         top_langs = {results[0]["context"]["languages"][0], results[1]["context"]["languages"][0]}
         assert top_langs == {"python", "go"}
 
-    def test_query_respects_limit(self, client: TestClient) -> None:
+    async def test_query_respects_limit(self, client: TestClient) -> None:
         for _ in range(3):
-            self._insert_unit(client, domains=["api"])
+            await self._insert_unit(client, domains=["api"])
         resp = client.get("/query", params={"domains": ["api"], "limit": 2})
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
-    def test_query_rejects_zero_limit(self, client: TestClient) -> None:
+    async def test_query_rejects_zero_limit(self, client: TestClient) -> None:
         resp = client.get("/query", params={"domains": ["api"], "limit": 0})
         assert resp.status_code == 422
 
+    async def test_query_finds_expected_unit_across_distinct_domains(self, client: TestClient) -> None:
+        await self._insert_unit(
+            client,
+            domains=["astronomy"],
+            insight={
+                "summary": "Classify exoplanets by transit depth",
+                "detail": "Use transit-light-curve features to identify likely exoplanets.",
+                "action": "Prioritize follow-up spectroscopy for high-confidence candidates.",
+            },
+        )
+        await self._insert_unit(
+            client,
+            domains=["culinary"],
+            insight={
+                "summary": "Balance acidity in tomato sauces",
+                "detail": "A small amount of fat and slow simmering rounds harsh acidity.",
+                "action": "Adjust with olive oil and reduce over low heat.",
+            },
+        )
+        await self._insert_unit(
+            client,
+            domains=["cybersecurity"],
+            insight={
+                "summary": "Rotate API keys on a fixed cadence",
+                "detail": "Short-lived credentials reduce blast radius after compromise.",
+                "action": "Automate key rollover every 30 days.",
+            },
+        )
+
+        resp = client.get("/query", params={"domains": ["astronomy"]})
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) == 1
+        assert results[0]["domains"] == ["astronomy"]
+        assert "exoplanets" in results[0]["insight"]["summary"].lower()
+
+    async def test_query_returns_semantic_hit_without_domain_overlap(self, client: TestClient) -> None:
+        if not semsearch.is_enabled():
+            pytest.skip("semantic dependencies are not enabled")
+        try:
+            await semsearch._get_embeddings(["connectivity check"])
+        except Exception as exc:
+            pytest.skip(f"embedding server unavailable: {exc}")
+
+        await self._insert_unit(
+            client,
+            domains=["astronomy"],
+            insight={
+                "summary": "Detect exoplanets from transit dips",
+                "detail": "Transit photometry captures periodic brightness dips from orbiting planets.",
+                "action": "Prioritize stars with consistent dip timing for follow-up observations.",
+            },
+        )
+        await self._insert_unit(
+            client,
+            domains=["culinary"],
+            insight={
+                "summary": "Build richer soups with layered aromatics",
+                "detail": "Sweat onions and celery before adding stock to deepen flavor.",
+                "action": "Bloom spices in oil before simmering.",
+            },
+        )
+        await self._insert_unit(
+            client,
+            domains=["cybersecurity"],
+            insight={
+                "summary": "Rotate credentials after incident response",
+                "detail": "Credential rotation limits persistence after compromise.",
+                "action": "Automate revocation and key replacement workflows.",
+            },
+        )
+
+        # No exact domain match exists for this query term, so a hit implies semantic retrieval.
+        resp = client.get("/query", params={"domains": ["exoplanet transit photometry"]})
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) >= 1
+        assert results[0]["domains"] == ["astronomy"]
+
 
 class TestConfirm:
-    def test_confirm_boosts_confidence(self, client: TestClient) -> None:
+    async def test_confirm_boosts_confidence(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
-        _approve_unit(client, created["id"])
+        await _approve_unit(client, created["id"])
         resp = client.post(f"/confirm/{created['id']}")
         assert resp.status_code == 200
         body = resp.json()
         assert body["evidence"]["confirmations"] == 2
         assert body["evidence"]["confidence"] > 0.5
 
-    def test_confirm_pending_unit_returns_404(self, client: TestClient) -> None:
+    async def test_confirm_pending_unit_returns_404(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
         resp = client.post(f"/confirm/{created['id']}")
         assert resp.status_code == 404
 
-    def test_confirm_missing_unit_returns_404(self, client: TestClient) -> None:
+    async def test_confirm_missing_unit_returns_404(self, client: TestClient) -> None:
         resp = client.post("/confirm/ku_nonexistent")
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
 
 
 class TestFlag:
-    def test_flag_reduces_confidence(self, client: TestClient) -> None:
+    async def test_flag_reduces_confidence(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
-        _approve_unit(client, created["id"])
+        await _approve_unit(client, created["id"])
         resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
         assert resp.status_code == 200
         body = resp.json()
         assert body["evidence"]["confidence"] < 0.5
         assert len(body["flags"]) == 1
 
-    def test_flag_pending_unit_returns_404(self, client: TestClient) -> None:
+    async def test_flag_pending_unit_returns_404(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
         resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
         assert resp.status_code == 404
 
-    def test_flag_missing_unit_returns_404(self, client: TestClient) -> None:
+    async def test_flag_missing_unit_returns_404(self, client: TestClient) -> None:
         resp = client.post("/flag/ku_nonexistent", json={"reason": "stale"})
         assert resp.status_code == 404
 
-    def test_flag_with_invalid_reason_rejected(self, client: TestClient) -> None:
+    async def test_flag_with_invalid_reason_rejected(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
         resp = client.post(f"/flag/{created['id']}", json={"reason": "invalid_reason"})
         assert resp.status_code == 422
 
 
 class TestStats:
-    def test_stats_empty_store(self, client: TestClient) -> None:
+    async def test_stats_empty_store(self, client: TestClient) -> None:
         resp = client.get("/stats")
         assert resp.status_code == 200
         body = resp.json()
@@ -214,14 +295,14 @@ class TestStats:
         assert body["tiers"] == {}
         assert body["domains"] == {}
 
-    def test_stats_after_inserts(self, client: TestClient) -> None:
+    async def test_stats_after_inserts(self, client: TestClient) -> None:
         from cq_server.app import _get_store
 
         r1 = client.post("/propose", json=_propose_payload(domains=["api", "auth"]))
         r2 = client.post("/propose", json=_propose_payload(domains=["api", "payments"]))
         store = _get_store()
-        store.set_review_status(r1.json()["id"], "approved", "tester")
-        store.set_review_status(r2.json()["id"], "approved", "tester")
+        await store.set_review_status(r1.json()["id"], "approved", "tester")
+        await store.set_review_status(r2.json()["id"], "approved", "tester")
         resp = client.get("/stats")
         assert resp.status_code == 200
         body = resp.json()
@@ -235,12 +316,12 @@ class TestStats:
 class TestReviewLifecycleEndToEnd:
     """End-to-end test covering propose -> review -> query -> stats lifecycle."""
 
-    def test_full_review_lifecycle(self, client: TestClient) -> None:
+    async def test_full_review_lifecycle(self, client: TestClient) -> None:
         from cq_server.app import _get_store
         from cq_server.auth import hash_password
 
         store = _get_store()
-        store.create_user("reviewer", hash_password("pass123"))
+        await store.create_user("reviewer", hash_password("pass123"))
 
         # Log in.
         login_resp = client.post(
@@ -294,7 +375,7 @@ class TestReviewLifecycleEndToEnd:
 
 
 class TestEndToEnd:
-    def test_propose_confirm_flag_lifecycle(self, client: TestClient) -> None:
+    async def test_propose_confirm_flag_lifecycle(self, client: TestClient) -> None:
         # Propose a unit.
         payload = _propose_payload(
             domains=["api", "payments"],
@@ -305,7 +386,7 @@ class TestEndToEnd:
         unit_id = created.json()["id"]
 
         # Approve the unit so it becomes queryable.
-        _approve_unit(client, unit_id)
+        await _approve_unit(client, unit_id)
 
         # Query returns the unit.
         resp = client.get(

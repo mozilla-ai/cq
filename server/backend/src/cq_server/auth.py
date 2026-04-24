@@ -103,7 +103,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
-def login(request: LoginRequest, store: RemoteStore = Depends(get_store)) -> LoginResponse:
+async def login(request: LoginRequest, store: RemoteStore = Depends(get_store)) -> LoginResponse:
     """Authenticate a user and return a JWT token.
 
     Args:
@@ -116,7 +116,7 @@ def login(request: LoginRequest, store: RemoteStore = Depends(get_store)) -> Log
     Raises:
         HTTPException: With status 401 if credentials are invalid.
     """
-    user = store.get_user(request.username)
+    user = await store.get_user(request.username)
     if user is None or not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = create_token(request.username, secret=_get_jwt_secret())
@@ -124,7 +124,7 @@ def login(request: LoginRequest, store: RemoteStore = Depends(get_store)) -> Log
 
 
 @router.get("/me")
-def me(username: str = Depends(get_current_user), store: RemoteStore = Depends(get_store)) -> MeResponse:
+async def me(username: str = Depends(get_current_user), store: RemoteStore = Depends(get_store)) -> MeResponse:
     """Return the current user's info.
 
     Args:
@@ -137,7 +137,7 @@ def me(username: str = Depends(get_current_user), store: RemoteStore = Depends(g
     Raises:
         HTTPException: With status 404 if the user no longer exists.
     """
-    user = store.get_user(username)
+    user = await store.get_user(username)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return MeResponse(username=user["username"], created_at=user["created_at"])
