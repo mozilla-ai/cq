@@ -10,7 +10,7 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .api_keys import generate_plaintext, hash_token, token_prefix
+from .api_keys import encode_token, generate_secret, hash_secret, secret_prefix
 from .deps import get_api_key_pepper, get_store
 from .store import RemoteStore
 from .ttl import parse_ttl
@@ -248,15 +248,17 @@ def create_api_key_route(
             status_code=409,
             detail=f"Maximum of {MAX_ACTIVE_API_KEYS_PER_USER} active API keys per user",
         )
-    plaintext = generate_plaintext()
+    key_id = uuid.uuid4()
+    secret = generate_secret()
+    plaintext = encode_token(key_id=key_id, secret=secret)
     expires_at = (datetime.now(UTC) + duration).isoformat()
     row = store.create_api_key(
-        key_id=uuid.uuid4().hex,
+        key_id=key_id.hex,
         user_id=user_id,
         name=request.name,
         labels=_normalise_labels(request.labels),
-        key_prefix=token_prefix(plaintext),
-        key_hash=hash_token(plaintext, pepper=pepper),
+        key_prefix=secret_prefix(secret),
+        key_hash=hash_secret(secret, pepper=pepper),
         ttl=request.ttl,
         expires_at=expires_at,
     )

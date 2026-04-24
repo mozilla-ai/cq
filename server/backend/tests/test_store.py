@@ -516,14 +516,14 @@ class TestApiKeys:
     def _past(days: int = 1) -> str:
         return (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
-    def test_create_and_fetch_by_hash(self, store: RemoteStore) -> None:
+    def test_create_and_fetch_active_by_id(self, store: RemoteStore) -> None:
         user_id = self._seed_user(store)
         row = store.create_api_key(
             key_id="k1",
             user_id=user_id,
             name="laptop",
             labels=[],
-            key_prefix="cqa_abcd",
+            key_prefix="abcdefgh",
             key_hash="hash-1",
             ttl="30d",
             expires_at=self._future(),
@@ -531,15 +531,31 @@ class TestApiKeys:
         assert row["id"] == "k1"
         assert row["revoked_at"] is None
 
-        fetched = store.get_api_key_by_hash("hash-1")
+        fetched = store.get_active_api_key_by_id("k1")
         assert fetched is not None
         assert fetched["id"] == "k1"
         assert fetched["username"] == "alice"
         assert fetched["user_id"] == user_id
         assert fetched["name"] == "laptop"
+        assert fetched["key_hash"] == "hash-1"
 
-    def test_get_by_hash_missing(self, store: RemoteStore) -> None:
-        assert store.get_api_key_by_hash("nope") is None
+    def test_get_active_by_id_missing(self, store: RemoteStore) -> None:
+        assert store.get_active_api_key_by_id("nope") is None
+
+    def test_get_active_by_id_excludes_revoked(self, store: RemoteStore) -> None:
+        user_id = self._seed_user(store)
+        store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="laptop",
+            labels=[],
+            key_prefix="abcdefgh",
+            key_hash="hash-1",
+            ttl="30d",
+            expires_at=self._future(),
+        )
+        assert store.revoke_api_key(user_id=user_id, key_id="k1") is True
+        assert store.get_active_api_key_by_id("k1") is None
 
     def test_create_rejects_duplicate_hash(self, store: RemoteStore) -> None:
         user_id = self._seed_user(store)
@@ -686,9 +702,9 @@ class TestApiKeys:
             ttl="30d",
             expires_at=self._future(),
         )
-        assert store.get_api_key_by_hash("h")["last_used_at"] is None
+        assert store.get_active_api_key_by_id("k")["last_used_at"] is None
         store.touch_api_key_last_used("k")
-        assert store.get_api_key_by_hash("h")["last_used_at"] is not None
+        assert store.get_active_api_key_by_id("k")["last_used_at"] is not None
 
     def test_touch_last_used_missing_key_swallowed(self, store: RemoteStore) -> None:
         store.touch_api_key_last_used("nonexistent")  # No raise.

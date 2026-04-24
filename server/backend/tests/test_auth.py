@@ -142,9 +142,13 @@ class TestApiKeyCreate:
         )
         assert resp.status_code == 201
         body = resp.json()
-        assert body["token"].startswith("cqa_")
+        parts = body["token"].split(".")
+        assert parts[0] == "cqa"
+        assert parts[1] == "v1"
+        assert len(parts[2]) == 32
+        assert len(parts[3]) == 52
+        assert body["prefix"] == parts[3][:8]
         assert body["name"] == "laptop"
-        assert body["prefix"].startswith("cqa_")
         assert body["is_active"] is True
         assert body["is_expired"] is False
 

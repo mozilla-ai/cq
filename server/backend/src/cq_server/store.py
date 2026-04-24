@@ -617,24 +617,31 @@ class RemoteStore:
             "revoked_at": row[9],
         }
 
-    def get_api_key_by_hash(self, key_hash: str) -> dict[str, Any] | None:
-        """Retrieve an API key row by its hash, including the owner's username.
+    def get_active_api_key_by_id(self, key_id: str) -> dict[str, Any] | None:
+        """Retrieve an active API key row by id, including the owner's username.
+
+        "Active" means the same thing as in ``count_active_api_keys_for_user``:
+        not revoked and not yet expired. The caller is expected to compare
+        the stored ``key_hash`` against a fresh hash of the presented
+        secret in constant time.
 
         Args:
-            key_hash: HMAC-SHA256 hex digest of the plaintext token.
+            key_id: The key's id (uuid4 hex).
 
         Returns:
-            A dict with api key fields plus the owner's username, or None
-            if no key with that hash exists.
+            A dict with api key fields (including ``key_hash``) plus the
+            owner's username, or None if the key does not exist, has
+            been revoked, or has expired.
         """
         self._check_open()
+        now = datetime.now(UTC).isoformat()
         with self._lock:
             row = self._conn.execute(
                 "SELECT k.id, k.user_id, u.username, k.name, k.labels, k.key_prefix, "
-                "k.ttl, k.expires_at, k.created_at, k.last_used_at, k.revoked_at "
+                "k.key_hash, k.ttl, k.expires_at, k.created_at, k.last_used_at, k.revoked_at "
                 "FROM api_keys k JOIN users u ON u.id = k.user_id "
-                "WHERE k.key_hash = ?",
-                (key_hash,),
+                "WHERE k.id = ? AND k.revoked_at IS NULL AND k.expires_at > ?",
+                (key_id, now),
             ).fetchone()
         if row is None:
             return None
@@ -645,11 +652,12 @@ class RemoteStore:
             "name": row[3],
             "labels": json.loads(row[4] or "[]"),
             "key_prefix": row[5],
-            "ttl": row[6],
-            "expires_at": row[7],
-            "created_at": row[8],
-            "last_used_at": row[9],
-            "revoked_at": row[10],
+            "key_hash": row[6],
+            "ttl": row[7],
+            "expires_at": row[8],
+            "created_at": row[9],
+            "last_used_at": row[10],
+            "revoked_at": row[11],
         }
 
     def list_api_keys_for_user(self, user_id: int) -> list[dict[str, Any]]:
