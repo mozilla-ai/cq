@@ -65,6 +65,12 @@ class MeResponse(BaseModel):
     created_at: str
 
 
+class Message(BaseModel):
+    """Generic message response body."""
+
+    message: str
+
+
 class CreateApiKeyRequest(BaseModel):
     """Request body for creating an API key."""
 
@@ -276,19 +282,21 @@ def list_api_keys_route(
     return [_to_public(row) for row in store.list_api_keys_for_user(user_id)]
 
 
-@router.delete("/api-keys/{key_id}", status_code=204)
+@router.post("/api-keys/{key_id}/revoke")
 def revoke_api_key_route(
     key_id: str,
     username: str = Depends(get_current_user),
     store: RemoteStore = Depends(get_store),
-) -> None:
+) -> Message:
     """Revoke the given API key if it belongs to the caller.
 
-    Revocation is idempotent: revoking a key that is already revoked returns
-    204. A 404 is returned only when the key does not exist or is owned by
-    a different user (uniform response, no enumeration oracle).
+    Revocation is a state transition; the row is retained with
+    ``revoked_at`` set. Repeated revocations are idempotent and succeed.
+    A 404 is returned when the key does not exist or is owned by a
+    different user (uniform response, no enumeration oracle).
     """
     user_id = _require_user_id(store, username)
     if store.get_api_key_for_user(user_id=user_id, key_id=key_id) is None:
         raise HTTPException(status_code=404, detail="API key not found")
     store.revoke_api_key(user_id=user_id, key_id=key_id)
+    return Message(message="API key revoked.")

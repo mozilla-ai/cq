@@ -236,11 +236,12 @@ class TestApiKeyRevoke:
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "x", "ttl": "30d"},
         ).json()
-        resp = api_key_client.delete(
-            f"/auth/api-keys/{created['id']}",
+        resp = api_key_client.post(
+            f"/auth/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert resp.status_code == 204
+        assert resp.status_code == 200
+        assert resp.json() == {"message": "API key revoked."}
 
         listed = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token}"}).json()
         assert listed[0]["revoked_at"] is not None
@@ -253,16 +254,16 @@ class TestApiKeyRevoke:
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "x", "ttl": "30d"},
         ).json()
-        first = api_key_client.delete(
-            f"/auth/api-keys/{created['id']}",
+        first = api_key_client.post(
+            f"/auth/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
-        second = api_key_client.delete(
-            f"/auth/api-keys/{created['id']}",
+        second = api_key_client.post(
+            f"/auth/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert first.status_code == 204
-        assert second.status_code == 204
+        assert first.status_code == 200
+        assert second.status_code == 200
 
     def test_revoke_other_users_key_returns_404(self, api_key_client: TestClient) -> None:
         token_a = _login(api_key_client, username="alice")
@@ -272,20 +273,20 @@ class TestApiKeyRevoke:
             headers={"Authorization": f"Bearer {token_a}"},
             json={"name": "alice-key", "ttl": "30d"},
         ).json()
-        resp = api_key_client.delete(
-            f"/auth/api-keys/{created['id']}",
+        resp = api_key_client.post(
+            f"/auth/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token_b}"},
         )
         assert resp.status_code == 404
 
     def test_revoke_unknown_key_returns_404(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
-        resp = api_key_client.delete(
-            "/auth/api-keys/nonexistent",
+        resp = api_key_client.post(
+            "/auth/api-keys/nonexistent/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 404
 
     def test_revoke_requires_jwt(self, api_key_client: TestClient) -> None:
-        resp = api_key_client.delete("/auth/api-keys/anything")
+        resp = api_key_client.post("/auth/api-keys/anything/revoke")
         assert resp.status_code == 401

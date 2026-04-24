@@ -1,6 +1,7 @@
 import type {
   ApiKeyPublic,
   CreatedApiKey,
+  MessageResponse,
   ReviewItem,
   ReviewQueueResponse,
   ReviewDecisionResponse,
@@ -121,7 +122,7 @@ export const api = {
     }),
 
   revokeApiKey: (id: string) =>
-    request<void>(`/auth/api-keys/${id}`, { method: "DELETE" }),
+    request<MessageResponse>(`/auth/api-keys/${id}/revoke`, { method: "POST" }),
 };
 
 export { ApiError };

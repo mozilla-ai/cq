@@ -447,8 +447,8 @@ class TestApiKeyEnforcement:
         )
         body = create_resp.json()
         api_token = body["token"]
-        enforced_client.delete(
-            f"/auth/api-keys/{body['id']}",
+        enforced_client.post(
+            f"/auth/api-keys/{body['id']}/revoke",
             headers={"Authorization": f"Bearer {jwt_token}"},
         )
         resp = enforced_client.post(

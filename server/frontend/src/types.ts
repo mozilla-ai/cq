@@ -100,3 +100,7 @@ export interface ApiKeyPublic {
 export interface CreatedApiKey extends ApiKeyPublic {
   token: string;
 }
+
+export interface MessageResponse {
+  message: string
+}

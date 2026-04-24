@@ -129,7 +129,7 @@ describe("ApiKeysPage", () => {
           },
         ],
       },
-      { ok: true, status: 204, body: null },
+      { ok: true, status: 200, body: { message: "API key revoked." } },
       {
         ok: true,
         status: 200,
