@@ -121,8 +121,8 @@ export function ApiKeysPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.listApiKeys();
-      setKeys(data);
+      const response = await api.listApiKeys();
+      setKeys(response.data);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load API keys");

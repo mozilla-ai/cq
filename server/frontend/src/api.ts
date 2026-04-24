@@ -1,5 +1,5 @@
 import type {
-  ApiKeyPublic,
+  ApiKeysList,
   CreatedApiKey,
   MessageResponse,
   ReviewItem,
@@ -113,7 +113,7 @@ export const api = {
     return request<ReviewItem[]>(`/review/units${query ? `?${query}` : ""}`);
   },
 
-  listApiKeys: () => request<ApiKeyPublic[]>("/auth/api-keys"),
+  listApiKeys: () => request<ApiKeysList>("/auth/api-keys"),
 
   createApiKey: (name: string, ttl: string, labels: string[] = []) =>
     request<CreatedApiKey>("/auth/api-keys", {

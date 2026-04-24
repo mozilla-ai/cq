@@ -201,10 +201,11 @@ class TestApiKeyList:
         )
         resp = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
-        keys = resp.json()
-        assert len(keys) == 1
-        assert "token" not in keys[0]
-        assert keys[0]["name"] == "laptop"
+        body = resp.json()
+        assert body["count"] == 1
+        assert len(body["data"]) == 1
+        assert "token" not in body["data"][0]
+        assert body["data"][0]["name"] == "laptop"
 
     def test_list_requires_jwt(self, api_key_client: TestClient) -> None:
         resp = api_key_client.get("/auth/api-keys")
@@ -224,8 +225,9 @@ class TestApiKeyList:
             json={"name": "bob-key", "ttl": "30d"},
         )
         resp = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token_a}"})
-        names = [k["name"] for k in resp.json()]
-        assert names == ["alice-key"]
+        body = resp.json()
+        assert body["count"] == 1
+        assert [k["name"] for k in body["data"]] == ["alice-key"]
 
 
 class TestApiKeyRevoke:
@@ -243,9 +245,9 @@ class TestApiKeyRevoke:
         assert resp.status_code == 200
         assert resp.json() == {"message": "API key revoked."}
 
-        listed = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token}"}).json()
-        assert listed[0]["revoked_at"] is not None
-        assert listed[0]["is_active"] is False
+        body = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token}"}).json()
+        assert body["data"][0]["revoked_at"] is not None
+        assert body["data"][0]["is_active"] is False
 
     def test_revoke_is_idempotent(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)

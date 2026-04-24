@@ -101,6 +101,17 @@ class CreateApiKeyResponse(ApiKeyPublic):
     token: str
 
 
+class ApiKeysPublic(BaseModel):
+    """Collection wrapper for API key listings.
+
+    The envelope shape leaves room for pagination metadata (e.g. a
+    ``next_cursor`` field) without breaking existing clients.
+    """
+
+    data: list[ApiKeyPublic]
+    count: int
+
+
 def _to_public(row: dict[str, Any]) -> ApiKeyPublic:
     """Build the public view of an API key row."""
     now = datetime.now(UTC)
@@ -276,10 +287,15 @@ def create_api_key_route(
 def list_api_keys_route(
     username: str = Depends(get_current_user),
     store: RemoteStore = Depends(get_store),
-) -> list[ApiKeyPublic]:
-    """Return the authenticated user's API keys. Never returns plaintext."""
+) -> ApiKeysPublic:
+    """Return the authenticated user's API keys. Never returns plaintext.
+
+    Revoked keys are included with ``is_active: false`` so users can audit
+    their own revocation history.
+    """
     user_id = _require_user_id(store, username)
-    return [_to_public(row) for row in store.list_api_keys_for_user(user_id)]
+    data = [_to_public(row) for row in store.list_api_keys_for_user(user_id)]
+    return ApiKeysPublic(data=data, count=len(data))
 
 
 @router.post("/api-keys/{key_id}/revoke")
