@@ -62,8 +62,23 @@ class TestDecodeToken:
             decode_token(f"{TOKEN_NAMESPACE}.{TOKEN_VERSION}.{uuid.uuid4().hex}.")
 
     def test_rejects_bad_uuid(self) -> None:
+        valid_secret = "a" * 52
         with pytest.raises(ValueError):
-            decode_token(f"{TOKEN_NAMESPACE}.{TOKEN_VERSION}.not-a-uuid.sekret")
+            decode_token(f"{TOKEN_NAMESPACE}.{TOKEN_VERSION}.not-a-uuid.{valid_secret}")
+
+    def test_rejects_secret_wrong_length(self) -> None:
+        short = "a" * 10
+        long = "a" * 100
+        with pytest.raises(ValueError):
+            decode_token(f"{TOKEN_NAMESPACE}.{TOKEN_VERSION}.{uuid.uuid4().hex}.{short}")
+        with pytest.raises(ValueError):
+            decode_token(f"{TOKEN_NAMESPACE}.{TOKEN_VERSION}.{uuid.uuid4().hex}.{long}")
+
+    def test_rejects_secret_bad_charset(self) -> None:
+        # Uppercase is outside the lowercase base32 alphabet.
+        bad = "A" * 52
+        with pytest.raises(ValueError):
+            decode_token(f"{TOKEN_NAMESPACE}.{TOKEN_VERSION}.{uuid.uuid4().hex}.{bad}")
 
 
 class TestHashSecret:

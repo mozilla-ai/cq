@@ -20,6 +20,8 @@ TOKEN_NAMESPACE = "cqa"
 TOKEN_VERSION = "v1"
 
 _SECRET_BYTES = 32
+_SECRET_LENGTH = 52  # 32 bytes encoded as unpadded lowercase base32.
+_SECRET_ALPHABET = frozenset("abcdefghijklmnopqrstuvwxyz234567")
 _SECRET_PREFIX_LENGTH = 8
 _TOKEN_PART_COUNT = 4
 
@@ -64,8 +66,10 @@ def decode_token(token: str) -> tuple[uuid.UUID, str]:
     if len(parts) != _TOKEN_PART_COUNT:
         raise ValueError("token format is invalid")
     namespace, version, key_id_hex, secret = parts
-    if namespace != TOKEN_NAMESPACE or version != TOKEN_VERSION or not secret:
+    if namespace != TOKEN_NAMESPACE or version != TOKEN_VERSION:
         raise ValueError("token format is invalid")
+    if len(secret) != _SECRET_LENGTH or not all(c in _SECRET_ALPHABET for c in secret):
+        raise ValueError("token secret is malformed")
     try:
         key_id = uuid.UUID(hex=key_id_hex)
     except ValueError as exc:
@@ -90,7 +94,9 @@ def secret_prefix(secret: str) -> str:
     """Return the stored display prefix for a secret.
 
     The prefix is the first ``_SECRET_PREFIX_LENGTH`` characters of the
-    secret; enough to distinguish keys in UI listings without revealing
-    any material that could be used for authentication.
+    secret; enough to distinguish keys in UI listings while exposing
+    only a small portion that does not meaningfully weaken security:
+    8 of 52 base32 characters leaves ~220 bits of entropy in the
+    unexposed tail, which remains infeasible to brute-force.
     """
     return secret[:_SECRET_PREFIX_LENGTH]
