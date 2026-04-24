@@ -11,7 +11,7 @@ _ENABLED = False
 _DIM = int(os.environ.get("SEMSEARCH_EMBEDDING_DIM", 768))
 
 
-_TOKEN_EMBEDDING_URL = os.environ.get("TOKEN_EMBEDDING_URL", "http://localhost:8080")
+_TOKEN_EMBEDDING_URL = os.environ.get("TOKEN_EMBEDDING_URL")
 if _TOKEN_EMBEDDING_URL:
     try:
         import sqlite_vec
