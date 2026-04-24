@@ -423,7 +423,7 @@ func (s *localStore) query(opt ...queryOption) (storeQueryResult, error) {
 
 	results := make([]ranked, 0, len(candidates))
 	for _, ku := range candidates {
-		relevance := ku.relevance(domains, languages, frameworks)
+		relevance := ku.relevance(domains, languages, frameworks, opts.pattern)
 		confidence := ku.Evidence.Confidence
 		results = append(results, ranked{ku: ku, score: relevance * confidence})
 	}

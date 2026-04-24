@@ -46,10 +46,12 @@ USER app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_COMPILE_BYTECODE=1
+    UV_COMPILE_BYTECODE=1 \
+    CQ_DB_PATH=/data/cq.db \
+    CQ_PORT=3000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=2 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${CQ_PORT}/health')"
 
 LABEL org.opencontainers.image.source="https://github.com/mozilla-ai/cq" \
       org.opencontainers.image.description="cq knowledge store server" \

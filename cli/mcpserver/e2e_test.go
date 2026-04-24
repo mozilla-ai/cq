@@ -63,7 +63,7 @@ func TestE2EProposeQueryConfirmFlagStatus(t *testing.T) {
 				"summary": "E2E insight",
 				"detail":  "Proposed over MCP.",
 				"action":  "Use this in tests.",
-				"domain":  []any{"testing"},
+				"domains": []any{"testing"},
 			},
 		},
 	})
@@ -76,7 +76,7 @@ func TestE2EProposeQueryConfirmFlagStatus(t *testing.T) {
 	require.NotEmpty(t, proposed.ID)
 
 	queryResult, err := c.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{Name: "query", Arguments: map[string]any{"domain": []any{"testing"}}},
+		Params: mcp.CallToolParams{Name: "query", Arguments: map[string]any{"domains": []any{"testing"}}},
 	})
 	require.NoError(t, err)
 	require.False(t, queryResult.IsError)
@@ -105,4 +105,71 @@ func TestE2EProposeQueryConfirmFlagStatus(t *testing.T) {
 	statusText := statusResult.Content[0].(mcp.TextContent).Text
 	require.NoError(t, json.Unmarshal([]byte(statusText), &stats))
 	require.Equal(t, 1, stats.TotalCount)
+}
+
+// TestE2EPatternBoost verifies that the MCP query tool threads the pattern filter through to
+// scoring so a pattern-matching unit ranks above an otherwise-equivalent plain unit. The plain
+// unit is inserted first so insertion-order tiebreaking would rank it first if the pattern boost
+// were silently dropped anywhere in the propose -> store -> query path.
+func TestE2EPatternBoost(t *testing.T) {
+	realClient := newSDKClient(t)
+	srv := mcpserver.New(realClient, "test")
+	c := newMCPTestClient(t, srv)
+	ctx := context.Background()
+
+	plainResp, err := c.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "propose",
+			Arguments: map[string]any{
+				"summary": "plain",
+				"detail":  "no pattern",
+				"action":  "noop",
+				"domains": []any{"api"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, plainResp.IsError)
+
+	var plain cq.KnowledgeUnit
+	plainText := plainResp.Content[0].(mcp.TextContent).Text
+	require.NoError(t, json.Unmarshal([]byte(plainText), &plain))
+
+	matchResp, err := c.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "propose",
+			Arguments: map[string]any{
+				"summary": "match",
+				"detail":  "with pattern",
+				"action":  "noop",
+				"domains": []any{"api"},
+				"pattern": "api-client",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, matchResp.IsError)
+
+	var match cq.KnowledgeUnit
+	matchText := matchResp.Content[0].(mcp.TextContent).Text
+	require.NoError(t, json.Unmarshal([]byte(matchText), &match))
+
+	queryResp, err := c.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "query",
+			Arguments: map[string]any{
+				"domains": []any{"api"},
+				"pattern": "api-client",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, queryResp.IsError)
+
+	var units []cq.KnowledgeUnit
+	queryText := queryResp.Content[0].(mcp.TextContent).Text
+	require.NoError(t, json.Unmarshal([]byte(queryText), &units))
+	require.Len(t, units, 2)
+	require.Equal(t, match.ID, units[0].ID, "the pattern-matching unit must rank above the plain unit")
+	require.Equal(t, plain.ID, units[1].ID)
 }

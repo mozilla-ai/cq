@@ -1,0 +1,57 @@
+name: Prompts sync check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-prompts-sync.yaml
+      - plugins/cq/skills/cq/SKILL.md
+      - plugins/cq/commands/reflect.md
+      - sdk/go/prompts/SKILL.md
+      - sdk/go/prompts/reflect.md
+      - sdk/python/src/cq/prompts/SKILL.md
+      - sdk/python/src/cq/prompts/reflect.md
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-prompts-sync.yaml
+      - plugins/cq/skills/cq/SKILL.md
+      - plugins/cq/commands/reflect.md
+      - sdk/go/prompts/SKILL.md
+      - sdk/go/prompts/reflect.md
+      - sdk/python/src/cq/prompts/SKILL.md
+      - sdk/python/src/cq/prompts/reflect.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-sync:
+    name: Check prompt copies match sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify SDK prompt copies match plugin sources
+        run: |
+          declare -a pairs=(
+            "plugins/cq/skills/cq/SKILL.md:sdk/go/prompts/SKILL.md"
+            "plugins/cq/skills/cq/SKILL.md:sdk/python/src/cq/prompts/SKILL.md"
+            "plugins/cq/commands/reflect.md:sdk/go/prompts/reflect.md"
+            "plugins/cq/commands/reflect.md:sdk/python/src/cq/prompts/reflect.md"
+          )
+          failed=0
+          for pair in "${pairs[@]}"; do
+            source="${pair%%:*}"
+            target="${pair##*:}"
+            if ! diff -q "$source" "$target" > /dev/null 2>&1; then
+              echo "::error file=${target}::${target} does not match ${source}. Run 'make sync-prompts' in the SDK directory."
+              diff --unified "$source" "$target" || true
+              failed=1
+            fi
+          done
+          if [ "$failed" -eq 1 ]; then
+            exit 1
+          fi
+          echo "All prompt copies are in sync."

@@ -38,8 +38,11 @@ ku = cq.propose(
 cq.confirm(ku.id)
 cq.flag(ku.id, reason=FlagReason.STALE)
 
-# Get the canonical agent protocol prompt.
-prompt = cq.prompt()
+# Get the canonical agent prompts.
+from cq import prompts
+
+skill_prompt = prompts.skill()
+reflect_prompt = prompts.reflect()
 ```
 
 ## Configuration

@@ -22,16 +22,21 @@ func QueryTool() mcp.Tool {
 		mcp.WithDescription(
 			"Search for relevant knowledge units by domain tags.",
 		),
-		mcp.WithArray("domain",
+		mcp.WithArray("domains",
 			mcp.Required(),
 			mcp.Description("Domain tags to search."),
 			mcp.WithStringItems(),
 		),
-		mcp.WithString("language",
-			mcp.Description("Filter by programming language."),
+		mcp.WithArray("languages",
+			mcp.Description("Filter by programming languages."),
+			mcp.WithStringItems(),
 		),
-		mcp.WithString("framework",
-			mcp.Description("Filter by framework."),
+		mcp.WithArray("frameworks",
+			mcp.Description("Filter by frameworks."),
+			mcp.WithStringItems(),
+		),
+		mcp.WithString("pattern",
+			mcp.Description("Filter by pattern."),
 		),
 		mcp.WithNumber("limit",
 			mcp.Description("Maximum results to return (default 5, max 50)."),
@@ -41,16 +46,14 @@ func QueryTool() mcp.Tool {
 
 // HandleQuery searches knowledge units by domain.
 func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	domains, err := req.RequireStringSlice("domain")
+	domains, err := req.RequireStringSlice("domains")
 	if err != nil {
-		return mcp.NewToolResultError("domain is required (string array)"), nil
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domains' argument: '%s'", err)), nil
 	}
 	if len(domains) == 0 {
-		return mcp.NewToolResultError("domain must contain at least one tag"), nil
+		return mcp.NewToolResultError("domains must contain at least one tag"), nil
 	}
 
-	language := req.GetString("language", "")
-	framework := req.GetString("framework", "")
 	limit := req.GetInt("limit", defaultQueryLimit)
 	if limit <= 0 {
 		limit = defaultQueryLimit
@@ -60,14 +63,11 @@ func (s *Server) HandleQuery(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	}
 
 	params := cq.QueryParams{
-		Domains: domains,
-		Limit:   limit,
-	}
-	if language != "" {
-		params.Languages = []string{language}
-	}
-	if framework != "" {
-		params.Frameworks = []string{framework}
+		Domains:    domains,
+		Languages:  req.GetStringSlice("languages", nil),
+		Frameworks: req.GetStringSlice("frameworks", nil),
+		Pattern:    req.GetString("pattern", ""),
+		Limit:      limit,
 	}
 
 	result, err := s.client.Query(ctx, params)

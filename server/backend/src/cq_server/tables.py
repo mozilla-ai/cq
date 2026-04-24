@@ -19,6 +19,28 @@ CREATE TABLE IF NOT EXISTS users (
 );
 """
 
+API_KEYS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS api_keys (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    labels TEXT NOT NULL DEFAULT '[]',
+    key_prefix TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    ttl TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT,
+    revoked_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+"""
+
+
+def ensure_api_keys_table(conn: sqlite3.Connection) -> None:
+    """Create the api_keys table and its indexes if they do not exist."""
+    conn.executescript(API_KEYS_TABLE_SQL)
+
 
 def ensure_review_columns(conn: sqlite3.Connection) -> None:
     """Add review status columns if they do not exist."""

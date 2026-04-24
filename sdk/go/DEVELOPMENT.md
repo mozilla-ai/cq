@@ -10,7 +10,7 @@
 ```bash
 git clone https://github.com/mozilla-ai/cq.git
 cd cq/sdk/go
-make sync-skill
+make sync-prompts
 ```
 
 ## Common Tasks
@@ -18,7 +18,7 @@ make sync-skill
 ```bash
 make test           # Lint + test.
 make lint           # Run golangci-lint.
-make sync-skill     # Copy skill prompt from golden source.
+make sync-prompts   # Copy canonical prompts from golden sources.
 make check-licenses # Verify dependency licenses.
 make help           # Show all available targets.
 ```

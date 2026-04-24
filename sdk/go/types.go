@@ -75,6 +75,7 @@ type QueryParams struct {
 	Domains    []string
 	Languages  []string // Optional.
 	Frameworks []string // Optional.
+	Pattern    string   // Optional.
 	Limit      int      // Default 5, max 50.
 }
 

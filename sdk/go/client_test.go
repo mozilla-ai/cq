@@ -3,6 +3,7 @@ package cq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -235,12 +236,6 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, 1, stats.TotalCount)
 }
 
-func TestPromptMethod(t *testing.T) {
-
-	c := newTestClient(t)
-	require.NotEmpty(t, c.Prompt())
-}
-
 func TestLifecycle(t *testing.T) {
 
 	c := newTestClient(t)
@@ -302,12 +297,44 @@ func TestProposeRemoteUnreachable(t *testing.T) {
 	ku, err := c.Propose(context.Background(), ProposeParams{
 		Summary: "Fallback", Detail: "D.", Action: "A.", Domains: []string{"api"},
 	})
-	require.NoError(t, err)
-	require.Contains(t, ku.ID, "ku_")
+
+	// Returns FallbackError with transport cause, no RemoteError.
+	var fb *FallbackError
+	require.ErrorAs(t, err, &fb)
+	require.Contains(t, fb.LocalUnit.ID, "ku_")
+	require.True(t, errors.Is(fb.Err, errUnreachable))
+	var re *RemoteError
+	require.False(t, errors.As(fb.Err, &re))
+
+	require.Equal(t, fb.LocalUnit.ID, ku.ID)
 
 	// Stored locally as fallback.
 	stats, _ := c.Status(context.Background())
 	require.Equal(t, 1, stats.TotalCount)
+}
+
+func TestFallbackErrorMessage(t *testing.T) {
+	t.Run("with RemoteError cause", func(t *testing.T) {
+		fb := &FallbackError{
+			LocalUnit: KnowledgeUnit{ID: "ku_01234567890123456789012345678901"},
+			Err:       &RemoteError{StatusCode: 401, Detail: "Invalid API key"},
+		}
+		require.Equal(t,
+			"stored locally after remote failure: remote API rejected request (401): Invalid API key",
+			fb.Error(),
+		)
+	})
+
+	t.Run("with sentinel cause", func(t *testing.T) {
+		fb := &FallbackError{
+			LocalUnit: KnowledgeUnit{ID: "ku_01234567890123456789012345678901"},
+			Err:       errUnreachable,
+		}
+		require.Equal(t,
+			"stored locally after remote failure: remote API unreachable",
+			fb.Error(),
+		)
+	})
 }
 
 func TestProposeRemoteRejects(t *testing.T) {
@@ -324,6 +351,45 @@ func TestProposeRemoteRejects(t *testing.T) {
 	var remoteErr *RemoteError
 	require.ErrorAs(t, err, &remoteErr)
 	require.Equal(t, 422, remoteErr.StatusCode)
+}
+
+func TestProposeRemoteAuthRejectFallsBackLocally(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+	}{
+		{"401 Unauthorized", http.StatusUnauthorized},
+		{"403 Forbidden", http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"detail":"Invalid API key"}`))
+			}))
+
+			ku, err := c.Propose(context.Background(), ProposeParams{
+				Summary: "Auth fallback", Detail: "D.", Action: "A.", Domains: []string{"api"},
+			})
+
+			// Returns FallbackError carrying the locally-stored unit.
+			var fb *FallbackError
+			require.ErrorAs(t, err, &fb)
+			require.Contains(t, fb.LocalUnit.ID, "ku_")
+			require.Equal(t, Local, fb.LocalUnit.Tier)
+
+			// Cause unwraps to RemoteError with the auth status code.
+			var re *RemoteError
+			require.ErrorAs(t, err, &re)
+			require.Equal(t, tc.status, re.StatusCode)
+
+			// Unit returned alongside the error matches the fallback.
+			require.Equal(t, fb.LocalUnit.ID, ku.ID)
+
+			// Stored locally.
+			stats, _ := c.Status(context.Background())
+			require.Equal(t, 1, stats.TotalCount)
+		})
+	}
 }
 
 func TestQueryMergesLocalAndRemote(t *testing.T) {
@@ -343,7 +409,8 @@ func TestQueryMergesLocalAndRemote(t *testing.T) {
 	_, err := c.Propose(ctx, ProposeParams{
 		Summary: "Local insight", Detail: "D.", Action: "A.", Domains: []string{"api"},
 	})
-	require.NoError(t, err)
+	var fb *FallbackError
+	require.ErrorAs(t, err, &fb)
 
 	// Query merges local + remote.
 	qr, err := c.Query(ctx, QueryParams{Domains: []string{"api"}})
@@ -526,7 +593,6 @@ func TestDrainableCount(t *testing.T) {
 
 func TestHasRemote(t *testing.T) {
 
-
 	t.Run("without remote", func(t *testing.T) {
 
 		c := newTestClient(t)
@@ -615,7 +681,8 @@ func TestStatusWithRemoteMergesTierCounts(t *testing.T) {
 	_, err := c.Propose(ctx, ProposeParams{
 		Summary: "Local", Detail: "D.", Action: "A.", Domains: []string{"test"},
 	})
-	require.NoError(t, err)
+	var fb *FallbackError
+	require.ErrorAs(t, err, &fb)
 
 	stats, err := c.Status(ctx)
 	require.NoError(t, err)
@@ -646,7 +713,8 @@ func TestStatusWithRemoteMergesDomainCounts(t *testing.T) {
 	_, err := c.Propose(ctx, ProposeParams{
 		Summary: "Local", Detail: "D.", Action: "A.", Domains: []string{"api"},
 	})
-	require.NoError(t, err)
+	var fb *FallbackError
+	require.ErrorAs(t, err, &fb)
 
 	stats, err := c.Status(ctx)
 	require.NoError(t, err)
@@ -666,7 +734,8 @@ func TestStatusRemoteUnreachableStillReturnsLocal(t *testing.T) {
 	_, err = c.Propose(context.Background(), ProposeParams{
 		Summary: "S", Detail: "D.", Action: "A.", Domains: []string{"test"},
 	})
-	require.NoError(t, err)
+	var fb *FallbackError
+	require.ErrorAs(t, err, &fb)
 
 	stats, err := c.Status(context.Background())
 	require.NoError(t, err)
@@ -693,7 +762,8 @@ func TestStatusIgnoresLocalTierFromRemote(t *testing.T) {
 	_, err := c.Propose(ctx, ProposeParams{
 		Summary: "S", Detail: "D.", Action: "A.", Domains: []string{"test"},
 	})
-	require.NoError(t, err)
+	var fb *FallbackError
+	require.ErrorAs(t, err, &fb)
 
 	stats, err := c.Status(ctx)
 	require.NoError(t, err)
@@ -703,4 +773,29 @@ func TestStatusIgnoresLocalTierFromRemote(t *testing.T) {
 	require.Equal(t, 1, stats.TierCounts[Public])
 	// Total is local (1) + private (4) + public (1) = 6. The remote's "local: 1" is excluded.
 	require.Equal(t, 6, stats.TotalCount)
+}
+
+func TestClientQueryPassesPatternToStore(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Propose(context.Background(), ProposeParams{
+		Summary: "s", Detail: "d", Action: "a",
+		Domains: []string{"api"},
+		Pattern: "api-client",
+	})
+	require.NoError(t, err)
+
+	_, err = c.Propose(context.Background(), ProposeParams{
+		Summary: "s2", Detail: "d2", Action: "a2",
+		Domains: []string{"api"},
+	})
+	require.NoError(t, err)
+
+	withPattern, err := c.Query(context.Background(), QueryParams{
+		Domains: []string{"api"},
+		Pattern: "api-client",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, withPattern.Units)
+	require.Equal(t, "s", withPattern.Units[0].Insight.Summary, "the unit with matching pattern should rank first")
 }

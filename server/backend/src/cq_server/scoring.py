@@ -44,16 +44,19 @@ def calculate_relevance(
     query_domains: list[str],
     query_languages: list[str] | None = None,
     query_frameworks: list[str] | None = None,
+    query_pattern: str = "",
 ) -> float:
     """Score relevance from 0.0 to 1.0 based on domain overlap and context match.
 
-    Domain overlap is the primary signal (weighted at 0.7).
-    Language and framework matches are secondary signals (0.15 each).
+    Domain overlap is the primary signal (weighted at 0.55).
+    Language, framework, and pattern matches are secondary signals (0.15 each).
     A unit scores 1.0 on language or framework if any queried value overlaps.
+    A unit scores 1.0 on pattern if the queried value equals the stored pattern (case-insensitive).
     """
-    domain_weight = 0.7
+    domain_weight = 0.55
     language_weight = 0.15
     framework_weight = 0.15
+    pattern_weight = 0.15
 
     # Domain overlap scored by Jaccard similarity.
     unit_domains = set(unit.domains)
@@ -73,4 +76,14 @@ def calculate_relevance(
     if query_frameworks and set(query_frameworks) & set(unit.context.frameworks):
         framework_score = 1.0
 
-    return domain_weight * domain_score + language_weight * language_score + framework_weight * framework_score
+    # Pattern match: 1.0 on case-insensitive equality when both sides are non-empty.
+    pattern_score = 0.0
+    if query_pattern and unit.context.pattern and query_pattern.lower() == unit.context.pattern.lower():
+        pattern_score = 1.0
+
+    return (
+        domain_weight * domain_score
+        + language_weight * language_score
+        + framework_weight * framework_score
+        + pattern_weight * pattern_score
+    )

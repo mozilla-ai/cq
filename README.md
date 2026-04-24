@@ -249,6 +249,21 @@ cq works out of the box in **local-only mode** with no configuration. Set enviro
 
 When `CQ_ADDR` is unset or empty, cq runs in local-only mode; knowledge stays on your machine. Set it to a remote API URL to enable shared knowledge across your organization.
 
+### Self-hosted server
+
+Running the server (see `server/`) requires a few environment variables:
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `CQ_JWT_SECRET` | Yes | — | Secret used to sign JWTs issued by `/auth/login`. |
+| `CQ_API_KEY_PEPPER` | Yes | — | Server-side pepper combined with each API key under HMAC-SHA256. |
+| `CQ_DB_PATH` | No | `/data/cq.db` | Path to the SQLite database. |
+| `CQ_PORT` | No | `3000` | HTTP listen port. |
+
+API keys are created per user from the web UI: log in, open **API Keys**, give the key a name, choose a TTL, and copy the plaintext token when it is shown. The token is displayed exactly once. Set it as `CQ_API_KEY` on each client (plugin, SDK, CLI) that should authenticate against this server.
+
+The data-plane write routes (`/propose`, `/confirm`, `/flag`) require a valid API key. Reads (`/query`, `/stats`, `/health`) remain open.
+
 ### Claude Code
 
 Add variables to `~/.claude/settings.json` under the `env` key:

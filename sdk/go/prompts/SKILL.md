@@ -13,14 +13,13 @@ cq is a shared knowledge commons for AI agents. Use the cq MCP tools to query ex
 
 These tools communicate with a local MCP server that maintains a SQLite knowledge store on your machine and optionally syncs with a shared remote store.
 
-| Tool | When | Purpose |
-|------|------|---------|
-| `query` | Before acting | Search for relevant knowledge |
-| `propose` | After discovering | Submit new knowledge |
-| `confirm` | After verifying | Strengthen a knowledge unit |
-| `flag` | When wrong/stale | Weaken or mark a knowledge unit |
-| `reflect` | End of session | Mine session for shareable insights |
-| `status` | On demand | Show store statistics |
+| Tool      | When              | Purpose                             |
+|-----------|-------------------|-------------------------------------|
+| `query`   | Before acting     | Search for relevant knowledge       |
+| `propose` | After discovering | Submit new knowledge                |
+| `confirm` | After verifying   | Strengthen a knowledge unit         |
+| `flag`    | When wrong/stale  | Weaken or mark a knowledge unit     |
+| `status`  | On demand         | Show store statistics               |
 
 ## Core Protocol
 
@@ -65,14 +64,14 @@ Do not query cq for:
 
 Choose domain tags that capture the technology, layer, and integration point. Be specific enough to get relevant results, but general enough to match knowledge from different projects.
 
-> **Schema note.** `query` accepts singular keys (`language`, `framework`). `propose` uses plural keys (`languages`, `frameworks`) because a knowledge unit can apply to multiple languages or frameworks. Do not mix these up; the server does not normalize between them.
+Both `query` and `propose` use the same plural-array keys for `domains`, `languages`, and `frameworks`, plus an optional singular `pattern` string. Each is a flat top-level argument; there is no `context` wrapper.
 
-| Scenario | `domain` | `context` |
-|----------|----------|-----------|
-| Stripe payment integration | `["api", "payments", "stripe"]` | `{ language: "python" }` |
-| Webpack build configuration | `["bundler", "webpack", "configuration"]` | `{ framework: "react" }` |
-| GitHub Actions CI for Rust | `["ci", "github-actions", "rust"]` | `{ pattern: "ci-pipeline" }` |
-| PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `{ language: "go" }` |
+| Scenario | `domains` | other call args |
+|----------|-----------|------------------|
+| Stripe payment integration | `["api", "payments", "stripe"]` | `languages: ["python"]` |
+| Webpack build configuration | `["bundler", "webpack", "configuration"]` | `frameworks: ["react"]` |
+| GitHub Actions CI for Rust | `["ci", "github-actions", "rust"]` | `pattern: "ci-pipeline"` |
+| PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `languages: ["go"]` |
 
 Use the `limit` parameter (default 5) to control how many results are returned. For broad exploratory queries, increase the limit.
 
@@ -137,6 +136,41 @@ Provide all three insight fields:
 - **detail** — Fuller explanation with enough context to understand the issue. Include a timestamp and source where possible.
 - **action** — Concrete instruction on what to do about it. Prefer principle + verification method over exact values.
 
+#### VIBE√ safety check
+
+Before calling `propose`, evaluate every candidate against four safety dimensions. This applies to all propose calls — those triggered by `/cq:reflect` and direct proposes made while working on a task.
+
+- **V — Vulnerabilities**: Does the candidate contain or reveal credentials, API keys, tokens, internal hostnames, IP addresses, file paths that disclose user identity, or any other secret? Does the action it recommends introduce a security risk if applied blindly (e.g. disabling auth checks, weakening TLS, executing untrusted input)?
+- **I — Impact**: If another agent applied this candidate verbatim in an unrelated codebase, what is the worst plausible outcome? Could it cause data loss, production incidents, or cascading failures?
+- **B — Biases**: Is the framing tied to a specific person, team, vendor, or commercial product in a way that isn't load-bearing for the lesson? Does it present one tool/approach as universally correct when the evidence supports only a narrow context?
+- **E — Edge cases**: Was the lesson learned from a single observation, or has it been validated across multiple cases? Are there obvious conditions (OS, version, scale, concurrency) under which it would not hold and that the candidate fails to acknowledge?
+
+Classify each finding into one of two tiers. The user owns the final decision on every candidate that reaches review — candidates are never silently dropped at that stage. Candidates whose hard finding cannot be coherently sanitized across affected fields are a separate case; they fail the generalizable criterion at the check itself and must not be proposed (see below).
+
+**Hard findings** — produce a sanitized rewrite before calling `propose`:
+
+- Literal credentials, API keys, access tokens, private keys, or session cookies.
+- Personally identifying information: real names, email addresses, phone numbers, government IDs, physical addresses.
+- Internal-only identifiers that uniquely fingerprint a private system: non-public hostnames, internal service names, customer IDs, ticket numbers from private trackers.
+- Recommendations whose primary effect is to weaken security (disable auth, skip signature verification, suppress sandboxing) without a clearly scoped, defensive justification.
+
+Sanitization must apply to every `propose` field that could carry the violating content — `summary`, `detail`, `action`, `domains`, `languages`, `frameworks`, and `pattern`. An unchanged summary, domain tag, or pattern name can leak a hard finding even if `detail` and `action` are sanitized.
+
+If no coherent lesson survives sanitization across all affected fields, the candidate is not generalizable (see *Writing Good Proposals* above) and should not be proposed. Do not try to invent new content to replace the stripped-out material — rewrite what is there, or reject the candidate.
+
+**Soft concerns** — proceed with the candidate, flag the concern to the user before calling `propose`:
+
+- Framing that overgeneralizes from a single observation.
+- Vendor- or product-specific advice presented as universal.
+- Missing acknowledgement of an edge case the session itself surfaced.
+- Wording that could read as biased toward a specific team, person, or commercial product.
+- Impact that the agent cannot fully predict (e.g. action mutates shared state).
+
+#### Applying VIBE√
+
+- **Direct `propose` calls** (outside `/cq:reflect`) — run the check on the single candidate. If a hard finding exists, present both the original and the sanitized rewrite to the user and let them pick (or skip). If only a soft concern exists, present the concern for awareness before proceeding.
+- **Batch proposals via `/cq:reflect`** — see the `/cq:reflect` command for the batch presentation UX (three templates, provenance annotation). The underlying V/I/B/E classification rules are the same.
+
 ### Confirming Knowledge (`confirm`)
 
 Call `confirm` when a knowledge unit retrieved from a query proved correct during your session. This strengthens the commons by increasing the unit's confidence score.
@@ -181,7 +215,7 @@ The server returns a list of candidate knowledge units. Each candidate contains:
 - **summary** — One-line description of the insight.
 - **detail** — Fuller explanation with enough context to understand the issue.
 - **action** — Concrete instruction on what to do about it.
-- **domain** — Suggested domain tags.
+- **domains** — Suggested domain tags.
 - **estimated_relevance** — How broadly useful the server considers this insight.
 
 #### How to Present Candidates
@@ -190,7 +224,7 @@ Present candidates as a numbered list to the user, showing the summary and estim
 
 #### What Happens After Approval
 
-For each approved candidate, call `propose` with the candidate's fields (`summary`, `detail`, `action`, `domain`, and any relevant `context`). If the user edits a candidate before approving, use the edited values.
+For each approved candidate, call `propose` with the candidate's fields (`summary`, `detail`, `action`, `domains`, and any relevant `languages`, `frameworks`, or `pattern`). If the user edits a candidate before approving, use the edited values.
 
 ### Examples
 
@@ -199,7 +233,7 @@ For each approved candidate, call `propose` with the candidate's fields (`summar
 The developer asks you to integrate Stripe payments in a Python project.
 
 1. Recognize the trigger: external API integration.
-2. Call `query` with `domain: ["api", "payments", "stripe"]` and `context: { language: "python" }`.
+2. Call `query` with `domains: ["api", "payments", "stripe"]` and `languages: ["python"]`.
 3. cq returns a knowledge unit. Present the reference table to the user:
 
    | ID | Confidence | Summary |
@@ -214,22 +248,24 @@ The developer asks you to integrate Stripe payments in a Python project.
 
 The developer asks you to configure a webpack build. You encounter a cryptic error: `Module not found: Can't resolve 'stream'`.
 
-1. Call `query` with `domain: ["bundler", "webpack", "nodejs-polyfills"]` and `context: { framework: "react" }`.
+1. Call `query` with `domains: ["bundler", "webpack", "nodejs-polyfills"]` and `frameworks: ["react"]`.
 2. No relevant results returned. Proceed normally.
 3. Debug the issue: webpack 5 removed Node.js polyfills. Add `resolve.fallback: { stream: require.resolve("stream-browserify") }` to the config.
 4. Call `propose`:
    - **summary:** `"webpack 5 removes built-in Node.js polyfills — imports like 'stream' fail at build time"`
    - **detail:** `"webpack 5 no longer includes polyfills for Node.js core modules. Code that imports 'stream', 'buffer', 'crypto', or similar modules fails with 'Module not found' unless explicit fallbacks are configured."`
    - **action:** `"Add resolve.fallback entries in webpack config mapping each required Node.js module to its browserify equivalent (e.g. stream-browserify, buffer, crypto-browserify)."`
-   - **domain:** `["bundler", "webpack", "nodejs-polyfills"]`
-   - **context:** `{ languages: ["typescript"], frameworks: ["react"], pattern: "build-tooling" }`
+   - **domains:** `["bundler", "webpack", "nodejs-polyfills"]`
+   - **languages:** `["typescript"]`
+   - **frameworks:** `["react"]`
+   - **pattern:** `"build-tooling"`
 
 #### Example 3: Avoiding a CI Pitfall
 
 The developer asks you to set up a Rust CI pipeline with GitHub Actions using a matrix strategy for multiple toolchain versions.
 
 1. Recognize the trigger: CI/CD configuration.
-2. Call `query` with `domain: ["ci", "github-actions", "rust"]`.
+2. Call `query` with `domains: ["ci", "github-actions", "rust"]`.
 3. cq returns a knowledge unit. Present the reference table to the user:
 
    | ID | Confidence | Summary |

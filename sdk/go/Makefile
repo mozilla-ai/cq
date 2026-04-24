@@ -26,31 +26,39 @@ NOTICE_TPL := ../../build/licenses/notice.tpl
 help:
 	@echo "cq Go SDK"
 	@echo ""
-	@echo "  make sync-skill       Copy skill prompt from golden source"
-	@echo "  make check-skill-sync Verify SKILL.md matches golden source"
-	@echo "  make lint             Run golangci-lint"
-	@echo "  make test             Run all tests"
-	@echo "  make check-licenses   Verify dependency licenses"
-	@echo "  make notice           Regenerate NOTICE from dependency licenses"
-	@echo "  make check-notice     Verify NOTICE is up to date"
+	@echo "  make sync-prompts       Copy canonical prompts from golden sources"
+	@echo "  make check-prompts-sync Verify prompt copies match golden sources"
+	@echo "  make lint               Run golangci-lint"
+	@echo "  make test               Run all tests"
+	@echo "  make check-licenses     Verify dependency licenses"
+	@echo "  make notice             Regenerate NOTICE from dependency licenses"
+	@echo "  make check-notice       Verify NOTICE is up to date"
 
-.PHONY: sync-skill
-sync-skill:
-	@cp ../../plugins/cq/skills/cq/SKILL.md internal/protocol/SKILL.md
-	@echo "✓ Skill prompt synced."
+PROMPT_SRC_SKILL := ../../plugins/cq/skills/cq/SKILL.md
+PROMPT_SRC_REFLECT := ../../plugins/cq/commands/reflect.md
+PROMPT_DST_SKILL := prompts/SKILL.md
+PROMPT_DST_REFLECT := prompts/reflect.md
 
-.PHONY: check-skill-sync
-check-skill-sync:
-	@diff -q ../../plugins/cq/skills/cq/SKILL.md internal/protocol/SKILL.md > /dev/null 2>&1 \
-		|| (echo "internal/protocol/SKILL.md is out of sync. Run: make sync-skill" && exit 1)
-	@echo "✓ SKILL.md is in sync."
+.PHONY: sync-prompts
+sync-prompts:
+	@cp $(PROMPT_SRC_SKILL) $(PROMPT_DST_SKILL)
+	@cp $(PROMPT_SRC_REFLECT) $(PROMPT_DST_REFLECT)
+	@echo "✓ Prompts synced."
+
+.PHONY: check-prompts-sync
+check-prompts-sync:
+	@diff -q $(PROMPT_SRC_SKILL) $(PROMPT_DST_SKILL) > /dev/null 2>&1 \
+		|| (echo "$(PROMPT_DST_SKILL) is out of sync. Run: make sync-prompts" && exit 1)
+	@diff -q $(PROMPT_SRC_REFLECT) $(PROMPT_DST_REFLECT) > /dev/null 2>&1 \
+		|| (echo "$(PROMPT_DST_REFLECT) is out of sync. Run: make sync-prompts" && exit 1)
+	@echo "✓ Prompts are in sync."
 
 .PHONY: lint
-lint: check-skill-sync check-notice check-licenses
+lint: check-prompts-sync check-notice check-licenses
 	golangci-lint run --fix -v
 
 .PHONY: test
-test: check-skill-sync
+test: check-prompts-sync
 	go test ./... -v
 
 .PHONY: check-licenses

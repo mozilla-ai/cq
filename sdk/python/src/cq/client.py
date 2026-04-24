@@ -68,6 +68,21 @@ class RemoteError(Exception):
         super().__init__(f"Remote API rejected request ({status_code}): {detail}")
 
 
+class FallbackError(Exception):
+    """Raised when propose stored a unit locally after a remote failure.
+
+    The unit has been persisted to the local store and will drain to the
+    remote on the next successful connection. The underlying cause is
+    available via ``__cause__`` (set automatically by ``raise ... from``);
+    this is a ``RemoteError`` for auth rejection (401/403) or a transport
+    exception for connectivity issues.
+    """
+
+    def __init__(self, local_unit: "KnowledgeUnit") -> None:
+        self.local_unit = local_unit
+        super().__init__("Stored locally after remote failure")
+
+
 class Client:
     """Client for the cq shared knowledge commons.
 
@@ -129,6 +144,7 @@ class Client:
         *,
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
+        pattern: str = "",
         limit: int = 5,
     ) -> QueryResult:
         """Search for knowledge units by domain tags.
@@ -148,7 +164,13 @@ class Client:
 
         source = "local"
         warnings: list[str] = []
-        local_results = self._store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
+        local_results = self._store.query(
+            domains,
+            languages=languages,
+            frameworks=frameworks,
+            pattern=pattern,
+            limit=limit,
+        )
 
         if self._http is None:
             return QueryResult(units=local_results, source=source)
@@ -159,6 +181,7 @@ class Client:
                 domains,
                 languages=languages,
                 frameworks=frameworks,
+                pattern=pattern,
                 limit=limit,
             )
             source = "remote"
@@ -182,9 +205,19 @@ class Client:
     ) -> KnowledgeUnit:
         """Propose a new knowledge unit.
 
-        When a remote API is configured, sends to remote only. Falls back
-        to local storage when the remote is unreachable. Raises RemoteError
-        if the remote explicitly rejects the unit.
+        When a remote API is configured and reachable, the unit is sent to
+        the remote only and returned with no exception. The remote is the
+        source of truth for server-assigned fields; in particular, ``tier``
+        is promoted to ``PRIVATE`` and ``created_by`` is overwritten with
+        the authenticated caller. If the remote is unreachable
+        (transport/5xx) or rejects the request with an auth error
+        (401/403), the unit is stored locally with ``tier=LOCAL`` and
+        ``FallbackError`` is raised carrying the local unit and the
+        underlying cause; the unit will drain on the next successful
+        connection. Other 4xx errors (400, 409, 422) raise ``RemoteError``
+        with nothing stored — the data is the problem, not connectivity.
+        With no remote configured, always stores locally with no
+        exception.
         """
         domains = _as_list(domains)
         if languages is not None:
@@ -202,13 +235,30 @@ class Client:
             context=context,
             created_by=created_by,
         )
+        remote_cause: Exception | None = None
+        result: KnowledgeUnit | None = None
+
         if self._http is not None:
-            result = self._remote_propose(unit)
+            try:
+                result = self._remote_propose(unit)
+            except RemoteError as exc:
+                if exc.status_code not in (401, 403) and not (500 <= exc.status_code < 600):
+                    raise
+                remote_cause = exc
+            except httpx.HTTPError as exc:
+                remote_cause = exc
             if result is not None:
                 return result
-            # Remote unreachable — fall back to local storage.
 
-        self._store.insert(unit)
+        try:
+            self._store.insert(unit)
+        except Exception as insert_exc:
+            if remote_cause is not None:
+                raise RuntimeError(f"fallback insert after remote failure: {insert_exc}") from remote_cause
+            raise
+
+        if remote_cause is not None:
+            raise FallbackError(local_unit=unit) from remote_cause
         return unit
 
     def confirm(self, unit_id: str, *, tier: Tier = Tier.LOCAL) -> KnowledgeUnit:
@@ -300,13 +350,6 @@ class Client:
 
         return stats
 
-    @staticmethod
-    def prompt() -> str:
-        """Return the canonical cq agent protocol prompt."""
-        from .protocol import prompt as _prompt
-
-        return _prompt()
-
     def drain(self) -> DrainResult:
         """Push all local-only units to the remote API.
 
@@ -325,13 +368,12 @@ class Client:
         for unit in units:
             if unit.tier == Tier.LOCAL:
                 try:
-                    result = self._remote_propose(unit)
-                    if result is not None:
-                        self._store.delete(unit.id)
-                        pushed += 1
-                    else:
-                        warnings.append(f"Failed to drain unit {unit.id}: remote unreachable")
+                    self._remote_propose(unit)
+                    self._store.delete(unit.id)
+                    pushed += 1
                 except RemoteError as exc:
+                    warnings.append(f"Failed to drain unit {unit.id}: {exc}")
+                except httpx.HTTPError as exc:
                     warnings.append(f"Failed to drain unit {unit.id}: {exc}")
         return DrainResult(pushed=pushed, warnings=warnings)
 
@@ -357,6 +399,7 @@ class Client:
         *,
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
+        pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Query the remote API.
@@ -372,19 +415,22 @@ class Client:
             params["languages"] = languages
         if frameworks:
             params["frameworks"] = frameworks
+        if pattern:
+            params["pattern"] = pattern
         resp = self._http.get("/query", params=params)
         resp.raise_for_status()
         return [KnowledgeUnit.model_validate(item) for item in resp.json()]
 
-    def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit | None:
+    def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit:
         """Push a unit to the remote API.
 
         Returns:
-            The server-created KnowledgeUnit on success, None on transport error.
+            The server-created KnowledgeUnit on success.
 
         Raises:
-            RemoteError: If the remote API explicitly rejects the request
-                or returns an unparseable response.
+            RemoteError: If the remote API explicitly rejects the request.
+            httpx.HTTPError: For transport-layer failures (connect, timeout,
+                read, network errors). Callers decide how to classify.
         """
         assert self._http is not None
         body = {
@@ -401,15 +447,17 @@ class Client:
                 status_code=exc.response.status_code,
                 detail=exc.response.text,
             ) from exc
-        except httpx.HTTPError:
-            return None
         try:
             data = resp.json()
             unit_data = data.get("knowledge_unit", data) if isinstance(data, dict) else data
             return KnowledgeUnit.model_validate(unit_data)
         except (ValueError, ValidationError):
-            # Server accepted but response is not a parseable KU.
-            return unit
+            # Server accepted (2xx) but response is not a parseable KU.
+            # Return the unit with tier promoted and server-assigned fields
+            # cleared; callers should not trust values that only the server
+            # sets.
+            cleared_evidence = unit.evidence.model_copy(update={"first_observed": None, "last_confirmed": None})
+            return unit.model_copy(update={"tier": Tier.PRIVATE, "created_by": "", "evidence": cleared_evidence})
 
     def _remote_confirm(self, unit_id: str) -> KnowledgeUnit | None:
         """Confirm a unit on the remote API.

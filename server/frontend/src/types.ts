@@ -82,3 +82,21 @@ export interface ReviewStatsResponse {
   recent_activity: ActivityEvent[];
   trends: { daily: DailyCount[] };
 }
+
+export interface ApiKeyPublic {
+  id: string;
+  name: string;
+  labels: string[];
+  prefix: string;
+  ttl: string;
+  expires_at: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  is_expired: boolean;
+  is_active: boolean;
+}
+
+export interface CreatedApiKey extends ApiKeyPublic {
+  token: string;
+}

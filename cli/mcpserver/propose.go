@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -26,13 +27,19 @@ func ProposeTool() mcp.Tool {
 			mcp.Required(),
 			mcp.Description("Recommended action for agents encountering this situation."),
 		),
-		mcp.WithArray("domain",
+		mcp.WithArray("domains",
 			mcp.Required(),
 			mcp.Description("Domain tags for this knowledge."),
 			mcp.WithStringItems(),
 		),
-		mcp.WithString("language", mcp.Description("Programming language context.")),
-		mcp.WithString("framework", mcp.Description("Framework context.")),
+		mcp.WithArray("languages",
+			mcp.Description("Programming language context."),
+			mcp.WithStringItems(),
+		),
+		mcp.WithArray("frameworks",
+			mcp.Description("Framework context."),
+			mcp.WithStringItems(),
+		),
 		mcp.WithString("pattern", mcp.Description("Pattern name.")),
 	)
 }
@@ -51,29 +58,36 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 	if err != nil {
 		return mcp.NewToolResultError("action is required"), nil
 	}
-	domains, err := req.RequireStringSlice("domain")
-	if err != nil || len(domains) == 0 {
-		return mcp.NewToolResultError("domain is required (string array with at least one tag)"), nil
+	domains, err := req.RequireStringSlice("domains")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'domains' argument: '%s'", err)), nil
 	}
-
-	language := req.GetString("language", "")
-	framework := req.GetString("framework", "")
+	if len(domains) == 0 {
+		return mcp.NewToolResultError("domains must contain at least one tag"), nil
+	}
 
 	params := cq.ProposeParams{
-		Summary: summary,
-		Detail:  detail,
-		Action:  action,
-		Domains: domains,
-		Pattern: req.GetString("pattern", ""),
-	}
-	if language != "" {
-		params.Languages = []string{language}
-	}
-	if framework != "" {
-		params.Frameworks = []string{framework}
+		Summary:    summary,
+		Detail:     detail,
+		Action:     action,
+		Domains:    domains,
+		Languages:  req.GetStringSlice("languages", nil),
+		Frameworks: req.GetStringSlice("frameworks", nil),
+		Pattern:    req.GetString("pattern", ""),
 	}
 
 	result, err := s.client.Propose(ctx, params)
+	// Remote unreachable/rejected: unit was stored locally. Surface the unit
+	// alongside a warning so the caller can summarise the partial success.
+	var fb *cq.FallbackError
+	if errors.As(err, &fb) {
+		data, mErr := json.Marshal(fb.LocalUnit)
+		if mErr != nil {
+			return nil, fmt.Errorf("encoding result: %w", mErr)
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("warning: %s\n%s", fb, data)), nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("proposing: %w", err)
 	}

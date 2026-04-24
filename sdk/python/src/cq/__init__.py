@@ -1,6 +1,7 @@
 """cq — Python SDK for the shared agent knowledge commons."""
 
-from .client import Client, DrainResult, QueryResult, RemoteError
+from . import prompts
+from .client import Client, DrainResult, FallbackError, QueryResult, RemoteError
 from .models import (
     Context,
     Evidence,
@@ -22,6 +23,7 @@ __all__ = [
     "DefaultReflector",
     "DrainResult",
     "Evidence",
+    "FallbackError",
     "Flag",
     "FlagReason",
     "Insight",
@@ -37,4 +39,5 @@ __all__ = [
     "apply_flag",
     "calculate_relevance",
     "create_knowledge_unit",
+    "prompts",
 ]

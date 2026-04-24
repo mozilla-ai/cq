@@ -299,8 +299,8 @@ cq-plugin/
 │   └── cq/
 │       └── SKILL.md
 ├── commands/
-│   ├── cq-status.md
-│   └── cq-reflect.md
+│   ├── status.md
+│   └── reflect.md
 ├── hooks/
 │   └── hooks.json
 ├── server/

@@ -144,15 +144,15 @@ wheels = [
 
 [[package]]
 name = "cq-sdk"
-version = "0.6.1"
+version = "0.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/57/b82ee6bc90221496ebf2289e1f2b11218da08b8f64dc9ea9e12ae8a5302c/cq_sdk-0.6.1.tar.gz", hash = "sha256:50957e870e50540ccfb2061f7b87314edac6da11aca9ccb9494347ca1b569978", size = 36564 }
+sdist = { url = "https://files.pythonhosted.org/packages/15/b0/510d923a0a048f56c013d4101f388cc091955fbf94a29263d1274fe93167/cq_sdk-0.9.1.tar.gz", hash = "sha256:0a6ed9778640d164c04a7b1a631c110f900c9a1194d1ece9735402f5e65e5600", size = 43495, upload-time = "2026-04-22T06:54:56.381Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/7b/2c9e317ff798773a742b0d49ffa21907f800dca2c9e24bf832a46e5c1744/cq_sdk-0.6.1-py3-none-any.whl", hash = "sha256:8cd8d5c758961e7d9c8d0a4173bded95e0284e4b870ebf58d5ee4413ed942a2e", size = 22514 },
+    { url = "https://files.pythonhosted.org/packages/80/41/af7690269e34fd5f8e9b2e8b4cd48e998efe412a67773d12fcde47ba73f5/cq_sdk-0.9.1-py3-none-any.whl", hash = "sha256:b9182a74b13d39b324c7369beb321e0cb0310896ead398acb29d1ffc3f0cd4d9", size = 29056, upload-time = "2026-04-22T06:54:55.206Z" },
 ]
 
 [[package]]
@@ -196,7 +196,7 @@ tests = [
 [package.metadata]
 requires-dist = [
     { name = "bcrypt", specifier = ">=4.0" },
-    { name = "cq-sdk", specifier = "~=0.6.1" },
+    { name = "cq-sdk", specifier = "~=0.9.1" },
     { name = "fastapi" },
     { name = "httpx", marker = "extra == 'semsearch'" },
     { name = "numpy", marker = "extra == 'semsearch'" },
@@ -211,7 +211,7 @@ provides-extras = ["semsearch"]
 dev = [
     { name = "httpx" },
     { name = "pre-commit", specifier = ">=4.5.1" },
-    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "ruff", specifier = ">=0.15.4" },
 ]
@@ -221,7 +221,7 @@ lint = [
 ]
 tests = [
     { name = "httpx" },
-    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
 ]
 
@@ -614,7 +614,7 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "9.0.2"
+version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
@@ -623,9 +623,9 @@ dependencies = [
     { name = "pluggy" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d1/db/7ef3487e0fb0049ddb5ce41d3a49c235bf9ad299b6a25d5780a89f19230f/pytest-9.0.2.tar.gz", hash = "sha256:75186651a92bd89611d1d9fc20f0b4345fd827c41ccd5c299a868a05d70edf11", size = 1568901 }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/549bd94f1a0a402dc8cf64563a117c0f3765662e2e668477624baeec44d5/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c", size = 1572165, upload-time = "2026-04-07T17:16:18.027Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/ab/b3226f0bd7cdcf710fbede2b3548584366da3b19b5021e74f5bde2a8fa3f/pytest-9.0.2-py3-none-any.whl", hash = "sha256:711ffd45bf766d5264d487b917733b453d917afd2b0ad65223959f59089f875b", size = 374801 },
+    { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
 ]
 
 [[package]]

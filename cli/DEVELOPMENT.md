@@ -14,11 +14,11 @@ go mod download
 ```
 
 The CLI depends on the Go SDK via a `replace` directive in `go.mod`,
-so the SDK must be present at `../sdk/go/`. The skill prompt must also
-be synced before building:
+so the SDK must be present at `../sdk/go/`. The canonical prompts must
+also be synced before building:
 
 ```bash
-cd ../sdk/go && make sync-skill
+cd ../sdk/go && make sync-prompts
 ```
 
 ## Common Tasks

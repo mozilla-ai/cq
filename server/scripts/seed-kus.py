@@ -43,7 +43,8 @@ def _request(
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read())
+            raw = resp.read()
+            return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as exc:
         body_text = exc.read().decode(errors="replace")
         raise SystemExit(f"HTTP {exc.code} from {url}: {body_text}") from exc
@@ -73,6 +74,24 @@ def _login(base_url: str, username: str, password: str) -> str:
     return result["token"]
 
 
+def _create_api_key(base_url: str, jwt_token: str) -> tuple[str, str]:
+    """Create a short-lived API key for data-plane calls and return (id, plaintext)."""
+    result = _request(
+        f"{base_url}/auth/api-keys",
+        body={"name": "seed-kus", "ttl": "1h"},
+        token=jwt_token,
+    )
+    return result["id"], result["token"]
+
+
+def _revoke_api_key(base_url: str, jwt_token: str, key_id: str) -> None:
+    """Revoke the seed API key. Failures are logged and swallowed."""
+    try:
+        _request(f"{base_url}/auth/api-keys/{key_id}", method="DELETE", token=jwt_token)
+    except SystemExit as exc:
+        print(f"  warning: failed to revoke seed API key {key_id}: {exc}")
+
+
 def _confirms_needed(target: float) -> int:
     """Number of /confirm calls to reach target confidence from 0.5."""
     return max(0, math.ceil((target - 0.5) / 0.1 - 1e-9))
@@ -83,8 +102,12 @@ def _flags_needed(target: float) -> int:
     return max(0, math.ceil((0.5 - target) / 0.15 - 1e-9))
 
 
-def load(base_url: str, token: str) -> None:
-    """Load seed units: propose, approve, and adjust confidence."""
+def load(base_url: str, jwt_token: str, api_key: str) -> None:
+    """Load seed units: propose, approve, and adjust confidence.
+
+    JWT authenticates the /review routes; the API key authenticates the
+    /propose, /confirm, and /flag data-plane routes.
+    """
     units = json.loads(SEED_FILE.read_text())
     total = len(units)
     approve_count = total - PENDING_COUNT
@@ -97,24 +120,25 @@ def load(base_url: str, token: str) -> None:
         # Strip loader-only keys before posting.
         payload = {k: v for k, v in unit.items() if not k.startswith("_")}
 
-        # Propose the unit.
-        result = _request(f"{base_url}/propose", body=payload)
+        # Propose the unit with the API key; server overrides created_by to the key's owner.
+        result = _request(f"{base_url}/propose", body=payload, token=api_key)
         unit_id = result["id"]
 
         # Approve most units; leave the last PENDING_COUNT in pending.
         if i <= approve_count:
-            _request(f"{base_url}/review/{unit_id}/approve", token=token)
+            _request(f"{base_url}/review/{unit_id}/approve", token=jwt_token)
             status_label = "approved"
 
             # Adjust confidence via confirm/flag (only works on approved units).
             if target > 0.5:
                 for _ in range(_confirms_needed(target)):
-                    _request(f"{base_url}/confirm/{unit_id}")
+                    _request(f"{base_url}/confirm/{unit_id}", token=api_key)
             elif target < 0.5:
                 for _ in range(_flags_needed(target)):
                     _request(
                         f"{base_url}/flag/{unit_id}",
                         body={"reason": flag_reason},
+                        token=api_key,
                     )
         else:
             status_label = "pending"
@@ -138,8 +162,12 @@ def main() -> None:
     args = parser.parse_args()
 
     _check_health(args.url)
-    token = _login(args.url, args.user, args.password)
-    load(args.url, token)
+    jwt_token = _login(args.url, args.user, args.password)
+    key_id, api_key = _create_api_key(args.url, jwt_token)
+    try:
+        load(args.url, jwt_token, api_key)
+    finally:
+        _revoke_api_key(args.url, jwt_token, key_id)
 
 
 if __name__ == "__main__":

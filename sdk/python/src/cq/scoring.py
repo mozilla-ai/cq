@@ -13,9 +13,10 @@ _CONFIDENCE_FLOOR = 0.0
 _RELEVANCE_CEILING = 1.0
 _RELEVANCE_FLOOR = 0.0
 
-_DOMAIN_WEIGHT = 0.7
+_DOMAIN_WEIGHT = 0.55
 _LANGUAGE_WEIGHT = 0.15
 _FRAMEWORK_WEIGHT = 0.15
+_PATTERN_WEIGHT = 0.15
 
 
 def apply_confirmation(unit: KnowledgeUnit) -> KnowledgeUnit:
@@ -57,11 +58,12 @@ def calculate_relevance(
     query_domains: list[str],
     query_languages: list[str] | None = None,
     query_frameworks: list[str] | None = None,
+    query_pattern: str = "",
 ) -> float:
     """Score relevance from 0.0 to 1.0 based on domain overlap and context match.
 
-    Domain overlap is the primary signal (weighted at 0.7).
-    Language and framework matches are secondary signals (0.15 each).
+    Domain overlap is the primary signal (weighted at 0.55).
+    Language, framework, and pattern matches are secondary signals (0.15 each).
     """
     query_domains = _as_list(query_domains)
     if query_languages is not None:
@@ -87,5 +89,15 @@ def calculate_relevance(
     if query_frameworks and any(fw in unit.context.frameworks for fw in query_frameworks):
         framework_score = 1.0
 
-    score = _DOMAIN_WEIGHT * domain_score + _LANGUAGE_WEIGHT * language_score + _FRAMEWORK_WEIGHT * framework_score
+    # Pattern match: exact case-insensitive equality between query and unit pattern.
+    pattern_score = (
+        1.0 if query_pattern and unit.context.pattern and query_pattern.lower() == unit.context.pattern.lower() else 0.0
+    )
+
+    score = (
+        _DOMAIN_WEIGHT * domain_score
+        + _LANGUAGE_WEIGHT * language_score
+        + _FRAMEWORK_WEIGHT * framework_score
+        + _PATTERN_WEIGHT * pattern_score
+    )
     return min(max(score, _RELEVANCE_FLOOR), _RELEVANCE_CEILING)

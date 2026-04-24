@@ -508,6 +508,19 @@ class TestQuery:
         results = store.query(["databases"])
         assert results[0].id == high_conf.id
 
+    def test_pattern_boosts_matching_unit(self, store: LocalStore):
+        """A unit with a matching pattern should rank above an otherwise-equivalent unit."""
+        matching = _make_unit(
+            domains=["api"],
+            context=Context(pattern="api-client"),
+        )
+        plain = _make_unit(domains=["api"])
+        store.insert(matching)
+        store.insert(plain)
+        results = store.query(["api"], pattern="api-client")
+        assert len(results) == 2
+        assert results[0].id == matching.id
+
 
 class TestFTS:
     def test_fts_finds_units_by_summary_text(self, store: LocalStore):

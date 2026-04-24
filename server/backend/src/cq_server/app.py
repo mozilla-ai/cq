@@ -15,12 +15,13 @@ from cq.models import (
     Tier,
     create_knowledge_unit,
 )
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.responses import FileResponse
 
 from .auth import router as auth_router
+from .deps import API_KEY_PEPPER_ENV, require_api_key
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
 from .store import RemoteStore, normalize_domains
@@ -68,9 +69,13 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     jwt_secret = os.environ.get("CQ_JWT_SECRET")
     if not jwt_secret:
         raise RuntimeError("CQ_JWT_SECRET environment variable is required")
+    pepper = os.environ.get(API_KEY_PEPPER_ENV, "")
+    if not pepper:
+        raise RuntimeError(f"{API_KEY_PEPPER_ENV} environment variable is required")
     db_path = Path(os.environ.get("CQ_DB_PATH", "/data/cq.db"))
     _store = RemoteStore(db_path=db_path)
     app_instance.state.store = _store
+    app_instance.state.api_key_pepper = pepper
     yield
     _store.close()
 
@@ -93,16 +98,30 @@ async def query_units(
     domains: Annotated[list[str], Query()],
     languages: Annotated[list[str] | None, Query()] = None,
     frameworks: Annotated[list[str] | None, Query()] = None,
+    pattern: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(gt=0)] = 5,
 ) -> list[KnowledgeUnit]:
     """Search knowledge units by domain tags with relevance ranking."""
     store = _get_store()
-    return await store.query(domains, languages=languages, frameworks=frameworks, limit=limit)
+    return await store.query(
+        domains,
+        languages=languages,
+        frameworks=frameworks,
+        pattern=pattern or "",
+        limit=limit,
+    )
 
 
 @api_router.post("/propose", status_code=201)
-async def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
-    """Submit a new knowledge unit."""
+async def propose_unit(
+    request: ProposeRequest,
+    username: str = Depends(require_api_key),
+) -> KnowledgeUnit:
+    """Submit a new knowledge unit.
+
+    ``created_by`` is always set to the authenticated caller's username; any
+    value supplied by the client is discarded.
+    """
     store = _get_store()
     normalized = normalize_domains(request.domains)
     if not normalized:
@@ -112,14 +131,14 @@ async def propose_unit(request: ProposeRequest) -> KnowledgeUnit:
         insight=request.insight,
         context=request.context,
         tier=Tier.PRIVATE,
-        created_by=request.created_by,
+        created_by=username,
     )
     await store.insert(unit)
     return unit
 
 
 @api_router.post("/confirm/{unit_id}")
-async def confirm_unit(unit_id: str) -> KnowledgeUnit:
+async def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Confirm a knowledge unit, boosting its confidence."""
     store = _get_store()
     unit = await store.get(unit_id)
@@ -131,7 +150,7 @@ async def confirm_unit(unit_id: str) -> KnowledgeUnit:
 
 
 @api_router.post("/flag/{unit_id}")
-async def flag_unit(unit_id: str, request: FlagRequest) -> KnowledgeUnit:
+async def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Flag a knowledge unit, reducing its confidence."""
     store = _get_store()
     unit = await store.get(unit_id)

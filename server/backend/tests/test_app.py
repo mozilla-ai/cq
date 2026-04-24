@@ -9,15 +9,59 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cq_server.app import app
+<<<<<<< HEAD
 from cq_server import semsearch
+=======
+from cq_server.deps import require_api_key
+
+TEST_USERNAME = "test-user"
+>>>>>>> main
 
 
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setenv("CQ_JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
+    app.dependency_overrides[require_api_key] = lambda: TEST_USERNAME
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.pop(require_api_key, None)
+
+
+@pytest.fixture()
+def enforced_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """TestClient with real API key enforcement (no dep override)."""
+    monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("CQ_JWT_SECRET", "test-secret")
+    monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
+    app.dependency_overrides.pop(require_api_key, None)
+    with TestClient(app) as c:
+        yield c
+
+
+def _seed_user_and_login(
+    client: TestClient,
+    username: str = "alice",
+    password: str = "secret123",
+) -> str:
+    from cq_server.app import _get_store
+    from cq_server.auth import hash_password
+
+    _get_store().create_user(username, hash_password(password))
+    resp = client.post("/auth/login", json={"username": username, "password": password})
+    assert resp.status_code == 200
+    return resp.json()["token"]
+
+
+def _create_api_key_plaintext(client: TestClient, jwt_token: str, name: str = "test") -> str:
+    resp = client.post(
+        "/auth/api-keys",
+        headers={"Authorization": f"Bearer {jwt_token}"},
+        json={"name": name, "ttl": "30d"},
+    )
+    assert resp.status_code == 201
+    return resp.json()["token"]
 
 
 def _propose_payload(**overrides: Any) -> dict[str, Any]:
@@ -238,6 +282,23 @@ class TestQuery:
         results = resp.json()
         assert len(results) >= 1
         assert results[0]["domains"] == ["astronomy"]
+        
+    def test_query_boosts_matching_pattern(self, client: TestClient) -> None:
+        self._insert_unit(
+            client,
+            domains=["api"],
+            context={"languages": [], "frameworks": [], "pattern": "api-client"},
+        )
+        self._insert_unit(
+            client,
+            domains=["api"],
+            context={"languages": [], "frameworks": [], "pattern": "other-pattern"},
+        )
+        resp = client.get("/query", params={"domains": ["api"], "pattern": "api-client"})
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) == 2
+        assert results[0]["context"]["pattern"] == "api-client"
 
 
 class TestConfirm:
@@ -415,3 +476,126 @@ class TestEndToEnd:
         # Stats reflect the unit.
         resp = client.get("/stats")
         assert resp.json()["total_units"] == 1
+
+
+class TestApiKeyEnforcement:
+    def test_propose_without_key_is_rejected(self, enforced_client: TestClient) -> None:
+        resp = enforced_client.post("/propose", json=_propose_payload())
+        assert resp.status_code == 401
+
+    def test_propose_with_wrong_prefix_is_rejected(self, enforced_client: TestClient) -> None:
+        resp = enforced_client.post(
+            "/propose",
+            json=_propose_payload(),
+            headers={"Authorization": "Bearer sk-something"},
+        )
+        assert resp.status_code == 401
+
+    def test_propose_with_unknown_key_is_rejected(self, enforced_client: TestClient) -> None:
+        resp = enforced_client.post(
+            "/propose",
+            json=_propose_payload(),
+            headers={"Authorization": "Bearer cqa_unknownkey"},
+        )
+        assert resp.status_code == 401
+
+    def test_propose_with_valid_key_succeeds(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
+        api_token = _create_api_key_plaintext(enforced_client, jwt_token)
+        resp = enforced_client.post(
+            "/propose",
+            json=_propose_payload(),
+            headers={"Authorization": f"Bearer {api_token}"},
+        )
+        assert resp.status_code == 201
+
+    def test_propose_overrides_created_by(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client, username="alice")
+        api_token = _create_api_key_plaintext(enforced_client, jwt_token)
+        payload = _propose_payload()
+        payload["created_by"] = "impostor"
+        resp = enforced_client.post(
+            "/propose",
+            json=payload,
+            headers={"Authorization": f"Bearer {api_token}"},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["created_by"] == "alice"
+
+    def test_propose_with_revoked_key_is_rejected(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
+        create_resp = enforced_client.post(
+            "/auth/api-keys",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+            json={"name": "revokeable", "ttl": "30d"},
+        )
+        body = create_resp.json()
+        api_token = body["token"]
+        enforced_client.delete(
+            f"/auth/api-keys/{body['id']}",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+        )
+        resp = enforced_client.post(
+            "/propose",
+            json=_propose_payload(),
+            headers={"Authorization": f"Bearer {api_token}"},
+        )
+        assert resp.status_code == 401
+
+    def test_query_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
+        resp = enforced_client.get("/query", params={"domains": ["anything"]})
+        assert resp.status_code == 200
+
+    def test_stats_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
+        resp = enforced_client.get("/stats")
+        assert resp.status_code == 200
+
+    def test_health_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
+        resp = enforced_client.get("/health")
+        assert resp.status_code == 200
+
+    def test_last_used_at_updates_after_request(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
+        create = enforced_client.post(
+            "/auth/api-keys",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+            json={"name": "trace", "ttl": "30d"},
+        ).json()
+        api_token = create["token"]
+        listed = enforced_client.get(
+            "/auth/api-keys",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+        ).json()
+        assert listed[0]["last_used_at"] is None
+
+        enforced_client.post(
+            "/propose",
+            json=_propose_payload(),
+            headers={"Authorization": f"Bearer {api_token}"},
+        )
+
+        listed_after = enforced_client.get(
+            "/auth/api-keys",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+        ).json()
+        assert listed_after[0]["last_used_at"] is not None
+
+    def test_confirm_and_flag_require_api_key(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
+        api_token = _create_api_key_plaintext(enforced_client, jwt_token)
+        propose_resp = enforced_client.post(
+            "/propose",
+            json=_propose_payload(),
+            headers={"Authorization": f"Bearer {api_token}"},
+        )
+        unit_id = propose_resp.json()["id"]
+        _approve_unit(enforced_client, unit_id)
+
+        # Without key both are rejected.
+        assert enforced_client.post(f"/confirm/{unit_id}").status_code == 401
+        assert enforced_client.post(f"/flag/{unit_id}", json={"reason": "stale"}).status_code == 401
+
+        # With key both succeed.
+        headers = {"Authorization": f"Bearer {api_token}"}
+        assert enforced_client.post(f"/confirm/{unit_id}", headers=headers).status_code == 200
+        assert enforced_client.post(f"/flag/{unit_id}", json={"reason": "stale"}, headers=headers).status_code == 200

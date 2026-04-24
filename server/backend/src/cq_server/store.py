@@ -5,6 +5,8 @@ Auto-creates the database directory and schema on first use.
 Implements the context manager protocol for deterministic resource cleanup.
 """
 
+import json
+import logging
 import sqlite3
 import threading
 from datetime import UTC, datetime, timedelta
@@ -15,8 +17,11 @@ from typing import Any
 from cq.models import KnowledgeUnit
 
 from .scoring import calculate_relevance
-from .tables import ensure_review_columns, ensure_users_table
+from .tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
+
 from . import semsearch
+
+_logger = logging.getLogger(__name__)
 
 DEFAULT_DB_PATH = Path("/data/cq.db")
 
@@ -82,6 +87,7 @@ class RemoteStore:
         ensure_users_table(self._conn)
         semsearch.ensure_schema(self._conn)
         
+        ensure_api_keys_table(self._conn)
 
     def _check_open(self) -> None:
         """Raise if the store has been closed."""
@@ -266,9 +272,27 @@ class RemoteStore:
         *,
         languages: list[str] | None = None,
         frameworks: list[str] | None = None,
+        pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
-        """Async query that combines semantic and domain matches."""
+        """Search for knowledge units by domain tags with relevance ranking.
+
+        Args:
+            domains: Domain tags to search for.
+            languages: Optional language ranking signal. KUs matching any
+                listed language rank higher but non-matching KUs are still returned.
+            frameworks: Optional framework ranking signal. KUs matching any
+                listed framework rank higher but non-matching KUs are still returned.
+            pattern: Optional pattern ranking signal. KUs whose context.pattern
+                matches rank higher but non-matching KUs are still returned.
+            limit: Maximum number of results to return. Must be positive.
+
+        Returns:
+            Knowledge units ranked by relevance * confidence, descending.
+
+        Raises:
+            ValueError: If limit is not positive.
+        """
         self._check_open()
         if limit <= 0:
             raise ValueError("limit must be positive")
@@ -312,6 +336,7 @@ class RemoteStore:
                 normalized,
                 query_languages=languages,
                 query_frameworks=frameworks,
+                query_pattern=pattern,
             )
             # Keep semantic ordering as a stable tiebreaker when lexical relevance ties.
             sem_idx = semantic_rank.get(unit.id, 10**9)
@@ -481,25 +506,240 @@ class RemoteStore:
                 (username, password_hash, now),
             )
 
-    async def get_user(self, username: str) -> dict[str, str] | None:
+    async def get_user(self, username: str) -> dict[str, Any] | None:
         """Retrieve a user by username.
 
         Args:
             username: The user's login name.
 
         Returns:
-            A dict with username, password_hash, and created_at keys, or None
-            if no user with that username exists.
+            A dict with id, username, password_hash, and created_at keys, or
+            None if no user with that username exists.
         """
         self._check_open()
         with self._lock:
             row = self._conn.execute(
-                "SELECT username, password_hash, created_at FROM users WHERE username = ?",
+                "SELECT id, username, password_hash, created_at FROM users WHERE username = ?",
                 (username,),
             ).fetchone()
         if row is None:
             return None
-        return {"username": row[0], "password_hash": row[1], "created_at": row[2]}
+        return {"id": row[0], "username": row[1], "password_hash": row[2], "created_at": row[3]}
+
+    def count_active_api_keys_for_user(self, user_id: int) -> int:
+        """Return the number of active API keys for the given user.
+
+        Active means not revoked and not yet expired.
+
+        Args:
+            user_id: The user's integer id.
+
+        Returns:
+            Count of active keys.
+        """
+        self._check_open()
+        now = datetime.now(UTC).isoformat()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) FROM api_keys WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?",
+                (user_id, now),
+            ).fetchone()
+        return int(row[0])
+
+    def create_api_key(
+        self,
+        *,
+        key_id: str,
+        user_id: int,
+        name: str,
+        labels: list[str],
+        key_prefix: str,
+        key_hash: str,
+        ttl: str,
+        expires_at: str,
+    ) -> dict[str, Any]:
+        """Insert a new API key row.
+
+        Args:
+            key_id: Unique identifier (uuid4 hex).
+            user_id: Owning user's integer id.
+            name: Human-readable name for the key.
+            labels: Free-form tags attached to the key for later grouping.
+            key_prefix: First 8 characters of the plaintext token.
+            key_hash: HMAC-SHA256 hex digest of the plaintext token.
+            ttl: Original duration string supplied by the caller (e.g. "90d").
+            expires_at: ISO-8601 UTC timestamp at which the key expires.
+
+        Returns:
+            A dict representing the inserted row.
+
+        Raises:
+            sqlite3.IntegrityError: If the hash collides with an existing key.
+        """
+        self._check_open()
+        created_at = datetime.now(UTC).isoformat()
+        labels_json = json.dumps(labels)
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO api_keys "
+                "(id, user_id, name, labels, key_prefix, key_hash, ttl, expires_at, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (key_id, user_id, name, labels_json, key_prefix, key_hash, ttl, expires_at, created_at),
+            )
+        return {
+            "id": key_id,
+            "user_id": user_id,
+            "name": name,
+            "labels": list(labels),
+            "key_prefix": key_prefix,
+            "key_hash": key_hash,
+            "ttl": ttl,
+            "expires_at": expires_at,
+            "created_at": created_at,
+            "last_used_at": None,
+            "revoked_at": None,
+        }
+
+    def get_api_key_for_user(self, *, user_id: int, key_id: str) -> dict[str, Any] | None:
+        """Return a key row if it exists and is owned by the given user.
+
+        Args:
+            user_id: The caller's user id.
+            key_id: The key's id.
+
+        Returns:
+            The row (including revoked keys), or None if not found or not
+            owned by this user.
+        """
+        self._check_open()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, user_id, name, labels, key_prefix, ttl, expires_at, "
+                "created_at, last_used_at, revoked_at "
+                "FROM api_keys WHERE id = ? AND user_id = ?",
+                (key_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "user_id": row[1],
+            "name": row[2],
+            "labels": json.loads(row[3] or "[]"),
+            "key_prefix": row[4],
+            "ttl": row[5],
+            "expires_at": row[6],
+            "created_at": row[7],
+            "last_used_at": row[8],
+            "revoked_at": row[9],
+        }
+
+    def get_api_key_by_hash(self, key_hash: str) -> dict[str, Any] | None:
+        """Retrieve an API key row by its hash, including the owner's username.
+
+        Args:
+            key_hash: HMAC-SHA256 hex digest of the plaintext token.
+
+        Returns:
+            A dict with api key fields plus the owner's username, or None
+            if no key with that hash exists.
+        """
+        self._check_open()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT k.id, k.user_id, u.username, k.name, k.labels, k.key_prefix, "
+                "k.ttl, k.expires_at, k.created_at, k.last_used_at, k.revoked_at "
+                "FROM api_keys k JOIN users u ON u.id = k.user_id "
+                "WHERE k.key_hash = ?",
+                (key_hash,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "user_id": row[1],
+            "username": row[2],
+            "name": row[3],
+            "labels": json.loads(row[4] or "[]"),
+            "key_prefix": row[5],
+            "ttl": row[6],
+            "expires_at": row[7],
+            "created_at": row[8],
+            "last_used_at": row[9],
+            "revoked_at": row[10],
+        }
+
+    def list_api_keys_for_user(self, user_id: int) -> list[dict[str, Any]]:
+        """Return all API keys owned by the given user, newest first.
+
+        Args:
+            user_id: The user's integer id.
+
+        Returns:
+            A list of dicts; empty if the user has no keys.
+        """
+        self._check_open()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, labels, key_prefix, ttl, expires_at, created_at, "
+                "last_used_at, revoked_at "
+                "FROM api_keys WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,),
+            ).fetchall()
+        return [
+            {
+                "id": row[0],
+                "name": row[1],
+                "labels": json.loads(row[2] or "[]"),
+                "key_prefix": row[3],
+                "ttl": row[4],
+                "expires_at": row[5],
+                "created_at": row[6],
+                "last_used_at": row[7],
+                "revoked_at": row[8],
+            }
+            for row in rows
+        ]
+
+    def revoke_api_key(self, *, user_id: int, key_id: str) -> bool:
+        """Mark the given key as revoked if it belongs to the user and is not already revoked.
+
+        Args:
+            user_id: The caller's user id; the key must belong to this user.
+            key_id: The key's id.
+
+        Returns:
+            True if a row was updated, False if the key does not exist,
+            belongs to a different user, or was already revoked.
+        """
+        self._check_open()
+        now = datetime.now(UTC).isoformat()
+        with self._lock, self._conn:
+            cursor = self._conn.execute(
+                "UPDATE api_keys SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+                (now, key_id, user_id),
+            )
+        return cursor.rowcount > 0
+
+    def touch_api_key_last_used(self, key_id: str) -> None:
+        """Update ``last_used_at`` for the given key, swallowing errors.
+
+        This is a best-effort observability signal; failures must not break
+        the request that triggered the update.
+
+        Args:
+            key_id: The key's id.
+        """
+        self._check_open()
+        now = datetime.now(UTC).isoformat()
+        try:
+            with self._lock, self._conn:
+                self._conn.execute(
+                    "UPDATE api_keys SET last_used_at = ? WHERE id = ?",
+                    (now, key_id),
+                )
+        except sqlite3.Error:
+            _logger.exception("Failed to update last_used_at for api key %s", key_id)
 
     async def confidence_distribution(self) -> dict[str, int]:
         """Return confidence distribution buckets for approved KUs."""

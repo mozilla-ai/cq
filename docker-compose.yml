@@ -1,14 +1,16 @@
 services:
   cq-server:
     build: ./server
+    environment:
+      CQ_JWT_SECRET: ${CQ_JWT_SECRET:?Set CQ_JWT_SECRET in .env}
+      CQ_API_KEY_PEPPER: ${CQ_API_KEY_PEPPER:?Set CQ_API_KEY_PEPPER in .env}
+      CQ_DB_PATH: ${CQ_DB_PATH:-/data/cq.db}
+      CQ_PORT: ${CQ_PORT:-3000}
     ports:
-      - "3000:3000"
+      - "${CQ_PORT:-3000}:${CQ_PORT:-3000}"
     volumes:
       - cq-data:/data
       - ./server/scripts:/app/scripts:ro
-    environment:
-      - CQ_DB_PATH=/data/cq.db
-      - CQ_JWT_SECRET=${CQ_JWT_SECRET:?Set CQ_JWT_SECRET}
 
 volumes:
   cq-data:

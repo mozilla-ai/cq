@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -245,17 +246,19 @@ func (c *Client) Flag(ctx context.Context, ku KnowledgeUnit, reason FlagReason, 
 	return result, nil
 }
 
-// Prompt returns the canonical cq agent protocol prompt.
-// This is a convenience method that delegates to the package-level Prompt function.
-func (c *Client) Prompt() string {
-	return Prompt()
-}
-
 // Propose creates a new knowledge unit.
 // When a remote API is configured and reachable, the unit is sent to the
-// remote only. If the remote is unreachable, falls back to local storage.
-// If the remote rejects the proposal, returns a RemoteError.
-// With no remote configured, always stores locally.
+// remote only and returned with no error. The remote is the source of
+// truth for server-assigned fields; in particular, Tier is promoted to
+// Private and CreatedBy is overwritten with the authenticated caller.
+// If the remote is unreachable (transport/5xx) or rejects the request
+// with an auth error (401/403), the unit is stored locally with Tier
+// Local and a *FallbackError is returned carrying the local unit and
+// the underlying cause; the unit will drain on the next successful
+// connection. Other 4xx errors (400, 409, 422) are returned as
+// *RemoteError with nothing stored — the data is the problem, not
+// connectivity. With no remote configured, always stores locally with
+// no error.
 func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUnit, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
@@ -286,17 +289,21 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 		CreatedBy: params.CreatedBy,
 	}
 
+	var remoteErr error
+
 	if c.remote != nil {
 		result, err := c.remote.propose(ctx, ku)
-		if err != nil && !errors.Is(err, errUnreachable) {
-			return KnowledgeUnit{}, err
-		}
-
 		if err == nil {
 			return result, nil
 		}
 
-		// Remote unreachable; fall back to local storage.
+		var re *RemoteError
+		isAuthReject := errors.As(err, &re) &&
+			(re.StatusCode == http.StatusUnauthorized || re.StatusCode == http.StatusForbidden)
+		if !isAuthReject && !errors.Is(err, errUnreachable) {
+			return KnowledgeUnit{}, err
+		}
+		remoteErr = err
 	}
 
 	now := time.Now()
@@ -304,9 +311,16 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	ku.Evidence.LastConfirmed = &now
 
 	if err := c.store.insert(ku); err != nil {
-		return KnowledgeUnit{}, fmt.Errorf("inserting knowledge unit: %w", err)
+		insertErr := fmt.Errorf("inserting knowledge unit: %w", err)
+		if remoteErr != nil {
+			return KnowledgeUnit{}, fmt.Errorf("fallback insert after remote failure: %w", errors.Join(remoteErr, insertErr))
+		}
+		return KnowledgeUnit{}, insertErr
 	}
 
+	if remoteErr != nil {
+		return ku, &FallbackError{LocalUnit: ku, Err: remoteErr}
+	}
 	return ku, nil
 }
 
@@ -341,6 +355,10 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 
 	for _, f := range params.Frameworks {
 		qOpts = append(qOpts, withFramework(f))
+	}
+
+	if params.Pattern != "" {
+		qOpts = append(qOpts, withPattern(params.Pattern))
 	}
 
 	storeResult, err := c.store.query(qOpts...)

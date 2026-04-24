@@ -41,8 +41,11 @@ c.Confirm(ctx, ku)
 c.Flag(ctx, ku, cq.Stale)
 c.Flag(ctx, ku, cq.Duplicate, cq.WithDuplicateOf("ku_..."))
 
-// Get the canonical agent protocol prompt.
-prompt := c.Prompt()
+// Get the canonical agent prompts.
+import "github.com/mozilla-ai/cq/sdk/go/prompts"
+
+skillPrompt := prompts.Skill()
+reflectPrompt := prompts.Reflect()
 ```
 
 ## Configuration

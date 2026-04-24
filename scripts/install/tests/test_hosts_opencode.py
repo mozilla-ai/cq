@@ -111,9 +111,9 @@ def test_opencode_install_generates_command_files(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
     OpenCodeHost().install(ctx)
 
-    cmd = (ctx.target / "commands" / "cq-status.md").read_text()
+    cmd = (ctx.target / "commands" / "status.md").read_text()
     assert "agent: build" in cmd
-    assert "name: cq-status" not in cmd
+    assert "name: cq:status" not in cmd
 
 
 def test_opencode_install_appends_agents_md_block(tmp_path, plugin_root):
@@ -193,7 +193,7 @@ def test_opencode_install_preserves_user_added_mcp_field(tmp_path, plugin_root):
 def test_opencode_uninstall_preserves_user_edited_commands(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
     OpenCodeHost().install(ctx)
-    cmd_file = ctx.target / "commands" / "cq-status.md"
+    cmd_file = ctx.target / "commands" / "status.md"
     cmd_file.write_text("user-edited content\n")
     OpenCodeHost().uninstall(ctx)
     assert cmd_file.exists()
@@ -204,7 +204,7 @@ def test_opencode_uninstall_removes_assets(tmp_path, plugin_root):
     ctx = _ctx(tmp_path, plugin_root)
     OpenCodeHost().install(ctx)
     OpenCodeHost().uninstall(ctx)
-    assert not (ctx.target / "commands" / "cq-status.md").exists()
+    assert not (ctx.target / "commands" / "status.md").exists()
     config = json.loads((ctx.target / "opencode.json").read_text())
     assert "mcp" not in config or "cq" not in config.get("mcp", {})
     text = (ctx.target / "AGENTS.md").read_text() if (ctx.target / "AGENTS.md").exists() else ""
