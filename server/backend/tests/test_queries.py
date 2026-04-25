@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 from cq.models import Insight, KnowledgeUnit, Tier, create_knowledge_unit
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, text
 
 from cq_server.store import RemoteStore
 from cq_server.store import _queries as q
@@ -222,6 +222,44 @@ class TestApprovedDataAndActivity:
         ids = [row[0] for row in rows]
         assert units[0].id == ids[0]
 
+    def test_recent_activity_parity_with_remote_store(self, db: tuple[RemoteStore, Engine]) -> None:
+        """Helper feeds RemoteStore.recent_activity's exact pipeline (over-fetch + Python sort)."""
+        store, engine = db
+        units = [_make_unit() for _ in range(3)]
+        for u in units:
+            store.insert(u)
+        store.set_review_status(units[0].id, "approved", "rev")
+        store.set_review_status(units[1].id, "rejected", "rev")
+        limit = 5
+        with engine.connect() as conn:
+            rows = conn.execute(q.SELECT_RECENT_ACTIVITY, {"limit": limit * 2}).fetchall()
+        # Mirror RemoteStore.recent_activity decoration verbatim.
+        decorated: list[dict[str, Any]] = []
+        for row in rows:
+            unit = KnowledgeUnit.model_validate_json(row[1])
+            proposed_ts = unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else ""
+            if row[2] in ("approved", "rejected"):
+                decorated.append(
+                    {
+                        "type": row[2],
+                        "unit_id": row[0],
+                        "summary": unit.insight.summary,
+                        "reviewed_by": row[3],
+                        "timestamp": row[4] or proposed_ts,
+                    }
+                )
+            else:
+                decorated.append(
+                    {
+                        "type": "proposed",
+                        "unit_id": row[0],
+                        "summary": unit.insight.summary,
+                        "timestamp": proposed_ts,
+                    }
+                )
+        decorated.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+        assert decorated[:limit] == store.recent_activity(limit=limit)
+
 
 class TestSelectQueryUnits:
     def test_returns_approved_units_matching_any_domain(self, db: tuple[RemoteStore, Engine]) -> None:
@@ -290,23 +328,44 @@ class TestSelectListUnitsBuilder:
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {match.id}
 
+    def test_parity_with_remote_store_list_units(self, db: tuple[RemoteStore, Engine]) -> None:
+        """Helper output, after RemoteStore-style decoration, matches store.list_units()."""
+        store, engine = db
+        u_pending = _make_unit(domains=["databases"])
+        u_approved = _make_unit(domains=["databases"])
+        u_rejected = _make_unit(domains=["frontend"])
+        for u in (u_pending, u_approved, u_rejected):
+            store.insert(u)
+        store.set_review_status(u_approved.id, "approved", "rev")
+        store.set_review_status(u_rejected.id, "rejected", "rev")
+        stmt = q.select_list_units(domain=None, status=None, apply_limit=True)
+        with engine.connect() as conn:
+            rows = conn.execute(stmt, {"limit": 100}).fetchall()
+        decorated = [
+            {
+                "knowledge_unit": KnowledgeUnit.model_validate_json(row[0]),
+                "status": row[1] or "pending",
+                "reviewed_by": row[2],
+                "reviewed_at": row[3],
+            }
+            for row in rows
+        ]
+        assert decorated == store.list_units(limit=100)
+
+
+def _backdate(engine: Engine, *, column: str, unit_id: str, when: datetime) -> None:
+    """Backdate a timestamp column directly via the engine.
+
+    Avoids reaching into ``RemoteStore`` internals so these tests survive
+    the SQLAlchemy-backed ``SqliteStore`` rewrite in #308.
+    """
+    stmt = text(f"UPDATE knowledge_units SET {column} = :when WHERE id = :id")  # noqa: S608  (column whitelisted)
+    with engine.begin() as conn:
+        conn.execute(stmt, {"when": when.isoformat(), "id": unit_id})
+
 
 class TestDailyCounts:
     """Cutoff is computed in Python per RFC #275."""
-
-    def _backdate_proposed(self, store: RemoteStore, unit_id: str, when: datetime) -> None:
-        store._conn.execute(
-            "UPDATE knowledge_units SET created_at = ? WHERE id = ?",
-            (when.isoformat(), unit_id),
-        )
-        store._conn.commit()
-
-    def _backdate_reviewed(self, store: RemoteStore, unit_id: str, when: datetime) -> None:
-        store._conn.execute(
-            "UPDATE knowledge_units SET reviewed_at = ? WHERE id = ?",
-            (when.isoformat(), unit_id),
-        )
-        store._conn.commit()
 
     def test_proposed_daily(self, db: tuple[RemoteStore, Engine]) -> None:
         store, engine = db
@@ -315,7 +374,7 @@ class TestDailyCounts:
         u_old = _make_unit()
         store.insert(u_recent)
         store.insert(u_old)
-        self._backdate_proposed(store, u_old.id, now - timedelta(days=60))
+        _backdate(engine, column="created_at", unit_id=u_old.id, when=now - timedelta(days=60))
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_PROPOSED_DAILY, {"cutoff": cutoff}).fetchall()
@@ -339,7 +398,7 @@ class TestDailyCounts:
         u = _make_unit()
         store.insert(u)
         store.set_review_status(u.id, "rejected", "rev")
-        self._backdate_reviewed(store, u.id, now - timedelta(days=60))
+        _backdate(engine, column="reviewed_at", unit_id=u.id, when=now - timedelta(days=60))
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()

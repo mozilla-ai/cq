@@ -22,6 +22,17 @@ PRAGMAs, ``pg_advisory_lock``, vector (sqlite-vec / pgvector), full-text
 ``daily_counts`` is portable when the date cutoff is computed in Python
 and passed in as a ``:cutoff`` ISO date string; the SQLite-specific
 ``date('now', '-N days')`` form has been removed here per RFC #275.
+
+Load-bearing assumption — ``date(reviewed_at)`` / ``date(created_at)`` in
+the daily-count helpers below: these run against ``TEXT`` columns through
+Phase 2. SQLite's ``date()`` parses ISO strings natively. PostgreSQL has
+no ``date(text)`` overload, but with the default ``DateStyle=ISO`` it
+implicit-casts ISO-8601-with-offset strings to ``timestamptz`` before
+applying the built-in ``date(timestamp)`` function. Operators running PG
+under a non-default ``DateStyle`` may see this fail. Phase 3 (#317)
+removes this dependency by migrating PG timestamps to
+``TIMESTAMP WITH TIME ZONE``; SQLite continues to store ISO strings.
+After #317 the same SQL is portable through two distinct mechanisms.
 """
 
 from __future__ import annotations
@@ -80,6 +91,11 @@ SELECT_COUNTS_BY_TIER: TextClause = text(
 
 SELECT_APPROVED_DATA: TextClause = text("SELECT data FROM knowledge_units WHERE status = 'approved'")
 
+# Callers typically bind ``:limit`` to ``activity_limit * 2``: the result
+# is re-sorted in Python by ``COALESCE(reviewed_at, created_at)`` and then
+# truncated, so over-fetching keeps the truncation honest when many KUs
+# have been reviewed since the most recent one was created. See
+# ``RemoteStore.recent_activity``.
 SELECT_RECENT_ACTIVITY: TextClause = text(
     "SELECT id, data, status, reviewed_by, reviewed_at "
     "FROM knowledge_units "
@@ -137,13 +153,13 @@ def select_list_units(*, domain: str | None, status: str | None, apply_limit: bo
         conditions.append("ku.status = :status")
     if domain is not None:
         conditions.append("ku.id IN (SELECT DISTINCT unit_id FROM knowledge_unit_domains WHERE domain = :domain)")
-    where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
-    sql_limit = "LIMIT :limit" if apply_limit else ""
-    return text(
-        f"SELECT ku.data, ku.status, ku.reviewed_by, ku.reviewed_at "
-        f"FROM knowledge_units ku {where}"
-        f"ORDER BY ku.created_at DESC {sql_limit}".rstrip()
-    )
+    parts: list[str] = ["SELECT ku.data, ku.status, ku.reviewed_by, ku.reviewed_at FROM knowledge_units ku"]
+    if conditions:
+        parts.append(f"WHERE {' AND '.join(conditions)}")
+    parts.append("ORDER BY ku.created_at DESC")
+    if apply_limit:
+        parts.append("LIMIT :limit")
+    return text(" ".join(parts))
 
 
 # --- users ------------------------------------------------------------------
