@@ -2,15 +2,20 @@
 
 The database URL is resolved from the environment via
 :func:`cq_server.db_url.resolve_database_url` so that ``alembic``
-CLI invocations and future startup-time ``command.upgrade`` calls
-share the same precedence rules.
+CLI invocations and startup-time ``command.upgrade`` calls share
+the same precedence rules. Programmatic callers (notably
+``cq_server.migrations.run_migrations``) may pin a URL on the
+Config before invoking Alembic; in that case the pre-set value
+wins so tests can target tmp_path-rooted SQLite files without
+mutating the process environment.
 
 ``render_as_batch=True`` is set in both online and offline modes so
 SQLite ALTER TABLE operations work via Alembic's batch recreate
 dance. It is harmless on PostgreSQL.
 
-No migrations exist yet — ``target_metadata`` is ``None``. The
-baseline migration lands in issue #305.
+The baseline migration (revision ``0001``) was added in #305. The
+runner stamps existing pre-Alembic databases at this revision; new
+databases get the migration run normally.
 """
 
 from __future__ import annotations
@@ -31,7 +36,8 @@ if config.config_file_name is not None:
 # start of an interpolation token. Fine for SQLite paths today, but a
 # Postgres URL with a URL-encoded password (e.g. `p%40ss`) will need
 # `%` doubled or a direct pass to `create_engine` when #309 wires this up.
-config.set_main_option("sqlalchemy.url", resolve_database_url())
+if not config.get_main_option("sqlalchemy.url"):
+    config.set_main_option("sqlalchemy.url", resolve_database_url())
 
 target_metadata = None
 
