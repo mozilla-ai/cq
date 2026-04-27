@@ -125,8 +125,10 @@ SELECT_REJECTED_DAILY: TextClause = text(
 
 # Variable IN-list for ``RemoteStore.query``. Bind ``:domains`` to the list
 # of normalised domain strings; SQLAlchemy expands it at execute time.
-# Callers must short-circuit when the list is empty — SQLAlchemy raises on
-# empty expanding binds.
+# Empty list: SQLAlchemy 2.0 rewrites ``IN ()`` to a no-rows subquery
+# (``IN (SELECT 1 FROM (SELECT 1) WHERE 1!=1)``) and the helper returns
+# zero rows — no raise. Callers may still short-circuit for a fast-path
+# but it is not required for correctness.
 SELECT_QUERY_UNITS: TextClause = text(
     "SELECT ku.data "
     "FROM knowledge_units ku "
@@ -140,10 +142,16 @@ SELECT_QUERY_UNITS: TextClause = text(
 def select_list_units(*, domain: str | None, status: str | None, apply_limit: bool) -> TextClause:
     """Build the SELECT for ``RemoteStore.list_units``.
 
-    Optional WHERE conditions on ``status`` and ``domain`` are inlined only
-    when non-``None``. ``apply_limit`` controls whether SQL-side ``LIMIT``
-    is applied: the caller skips it when confidence filtering is in effect
-    because confidence lives inside the JSON blob and is filtered in Python.
+    Pure SQL builder — does no normalization, the caller owns it. WHERE
+    conditions on ``status`` and ``domain`` are inlined only when the
+    argument is non-``None``; an empty or whitespace-only string is
+    treated as a *real* filter value and binds literally (returning zero
+    rows). To mirror ``RemoteStore.list_units``, callers must (a) pass
+    ``None`` when the user-supplied filter is empty/whitespace, and (b)
+    run ``domain`` through ``normalize_domains`` (lowercase + strip)
+    first. ``apply_limit`` controls whether SQL-side ``LIMIT`` is
+    applied: skip it when confidence filtering is in effect because
+    confidence lives inside the JSON blob and is filtered in Python.
 
     Caller binds ``:status`` and ``:domain`` only for conditions that are
     enabled; ``:limit`` only when ``apply_limit`` is true.

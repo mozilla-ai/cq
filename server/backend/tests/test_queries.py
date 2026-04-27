@@ -22,6 +22,7 @@ from typing import Any
 import pytest
 from cq.models import Insight, KnowledgeUnit, Tier, create_knowledge_unit
 from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.exc import IntegrityError
 
 from cq_server.store import RemoteStore
 from cq_server.store import _queries as q
@@ -277,6 +278,23 @@ class TestSelectQueryUnits:
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {match.id}
 
+    def test_empty_domains_list_returns_zero_rows(self, db: tuple[RemoteStore, Engine]) -> None:
+        """Pin SQLAlchemy's empty-expanding-bind contract.
+
+        SQLAlchemy 2.0 rewrites ``IN ()`` to a no-rows subquery so an empty
+        ``:domains`` list yields zero rows rather than raising. This test
+        fires if a future SQLAlchemy version reverts to raising or changes
+        the rewrite — at which point the comment on ``SELECT_QUERY_UNITS``
+        and any caller-side short-circuits need revisiting.
+        """
+        store, engine = db
+        approved = _make_unit(domains=["databases"])
+        store.insert(approved)
+        store.set_review_status(approved.id, "approved", "rev")
+        with engine.connect() as conn:
+            rows = conn.execute(q.SELECT_QUERY_UNITS, {"domains": []}).fetchall()
+        assert rows == []
+
 
 class TestSelectListUnitsBuilder:
     def test_no_filters_no_limit(self, db: tuple[RemoteStore, Engine]) -> None:
@@ -404,6 +422,61 @@ class TestDailyCounts:
             rows = conn.execute(q.SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()
         assert rows == []
 
+    def test_daily_helpers_match_remote_store(self, db: tuple[RemoteStore, Engine]) -> None:
+        """Assembled helper output matches ``RemoteStore.daily_counts()``.
+
+        Builds the same merged/zero-filled shape ``daily_counts`` returns
+        (one entry per day from the earliest activity through today), so a
+        future change to a helper's column order, ``GROUP BY``, or filter
+        will diverge here.
+        """
+        store, engine = db
+        now = datetime.now(UTC)
+        # Mix of recent + older activity across all three statuses, plus an
+        # entry well outside the 30-day window to confirm the cutoff bites.
+        u_pending = _make_unit()
+        u_approved_recent = _make_unit()
+        u_approved_old = _make_unit()
+        u_rejected = _make_unit()
+        u_outside = _make_unit()
+        for u in (u_pending, u_approved_recent, u_approved_old, u_rejected, u_outside):
+            store.insert(u)
+        store.set_review_status(u_approved_recent.id, "approved", "rev")
+        store.set_review_status(u_approved_old.id, "approved", "rev")
+        store.set_review_status(u_rejected.id, "rejected", "rev")
+        _backdate(engine, column="reviewed_at", unit_id=u_approved_old.id, when=now - timedelta(days=10))
+        _backdate(engine, column="created_at", unit_id=u_approved_old.id, when=now - timedelta(days=10))
+        _backdate(engine, column="created_at", unit_id=u_outside.id, when=now - timedelta(days=60))
+
+        days = 30
+        cutoff = (now - timedelta(days=days)).date().isoformat()
+        with engine.connect() as conn:
+            proposed_rows = conn.execute(q.SELECT_PROPOSED_DAILY, {"cutoff": cutoff}).fetchall()
+            approved_rows = conn.execute(q.SELECT_APPROVED_DAILY, {"cutoff": cutoff}).fetchall()
+            rejected_rows = conn.execute(q.SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()
+        proposed = {row[0]: row[1] for row in proposed_rows}
+        approved = {row[0]: row[1] for row in approved_rows}
+        rejected = {row[0]: row[1] for row in rejected_rows}
+        all_dates = set(proposed) | set(approved) | set(rejected)
+        assembled: list[dict[str, Any]] = []
+        if all_dates:
+            start = min(datetime.strptime(d, "%Y-%m-%d").date() for d in all_dates)
+            end = datetime.now(UTC).date()
+            current = start
+            while current <= end:
+                key = current.isoformat()
+                assembled.append(
+                    {
+                        "date": key,
+                        "proposed": proposed.get(key, 0),
+                        "approved": approved.get(key, 0),
+                        "rejected": rejected.get(key, 0),
+                    }
+                )
+                current += timedelta(days=1)
+
+        assert assembled == store.daily_counts(days=days)
+
 
 # --- knowledge_units: write helpers ----------------------------------------
 
@@ -485,6 +558,23 @@ class TestWriteHelpers:
         store.set_review_status(unit.id, "approved", "rev")
         assert store.domain_counts() == {}
 
+    def test_insert_unit_duplicate_id_raises(self, db: tuple[RemoteStore, Engine]) -> None:
+        """Pins the PRIMARY KEY constraint on knowledge_units.id.
+
+        If a future migration drops this constraint the test fires.
+        """
+        _, engine = db
+        row = {
+            "id": "ku_duplicate",
+            "data": "{}",
+            "created_at": datetime.now(UTC).isoformat(),
+            "tier": "private",
+        }
+        with engine.begin() as conn:
+            conn.execute(q.INSERT_UNIT, row)
+        with pytest.raises(IntegrityError), engine.begin() as conn:
+            conn.execute(q.INSERT_UNIT, row)
+
 
 # --- users -----------------------------------------------------------------
 
@@ -504,6 +594,15 @@ class TestUserHelpers:
             row = conn.execute(q.SELECT_USER_BY_USERNAME, {"username": "bob"}).fetchone()
         assert row is not None
         assert {"id": row[0], "username": row[1], "password_hash": row[2], "created_at": row[3]} == user_via_store
+
+    def test_insert_user_duplicate_username_raises(self, db: tuple[RemoteStore, Engine]) -> None:
+        """Pins the UNIQUE constraint on users.username."""
+        _, engine = db
+        row = {"username": "duplicate", "password_hash": "h", "created_at": datetime.now(UTC).isoformat()}
+        with engine.begin() as conn:
+            conn.execute(q.INSERT_USER, row)
+        with pytest.raises(IntegrityError), engine.begin() as conn:
+            conn.execute(q.INSERT_USER, row)
 
 
 # --- api_keys --------------------------------------------------------------
@@ -621,6 +720,22 @@ class TestApiKeyHelpers:
         with engine.connect() as conn:
             rows = conn.execute(q.LIST_KEYS_FOR_USER, {"user_id": user_id}).fetchall()
         assert [row[0] for row in rows] == [newer["id"], older["id"]]
+
+    def test_list_keys_isolates_users(self, db: tuple[RemoteStore, Engine]) -> None:
+        """Caller's keys only — another user's keys must not appear."""
+        store, engine = db
+        alice = _seed_user(store, username="alice")
+        bob = _seed_user(store, username="bob")
+        alice_row = _api_key_row(user_id=alice, name="alice-key")
+        bob_row = _api_key_row(user_id=bob, name="bob-key")
+        with engine.begin() as conn:
+            conn.execute(q.INSERT_API_KEY, alice_row)
+            conn.execute(q.INSERT_API_KEY, bob_row)
+        with engine.connect() as conn:
+            alice_rows = conn.execute(q.LIST_KEYS_FOR_USER, {"user_id": alice}).fetchall()
+            bob_rows = conn.execute(q.LIST_KEYS_FOR_USER, {"user_id": bob}).fetchall()
+        assert [row[0] for row in alice_rows] == [alice_row["id"]]
+        assert [row[0] for row in bob_rows] == [bob_row["id"]]
 
     def test_update_key_revoke_only_affects_unrevoked(self, db: tuple[RemoteStore, Engine]) -> None:
         store, engine = db
