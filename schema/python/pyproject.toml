@@ -38,8 +38,7 @@ where = ["src"]
 namespaces = false
 
 [tool.setuptools.package-data]
-"cq_schema._data" = ["*.json"]
-"*" = ["py.typed"]
+"cq_schema" = ["py.typed", "_data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
