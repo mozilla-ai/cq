@@ -360,6 +360,14 @@ class TestBaselineMatchesLegacySchema:
     so if the baseline migration produces a structurally equivalent
     schema on an empty file, we have parity with prod.
 
+    Caveat: ``_normalized_table_shape`` deliberately normalises NOT-NULL
+    on PRIMARY KEY columns to ``0`` because the legacy schema and
+    SQLAlchemy/Alembic disagree on whether to spell ``NOT NULL`` out for
+    PKs. This is load-bearing — the parity check accepts any future
+    PK-nullability divergence as well, including bugs introduced by a
+    new migration. Future migrations that touch PK columns should be
+    reviewed against the migration source, not just this test.
+
     DELETE THIS TEST in #310 alongside ``_ensure_schema()`` — once
     the legacy path is gone there is nothing to compare against and
     the migration is the sole source of truth.
@@ -385,3 +393,39 @@ class TestBaselineMatchesLegacySchema:
             "fix the migration so PRAGMA table_info / PRAGMA index_list / "
             "PRAGMA foreign_key_list match what _ensure_schema() produces."
         )
+
+
+# --- Test 5: default URL resolution ----------------------------------------
+
+
+class TestDefaultDatabaseUrlResolution:
+    """``run_migrations()`` with no arg must honour ``resolve_database_url``.
+
+    The startup path in ``app.py`` calls ``run_migrations()`` with no
+    argument so that ``CQ_DATABASE_URL`` (and the ``CQ_DB_PATH``
+    fallback) take effect. Cover both env-var branches.
+    """
+
+    def test_run_migrations_uses_cq_db_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        db = tmp_path / "from_env.db"
+        monkeypatch.delenv("CQ_DATABASE_URL", raising=False)
+        monkeypatch.setenv("CQ_DB_PATH", str(db))
+
+        run_migrations()
+
+        assert db.exists()
+        with _open_ro(db) as conn:
+            assert _alembic_version(conn) == BASELINE_REVISION
+
+    def test_cq_database_url_takes_precedence_over_cq_db_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        winning = tmp_path / "winning.db"
+        losing = tmp_path / "losing.db"
+        monkeypatch.setenv("CQ_DATABASE_URL", _sqlite_url(winning))
+        monkeypatch.setenv("CQ_DB_PATH", str(losing))
+
+        run_migrations()
+
+        assert winning.exists()
+        assert not losing.exists()
