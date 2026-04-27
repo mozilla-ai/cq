@@ -27,14 +27,14 @@ func TestScoringConstantsMatchValuesFile(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(ScoringValues(), &values))
 
-	require.Equal(t, values.RelevanceWeights.DomainWeight, DomainWeight)
-	require.Equal(t, values.RelevanceWeights.LanguageWeight, LanguageWeight)
-	require.Equal(t, values.RelevanceWeights.FrameworkWeight, FrameworkWeight)
-	require.Equal(t, values.RelevanceWeights.PatternWeight, PatternWeight)
+	require.Equal(t, values.RelevanceWeights.DomainWeight, DomainWeight())
+	require.Equal(t, values.RelevanceWeights.LanguageWeight, LanguageWeight())
+	require.Equal(t, values.RelevanceWeights.FrameworkWeight, FrameworkWeight())
+	require.Equal(t, values.RelevanceWeights.PatternWeight, PatternWeight())
 
-	require.Equal(t, values.ConfidenceConstants.InitialConfidence, InitialConfidence)
-	require.Equal(t, values.ConfidenceConstants.ConfirmationBoost, ConfirmationBoost)
-	require.Equal(t, values.ConfidenceConstants.FlagPenalty, FlagPenalty)
-	require.Equal(t, values.ConfidenceConstants.Ceiling, ConfidenceCeiling)
-	require.Equal(t, values.ConfidenceConstants.Floor, ConfidenceFloor)
+	require.Equal(t, values.ConfidenceConstants.InitialConfidence, InitialConfidence())
+	require.Equal(t, values.ConfidenceConstants.ConfirmationBoost, ConfirmationBoost())
+	require.Equal(t, values.ConfidenceConstants.FlagPenalty, FlagPenalty())
+	require.Equal(t, values.ConfidenceConstants.Ceiling, ConfidenceCeiling())
+	require.Equal(t, values.ConfidenceConstants.Floor, ConfidenceFloor())
 }

@@ -26,11 +26,11 @@ func (ku KnowledgeUnit) relevance(
 	if queryPattern != "" && ku.Context.Pattern != "" && strings.EqualFold(queryPattern, ku.Context.Pattern) {
 		patternScore = 1.0
 	}
-	score := cqschema.DomainWeight*domainScore +
-		cqschema.LanguageWeight*languageScore +
-		cqschema.FrameworkWeight*frameworkScore +
-		cqschema.PatternWeight*patternScore
-	return min(max(score, cqschema.ConfidenceFloor), cqschema.ConfidenceCeiling)
+	score := cqschema.DomainWeight()*domainScore +
+		cqschema.LanguageWeight()*languageScore +
+		cqschema.FrameworkWeight()*frameworkScore +
+		cqschema.PatternWeight()*patternScore
+	return min(max(score, 0.0), 1.0)
 }
 
 // anyMatch reports whether any element in queries appears in items.
@@ -57,7 +57,7 @@ func applyConfirmation(ku KnowledgeUnit) KnowledgeUnit {
 	out.Flags = slices.Clone(ku.Flags)
 	out.Context.Languages = slices.Clone(ku.Context.Languages)
 	out.Context.Frameworks = slices.Clone(ku.Context.Frameworks)
-	out.Evidence.Confidence = min(out.Evidence.Confidence+cqschema.ConfirmationBoost, cqschema.ConfidenceCeiling)
+	out.Evidence.Confidence = min(out.Evidence.Confidence+cqschema.ConfirmationBoost(), cqschema.ConfidenceCeiling())
 	out.Evidence.Confirmations++
 	now := time.Now()
 	out.Evidence.LastConfirmed = &now
@@ -70,7 +70,7 @@ func applyFlag(ku KnowledgeUnit, reason FlagReason, cfg flagConfig) KnowledgeUni
 	out.Domains = slices.Clone(ku.Domains)
 	out.Context.Languages = slices.Clone(ku.Context.Languages)
 	out.Context.Frameworks = slices.Clone(ku.Context.Frameworks)
-	out.Evidence.Confidence = max(out.Evidence.Confidence-cqschema.FlagPenalty, cqschema.ConfidenceFloor)
+	out.Evidence.Confidence = max(out.Evidence.Confidence-cqschema.FlagPenalty(), cqschema.ConfidenceFloor())
 	now := time.Now()
 	out.Flags = append(slices.Clone(ku.Flags), Flag{
 		Reason:      reason,

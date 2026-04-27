@@ -2,21 +2,46 @@ package cqschema
 
 import "encoding/json"
 
-// Scoring weights and confidence bounds parsed from scoring.values.json.
-// Treat as immutable: mutating these breaks every downstream consumer
-// running in the same process.
-var (
-	DomainWeight    float64
-	LanguageWeight  float64
-	FrameworkWeight float64
-	PatternWeight   float64
+type scoringConstants struct {
+	domainWeight      float64
+	languageWeight    float64
+	frameworkWeight   float64
+	patternWeight     float64
+	initialConfidence float64
+	confirmationBoost float64
+	flagPenalty       float64
+	confidenceCeiling float64
+	confidenceFloor   float64
+}
 
-	InitialConfidence float64
-	ConfirmationBoost float64
-	FlagPenalty       float64
-	ConfidenceCeiling float64
-	ConfidenceFloor   float64
-)
+var constants scoringConstants
+
+// DomainWeight returns the domain relevance weight.
+func DomainWeight() float64 { return constants.domainWeight }
+
+// LanguageWeight returns the language relevance weight.
+func LanguageWeight() float64 { return constants.languageWeight }
+
+// FrameworkWeight returns the framework relevance weight.
+func FrameworkWeight() float64 { return constants.frameworkWeight }
+
+// PatternWeight returns the pattern relevance weight.
+func PatternWeight() float64 { return constants.patternWeight }
+
+// InitialConfidence returns the default confidence for new units.
+func InitialConfidence() float64 { return constants.initialConfidence }
+
+// ConfirmationBoost returns the confidence increase for a confirmation.
+func ConfirmationBoost() float64 { return constants.confirmationBoost }
+
+// FlagPenalty returns the confidence decrease for a flag.
+func FlagPenalty() float64 { return constants.flagPenalty }
+
+// ConfidenceCeiling returns the maximum allowed confidence.
+func ConfidenceCeiling() float64 { return constants.confidenceCeiling }
+
+// ConfidenceFloor returns the minimum allowed confidence.
+func ConfidenceFloor() float64 { return constants.confidenceFloor }
 
 func init() {
 	var values struct {
@@ -37,14 +62,15 @@ func init() {
 	if err := json.Unmarshal(scoringValuesRaw, &values); err != nil {
 		panic("cqschema: invalid scoring.values.json: " + err.Error())
 	}
-	DomainWeight = values.RelevanceWeights.DomainWeight
-	LanguageWeight = values.RelevanceWeights.LanguageWeight
-	FrameworkWeight = values.RelevanceWeights.FrameworkWeight
-	PatternWeight = values.RelevanceWeights.PatternWeight
-
-	InitialConfidence = values.ConfidenceConstants.InitialConfidence
-	ConfirmationBoost = values.ConfidenceConstants.ConfirmationBoost
-	FlagPenalty = values.ConfidenceConstants.FlagPenalty
-	ConfidenceCeiling = values.ConfidenceConstants.Ceiling
-	ConfidenceFloor = values.ConfidenceConstants.Floor
+	constants = scoringConstants{
+		domainWeight:      values.RelevanceWeights.DomainWeight,
+		languageWeight:    values.RelevanceWeights.LanguageWeight,
+		frameworkWeight:   values.RelevanceWeights.FrameworkWeight,
+		patternWeight:     values.RelevanceWeights.PatternWeight,
+		initialConfidence: values.ConfidenceConstants.InitialConfidence,
+		confirmationBoost: values.ConfidenceConstants.ConfirmationBoost,
+		flagPenalty:       values.ConfidenceConstants.FlagPenalty,
+		confidenceCeiling: values.ConfidenceConstants.Ceiling,
+		confidenceFloor:   values.ConfidenceConstants.Floor,
+	}
 }
