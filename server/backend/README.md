@@ -63,4 +63,4 @@ CQ_DB_PATH=./dev.db uv run alembic upgrade head
 Full environment-variable documentation will land alongside the
 `CQ_DATABASE_URL` runtime wiring in a later phase-1 child issue.
 
-[epic](https://github.com/mozilla-ai/cq/issues/257)
+[issue-310]: https://github.com/mozilla-ai/cq/issues/310
