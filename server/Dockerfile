@@ -35,6 +35,13 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --no-dev --frozen --no-install-project
 
 COPY backend/src/ src/
+# Alembic config + migration scripts must ship in the image; the
+# startup migration runner (`cq_server.migrations`) walks parents
+# of its own __file__ looking for `alembic.ini` and the `versions/`
+# directory referenced by it. Without these, importing the module
+# raises at container start.
+COPY backend/alembic.ini ./alembic.ini
+COPY backend/alembic/ alembic/
 RUN uv sync --no-dev --frozen
 
 # Copy the frontend build output into the package's static directory.

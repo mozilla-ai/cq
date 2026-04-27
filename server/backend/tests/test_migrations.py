@@ -398,6 +398,33 @@ class TestBaselineMatchesLegacySchema:
 # --- Test 5: default URL resolution ----------------------------------------
 
 
+class TestSqliteParentDirCreation:
+    """Regression: relative ``sqlite:///./data/x.db`` URLs must create
+    ``./data`` (relative to cwd), not an absolute ``/data`` directory.
+
+    The earlier ``urlparse(url).path`` implementation produced
+    ``/./data/x.db`` for that URL, whose ``Path.parent`` is the absolute
+    ``/data`` — so ``mkdir`` either failed with PermissionError outside
+    of Docker or silently created the wrong directory inside it.
+    """
+
+    def test_relative_sqlite_url_creates_relative_parent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        rel_db = "subdir/nested.db"
+        url = f"sqlite:///{rel_db}"
+        assert not (tmp_path / "subdir").exists()
+
+        run_migrations(url)
+
+        # Parent directory was created relative to cwd, not at filesystem root.
+        assert (tmp_path / "subdir").is_dir()
+        assert (tmp_path / rel_db).exists()
+        # Filesystem root must not have been touched.
+        assert not Path("/subdir").exists()
+
+
 class TestDefaultDatabaseUrlResolution:
     """``run_migrations()`` with no arg must honour ``resolve_database_url``.
 

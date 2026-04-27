@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from urllib.parse import urlparse
 
 from alembic import command
 from alembic.config import Config
@@ -65,13 +64,15 @@ def _ensure_sqlite_parent_dir(url: str) -> None:
     """
     if not url.startswith("sqlite:"):
         return
-    parsed = urlparse(url)
-    # `sqlite:///abs/path` → parsed.path == '/abs/path'
-    # `sqlite:///./rel.db` → parsed.path == '/./rel.db'
-    # `sqlite://` (in-memory)→ parsed.path == ''
-    if not parsed.path or parsed.path == "/:memory:":
+    # Use SQLAlchemy's URL parser rather than urlparse: it correctly
+    # round-trips both absolute (`sqlite:////abs/path`) and relative
+    # (`sqlite:///./rel.db`) SQLite URLs to a usable filesystem path,
+    # whereas `urlparse(...).path` prefixes a stray `/` that turns
+    # `./data/dev.db` into the absolute `/data/dev.db`.
+    database = make_url(url).database
+    if not database or database == ":memory:":
         return
-    Path(parsed.path).parent.mkdir(parents=True, exist_ok=True)
+    Path(database).parent.mkdir(parents=True, exist_ok=True)
 
 
 def run_migrations(database_url: str | None = None) -> None:

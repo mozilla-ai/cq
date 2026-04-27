@@ -36,7 +36,10 @@ Database URL resolution (used by `alembic/env.py`, the migration
 runner, and — in a later child issue — the runtime store factory)
 lives in `cq_server.db_url.resolve_database_url`. Precedence:
 
-1. `CQ_DATABASE_URL` — used verbatim (e.g. `postgresql+psycopg://…`).
+1. `CQ_DATABASE_URL` — used verbatim. **Today this must be a SQLite
+   URL** (e.g. `sqlite:////data/cq.db`); the runtime store is still
+   SQLite-only and the server rejects non-SQLite URLs at startup.
+   Postgres support lands with #309/#311.
 2. `CQ_DB_PATH` — wrapped as `sqlite:///<path>` (back-compat with
    the existing env var).
 3. Default — `sqlite:////data/cq.db`.
