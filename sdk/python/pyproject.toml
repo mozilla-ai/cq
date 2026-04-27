@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 dependencies = [
+    "cq-schema>=0.0.0.dev0",
     "httpx>=0.28.1",
     "pydantic>=2.12.5",
 ]
@@ -27,8 +28,12 @@ lint = [
 ]
 
 tests = [
+    "jsonschema>=4.23.0",
     "pytest>=9.0.2",
 ]
+
+[tool.uv.sources]
+cq-schema = { path = "../../schema/python", editable = true }
 
 [build-system]
 requires = ["setuptools>=48"]
