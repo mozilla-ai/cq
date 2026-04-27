@@ -37,12 +37,13 @@ jobs:
             exit 1
           fi
 
-          if [[ ! "$TAG" =~ ^schema/[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Tag '$TAG' does not match expected pattern schema/X.Y.Z"
+          if [[ ! "$TAG" =~ ^schema/v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not match expected pattern schema/vX.Y.Z"
             exit 1
           fi
 
-          VERSION="${TAG#schema/}"
+          RAW_VERSION="${TAG#schema/}"
+          VERSION="${RAW_VERSION#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
