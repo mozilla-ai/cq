@@ -37,6 +37,13 @@ repos:
         pass_filenames: false
         types: [python]
         files: ^plugins/cq/scripts/
+      - id: ty-check-schema-python
+        name: ty (schema/python)
+        entry: bash -c 'cd schema/python && uvx ty check src/cq_schema --python .venv'
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^schema/python/
       - id: ty-check-sdk-python
         name: ty (sdk/python)
         entry: bash -c 'cd sdk/python && uvx ty check src/cq --python .venv'
@@ -66,6 +73,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^plugins/cq/(pyproject\.toml|uv\.lock|uv\.toml)$
+      - id: uv-lock-check-schema-python
+        name: uv lock --check (schema/python)
+        entry: uv lock --check --directory schema/python
+        language: system
+        pass_filenames: false
+        files: ^schema/python/(pyproject\.toml|uv\.lock|uv\.toml)$
       - id: uv-lock-check-sdk-python
         name: uv lock --check (sdk/python)
         entry: uv lock --check --directory sdk/python
