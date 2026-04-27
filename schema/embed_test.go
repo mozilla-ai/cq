@@ -47,3 +47,13 @@ func TestScoringValuesValidatesAgainstScoringSchema(t *testing.T) {
 	require.Contains(t, weightProps, "framework_weight")
 	require.Contains(t, weightProps, "pattern_weight")
 }
+
+func TestSchemaAccessorsReturnDefensiveCopies(t *testing.T) {
+	t.Parallel()
+
+	first := KnowledgeUnitSchema()
+	first[0] = byte('!')
+	second := KnowledgeUnitSchema()
+
+	require.NotEqual(t, first[0], second[0])
+}
