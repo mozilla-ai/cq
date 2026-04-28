@@ -6,7 +6,7 @@
 - [uv](https://docs.astral.sh/uv/)
 - [pnpm](https://pnpm.io/)
 - Docker and Docker Compose
-- Go 1.26+ (only needed for Go SDK and CLI)
+- Go 1.26.1+ (only needed for Go SDK and CLI)
 
 ## Repository Structure
 
