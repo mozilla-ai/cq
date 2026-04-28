@@ -495,3 +495,28 @@ async def test_daily_counts_uses_date_key_and_gap_fills(db_path: Path) -> None:
         assert rows[-1]["date"] == datetime.now(UTC).date().isoformat()
     finally:
         await store.close()
+
+
+async def test_insert_uses_first_observed_for_created_at(db_path: Path) -> None:
+    """Mirrors RemoteStore.insert: created_at falls back to evidence.first_observed."""
+    from datetime import datetime as _dt
+
+    store = SqliteStore(db_path=db_path)
+    try:
+        unit = _make_unit()
+        backdated = _dt(2025, 1, 15, tzinfo=UTC)
+        unit_with_backdate = unit.model_copy(
+            update={"evidence": unit.evidence.model_copy(update={"first_observed": backdated})}
+        )
+        await store.insert(unit_with_backdate)
+
+        # Read back via the engine to inspect the actual created_at column.
+        with store._engine.connect() as conn:
+            row = conn.exec_driver_sql(
+                "SELECT created_at FROM knowledge_units WHERE id = ?",
+                (unit_with_backdate.id,),
+            ).fetchone()
+        assert row is not None
+        assert row[0] == backdated.isoformat()
+    finally:
+        await store.close()

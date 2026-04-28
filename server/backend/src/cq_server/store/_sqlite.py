@@ -475,7 +475,9 @@ class SqliteStore:
         domains = normalize_domains(unit.domains)
         if not domains:
             raise ValueError("At least one non-empty domain is required")
-        created_at = datetime.now(UTC).isoformat()
+        created_at = (
+            unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else datetime.now(UTC).isoformat()
+        )
         try:
             with self._engine.begin() as conn:
                 conn.execute(
