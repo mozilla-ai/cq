@@ -184,3 +184,15 @@ async def test_distribution_and_activity_and_daily(db_path: Path) -> None:
             await store.daily_counts(days=0)
     finally:
         await store.close()
+
+
+async def test_create_get_user(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        await store.create_user("alice", "$2b$12$fake")
+        user = await store.get_user("alice")
+        assert user is not None
+        assert user["username"] == "alice"
+        assert await store.get_user("nope") is None
+    finally:
+        await store.close()

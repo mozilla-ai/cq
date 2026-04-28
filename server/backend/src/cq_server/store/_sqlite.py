@@ -384,10 +384,34 @@ class SqliteStore:
         return results
 
     async def create_user(self, username: str, password_hash: str) -> None:
-        raise NotImplementedError
+        await self._run_sync(self._create_user_sync, username, password_hash)
+
+    def _create_user_sync(self, username: str, password_hash: str) -> None:
+        from ._queries import INSERT_USER
+
+        created_at = datetime.now(UTC).isoformat()
+        with self._engine.begin() as conn:
+            conn.execute(
+                INSERT_USER,
+                {"username": username, "password_hash": password_hash, "created_at": created_at},
+            )
 
     async def get_user(self, username: str) -> dict[str, Any] | None:
-        raise NotImplementedError
+        return await self._run_sync(self._get_user_sync, username)
+
+    def _get_user_sync(self, username: str) -> dict[str, Any] | None:
+        from ._queries import SELECT_USER_BY_USERNAME
+
+        with self._engine.connect() as conn:
+            row = conn.execute(SELECT_USER_BY_USERNAME, {"username": username}).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "username": row[1],
+            "password_hash": row[2],
+            "created_at": row[3],
+        }
 
     async def count_active_api_keys_for_user(self, user_id: int) -> int:
         raise NotImplementedError
