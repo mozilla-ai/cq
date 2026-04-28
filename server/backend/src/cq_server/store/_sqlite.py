@@ -56,6 +56,15 @@ class SqliteStore:
         self._closed = True
         await asyncio.to_thread(self._engine.dispose)
 
+    async def _run_sync(self, fn, /, *args, **kwargs):
+        """Run a sync callable on the default executor and await its result.
+
+        All public async methods funnel SQL work through this shim so the
+        sqlite3 driver's blocking calls don't tie up the event-loop thread.
+        Kept narrow: a single helper, no per-call allocation of executors.
+        """
+        return await asyncio.to_thread(fn, *args, **kwargs)
+
     async def insert(self, unit: KnowledgeUnit) -> None:
         raise NotImplementedError
 

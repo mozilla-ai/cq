@@ -5,6 +5,7 @@ once it is migrated. This file owns the genuinely-new internal behaviour require
 the SqliteStore implementation.
 """
 
+import threading
 from pathlib import Path
 
 import pytest
@@ -39,5 +40,25 @@ async def test_pragmas_applied_on_connect(db_path: Path) -> None:
             assert conn.exec_driver_sql("PRAGMA journal_mode").scalar().lower() == "wal"
             assert conn.exec_driver_sql("PRAGMA synchronous").scalar() == 1  # NORMAL
             assert conn.exec_driver_sql("PRAGMA busy_timeout").scalar() == 5000
+    finally:
+        await store.close()
+
+
+async def test_threadpool_shim_runs_off_event_loop(db_path: Path) -> None:
+    """Sync work delegated to asyncio.to_thread must run in a worker thread,
+    not block the event-loop thread."""
+    store = SqliteStore(db_path=db_path)
+    loop_thread_id = threading.get_ident()
+    captured: dict[str, int] = {}
+
+    def sync_probe() -> int:
+        captured["thread_id"] = threading.get_ident()
+        return 1
+
+    try:
+        # Use the same shim the real methods will use.
+        result = await store._run_sync(sync_probe)
+        assert result == 1
+        assert captured["thread_id"] != loop_thread_id
     finally:
         await store.close()
