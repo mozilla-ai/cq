@@ -395,6 +395,52 @@ class TestEndToEnd:
         assert resp.json()["total_units"] == 1
 
 
+class TestDatabaseUrlBoot:
+    """Smoke-tests for #309 — server boots under each env-var combo.
+
+    Three boots, one per branch of ``resolve_database_url`` precedence.
+    The contract is that ``CQ_DATABASE_URL`` wins over ``CQ_DB_PATH``
+    when both are set, and that either one in isolation also brings up
+    a working server.
+    """
+
+    def _boot_and_health(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CQ_JWT_SECRET", "test-secret-please-ignore-len")
+        monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
+        with TestClient(app) as c:
+            assert c.get("/health").status_code == 200
+
+    def test_boots_with_only_cq_db_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("CQ_DATABASE_URL", raising=False)
+        monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "legacy.db"))
+        self._boot_and_health(monkeypatch)
+        assert (tmp_path / "legacy.db").exists()
+
+    def test_boots_with_cq_database_url(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("CQ_DB_PATH", raising=False)
+        winning = tmp_path / "from_url.db"
+        monkeypatch.setenv("CQ_DATABASE_URL", f"sqlite:///{winning}")
+        self._boot_and_health(monkeypatch)
+        assert winning.exists()
+
+    def test_cq_database_url_wins_over_cq_db_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        winning = tmp_path / "winning.db"
+        losing = tmp_path / "losing.db"
+        monkeypatch.setenv("CQ_DATABASE_URL", f"sqlite:///{winning}")
+        monkeypatch.setenv("CQ_DB_PATH", str(losing))
+        self._boot_and_health(monkeypatch)
+        assert winning.exists()
+        assert not losing.exists()
+
+    def test_postgres_url_fails_fast_with_guidance(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CQ_JWT_SECRET", "test-secret-please-ignore-len")
+        monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
+        monkeypatch.setenv("CQ_DATABASE_URL", "postgresql+psycopg://u:p@h/d")
+        with pytest.raises(NotImplementedError, match="#311"):
+            with TestClient(app):
+                pass
+
+
 class TestApiKeyEnforcement:
     def test_propose_without_key_is_rejected(self, enforced_client: TestClient) -> None:
         resp = enforced_client.post("/propose", json=_propose_payload())

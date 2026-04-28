@@ -21,12 +21,12 @@ from pydantic import BaseModel, Field
 from starlette.responses import FileResponse
 
 from .auth import router as auth_router
-from .db_url import resolve_sqlite_db_path
+from .db_url import resolve_database_url
 from .deps import API_KEY_PEPPER_ENV, require_api_key
 from .migrations import run_migrations
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
-from .store import SqliteStore, Store, normalize_domains
+from .store import Store, create_store, normalize_domains
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -74,20 +74,20 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     pepper = os.environ.get(API_KEY_PEPPER_ENV, "")
     if not pepper:
         raise RuntimeError(f"{API_KEY_PEPPER_ENV} environment variable is required")
-    # Resolve URL and filesystem path together so the migration runner
-    # and the runtime store cannot diverge on which database they're
-    # using — see ``resolve_sqlite_db_path``. This drops once #309
-    # wires ``SqliteStore`` to ``CQ_DATABASE_URL`` directly.
-    database_url, db_path = resolve_sqlite_db_path()
-    # Bring the database under Alembic management before opening the
-    # store. Three cases handled: fresh DB → upgrade head; pre-Alembic
-    # DB → stamp baseline + upgrade head; already-stamped DB → upgrade
-    # head (no-op when no pending revisions). The legacy
-    # ``_ensure_schema()`` inside SqliteStore still runs after this;
-    # both paths are idempotent and the legacy one will be removed in
-    # #310 once this PR has rolled out everywhere.
+    # Single URL feeds both the store factory and the migration runner,
+    # so they can't diverge on which database they target. Run the
+    # factory first: it's the one place that maps URL → backend, and we
+    # want a Postgres URL to surface its ``NotImplementedError`` with
+    # #311/#312 guidance rather than failing inside Alembic with a
+    # raw psycopg ``ModuleNotFoundError``. SQLite ordering is
+    # equivalent — the legacy idempotent ``_ensure_schema()`` inside
+    # ``SqliteStore`` creates the tables, then ``run_migrations`` sees
+    # them, stamps baseline and upgrades to head (a no-op today).
+    # The legacy path goes away in #310 and the order can be flipped
+    # back to migrations-first then.
+    database_url = resolve_database_url()
+    _store = create_store(database_url)
     run_migrations(database_url)
-    _store = SqliteStore(db_path=db_path)
     app_instance.state.store = _store
     app_instance.state.api_key_pepper = pepper
     try:

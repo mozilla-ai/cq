@@ -4,6 +4,7 @@ services:
     environment:
       CQ_JWT_SECRET: ${CQ_JWT_SECRET:?Set CQ_JWT_SECRET in .env}
       CQ_API_KEY_PEPPER: ${CQ_API_KEY_PEPPER:?Set CQ_API_KEY_PEPPER in .env}
+      # CQ_DATABASE_URL: ${CQ_DATABASE_URL:-}  # SQLAlchemy URL; wins over CQ_DB_PATH when set.
       CQ_DB_PATH: ${CQ_DB_PATH:-/data/cq.db}
       CQ_PORT: ${CQ_PORT:-3000}
     ports:
