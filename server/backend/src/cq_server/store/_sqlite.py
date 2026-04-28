@@ -8,6 +8,7 @@ portable SQL is sourced from ``cq_server.store._queries``.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,13 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
+from ._normalize import normalize_domains
+from ._queries import (
+    INSERT_UNIT,
+    INSERT_UNIT_DOMAIN,
+    SELECT_APPROVED_BY_ID,
+    SELECT_BY_ID,
+)
 
 DEFAULT_DB_PATH = Path("/data/cq.db")
 
@@ -93,13 +101,47 @@ class SqliteStore:
         return await asyncio.to_thread(fn, *args, **kwargs)
 
     async def insert(self, unit: KnowledgeUnit) -> None:
-        raise NotImplementedError
+        await self._run_sync(self._insert_sync, unit)
+
+    def _insert_sync(self, unit: KnowledgeUnit) -> None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        domains = normalize_domains(unit.domains)
+        if not domains:
+            raise ValueError("knowledge unit must have at least one domain")
+        created_at = datetime.now(UTC).isoformat()
+        with self._engine.begin() as conn:
+            conn.execute(
+                INSERT_UNIT,
+                {
+                    "id": unit.id,
+                    "data": unit.model_dump_json(),
+                    "created_at": created_at,
+                    "tier": unit.tier.value,
+                },
+            )
+            for d in domains:
+                conn.execute(INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
 
     async def get(self, unit_id: str) -> KnowledgeUnit | None:
-        raise NotImplementedError
+        return await self._run_sync(self._get_sync, unit_id)
+
+    def _get_sync(self, unit_id: str) -> KnowledgeUnit | None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        with self._engine.connect() as conn:
+            row = conn.execute(SELECT_APPROVED_BY_ID, {"id": unit_id}).fetchone()
+        return KnowledgeUnit.model_validate_json(row[0]) if row is not None else None
 
     async def get_any(self, unit_id: str) -> KnowledgeUnit | None:
-        raise NotImplementedError
+        return await self._run_sync(self._get_any_sync, unit_id)
+
+    def _get_any_sync(self, unit_id: str) -> KnowledgeUnit | None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        with self._engine.connect() as conn:
+            row = conn.execute(SELECT_BY_ID, {"id": unit_id}).fetchone()
+        return KnowledgeUnit.model_validate_json(row[0]) if row is not None else None
 
     async def get_review_status(self, unit_id: str) -> dict[str, str | None] | None:
         raise NotImplementedError

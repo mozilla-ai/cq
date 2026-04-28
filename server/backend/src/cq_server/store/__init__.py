@@ -18,6 +18,7 @@ from cq.models import KnowledgeUnit
 
 from ..scoring import calculate_relevance
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
+from ._normalize import normalize_domains
 from ._protocol import Store
 from ._sqlite import SqliteStore
 
@@ -43,11 +44,6 @@ CREATE TABLE IF NOT EXISTS knowledge_unit_domains (
 CREATE INDEX IF NOT EXISTS idx_domains_domain
     ON knowledge_unit_domains(domain);
 """
-
-
-def normalize_domains(domains: list[str]) -> list[str]:
-    """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
-    return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
 
 
 class RemoteStore:
