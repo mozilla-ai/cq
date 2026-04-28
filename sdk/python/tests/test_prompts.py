@@ -32,7 +32,7 @@ def test_skill_contains_core_protocol():
     assert "## Core Protocol" in p
     assert "Before acting" in p
     assert "Apply guidance" in p
-    assert "After learning something non-obvious" in p
+    assert "Propose IMMEDIATELY when the current step stabilizes" in p
     assert "before completing the task" in p
 
 

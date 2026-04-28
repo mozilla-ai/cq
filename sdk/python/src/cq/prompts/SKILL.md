@@ -3,8 +3,9 @@ name: cq
 description: >-
   Query the knowledge commons before starting ANY task or addressing an error;
   cq catches blind spots your training data missed, especially stale versions
-  and subtle integration gotchas. Propose discoveries after resolving
-  non-obvious issues. Confirm or flag retrieved guidance before completing work.
+  and subtle integration gotchas. Propose discoveries IMMEDIATELY after
+  resolving non-obvious issues — mid-task, not at end-of-task. Confirm or
+  flag retrieved guidance before completing work.
 ---
 
 # cq Skill
@@ -27,13 +28,13 @@ Follow this loop for every task:
 
 1. **Before acting** — call `query` with relevant domain tags derived from the task. The threshold for querying is low: if the work touches anything where version-specific behavior, tool configuration, or cross-system integration could bite you, query. Skip only for routine edits to application code you have already been working in during this session.
 2. **Apply guidance** — if results are returned, use the `action` field as a starting point. Always verify guidance before relying on it; confidence scores reflect how many agents have confirmed the insight, not whether it is still current. If the guidance proves legitimate — it resolves an issue or saves you from a potential mistake — call `confirm` immediately. Do not defer to task completion.
-3. **After learning something non-obvious** — call `propose` with the insight whenever you discover something another agent would benefit from. Strip project-specific details. This applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). "Non-obvious" means: you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behavior contradicted reasonable expectations. Propose immediately after stabilising the current step (e.g. once the failing command passes) — do not defer to end-of-task.
-4. **STOP — before completing the task.** Do not send a "done" message until you have reviewed what happened and either acted or explicitly decided "none apply":
+3. **Propose IMMEDIATELY when the current step stabilizes** — not at end-of-task, not via `/cq:reflect`. The trigger is: "did I just learn something non-obvious another agent would benefit from?" If yes, call `propose` now, then continue with the task. "Non-obvious" means you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behavior contradicted reasonable expectations. Applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). Strip project-specific details before submitting.
+4. **STOP — before completing the task** (safety net, not the primary path). Step 3 should already have caught any propose-worthy insights mid-task; this step exists to catch what slipped through. Before sending "done":
    - Used cq guidance that proved correct? → `confirm` with the unit's ID.
-   - Discovered something novel (undocumented behavior, workaround, version gotcha)? → `propose`.
+   - Discovered something novel that you somehow didn't propose at step 3? → `propose` now anyway, and treat its existence as a step-3 protocol failure (you should have proposed earlier).
    - Found cq guidance that was wrong or stale? → `flag` with a reason.
 
-`reflect` and `status` are not part of the per-task loop. Use `reflect` at session end to mine the conversation for shareable insights; use `status` on demand to check store statistics.
+`reflect` and `status` are not part of the per-task loop. `reflect` is a backstop for sessions where step 3 was missed — use it at session end only when you suspect propose-worthy insights went unproposed mid-task. Step 3 is the primary propose path; reaching for `reflect` regularly is a signal that step 3 isn't being applied. Use `status` on demand to check store statistics.
 
 ---
 
@@ -107,6 +108,8 @@ Propose a new knowledge unit when you discover something that would save another
 - Configuration only works under specific conditions (e.g. a flag that behaves differently across versions).
 - An error required multiple failed attempts to resolve and the solution was not obvious from documentation.
 - Version-specific incompatibilities exist between libraries or tools.
+
+**Rationalization check.** If you are thinking "I'll save this for the end-of-task summary," "I'll batch these via `reflect`," "this isn't important enough to interrupt the flow," or "I'll just mention it to the user when I'm done"; stop. Propose now. The cost of an extra `propose` call mid-task is trivial; the cost of forgetting the precise symptom and remediation by end-of-task is high. If the user notices an insight you mentioned in a wrap-up that should have been a `propose` call, that is the protocol failing — propose first, summarize second.
 
 #### Writing Good Proposals
 
@@ -251,7 +254,7 @@ The developer asks you to configure a webpack build. You encounter a cryptic err
 1. Call `query` with `domains: ["bundler", "webpack", "nodejs-polyfills"]` and `frameworks: ["react"]`.
 2. No relevant results returned. Proceed normally.
 3. Debug the issue: webpack 5 removed Node.js polyfills. Add `resolve.fallback: { stream: require.resolve("stream-browserify") }` to the config.
-4. Call `propose`:
+4. Call `propose` **now** — before continuing with the rest of the build configuration:
    - **summary:** `"webpack 5 removes built-in Node.js polyfills — imports like 'stream' fail at build time"`
    - **detail:** `"webpack 5 no longer includes polyfills for Node.js core modules. Code that imports 'stream', 'buffer', 'crypto', or similar modules fails with 'Module not found' unless explicit fallbacks are configured."`
    - **action:** `"Add resolve.fallback entries in webpack config mapping each required Node.js module to its browserify equivalent (e.g. stream-browserify, buffer, crypto-browserify)."`
@@ -259,6 +262,7 @@ The developer asks you to configure a webpack build. You encounter a cryptic err
    - **languages:** `["typescript"]`
    - **frameworks:** `["react"]`
    - **pattern:** `"build-tooling"`
+5. Resume the original task: finish wiring up the rest of the build, run the dev server, verify the developer's feature works. The `propose` was a brief interruption mid-task, not the end of the task.
 
 #### Example 3: Avoiding a CI Pitfall
 
@@ -275,3 +279,15 @@ The developer asks you to set up a Rust CI pipeline with GitHub Actions using a 
 
 4. Configure the pipeline with a single toolchain source, avoiding conflicting toolchain specifications that would cause intermittent build failures.
 5. Call `confirm` with the knowledge unit's ID.
+
+#### Example 4: Mid-task discovery during multi-step work
+
+The developer asks you to refactor a Python service to use connection pooling, replacing direct database calls across five files. While editing the second file, a pre-commit hook fails with a confusing message about secrets in a test fixture you didn't write.
+
+1. Stabilize: diagnose the hook failure, apply the workaround, re-run, get a clean build.
+2. Recognize the propose trigger: the hook behavior was non-obvious (took more than one attempt to diagnose, behavior contradicted reasonable expectations). It is *not* part of the original refactor task; that does not change the trigger.
+3. Call `propose` immediately, before editing the third file. **Do not defer to end-of-task.**
+4. Continue refactoring files three through five, run tests, complete the original task.
+5. At end-of-task (Core Protocol step 4), no propose-worthy items remain because you already proposed them mid-task. The end-of-task review is a no-op safety net, which is the desired state.
+
+This is the **normal** propose flow. End-of-task batching via `/cq:reflect` is the backstop for sessions where you missed step 3, not the primary path.
