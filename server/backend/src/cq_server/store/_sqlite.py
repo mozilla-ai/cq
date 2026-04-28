@@ -465,7 +465,7 @@ class SqliteStore:
             raise RuntimeError("SqliteStore is closed")
         domains = normalize_domains(unit.domains)
         if not domains:
-            raise ValueError("knowledge unit must have at least one domain")
+            raise ValueError("At least one non-empty domain is required")
         created_at = datetime.now(UTC).isoformat()
         try:
             with self._engine.begin() as conn:
@@ -698,7 +698,7 @@ class SqliteStore:
             raise RuntimeError("SqliteStore is closed")
         domains = normalize_domains(unit.domains)
         if not domains:
-            raise ValueError("knowledge unit must have at least one domain")
+            raise ValueError("At least one non-empty domain is required")
         try:
             with self._engine.begin() as conn:
                 cursor = conn.execute(

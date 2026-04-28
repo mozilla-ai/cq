@@ -455,3 +455,14 @@ async def test_insert_duplicate_raises_sqlite3_integrity_error(db_path: Path) ->
             await store.insert(unit)
     finally:
         await store.close()
+
+
+async def test_insert_with_empty_domains_raises(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        unit = _make_unit()
+        unit_no_domains = unit.model_copy(update={"domains": []})
+        with pytest.raises(ValueError, match="At least one non-empty domain"):
+            await store.insert(unit_no_domains)
+    finally:
+        await store.close()
