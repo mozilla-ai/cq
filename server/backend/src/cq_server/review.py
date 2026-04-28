@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from .auth import get_current_user
 from .deps import get_store
-from .store import RemoteStore
+from .store import Store
 
 
 class ReviewItem(BaseModel):
@@ -85,11 +85,11 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 
 @router.get("/queue")
-def review_queue(
+async def review_queue(
     limit: int = 20,
     offset: int = 0,
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewQueueResponse:
     """Return pending KUs for review.
 
@@ -97,13 +97,13 @@ def review_queue(
         limit: Maximum number of items to return.
         offset: Number of items to skip.
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         A paginated list of pending knowledge units with review metadata.
     """
-    items = store.pending_queue(limit=limit, offset=offset)
-    total = store.pending_count()
+    items = await store.pending_queue(limit=limit, offset=offset)
+    total = await store.pending_count()
     return ReviewQueueResponse(
         items=[
             ReviewItem(
@@ -124,14 +124,14 @@ def review_queue(
 async def approve_unit(
     unit_id: str,
     username: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewDecisionResponse:
     """Approve a pending KU.
 
     Args:
         unit_id: The knowledge unit identifier.
         username: The authenticated reviewer's username.
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         The updated review decision with status and reviewer details.
@@ -155,14 +155,14 @@ async def approve_unit(
 async def reject_unit(
     unit_id: str,
     username: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewDecisionResponse:
     """Reject a pending KU.
 
     Args:
         unit_id: The knowledge unit identifier.
         username: The authenticated reviewer's username.
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         The updated review decision with status and reviewer details.
@@ -185,13 +185,13 @@ async def reject_unit(
 @router.get("/stats")
 async def review_stats(
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewStatsResponse:
     """Return dashboard metrics.
 
     Args:
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         Aggregated counts by status, domain distribution, confidence
@@ -221,7 +221,7 @@ async def list_units(
     status: str | None = None,
     limit: int = 100,
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> list[ReviewItem]:
     """Return KUs filtered by domain, confidence range, or status.
 
@@ -233,7 +233,7 @@ async def list_units(
         status: Optional review status (e.g. "approved", "rejected").
         limit: Maximum number of results to return.
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         List of knowledge units with review metadata.
@@ -260,14 +260,14 @@ async def list_units(
 async def get_unit(
     unit_id: str,
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewItem:
     """Return a single knowledge unit with its review metadata.
 
     Args:
         unit_id: The knowledge unit identifier.
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         The knowledge unit with review status, reviewer, and timestamp.

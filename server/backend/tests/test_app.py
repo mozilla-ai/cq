@@ -1,5 +1,6 @@
 """Tests for the cq remote API endpoints."""
 
+import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -7,8 +8,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from cq_server.app import app
 from cq_server import semsearch
+from cq_server.app import app
 from cq_server.deps import require_api_key
 
 TEST_USERNAME = "test-user"
@@ -36,7 +37,7 @@ def enforced_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
         yield c
 
 
-async def _seed_user_and_login(
+def _seed_user_and_login(
     client: TestClient,
     username: str = "alice",
     password: str = "secret123",
@@ -44,7 +45,7 @@ async def _seed_user_and_login(
     from cq_server.app import _get_store
     from cq_server.auth import hash_password
 
-    await _get_store().create_user(username, hash_password(password))
+    asyncio.run(_get_store().create_user(username, hash_password(password)))
     resp = client.post("/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200
     return resp.json()["token"]
@@ -72,23 +73,23 @@ def _propose_payload(**overrides: Any) -> dict[str, Any]:
     return {**defaults, **overrides}
 
 
-async def _approve_unit(client: TestClient, unit_id: str) -> None:
+def _approve_unit(client: TestClient, unit_id: str) -> None:
     """Approve a unit via the store for testing."""
     from cq_server.app import _get_store
 
     store = _get_store()
-    await store.set_review_status(unit_id, "approved", "test-reviewer")
+    asyncio.run(store.set_review_status(unit_id, "approved", "test-reviewer"))
 
 
 class TestHealth:
-    async def test_health_returns_ok(self, client: TestClient) -> None:
+    def test_health_returns_ok(self, client: TestClient) -> None:
         resp = client.get("/health")
         assert resp.status_code == 200
         assert resp.json() == {"status": "ok"}
 
 
 class TestPropose:
-    async def test_propose_creates_unit(self, client: TestClient) -> None:
+    def test_propose_creates_unit(self, client: TestClient) -> None:
         resp = client.post("/propose", json=_propose_payload())
         assert resp.status_code == 201
         body = resp.json()
@@ -97,7 +98,7 @@ class TestPropose:
         assert body["insight"]["summary"] == "Use connection pooling"
         assert body["evidence"]["confidence"] == 0.5
 
-    async def test_propose_with_context(self, client: TestClient) -> None:
+    def test_propose_with_context(self, client: TestClient) -> None:
         payload = _propose_payload(
             context={"languages": ["python"], "frameworks": ["fastapi"]},
         )
@@ -107,17 +108,17 @@ class TestPropose:
         assert "python" in body["context"]["languages"]
         assert "fastapi" in body["context"]["frameworks"]
 
-    async def test_propose_with_empty_domains_rejected(self, client: TestClient) -> None:
+    def test_propose_with_empty_domains_rejected(self, client: TestClient) -> None:
         payload = _propose_payload(domains=[])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
 
-    async def test_propose_with_whitespace_only_domains_rejected(self, client: TestClient) -> None:
+    def test_propose_with_whitespace_only_domains_rejected(self, client: TestClient) -> None:
         payload = _propose_payload(domains=["  ", ""])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 422
 
-    async def test_propose_normalizes_domains(self, client: TestClient) -> None:
+    def test_propose_normalizes_domains(self, client: TestClient) -> None:
         payload = _propose_payload(domains=["API", " Databases "])
         resp = client.post("/propose", json=payload)
         assert resp.status_code == 201
@@ -125,36 +126,34 @@ class TestPropose:
 
 
 class TestQuery:
-    async def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:
+    def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:
         resp = client.post("/propose", json=_propose_payload(**overrides))
         assert resp.status_code == 201
         body = resp.json()
-        await _approve_unit(client, body["id"])
+        _approve_unit(client, body["id"])
         return body
 
-    async def test_query_returns_matching_units(self, client: TestClient) -> None:
-        await self._insert_unit(client, domains=["databases"])
+    def test_query_returns_matching_units(self, client: TestClient) -> None:
+        self._insert_unit(client, domains=["databases"])
         resp = client.get("/query", params={"domains": ["databases"]})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 1
         assert results[0]["domains"] == ["databases"]
 
-    # TODO check if this should return or not according to semsearch
-    # maybe we could add a threshold value to semsearch
-    async def test_query_returns_empty_for_no_match(self, client: TestClient) -> None:
-        await self._insert_unit(client, domains=["databases"])
+    def test_query_returns_empty_for_no_match(self, client: TestClient) -> None:
+        self._insert_unit(client, domains=["databases"])
         resp = client.get("/query", params={"domains": ["networking"]})
         assert resp.status_code == 200
         assert resp.json() == []
 
-    async def test_query_boosts_matching_language(self, client: TestClient) -> None:
-        await self._insert_unit(
+    def test_query_boosts_matching_language(self, client: TestClient) -> None:
+        self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["python"], "frameworks": []},
         )
-        await self._insert_unit(
+        self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["go"], "frameworks": []},
@@ -165,18 +164,18 @@ class TestQuery:
         assert len(results) == 2
         assert "python" in results[0]["context"]["languages"]
 
-    async def test_query_boosts_any_matching_language(self, client: TestClient) -> None:
-        await self._insert_unit(
+    def test_query_boosts_any_matching_language(self, client: TestClient) -> None:
+        self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["python"], "frameworks": []},
         )
-        await self._insert_unit(
+        self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["go"], "frameworks": []},
         )
-        await self._insert_unit(
+        self._insert_unit(
             client,
             domains=["web"],
             context={"languages": ["rust"], "frameworks": []},
@@ -191,19 +190,36 @@ class TestQuery:
         top_langs = {results[0]["context"]["languages"][0], results[1]["context"]["languages"][0]}
         assert top_langs == {"python", "go"}
 
-    async def test_query_respects_limit(self, client: TestClient) -> None:
+    def test_query_respects_limit(self, client: TestClient) -> None:
         for _ in range(3):
-            await self._insert_unit(client, domains=["api"])
+            self._insert_unit(client, domains=["api"])
         resp = client.get("/query", params={"domains": ["api"], "limit": 2})
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
-    async def test_query_rejects_zero_limit(self, client: TestClient) -> None:
+    def test_query_rejects_zero_limit(self, client: TestClient) -> None:
         resp = client.get("/query", params={"domains": ["api"], "limit": 0})
         assert resp.status_code == 422
 
-    async def test_query_finds_expected_unit_across_distinct_domains(self, client: TestClient) -> None:
-        await self._insert_unit(
+    def test_query_boosts_matching_pattern(self, client: TestClient) -> None:
+        self._insert_unit(
+            client,
+            domains=["api"],
+            context={"languages": [], "frameworks": [], "pattern": "api-client"},
+        )
+        self._insert_unit(
+            client,
+            domains=["api"],
+            context={"languages": [], "frameworks": [], "pattern": "other-pattern"},
+        )
+        resp = client.get("/query", params={"domains": ["api"], "pattern": "api-client"})
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) == 2
+        assert results[0]["context"]["pattern"] == "api-client"
+
+    def test_query_finds_expected_unit_across_distinct_domains(self, client: TestClient) -> None:
+        self._insert_unit(
             client,
             domains=["astronomy"],
             insight={
@@ -212,7 +228,7 @@ class TestQuery:
                 "action": "Prioritize follow-up spectroscopy for high-confidence candidates.",
             },
         )
-        await self._insert_unit(
+        self._insert_unit(
             client,
             domains=["culinary"],
             insight={
@@ -221,7 +237,7 @@ class TestQuery:
                 "action": "Adjust with olive oil and reduce over low heat.",
             },
         )
-        await self._insert_unit(
+        self._insert_unit(
             client,
             domains=["cybersecurity"],
             insight={
@@ -238,15 +254,15 @@ class TestQuery:
         assert results[0]["domains"] == ["astronomy"]
         assert "exoplanets" in results[0]["insight"]["summary"].lower()
 
-    async def test_query_returns_best_result_with_domain_overlap(self, client: TestClient) -> None:
+    def test_query_returns_best_result_with_domain_overlap(self, client: TestClient) -> None:
         if not semsearch.is_enabled():
             pytest.skip("semantic dependencies are not enabled")
         try:
-            await semsearch._get_embeddings(["connectivity check"])
+            asyncio.run(semsearch._get_embeddings(["connectivity check"]))
         except Exception as exc:
             pytest.skip(f"embedding server unavailable: {exc}")
 
-        ku1 = await self._insert_unit(
+        ku1 = self._insert_unit(
             client,
             domains=["astronomy"],
             insight={
@@ -255,15 +271,16 @@ class TestQuery:
                 "action": "Prioritize stars with consistent dip timing for follow-up observations.",
             },
         )
-        ku2 = await self._insert_unit(
+        ku2 = self._insert_unit(
             client,
             domains=["astronomy"],
             insight={
                 "summary": "Map chemical enrichment in HII regions",
                 "detail": "Emission line analysis identifies the abundance of heavy elements (metals) like oxygen and nitrogen within ionized gas clouds.",
                 "action": "Target low-metallicity regions to study star formation conditions similar to the early universe.",
-            }        )
-        await self._insert_unit(
+            },
+        )
+        self._insert_unit(
             client,
             domains=["cybersecurity"],
             insight={
@@ -281,73 +298,56 @@ class TestQuery:
         assert ku1["id"] in result_confidences and ku2["id"] in result_confidences
         assert results[0]["domains"] == ["astronomy"]
         assert result_confidences[ku1["id"]] >= result_confidences[ku2["id"]]
-    
-    async def test_query_boosts_matching_pattern(self, client: TestClient) -> None:
-        await self._insert_unit(
-            client,
-            domains=["api"],
-            context={"languages": [], "frameworks": [], "pattern": "api-client"},
-        )
-        await self._insert_unit(
-            client,
-            domains=["api"],
-            context={"languages": [], "frameworks": [], "pattern": "other-pattern"},
-        )
-        resp = client.get("/query", params={"domains": ["api"], "pattern": "api-client"})
-        assert resp.status_code == 200
-        results = resp.json()
-        assert len(results) == 2
-        assert results[0]["context"]["pattern"] == "api-client"
 
 
 class TestConfirm:
-    async def test_confirm_boosts_confidence(self, client: TestClient) -> None:
+    def test_confirm_boosts_confidence(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
-        await _approve_unit(client, created["id"])
+        _approve_unit(client, created["id"])
         resp = client.post(f"/confirm/{created['id']}")
         assert resp.status_code == 200
         body = resp.json()
         assert body["evidence"]["confirmations"] == 2
         assert body["evidence"]["confidence"] > 0.5
 
-    async def test_confirm_pending_unit_returns_404(self, client: TestClient) -> None:
+    def test_confirm_pending_unit_returns_404(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
         resp = client.post(f"/confirm/{created['id']}")
         assert resp.status_code == 404
 
-    async def test_confirm_missing_unit_returns_404(self, client: TestClient) -> None:
+    def test_confirm_missing_unit_returns_404(self, client: TestClient) -> None:
         resp = client.post("/confirm/ku_nonexistent")
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
 
 
 class TestFlag:
-    async def test_flag_reduces_confidence(self, client: TestClient) -> None:
+    def test_flag_reduces_confidence(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
-        await _approve_unit(client, created["id"])
+        _approve_unit(client, created["id"])
         resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
         assert resp.status_code == 200
         body = resp.json()
         assert body["evidence"]["confidence"] < 0.5
         assert len(body["flags"]) == 1
 
-    async def test_flag_pending_unit_returns_404(self, client: TestClient) -> None:
+    def test_flag_pending_unit_returns_404(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
         resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
         assert resp.status_code == 404
 
-    async def test_flag_missing_unit_returns_404(self, client: TestClient) -> None:
+    def test_flag_missing_unit_returns_404(self, client: TestClient) -> None:
         resp = client.post("/flag/ku_nonexistent", json={"reason": "stale"})
         assert resp.status_code == 404
 
-    async def test_flag_with_invalid_reason_rejected(self, client: TestClient) -> None:
+    def test_flag_with_invalid_reason_rejected(self, client: TestClient) -> None:
         created = client.post("/propose", json=_propose_payload()).json()
         resp = client.post(f"/flag/{created['id']}", json={"reason": "invalid_reason"})
         assert resp.status_code == 422
 
 
 class TestStats:
-    async def test_stats_empty_store(self, client: TestClient) -> None:
+    def test_stats_empty_store(self, client: TestClient) -> None:
         resp = client.get("/stats")
         assert resp.status_code == 200
         body = resp.json()
@@ -355,14 +355,14 @@ class TestStats:
         assert body["tiers"] == {}
         assert body["domains"] == {}
 
-    async def test_stats_after_inserts(self, client: TestClient) -> None:
+    def test_stats_after_inserts(self, client: TestClient) -> None:
         from cq_server.app import _get_store
 
         r1 = client.post("/propose", json=_propose_payload(domains=["api", "auth"]))
         r2 = client.post("/propose", json=_propose_payload(domains=["api", "payments"]))
         store = _get_store()
-        await store.set_review_status(r1.json()["id"], "approved", "tester")
-        await store.set_review_status(r2.json()["id"], "approved", "tester")
+        asyncio.run(store.set_review_status(r1.json()["id"], "approved", "tester"))
+        asyncio.run(store.set_review_status(r2.json()["id"], "approved", "tester"))
         resp = client.get("/stats")
         assert resp.status_code == 200
         body = resp.json()
@@ -376,12 +376,12 @@ class TestStats:
 class TestReviewLifecycleEndToEnd:
     """End-to-end test covering propose -> review -> query -> stats lifecycle."""
 
-    async def test_full_review_lifecycle(self, client: TestClient) -> None:
+    def test_full_review_lifecycle(self, client: TestClient) -> None:
         from cq_server.app import _get_store
         from cq_server.auth import hash_password
 
         store = _get_store()
-        await store.create_user("reviewer", hash_password("pass123"))
+        asyncio.run(store.create_user("reviewer", hash_password("pass123")))
 
         # Log in.
         login_resp = client.post(
@@ -435,7 +435,7 @@ class TestReviewLifecycleEndToEnd:
 
 
 class TestEndToEnd:
-    async def test_propose_confirm_flag_lifecycle(self, client: TestClient) -> None:
+    def test_propose_confirm_flag_lifecycle(self, client: TestClient) -> None:
         # Propose a unit.
         payload = _propose_payload(
             domains=["api", "payments"],
@@ -446,7 +446,7 @@ class TestEndToEnd:
         unit_id = created.json()["id"]
 
         # Approve the unit so it becomes queryable.
-        await _approve_unit(client, unit_id)
+        _approve_unit(client, unit_id)
 
         # Query returns the unit.
         resp = client.get(
@@ -454,14 +454,14 @@ class TestEndToEnd:
             params={"domains": ["api", "payments"], "languages": ["python"]},
         )
         assert len(resp.json()) == 1
-        assert resp.json()[0]["evidence"]["confidence"] == pytest.approx(0.35)
+        assert resp.json()[0]["evidence"]["confidence"] == 0.5
 
         # Confirm boosts confidence.
         resp = client.post(f"/confirm/{unit_id}")
         assert resp.status_code == 200
 
         resp = client.get("/query", params={"domains": ["api", "payments"]})
-        assert resp.json()[0]["evidence"]["confidence"] == pytest.approx(0.33)
+        assert resp.json()[0]["evidence"]["confidence"] == pytest.approx(0.6)
 
         # Flag reduces confidence.
         resp = client.post(f"/flag/{unit_id}", json={"reason": "stale"})
@@ -469,7 +469,7 @@ class TestEndToEnd:
 
         resp = client.get("/query", params={"domains": ["api", "payments"]})
         result = resp.json()[0]
-        assert result["evidence"]["confidence"] == pytest.approx(0.2475)
+        assert result["evidence"]["confidence"] == pytest.approx(0.45)
         assert len(result["flags"]) == 1
 
         # Stats reflect the unit.
@@ -498,8 +498,8 @@ class TestApiKeyEnforcement:
         )
         assert resp.status_code == 401
 
-    async def test_propose_with_valid_key_succeeds(self, enforced_client: TestClient) -> None:
-        jwt_token = await _seed_user_and_login(enforced_client)
+    def test_propose_with_valid_key_succeeds(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
         api_token = _create_api_key_plaintext(enforced_client, jwt_token)
         resp = enforced_client.post(
             "/propose",
@@ -508,8 +508,8 @@ class TestApiKeyEnforcement:
         )
         assert resp.status_code == 201
 
-    async def test_propose_overrides_created_by(self, enforced_client: TestClient) -> None:
-        jwt_token = await _seed_user_and_login(enforced_client, username="alice")
+    def test_propose_overrides_created_by(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client, username="alice")
         api_token = _create_api_key_plaintext(enforced_client, jwt_token)
         payload = _propose_payload()
         payload["created_by"] = "impostor"
@@ -521,8 +521,8 @@ class TestApiKeyEnforcement:
         assert resp.status_code == 201
         assert resp.json()["created_by"] == "alice"
 
-    async def test_propose_with_revoked_key_is_rejected(self, enforced_client: TestClient) -> None:
-        jwt_token = await _seed_user_and_login(enforced_client)
+    def test_propose_with_revoked_key_is_rejected(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
         create_resp = enforced_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
@@ -553,8 +553,8 @@ class TestApiKeyEnforcement:
         resp = enforced_client.get("/health")
         assert resp.status_code == 200
 
-    async def test_last_used_at_updates_after_request(self, enforced_client: TestClient) -> None:
-        jwt_token = await _seed_user_and_login(enforced_client)
+    def test_last_used_at_updates_after_request(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
         create = enforced_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
@@ -579,8 +579,8 @@ class TestApiKeyEnforcement:
         ).json()
         assert listed_after["data"][0]["last_used_at"] is not None
 
-    async def test_confirm_and_flag_require_api_key(self, enforced_client: TestClient) -> None:
-        jwt_token = await _seed_user_and_login(enforced_client)
+    def test_confirm_and_flag_require_api_key(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client)
         api_token = _create_api_key_plaintext(enforced_client, jwt_token)
         propose_resp = enforced_client.post(
             "/propose",
@@ -588,7 +588,7 @@ class TestApiKeyEnforcement:
             headers={"Authorization": f"Bearer {api_token}"},
         )
         unit_id = propose_resp.json()["id"]
-        await _approve_unit(enforced_client, unit_id)
+        _approve_unit(enforced_client, unit_id)
 
         # Without key both are rejected.
         assert enforced_client.post(f"/confirm/{unit_id}").status_code == 401

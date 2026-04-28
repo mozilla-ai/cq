@@ -44,13 +44,13 @@ lives in `cq_server.db_url.resolve_database_url`. Precedence:
    the existing env var).
 3. Default — `sqlite:////data/cq.db`.
 
-The `RemoteStore` constructor still calls the legacy
+The `SqliteStore` constructor still calls the legacy
 `_ensure_schema()` for safety during the rollout window. Both the
 migration and the legacy DDL are idempotent, so running them in
 sequence is harmless. The legacy path will be removed in
 [issue #310][issue-310] once this PR has deployed everywhere — until
 then, any schema change must be added as a new Alembic migration
-*and* mirrored in `cq_server/tables.py` / `cq_server/store/__init__.py`
+*and* mirrored in `cq_server/tables.py` / `cq_server/store/_sqlite.py`
 to keep the two paths in sync.
 
 To run Alembic commands against a local dev database (the path is

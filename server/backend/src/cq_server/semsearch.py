@@ -6,6 +6,7 @@ embedding dependencies are installed.
 """
 
 import logging
+import math
 import os
 import sqlite3
 from typing import Any
@@ -178,3 +179,59 @@ async def combined_query(conn: sqlite3.Connection, domains: list[str], placehold
         logger.warning("Combined query failed, falling back to domain-only search", exc_info=True)
         vec_rows = []
     return vec_rows
+
+
+def build_field_logits(
+    row_data_by_id: dict[str, tuple[Any, ...]],
+    *,
+    invert: bool = True,
+) -> dict[int, dict[Any, float]]:
+    """Build logit-normalized scores for each additional field across all rows.
+
+    When ``invert`` is True (the default), lower field values — e.g. cosine
+    distances — receive higher logits.
+    """
+    field_logits: dict[int, dict[Any, float]] = {}
+    if not row_data_by_id:
+        return field_logits
+
+    max_fields = max(len(data) for data in row_data_by_id.values())
+    for field_idx in range(max_fields):
+        values: list[float] = []
+        for data in row_data_by_id.values():
+            if field_idx < len(data) and isinstance(data[field_idx], (int, float)):
+                values.append(float(data[field_idx]))
+        if not values:
+            continue
+
+        min_val = min(values)
+        max_val = max(values)
+        if min_val == max_val:
+            field_logits[field_idx] = {v: 0.0 for v in values}
+            continue
+
+        mean_val = sum(values) / len(values)
+        field_logits[field_idx] = {}
+        for v in values:
+            ratio = (v / mean_val) if mean_val != 0 else 1.0
+            logit = -math.log(ratio) if invert else math.log(ratio)
+            field_logits[field_idx][v] = logit
+
+    return field_logits
+
+
+def compute_combined_relevance(
+    base_relevance: float,
+    row_data: tuple[Any, ...],
+    field_logits: dict[int, dict[Any, float]],
+) -> float:
+    """Multiply base relevance by ``(1 + logit)`` for each per-row field.
+
+    Keeps the combined score positive while letting low-distance rows
+    boost their score and high-distance rows diminish it.
+    """
+    combined = base_relevance
+    for field_idx, logit_map in field_logits.items():
+        if field_idx < len(row_data):
+            combined *= 1.0 + logit_map.get(row_data[field_idx], 0.0)
+    return combined

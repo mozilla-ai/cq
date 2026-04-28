@@ -26,7 +26,7 @@ from .deps import API_KEY_PEPPER_ENV, require_api_key
 from .migrations import run_migrations
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
-from .store import RemoteStore, normalize_domains
+from .store import SqliteStore, Store, normalize_domains
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -54,10 +54,10 @@ class StatsResponse(BaseModel):
     domains: dict[str, int]
 
 
-_store: RemoteStore | None = None
+_store: Store | None = None
 
 
-def _get_store() -> RemoteStore:
+def _get_store() -> Store:
     """Return the global store instance."""
     if _store is None:
         raise RuntimeError("Store not initialised")
@@ -77,21 +77,23 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # Resolve URL and filesystem path together so the migration runner
     # and the runtime store cannot diverge on which database they're
     # using — see ``resolve_sqlite_db_path``. This drops once #309
-    # wires ``RemoteStore`` to ``CQ_DATABASE_URL`` directly.
+    # wires ``SqliteStore`` to ``CQ_DATABASE_URL`` directly.
     database_url, db_path = resolve_sqlite_db_path()
     # Bring the database under Alembic management before opening the
     # store. Three cases handled: fresh DB → upgrade head; pre-Alembic
     # DB → stamp baseline + upgrade head; already-stamped DB → upgrade
     # head (no-op when no pending revisions). The legacy
-    # ``_ensure_schema()`` inside RemoteStore still runs after this;
+    # ``_ensure_schema()`` inside SqliteStore still runs after this;
     # both paths are idempotent and the legacy one will be removed in
     # #310 once this PR has rolled out everywhere.
     run_migrations(database_url)
-    _store = RemoteStore(db_path=db_path)
+    _store = SqliteStore(db_path=db_path)
     app_instance.state.store = _store
     app_instance.state.api_key_pepper = pepper
-    yield
-    _store.close()
+    try:
+        yield
+    finally:
+        await _store.close()
 
 
 # --- API routes on a shared router so they can be mounted at both / and /api. ---

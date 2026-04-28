@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from .api_keys import encode_token, generate_secret, hash_secret, secret_prefix
 from .deps import get_api_key_pepper, get_store
-from .store import RemoteStore
+from .store import Store
 from .ttl import parse_ttl
 
 MAX_ACTIVE_API_KEYS_PER_USER = 20
@@ -186,12 +186,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
-async def login(request: LoginRequest, store: RemoteStore = Depends(get_store)) -> LoginResponse:
+async def login(request: LoginRequest, store: Store = Depends(get_store)) -> LoginResponse:
     """Authenticate a user and return a JWT token.
 
     Args:
         request: Login credentials.
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         A LoginResponse with a signed JWT and the username.
@@ -207,12 +207,12 @@ async def login(request: LoginRequest, store: RemoteStore = Depends(get_store)) 
 
 
 @router.get("/me")
-async def me(username: str = Depends(get_current_user), store: RemoteStore = Depends(get_store)) -> MeResponse:
+async def me(username: str = Depends(get_current_user), store: Store = Depends(get_store)) -> MeResponse:
     """Return the current user's info.
 
     Args:
         username: The authenticated username from the JWT dependency.
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         A MeResponse with the user's username and creation timestamp.
@@ -226,7 +226,7 @@ async def me(username: str = Depends(get_current_user), store: RemoteStore = Dep
     return MeResponse(username=user["username"], created_at=user["created_at"])
 
 
-async def _require_user_id(store: RemoteStore, username: str) -> int:
+async def _require_user_id(store: Store, username: str) -> int:
     """Return the integer user id for the authenticated caller.
 
     Raises:
@@ -242,7 +242,7 @@ async def _require_user_id(store: RemoteStore, username: str) -> int:
 async def create_api_key_route(
     request: CreateApiKeyRequest,
     username: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
     pepper: str = Depends(get_api_key_pepper),
 ) -> CreateApiKeyResponse:
     """Create a new API key owned by the authenticated user.
@@ -260,7 +260,7 @@ async def create_api_key_route(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     user_id = await _require_user_id(store, username)
-    if store.count_active_api_keys_for_user(user_id) >= MAX_ACTIVE_API_KEYS_PER_USER:
+    if await store.count_active_api_keys_for_user(user_id) >= MAX_ACTIVE_API_KEYS_PER_USER:
         raise HTTPException(
             status_code=409,
             detail=f"Maximum of {MAX_ACTIVE_API_KEYS_PER_USER} active API keys per user",
@@ -269,7 +269,7 @@ async def create_api_key_route(
     secret = generate_secret()
     plaintext = encode_token(key_id=key_id, secret=secret)
     expires_at = (datetime.now(UTC) + duration).isoformat()
-    row = store.create_api_key(
+    row = await store.create_api_key(
         key_id=key_id.hex,
         user_id=user_id,
         name=request.name,
@@ -286,7 +286,7 @@ async def create_api_key_route(
 @router.get("/api-keys")
 async def list_api_keys_route(
     username: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ApiKeysPublic:
     """Return the authenticated user's API keys. Never returns plaintext.
 
@@ -294,7 +294,7 @@ async def list_api_keys_route(
     their own revocation history.
     """
     user_id = await _require_user_id(store, username)
-    data = [_to_public(row) for row in store.list_api_keys_for_user(user_id)]
+    data = [_to_public(row) for row in await store.list_api_keys_for_user(user_id)]
     return ApiKeysPublic(data=data, count=len(data))
 
 
@@ -302,7 +302,7 @@ async def list_api_keys_route(
 async def revoke_api_key_route(
     key_id: str,
     username: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> Message:
     """Revoke the given API key if it belongs to the caller.
 
@@ -312,7 +312,7 @@ async def revoke_api_key_route(
     different user (uniform response, no enumeration oracle).
     """
     user_id = await _require_user_id(store, username)
-    if store.get_api_key_for_user(user_id=user_id, key_id=key_id) is None:
+    if await store.get_api_key_for_user(user_id=user_id, key_id=key_id) is None:
         raise HTTPException(status_code=404, detail="API key not found")
-    store.revoke_api_key(user_id=user_id, key_id=key_id)
+    await store.revoke_api_key(user_id=user_id, key_id=key_id)
     return Message(message="API key revoked.")
