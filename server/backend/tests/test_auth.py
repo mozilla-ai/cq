@@ -1,5 +1,6 @@
 """Tests for authentication module."""
 
+import asyncio
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -30,7 +31,7 @@ def _seed_user(client: TestClient, username: str = "peter", password: str = "sec
     from cq_server.auth import hash_password
 
     store = _get_store()
-    store.create_user(username, hash_password(password))
+    asyncio.run(store.create_user(username, hash_password(password)))
 
 
 class TestPasswordHashing:
