@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from cq.models import KnowledgeUnit
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 
 from ..scoring import calculate_relevance
@@ -524,7 +524,39 @@ class SqliteStore:
         }
 
     async def get_active_api_key_by_id(self, key_id: str) -> dict[str, Any] | None:
-        raise NotImplementedError
+        return await self._run_sync(self._get_active_api_key_by_id_sync, key_id)
+
+    def _get_active_api_key_by_id_sync(self, key_id: str) -> dict[str, Any] | None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        now = datetime.now(UTC).isoformat()
+        # JOIN on users to surface the owner's username. Inline because no
+        # _queries.py constant covers this shape; promotion left to a
+        # follow-up — out of scope per #308.
+        stmt = text(
+            "SELECT k.id, k.user_id, u.username, k.name, k.labels, k.key_prefix, "
+            "k.key_hash, k.ttl, k.expires_at, k.created_at, k.last_used_at, k.revoked_at "
+            "FROM api_keys k JOIN users u ON u.id = k.user_id "
+            "WHERE k.id = :key_id AND k.revoked_at IS NULL AND k.expires_at > :now"
+        )
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt, {"key_id": key_id, "now": now}).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "user_id": row[1],
+            "username": row[2],
+            "name": row[3],
+            "labels": json.loads(row[4] or "[]"),
+            "key_prefix": row[5],
+            "key_hash": row[6],
+            "ttl": row[7],
+            "expires_at": row[8],
+            "created_at": row[9],
+            "last_used_at": row[10],
+            "revoked_at": row[11],
+        }
 
     async def list_api_keys_for_user(self, user_id: int) -> list[dict[str, Any]]:
         raise NotImplementedError
