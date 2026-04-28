@@ -29,3 +29,15 @@ async def test_close_is_idempotent(db_path: Path) -> None:
     store = SqliteStore(db_path=db_path)
     await store.close()
     await store.close()  # no raise
+
+
+async def test_pragmas_applied_on_connect(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        with store._engine.connect() as conn:
+            assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
+            assert conn.exec_driver_sql("PRAGMA journal_mode").scalar().lower() == "wal"
+            assert conn.exec_driver_sql("PRAGMA synchronous").scalar() == 1  # NORMAL
+            assert conn.exec_driver_sql("PRAGMA busy_timeout").scalar() == 5000
+    finally:
+        await store.close()

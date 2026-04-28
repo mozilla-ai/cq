@@ -12,10 +12,28 @@ from pathlib import Path
 from typing import Any
 
 from cq.models import KnowledgeUnit
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 
 DEFAULT_DB_PATH = Path("/data/cq.db")
+
+
+def _apply_sqlite_pragmas(dbapi_connection, _connection_record):  # noqa: ANN001  (sqlalchemy event signature)
+    """Issue cq's required SQLite PRAGMAs on every new connection.
+
+    Invoked by SQLAlchemy's ``connect`` event so the pool's per-thread
+    connections all receive the same pragmas. ``executescript`` is avoided to
+    keep each pragma in its own statement (SQLite docs: some pragmas only
+    take effect outside a transaction).
+    """
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.execute("PRAGMA journal_mode = WAL")
+        cursor.execute("PRAGMA synchronous = NORMAL")
+        cursor.execute("PRAGMA busy_timeout = 5000")
+    finally:
+        cursor.close()
 
 
 class SqliteStore:
@@ -30,6 +48,7 @@ class SqliteStore:
             connect_args={"check_same_thread": False},
             future=True,
         )
+        event.listen(self._engine, "connect", _apply_sqlite_pragmas)
 
     async def close(self) -> None:
         if self._closed:
