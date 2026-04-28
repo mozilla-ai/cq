@@ -5,6 +5,7 @@ once it is migrated. This file owns the genuinely-new internal behaviour require
 the SqliteStore implementation.
 """
 
+import sqlite3
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -441,5 +442,16 @@ async def test_touch_api_key_last_used(db_path: Path) -> None:
 
         # Missing key id: best-effort, no raise.
         await store.touch_api_key_last_used("missing")
+    finally:
+        await store.close()
+
+
+async def test_insert_duplicate_raises_sqlite3_integrity_error(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        unit = _make_unit()
+        await store.insert(unit)
+        with pytest.raises(sqlite3.IntegrityError):
+            await store.insert(unit)
     finally:
         await store.close()

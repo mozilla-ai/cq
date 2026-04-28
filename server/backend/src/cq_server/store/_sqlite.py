@@ -17,7 +17,7 @@ from typing import Any
 from cq.models import KnowledgeUnit
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from ..scoring import calculate_relevance
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
@@ -298,21 +298,26 @@ class SqliteStore:
             raise RuntimeError("SqliteStore is closed")
         created_at = datetime.now(UTC).isoformat()
         labels_json = json.dumps(labels)
-        with self._engine.begin() as conn:
-            conn.execute(
-                INSERT_API_KEY,
-                {
-                    "id": key_id,
-                    "user_id": user_id,
-                    "name": name,
-                    "labels": labels_json,
-                    "key_prefix": key_prefix,
-                    "key_hash": key_hash,
-                    "ttl": ttl,
-                    "expires_at": expires_at,
-                    "created_at": created_at,
-                },
-            )
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    INSERT_API_KEY,
+                    {
+                        "id": key_id,
+                        "user_id": user_id,
+                        "name": name,
+                        "labels": labels_json,
+                        "key_prefix": key_prefix,
+                        "key_hash": key_hash,
+                        "ttl": ttl,
+                        "expires_at": expires_at,
+                        "created_at": created_at,
+                    },
+                )
+        except IntegrityError as e:
+            if e.orig is not None:
+                raise e.orig from e
+            raise
         return {
             "id": key_id,
             "user_id": user_id,
@@ -331,11 +336,16 @@ class SqliteStore:
         from ._queries import INSERT_USER
 
         created_at = datetime.now(UTC).isoformat()
-        with self._engine.begin() as conn:
-            conn.execute(
-                INSERT_USER,
-                {"username": username, "password_hash": password_hash, "created_at": created_at},
-            )
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    INSERT_USER,
+                    {"username": username, "password_hash": password_hash, "created_at": created_at},
+                )
+        except IntegrityError as e:
+            if e.orig is not None:
+                raise e.orig from e
+            raise
 
     def _daily_counts_sync(self, *, days: int) -> list[dict[str, Any]]:
         cutoff = (datetime.now(UTC) - timedelta(days=days)).date().isoformat()
@@ -457,18 +467,23 @@ class SqliteStore:
         if not domains:
             raise ValueError("knowledge unit must have at least one domain")
         created_at = datetime.now(UTC).isoformat()
-        with self._engine.begin() as conn:
-            conn.execute(
-                INSERT_UNIT,
-                {
-                    "id": unit.id,
-                    "data": unit.model_dump_json(),
-                    "created_at": created_at,
-                    "tier": unit.tier.value,
-                },
-            )
-            for d in domains:
-                conn.execute(INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    INSERT_UNIT,
+                    {
+                        "id": unit.id,
+                        "data": unit.model_dump_json(),
+                        "created_at": created_at,
+                        "tier": unit.tier.value,
+                    },
+                )
+                for d in domains:
+                    conn.execute(INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
+        except IntegrityError as e:
+            if e.orig is not None:
+                raise e.orig from e
+            raise
 
     def _list_api_keys_for_user_sync(self, user_id: int) -> list[dict[str, Any]]:
         if self._closed:
@@ -684,13 +699,18 @@ class SqliteStore:
         domains = normalize_domains(unit.domains)
         if not domains:
             raise ValueError("knowledge unit must have at least one domain")
-        with self._engine.begin() as conn:
-            cursor = conn.execute(
-                UPDATE_UNIT_DATA,
-                {"id": unit.id, "data": unit.model_dump_json(), "tier": unit.tier.value},
-            )
-            if cursor.rowcount == 0:
-                raise KeyError(f"Knowledge unit not found: {unit.id}")
-            conn.execute(DELETE_UNIT_DOMAINS, {"unit_id": unit.id})
-            for d in domains:
-                conn.execute(INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
+        try:
+            with self._engine.begin() as conn:
+                cursor = conn.execute(
+                    UPDATE_UNIT_DATA,
+                    {"id": unit.id, "data": unit.model_dump_json(), "tier": unit.tier.value},
+                )
+                if cursor.rowcount == 0:
+                    raise KeyError(f"Knowledge unit not found: {unit.id}")
+                conn.execute(DELETE_UNIT_DOMAINS, {"unit_id": unit.id})
+                for d in domains:
+                    conn.execute(INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
+        except IntegrityError as e:
+            if e.orig is not None:
+                raise e.orig from e
+            raise
