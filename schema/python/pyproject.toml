@@ -1,0 +1,44 @@
+[project]
+name = "cq-schema"
+version = "0.0.0.dev0"
+description = "Canonical JSON Schemas and scoring values for cq — shared agent knowledge commons"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/mozilla-ai/cq"
+Repository = "https://github.com/mozilla-ai/cq"
+Issues = "https://github.com/mozilla-ai/cq/issues"
+
+[dependency-groups]
+dev = [
+    { include-group = "lint" },
+    { include-group = "tests" },
+]
+
+lint = [
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.8",
+]
+
+tests = [
+    "jsonschema>=4.23.0",
+    "pytest>=9.0.2",
+]
+
+[build-system]
+requires = ["setuptools>=48"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+exclude = ["tests", "tests.*"]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.package-data]
+"cq_schema" = ["py.typed", "_data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

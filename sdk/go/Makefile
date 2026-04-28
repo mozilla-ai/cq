@@ -21,6 +21,7 @@ LDFLAGS := -s -w \
 
 ALLOWED_LICENSES := Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ZeroBSD,Unlicense
 NOTICE_TPL := ../../build/licenses/notice.tpl
+SCHEMA_MODULE_PATH := github.com/mozilla-ai/cq/schema
 
 .PHONY: help
 help:
@@ -65,21 +66,21 @@ test: check-prompts-sync
 check-licenses:
 	@echo "Checking licenses..."
 	@go install github.com/google/go-licenses/v2@latest
-	@go-licenses check ./... --ignore $(MODULE_PATH) --allowed_licenses=$(ALLOWED_LICENSES)
+	@go-licenses check ./... --ignore $(MODULE_PATH) --ignore $(SCHEMA_MODULE_PATH) --allowed_licenses=$(ALLOWED_LICENSES)
 	@echo "✓ All licenses are allowed."
 
 .PHONY: notice
 notice:
 	@echo "Generating NOTICE..."
 	@go install github.com/google/go-licenses/v2@latest
-	@GOOS=linux GOARCH=amd64 go-licenses report ./... --ignore $(MODULE_PATH) --template $(NOTICE_TPL) > NOTICE
+	@GOOS=linux GOARCH=amd64 go-licenses report ./... --ignore $(MODULE_PATH) --ignore $(SCHEMA_MODULE_PATH) --template $(NOTICE_TPL) > NOTICE
 	@echo "✓ NOTICE generated."
 
 .PHONY: check-notice
 check-notice:
 	@echo "Checking NOTICE freshness..."
 	@go install github.com/google/go-licenses/v2@latest
-	@GOOS=linux GOARCH=amd64 go-licenses report ./... --ignore $(MODULE_PATH) --template $(NOTICE_TPL) > NOTICE.tmp
+	@GOOS=linux GOARCH=amd64 go-licenses report ./... --ignore $(MODULE_PATH) --ignore $(SCHEMA_MODULE_PATH) --template $(NOTICE_TPL) > NOTICE.tmp
 	@diff -q NOTICE NOTICE.tmp > /dev/null 2>&1 || (echo "NOTICE is stale. Run 'make notice' to regenerate." && rm -f NOTICE.tmp && exit 1)
 	@rm -f NOTICE.tmp
 	@echo "✓ NOTICE is up to date."

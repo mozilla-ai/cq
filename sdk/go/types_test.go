@@ -2,10 +2,10 @@ package cq
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
+	cqschema "github.com/mozilla-ai/cq/schema"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,11 +97,8 @@ func TestKnowledgeUnitJSONUsesLowercaseEnums(t *testing.T) {
 func TestKnowledgeUnitJSONSchemaFieldCoverage(t *testing.T) {
 	t.Parallel()
 
-	schemaData, err := os.ReadFile("../../schema/knowledge_unit.json")
-	require.NoError(t, err)
-
 	var schema map[string]any
-	require.NoError(t, json.Unmarshal(schemaData, &schema))
+	require.NoError(t, json.Unmarshal(cqschema.KnowledgeUnitSchema(), &schema))
 
 	props, ok := schema["properties"].(map[string]any)
 	require.True(t, ok)
@@ -181,11 +178,8 @@ func TestGenerateIDMatchesSchemaPattern(t *testing.T) {
 func TestQueryParamsFieldsMatchSchema(t *testing.T) {
 	t.Parallel()
 
-	schemaData, err := os.ReadFile("../../schema/query.json")
-	require.NoError(t, err)
-
 	var schema map[string]any
-	require.NoError(t, json.Unmarshal(schemaData, &schema))
+	require.NoError(t, json.Unmarshal(cqschema.QuerySchema(), &schema))
 
 	props, ok := schema["properties"].(map[string]any)
 	require.True(t, ok)
@@ -220,11 +214,8 @@ func TestQueryParamsFieldsMatchSchema(t *testing.T) {
 func readTestSchema(t *testing.T) map[string]any {
 	t.Helper()
 
-	schemaData, err := os.ReadFile("../../schema/knowledge_unit.json")
-	require.NoError(t, err)
-
 	var schema map[string]any
-	require.NoError(t, json.Unmarshal(schemaData, &schema))
+	require.NoError(t, json.Unmarshal(cqschema.KnowledgeUnitSchema(), &schema))
 
 	return schema
 }

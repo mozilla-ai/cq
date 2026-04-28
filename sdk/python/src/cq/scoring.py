@@ -2,21 +2,34 @@
 
 from datetime import UTC, datetime
 
+from cq_schema import (
+    CONFIDENCE_CEILING as _CONFIDENCE_CEILING,
+)
+from cq_schema import (
+    CONFIDENCE_FLOOR as _CONFIDENCE_FLOOR,
+)
+from cq_schema import (
+    CONFIRMATION_BOOST,
+    FLAG_PENALTY,
+)
+from cq_schema import (
+    DOMAIN_WEIGHT as _DOMAIN_WEIGHT,
+)
+from cq_schema import (
+    FRAMEWORK_WEIGHT as _FRAMEWORK_WEIGHT,
+)
+from cq_schema import (
+    LANGUAGE_WEIGHT as _LANGUAGE_WEIGHT,
+)
+from cq_schema import (
+    PATTERN_WEIGHT as _PATTERN_WEIGHT,
+)
+
 from ._util import _as_list
 from .models import Flag, FlagReason, KnowledgeUnit
 
-CONFIRMATION_BOOST = 0.1
-FLAG_PENALTY = 0.15
-_CONFIDENCE_CEILING = 1.0
-_CONFIDENCE_FLOOR = 0.0
-
 _RELEVANCE_CEILING = 1.0
 _RELEVANCE_FLOOR = 0.0
-
-_DOMAIN_WEIGHT = 0.55
-_LANGUAGE_WEIGHT = 0.15
-_FRAMEWORK_WEIGHT = 0.15
-_PATTERN_WEIGHT = 0.15
 
 
 def apply_confirmation(unit: KnowledgeUnit) -> KnowledgeUnit:
@@ -62,8 +75,9 @@ def calculate_relevance(
 ) -> float:
     """Score relevance from 0.0 to 1.0 based on domain overlap and context match.
 
-    Domain overlap is the primary signal (weighted at 0.55).
-    Language, framework, and pattern matches are secondary signals (0.15 each).
+    Domain overlap is the primary signal. Language, framework, and pattern
+    matches are secondary signals. Concrete weights live in cq_schema's
+    canonical scoring.values.json.
     """
     query_domains = _as_list(query_domains)
     if query_languages is not None:

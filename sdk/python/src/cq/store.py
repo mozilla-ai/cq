@@ -232,7 +232,7 @@ class LocalStore:
         if not domains:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domains": domains})
-        data = unit.model_dump_json()
+        data = unit.model_dump_json(exclude_none=True)
         with self._lock:
             self._check_open()
             with self._conn:
@@ -302,7 +302,7 @@ class LocalStore:
         if not domains:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domains": domains})
-        data = unit.model_dump_json()
+        data = unit.model_dump_json(exclude_none=True)
         with self._lock:
             self._check_open()
             with self._conn:

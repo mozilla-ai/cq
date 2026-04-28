@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/mark3labs/mcp-go v0.46.0
-	github.com/mozilla-ai/cq/sdk/go v0.5.1
+	github.com/mozilla-ai/cq/sdk/go v0.6.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	github.com/stretchr/testify v1.11.1
@@ -17,6 +17,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mozilla-ai/cq/schema v0.0.1 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

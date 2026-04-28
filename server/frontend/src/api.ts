@@ -1,6 +1,7 @@
 import type {
-  ApiKeyPublic,
+  ApiKeysList,
   CreatedApiKey,
+  MessageResponse,
   ReviewItem,
   ReviewQueueResponse,
   ReviewDecisionResponse,
@@ -112,7 +113,7 @@ export const api = {
     return request<ReviewItem[]>(`/review/units${query ? `?${query}` : ""}`);
   },
 
-  listApiKeys: () => request<ApiKeyPublic[]>("/auth/api-keys"),
+  listApiKeys: () => request<ApiKeysList>("/auth/api-keys"),
 
   createApiKey: (name: string, ttl: string, labels: string[] = []) =>
     request<CreatedApiKey>("/auth/api-keys", {
@@ -121,7 +122,7 @@ export const api = {
     }),
 
   revokeApiKey: (id: string) =>
-    request<void>(`/auth/api-keys/${id}`, { method: "DELETE" }),
+    request<MessageResponse>(`/auth/api-keys/${id}/revoke`, { method: "POST" }),
 };
 
 export { ApiError };

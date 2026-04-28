@@ -1,10 +1,10 @@
 """FastAPI dependencies shared across routers."""
 
-from datetime import UTC, datetime
+import hmac
 
 from fastapi import BackgroundTasks, Depends, HTTPException, Request
 
-from .api_keys import PREFIX, hash_token
+from .api_keys import decode_token, hash_secret
 from .store import RemoteStore
 
 API_KEY_PEPPER_ENV = "CQ_API_KEY_PEPPER"  # pragma: allowlist secret
@@ -42,7 +42,10 @@ def require_api_key(
     """Authenticate an API key and return the owning user's username.
 
     The ``Authorization: Bearer <token>`` header must carry a valid,
-    unrevoked, unexpired key.
+    unrevoked, unexpired key. The token is decoded to its key id and
+    secret components; the stored hash of the secret is compared to a
+    fresh HMAC of the presented secret using ``hmac.compare_digest`` to
+    avoid timing side channels.
 
     Args:
         request: The incoming FastAPI request.
@@ -59,13 +62,15 @@ def require_api_key(
     if not header or not header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid API key")
     token = header.removeprefix("Bearer ")
-    if not token.startswith(PREFIX):
-        raise HTTPException(status_code=401, detail="Invalid API key")
+    try:
+        key_id, secret = decode_token(token)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid API key") from exc
     pepper = get_api_key_pepper(request)
-    row = store.get_api_key_by_hash(hash_token(token, pepper=pepper))
-    if row is None or row["revoked_at"] is not None:
+    row = store.get_active_api_key_by_id(key_id.hex)
+    if row is None:
         raise HTTPException(status_code=401, detail="Invalid API key")
-    if datetime.fromisoformat(row["expires_at"]) <= datetime.now(UTC):
+    if not hmac.compare_digest(row["key_hash"], hash_secret(secret, pepper=pepper)):
         raise HTTPException(status_code=401, detail="Invalid API key")
     background_tasks.add_task(store.touch_api_key_last_used, row["id"])
     return row["username"]

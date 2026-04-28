@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/mozilla-ai/cq/schema v0.0.1
 	github.com/stretchr/testify v1.11.1
 	modernc.org/sqlite v1.48.0
 )
@@ -21,3 +22,6 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+// For local in-repo development before publishing a new schema release:
+//replace github.com/mozilla-ai/cq/schema => ../../schema

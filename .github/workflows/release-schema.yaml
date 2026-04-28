@@ -1,0 +1,72 @@
+name: Release Schema
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Prefixed tag to release (e.g. schema/0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Publish cq-schema to PyPI
+    # Skip early for non-schema releases (no runner cost). The Go module
+    # publishes implicitly via the tag itself; PyPI is the only artifact
+    # that needs an explicit upload step.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'schema/'))
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+        run: |
+          if [[ -z "$TAG" ]]; then
+            echo "::error::No tag provided"
+            exit 1
+          fi
+
+          if [[ ! "$TAG" =~ ^schema/v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not match expected pattern schema/vX.Y.Z"
+            exit 1
+          fi
+
+          RAW_VERSION="${TAG#schema/}"
+          VERSION="${RAW_VERSION#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Sync canonical schemas into the package
+        run: make sync-schema
+
+      - name: Set package version
+        working-directory: schema/python
+        run: sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+
+      - name: Build package
+        working-directory: schema/python
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: schema/python/dist/

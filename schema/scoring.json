@@ -12,11 +12,11 @@
   "$defs": {
     "RelevanceWeights": {
       "type": "object",
-      "description": "Relevance scoring weights. Domain overlap is scored by Jaccard similarity. Language and framework matches are binary (0.0 or 1.0). Final relevance = domain_weight * domain_score + language_weight * language_score + framework_weight * framework_score.",
+      "description": "Relevance scoring weights. Domain overlap is scored by Jaccard similarity. Language, framework, and pattern matches are binary (0.0 or 1.0). Final relevance = domain_weight * domain_score + language_weight * language_score + framework_weight * framework_score + pattern_weight * pattern_score.",
       "properties": {
         "domain_weight": {
           "type": "number",
-          "default": 0.7,
+          "default": 0.55,
           "description": "Weight for domain overlap score."
         },
         "language_weight": {
@@ -28,6 +28,11 @@
           "type": "number",
           "default": 0.15,
           "description": "Weight for framework match score."
+        },
+        "pattern_weight": {
+          "type": "number",
+          "default": 0.15,
+          "description": "Weight for pattern match score."
         }
       },
       "additionalProperties": false

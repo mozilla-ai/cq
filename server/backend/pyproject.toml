@@ -14,6 +14,8 @@ dependencies = [
     "pyjwt>=2.0",
     "bcrypt>=4.0",
     "cq-sdk~=0.9.1",
+    "sqlalchemy>=2.0.49,<2.1",
+    "alembic>=1.18.4,<2",
 ]
 
 [project.optional-dependencies]

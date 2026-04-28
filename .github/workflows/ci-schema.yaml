@@ -1,0 +1,78 @@
+name: Schema CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-schema.yaml
+      - schema/**
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-schema.yaml
+      - schema/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate schemas and values file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Validate fixtures and values against schemas
+        run: make validate-schema
+
+  lint-go:
+    name: Lint Go module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: schema/go.mod
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.10.1
+          working-directory: schema
+
+  test-go:
+    name: Test Go module
+    needs: [validate, lint-go]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: schema/go.mod
+
+      - name: Test
+        working-directory: schema
+        run: go test -race -count=1 ./...
+
+  test-python:
+    name: Test Python package
+    needs: [validate]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Test
+        run: make setup-schema test-schema-python

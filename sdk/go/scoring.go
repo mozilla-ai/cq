@@ -4,20 +4,8 @@ import (
 	"slices"
 	"strings"
 	"time"
-)
 
-// Scoring weights and confidence bounds used to rank knowledge units.
-const (
-	confidenceCeiling = 1.0
-	confidenceFloor   = 0.0
-
-	confirmationBoost = 0.1
-	flagPenalty       = 0.15
-
-	domainWeight    = 0.55
-	frameworkWeight = 0.15
-	languageWeight  = 0.15
-	patternWeight   = 0.15
+	cqschema "github.com/mozilla-ai/cq/schema"
 )
 
 // relevance scores how relevant ku is to the given query parameters.
@@ -38,8 +26,11 @@ func (ku KnowledgeUnit) relevance(
 	if queryPattern != "" && ku.Context.Pattern != "" && strings.EqualFold(queryPattern, ku.Context.Pattern) {
 		patternScore = 1.0
 	}
-	score := domainWeight*domainScore + languageWeight*languageScore + frameworkWeight*frameworkScore + patternWeight*patternScore
-	return min(max(score, confidenceFloor), confidenceCeiling)
+	score := cqschema.DomainWeight()*domainScore +
+		cqschema.LanguageWeight()*languageScore +
+		cqschema.FrameworkWeight()*frameworkScore +
+		cqschema.PatternWeight()*patternScore
+	return min(max(score, 0.0), 1.0)
 }
 
 // anyMatch reports whether any element in queries appears in items.
@@ -66,7 +57,7 @@ func applyConfirmation(ku KnowledgeUnit) KnowledgeUnit {
 	out.Flags = slices.Clone(ku.Flags)
 	out.Context.Languages = slices.Clone(ku.Context.Languages)
 	out.Context.Frameworks = slices.Clone(ku.Context.Frameworks)
-	out.Evidence.Confidence = min(out.Evidence.Confidence+confirmationBoost, confidenceCeiling)
+	out.Evidence.Confidence = min(out.Evidence.Confidence+cqschema.ConfirmationBoost(), cqschema.ConfidenceCeiling())
 	out.Evidence.Confirmations++
 	now := time.Now()
 	out.Evidence.LastConfirmed = &now
@@ -79,7 +70,7 @@ func applyFlag(ku KnowledgeUnit, reason FlagReason, cfg flagConfig) KnowledgeUni
 	out.Domains = slices.Clone(ku.Domains)
 	out.Context.Languages = slices.Clone(ku.Context.Languages)
 	out.Context.Frameworks = slices.Clone(ku.Context.Frameworks)
-	out.Evidence.Confidence = max(out.Evidence.Confidence-flagPenalty, confidenceFloor)
+	out.Evidence.Confidence = max(out.Evidence.Confidence-cqschema.FlagPenalty(), cqschema.ConfidenceFloor())
 	now := time.Now()
 	out.Flags = append(slices.Clone(ku.Flags), Flag{
 		Reason:      reason,

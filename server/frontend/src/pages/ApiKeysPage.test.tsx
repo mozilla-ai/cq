@@ -42,50 +42,36 @@ describe("ApiKeysPage", () => {
   });
 
   it("renders the empty state when no keys exist", async () => {
-    queueResponses([{ ok: true, status: 200, body: [] }]);
+    queueResponses([{ ok: true, status: 200, body: { data: [], count: 0 } }]);
     render(<ApiKeysPage />);
     expect(await screen.findByText(/no api keys yet/i)).toBeInTheDocument();
   });
 
   it("creates a key and shows the plaintext modal once", async () => {
+    const listedKey = {
+      id: "id1",
+      name: "laptop",
+      labels: [],
+      prefix: "cqa_abcd",
+      ttl: "90d",
+      expires_at: "2027-01-01T00:00:00+00:00",
+      created_at: "2026-04-16T00:00:00+00:00",
+      last_used_at: null,
+      revoked_at: null,
+      is_expired: false,
+      is_active: true,
+    }
     queueResponses([
-      { ok: true, status: 200, body: [] },
+      { ok: true, status: 200, body: { data: [], count: 0 } },
       {
         ok: true,
         status: 201,
-        body: {
-          id: "id1",
-          name: "laptop",
-          labels: [],
-          prefix: "cqa_abcd",
-          ttl: "90d",
-          token: "cqa_newplaintext",
-          expires_at: "2027-01-01T00:00:00+00:00",
-          created_at: "2026-04-16T00:00:00+00:00",
-          last_used_at: null,
-          revoked_at: null,
-          is_expired: false,
-          is_active: true,
-        },
+        body: { ...listedKey, token: "cqa_newplaintext" },
       },
       {
         ok: true,
         status: 200,
-        body: [
-          {
-            id: "id1",
-            name: "laptop",
-            labels: [],
-            prefix: "cqa_abcd",
-            ttl: "90d",
-            expires_at: "2027-01-01T00:00:00+00:00",
-            created_at: "2026-04-16T00:00:00+00:00",
-            last_used_at: null,
-            revoked_at: null,
-            is_expired: false,
-            is_active: true,
-          },
-        ],
+        body: { data: [listedKey], count: 1 },
       },
     ]);
 
@@ -109,46 +95,28 @@ describe("ApiKeysPage", () => {
   });
 
   it("revokes a key after confirmation", async () => {
+    const activeKey = {
+      id: "id1",
+      name: "laptop",
+      labels: [],
+      prefix: "cqa_abcd",
+      ttl: "90d",
+      expires_at: "2027-01-01T00:00:00+00:00",
+      created_at: "2026-04-16T00:00:00+00:00",
+      last_used_at: null,
+      revoked_at: null,
+      is_expired: false,
+      is_active: true,
+    }
+    const revokedKey = {
+      ...activeKey,
+      revoked_at: "2026-04-17T00:00:00+00:00",
+      is_active: false,
+    }
     queueResponses([
-      {
-        ok: true,
-        status: 200,
-        body: [
-          {
-            id: "id1",
-            name: "laptop",
-            labels: [],
-            prefix: "cqa_abcd",
-            ttl: "90d",
-            expires_at: "2027-01-01T00:00:00+00:00",
-            created_at: "2026-04-16T00:00:00+00:00",
-            last_used_at: null,
-            revoked_at: null,
-            is_expired: false,
-            is_active: true,
-          },
-        ],
-      },
-      { ok: true, status: 204, body: null },
-      {
-        ok: true,
-        status: 200,
-        body: [
-          {
-            id: "id1",
-            name: "laptop",
-            labels: [],
-            prefix: "cqa_abcd",
-            ttl: "90d",
-            expires_at: "2027-01-01T00:00:00+00:00",
-            created_at: "2026-04-16T00:00:00+00:00",
-            last_used_at: null,
-            revoked_at: "2026-04-17T00:00:00+00:00",
-            is_expired: false,
-            is_active: false,
-          },
-        ],
-      },
+      { ok: true, status: 200, body: { data: [activeKey], count: 1 } },
+      { ok: true, status: 200, body: { message: "API key revoked." } },
+      { ok: true, status: 200, body: { data: [revokedKey], count: 1 } },
     ]);
 
     render(<ApiKeysPage />);

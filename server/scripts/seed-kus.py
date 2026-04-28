@@ -87,7 +87,7 @@ def _create_api_key(base_url: str, jwt_token: str) -> tuple[str, str]:
 def _revoke_api_key(base_url: str, jwt_token: str, key_id: str) -> None:
     """Revoke the seed API key. Failures are logged and swallowed."""
     try:
-        _request(f"{base_url}/auth/api-keys/{key_id}", method="DELETE", token=jwt_token)
+        _request(f"{base_url}/auth/api-keys/{key_id}/revoke", method="POST", token=jwt_token)
     except SystemExit as exc:
         print(f"  warning: failed to revoke seed API key {key_id}: {exc}")
 

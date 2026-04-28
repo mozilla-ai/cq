@@ -10,7 +10,7 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from .api_keys import generate_plaintext, hash_token, token_prefix
+from .api_keys import encode_token, generate_secret, hash_secret, secret_prefix
 from .deps import get_api_key_pepper, get_store
 from .store import RemoteStore
 from .ttl import parse_ttl
@@ -65,6 +65,12 @@ class MeResponse(BaseModel):
     created_at: str
 
 
+class Message(BaseModel):
+    """Generic message response body."""
+
+    message: str
+
+
 class CreateApiKeyRequest(BaseModel):
     """Request body for creating an API key."""
 
@@ -93,6 +99,17 @@ class CreateApiKeyResponse(ApiKeyPublic):
     """Create response; the plaintext ``token`` is returned exactly once."""
 
     token: str
+
+
+class ApiKeysPublic(BaseModel):
+    """Collection wrapper for API key listings.
+
+    The envelope shape leaves room for pagination metadata (e.g. a
+    ``next_cursor`` field) without breaking existing clients.
+    """
+
+    data: list[ApiKeyPublic]
+    count: int
 
 
 def _to_public(row: dict[str, Any]) -> ApiKeyPublic:
@@ -248,15 +265,17 @@ async def create_api_key_route(
             status_code=409,
             detail=f"Maximum of {MAX_ACTIVE_API_KEYS_PER_USER} active API keys per user",
         )
-    plaintext = generate_plaintext()
+    key_id = uuid.uuid4()
+    secret = generate_secret()
+    plaintext = encode_token(key_id=key_id, secret=secret)
     expires_at = (datetime.now(UTC) + duration).isoformat()
     row = store.create_api_key(
-        key_id=uuid.uuid4().hex,
+        key_id=key_id.hex,
         user_id=user_id,
         name=request.name,
         labels=_normalise_labels(request.labels),
-        key_prefix=token_prefix(plaintext),
-        key_hash=hash_token(plaintext, pepper=pepper),
+        key_prefix=secret_prefix(secret),
+        key_hash=hash_secret(secret, pepper=pepper),
         ttl=request.ttl,
         expires_at=expires_at,
     )
@@ -268,25 +287,32 @@ async def create_api_key_route(
 async def list_api_keys_route(
     username: str = Depends(get_current_user),
     store: RemoteStore = Depends(get_store),
-) -> list[ApiKeyPublic]:
-    """Return the authenticated user's API keys. Never returns plaintext."""
+) -> ApiKeysPublic:
+    """Return the authenticated user's API keys. Never returns plaintext.
+
+    Revoked keys are included with ``is_active: false`` so users can audit
+    their own revocation history.
+    """
     user_id = await _require_user_id(store, username)
-    return [_to_public(row) for row in store.list_api_keys_for_user(user_id)]
+    data = [_to_public(row) for row in store.list_api_keys_for_user(user_id)]
+    return ApiKeysPublic(data=data, count=len(data))
 
 
-@router.delete("/api-keys/{key_id}", status_code=204)
+@router.post("/api-keys/{key_id}/revoke")
 async def revoke_api_key_route(
     key_id: str,
     username: str = Depends(get_current_user),
     store: RemoteStore = Depends(get_store),
-) -> None:
+) -> Message:
     """Revoke the given API key if it belongs to the caller.
 
-    Revocation is idempotent: revoking a key that is already revoked returns
-    204. A 404 is returned only when the key does not exist or is owned by
-    a different user (uniform response, no enumeration oracle).
+    Revocation is a state transition; the row is retained with
+    ``revoked_at`` set. Repeated revocations are idempotent and succeed.
+    A 404 is returned when the key does not exist or is owned by a
+    different user (uniform response, no enumeration oracle).
     """
     user_id = await _require_user_id(store, username)
     if store.get_api_key_for_user(user_id=user_id, key_id=key_id) is None:
         raise HTTPException(status_code=404, detail="API key not found")
     store.revoke_api_key(user_id=user_id, key_id=key_id)
+    return Message(message="API key revoked.")

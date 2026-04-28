@@ -530,8 +530,8 @@ class TestApiKeyEnforcement:
         )
         body = create_resp.json()
         api_token = body["token"]
-        enforced_client.delete(
-            f"/auth/api-keys/{body['id']}",
+        enforced_client.post(
+            f"/auth/api-keys/{body['id']}/revoke",
             headers={"Authorization": f"Bearer {jwt_token}"},
         )
         resp = enforced_client.post(
@@ -565,7 +565,7 @@ class TestApiKeyEnforcement:
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
         ).json()
-        assert listed[0]["last_used_at"] is None
+        assert listed["data"][0]["last_used_at"] is None
 
         enforced_client.post(
             "/propose",
@@ -577,7 +577,7 @@ class TestApiKeyEnforcement:
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
         ).json()
-        assert listed_after[0]["last_used_at"] is not None
+        assert listed_after["data"][0]["last_used_at"] is not None
 
     async def test_confirm_and_flag_require_api_key(self, enforced_client: TestClient) -> None:
         jwt_token = await _seed_user_and_login(enforced_client)

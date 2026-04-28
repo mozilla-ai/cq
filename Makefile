@@ -33,6 +33,7 @@ help:
 	@echo "    - make setup-cli            CLI"
 	@echo "    - make setup-install        Multi-host installer"
 	@echo "    - make setup-plugin         Plugin"
+	@echo "    - make setup-schema         Schema (Python package only; Go module needs no setup)"
 	@echo "    - make setup-sdk-go         Go SDK"
 	@echo "    - make setup-sdk-python     Python SDK"
 	@echo "    - make setup-server         Server (backend + frontend)"
@@ -42,6 +43,7 @@ help:
 	@echo "    - make lint-cli             CLI"
 	@echo "    - make lint-install         Multi-host installer"
 	@echo "    - make lint-plugin          Plugin"
+	@echo "    - make lint-schema          Schema (Go module + Python package)"
 	@echo "    - make lint-sdk-go          Go SDK"
 	@echo "    - make lint-sdk-python      Python SDK"
 	@echo "    - make lint-server          Server (backend + frontend)"
@@ -51,6 +53,7 @@ help:
 	@echo "    - make test-cli             CLI"
 	@echo "    - make test-install         Multi-host installer"
 	@echo "    - make test-plugin          Plugin (Cursor hook helper)"
+	@echo "    - make test-schema          Schema (Go module + Python package)"
 	@echo "    - make test-sdk-go          Go SDK"
 	@echo "    - make test-sdk-python      Python SDK"
 	@echo "    - make test-server          Server"
@@ -60,7 +63,8 @@ help:
 	@echo "  make check-prompts-sync     Verify all prompt copies match plugin source"
 	@echo "    - make check-prompts-sync-sdk-go      Go SDK"
 	@echo "    - make check-prompts-sync-sdk-python   Python SDK"
-	@echo "  make validate-schema        Validate JSON Schema fixtures"
+	@echo "  make sync-schema            Copy canonical schemas into the Python schema package"
+	@echo "  make validate-schema        Validate JSON Schema fixtures and values file"
 	@echo ""
 	@echo "Docker Compose:"
 	@echo "  make compose-up                              Build and start services (creates .env from example if missing)"
@@ -83,12 +87,16 @@ setup-install:
 setup-plugin:
 	cd plugins/cq && uv sync --group dev
 
+.PHONY: setup-schema
+setup-schema:
+	cd schema && $(MAKE) setup
+
 .PHONY: setup-sdk-go
 setup-sdk-go:
 	cd sdk/go && $(MAKE) sync-prompts
 
 .PHONY: setup-sdk-python
-setup-sdk-python:
+setup-sdk-python: setup-schema
 	cd sdk/python && uv sync --group dev
 
 .PHONY: setup-server-backend
@@ -103,7 +111,7 @@ setup-server-frontend:
 setup-server: setup-server-backend setup-server-frontend
 
 .PHONY: setup
-setup: setup-cli setup-install setup-plugin setup-sdk-go setup-sdk-python setup-server
+setup: setup-cli setup-install setup-plugin setup-schema setup-sdk-go setup-sdk-python setup-server
 
 .PHONY: install-claude
 install-claude:
@@ -244,12 +252,23 @@ lint-install:
 lint-plugin:
 	cd plugins/cq && uv run --locked pre-commit run --files scripts/*.py pyproject.toml uv.lock
 
+.PHONY: lint-schema-go
+lint-schema-go:
+	cd schema && golangci-lint run --fix -v
+
+.PHONY: lint-schema-python
+lint-schema-python: sync-schema
+	cd schema/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
+
+.PHONY: lint-schema
+lint-schema: lint-schema-go lint-schema-python
+
 .PHONY: lint-sdk-go
 lint-sdk-go: check-prompts-sync-sdk-go
 	cd sdk/go && $(MAKE) lint
 
 .PHONY: lint-sdk-python
-lint-sdk-python: check-prompts-sync-sdk-python
+lint-sdk-python: check-prompts-sync-sdk-python sync-schema
 	cd sdk/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
 
 .PHONY: lint-server-backend
@@ -279,8 +298,12 @@ check-prompts-sync-sdk-python:
 .PHONY: check-prompts-sync
 check-prompts-sync: check-prompts-sync-sdk-go check-prompts-sync-sdk-python
 
+.PHONY: sync-schema
+sync-schema:
+	cd schema && $(MAKE) sync-schema
+
 .PHONY: lint
-lint: check-prompts-sync lint-cli lint-install lint-plugin lint-sdk-go lint-sdk-python lint-server
+lint: check-prompts-sync sync-schema lint-cli lint-install lint-plugin lint-schema lint-sdk-go lint-sdk-python lint-server
 
 .PHONY: test-cli
 test-cli:
@@ -293,6 +316,17 @@ test-install:
 .PHONY: test-plugin
 test-plugin:
 	cd plugins/cq && uv run pytest
+
+.PHONY: test-schema-go
+test-schema-go:
+	cd schema && go test ./... -v
+
+.PHONY: test-schema-python
+test-schema-python:
+	cd schema/python && $(MAKE) test
+
+.PHONY: test-schema
+test-schema: test-schema-go test-schema-python
 
 .PHONY: test-sdk-go
 test-sdk-go:
@@ -314,4 +348,4 @@ test-server-frontend:
 test-server: test-server-backend test-server-frontend
 
 .PHONY: test
-test: test-cli test-install test-plugin test-sdk-go test-sdk-python test-server
+test: test-cli test-install test-plugin test-schema test-sdk-go test-sdk-python test-server

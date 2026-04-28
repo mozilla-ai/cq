@@ -21,7 +21,9 @@ from pydantic import BaseModel, Field
 from starlette.responses import FileResponse
 
 from .auth import router as auth_router
+from .db_url import resolve_sqlite_db_path
 from .deps import API_KEY_PEPPER_ENV, require_api_key
+from .migrations import run_migrations
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
 from .store import RemoteStore, normalize_domains
@@ -72,7 +74,19 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     pepper = os.environ.get(API_KEY_PEPPER_ENV, "")
     if not pepper:
         raise RuntimeError(f"{API_KEY_PEPPER_ENV} environment variable is required")
-    db_path = Path(os.environ.get("CQ_DB_PATH", "/data/cq.db"))
+    # Resolve URL and filesystem path together so the migration runner
+    # and the runtime store cannot diverge on which database they're
+    # using — see ``resolve_sqlite_db_path``. This drops once #309
+    # wires ``RemoteStore`` to ``CQ_DATABASE_URL`` directly.
+    database_url, db_path = resolve_sqlite_db_path()
+    # Bring the database under Alembic management before opening the
+    # store. Three cases handled: fresh DB → upgrade head; pre-Alembic
+    # DB → stamp baseline + upgrade head; already-stamped DB → upgrade
+    # head (no-op when no pending revisions). The legacy
+    # ``_ensure_schema()`` inside RemoteStore still runs after this;
+    # both paths are idempotent and the legacy one will be removed in
+    # #310 once this PR has rolled out everywhere.
+    run_migrations(database_url)
     _store = RemoteStore(db_path=db_path)
     app_instance.state.store = _store
     app_instance.state.api_key_pepper = pepper
