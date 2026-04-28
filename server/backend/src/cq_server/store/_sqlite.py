@@ -25,8 +25,12 @@ from ._queries import (
     INSERT_UNIT_DOMAIN,
     SELECT_APPROVED_BY_ID,
     SELECT_BY_ID,
+    SELECT_COUNTS_BY_STATUS,
+    SELECT_COUNTS_BY_TIER,
+    SELECT_DOMAIN_COUNTS,
     SELECT_QUERY_UNITS,
     SELECT_REVIEW_STATUS_BY_ID,
+    SELECT_TOTAL_COUNT,
     UPDATE_REVIEW_STATUS,
     UPDATE_UNIT_DATA,
 )
@@ -250,10 +254,19 @@ class SqliteStore:
         return [u for _, _, u in scored[:limit]]
 
     async def count(self) -> int:
-        raise NotImplementedError
+        return await self._run_sync(self._count_sync)
+
+    def _count_sync(self) -> int:
+        with self._engine.connect() as conn:
+            return int(conn.execute(SELECT_TOTAL_COUNT).scalar() or 0)
 
     async def domain_counts(self) -> dict[str, int]:
-        raise NotImplementedError
+        return await self._run_sync(self._domain_counts_sync)
+
+    def _domain_counts_sync(self) -> dict[str, int]:
+        with self._engine.connect() as conn:
+            rows = conn.execute(SELECT_DOMAIN_COUNTS).fetchall()
+        return {row[0]: row[1] for row in rows}
 
     async def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
         raise NotImplementedError
@@ -262,10 +275,20 @@ class SqliteStore:
         raise NotImplementedError
 
     async def counts_by_status(self) -> dict[str, int]:
-        raise NotImplementedError
+        return await self._run_sync(self._counts_by_status_sync)
+
+    def _counts_by_status_sync(self) -> dict[str, int]:
+        with self._engine.connect() as conn:
+            rows = conn.execute(SELECT_COUNTS_BY_STATUS).fetchall()
+        return {row[0]: row[1] for row in rows}
 
     async def counts_by_tier(self) -> dict[str, int]:
-        raise NotImplementedError
+        return await self._run_sync(self._counts_by_tier_sync)
+
+    def _counts_by_tier_sync(self) -> dict[str, int]:
+        with self._engine.connect() as conn:
+            rows = conn.execute(SELECT_COUNTS_BY_TIER).fetchall()
+        return {row[0]: row[1] for row in rows}
 
     async def list_units(
         self,

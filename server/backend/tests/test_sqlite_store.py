@@ -128,3 +128,17 @@ async def test_query_filters_and_ranks(db_path: Path) -> None:
         assert {u.id for u in results} == {a.id, b.id}
     finally:
         await store.close()
+
+
+async def test_count_and_domain_counts(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        u = _make_unit("auth")
+        await store.insert(u)
+        await store.set_review_status(u.id, "approved", "r")
+        assert await store.count() == 1
+        assert await store.domain_counts() == {"auth": 1}
+        assert await store.counts_by_status() == {"approved": 1}
+        assert await store.counts_by_tier() == {"private": 1}
+    finally:
+        await store.close()
