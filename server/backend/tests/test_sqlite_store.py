@@ -6,6 +6,7 @@ the SqliteStore implementation.
 """
 
 import threading
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -194,5 +195,41 @@ async def test_create_get_user(db_path: Path) -> None:
         assert user is not None
         assert user["username"] == "alice"
         assert await store.get_user("nope") is None
+    finally:
+        await store.close()
+
+
+async def _seed_user(store: SqliteStore) -> int:
+    await store.create_user("alice", "$2b$12$fakehashfakehashfakehashfakehashfake")
+    user = await store.get_user("alice")
+    assert user is not None
+    return int(user["id"])
+
+
+async def test_create_api_key_returns_row(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        user_id = await _seed_user(store)
+        expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+        row = await store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="laptop",
+            labels=["dev"],
+            key_prefix="cq_xxxx",
+            key_hash="hash-bytes",
+            ttl="P30D",
+            expires_at=expires_at,
+        )
+        assert row["id"] == "k1"
+        assert row["user_id"] == user_id
+        assert row["name"] == "laptop"
+        assert row["labels"] == ["dev"]
+        assert row["key_prefix"] == "cq_xxxx"
+        assert row["key_hash"] == "hash-bytes"
+        assert row["ttl"] == "P30D"
+        assert row["expires_at"] == expires_at
+        assert row["last_used_at"] is None
+        assert row["revoked_at"] is None
     finally:
         await store.close()

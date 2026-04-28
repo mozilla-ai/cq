@@ -8,6 +8,8 @@ portable SQL is sourced from ``cq_server.store._queries``.
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,7 @@ from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_
 from ._normalize import normalize_domains
 from ._queries import (
     DELETE_UNIT_DOMAINS,
+    INSERT_API_KEY,
     INSERT_UNIT,
     INSERT_UNIT_DOMAIN,
     SELECT_APPROVED_BY_ID,
@@ -38,6 +41,8 @@ from ._queries import (
     UPDATE_REVIEW_STATUS,
     UPDATE_UNIT_DATA,
 )
+
+_logger = logging.getLogger(__name__)
 
 DEFAULT_DB_PATH = Path("/data/cq.db")
 
@@ -428,7 +433,62 @@ class SqliteStore:
         ttl: str,
         expires_at: str,
     ) -> dict[str, Any]:
-        raise NotImplementedError
+        return await self._run_sync(
+            self._create_api_key_sync,
+            key_id=key_id,
+            user_id=user_id,
+            name=name,
+            labels=labels,
+            key_prefix=key_prefix,
+            key_hash=key_hash,
+            ttl=ttl,
+            expires_at=expires_at,
+        )
+
+    def _create_api_key_sync(
+        self,
+        *,
+        key_id: str,
+        user_id: int,
+        name: str,
+        labels: list[str],
+        key_prefix: str,
+        key_hash: str,
+        ttl: str,
+        expires_at: str,
+    ) -> dict[str, Any]:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        created_at = datetime.now(UTC).isoformat()
+        labels_json = json.dumps(labels)
+        with self._engine.begin() as conn:
+            conn.execute(
+                INSERT_API_KEY,
+                {
+                    "id": key_id,
+                    "user_id": user_id,
+                    "name": name,
+                    "labels": labels_json,
+                    "key_prefix": key_prefix,
+                    "key_hash": key_hash,
+                    "ttl": ttl,
+                    "expires_at": expires_at,
+                    "created_at": created_at,
+                },
+            )
+        return {
+            "id": key_id,
+            "user_id": user_id,
+            "name": name,
+            "labels": list(labels),
+            "key_prefix": key_prefix,
+            "key_hash": key_hash,
+            "ttl": ttl,
+            "expires_at": expires_at,
+            "created_at": created_at,
+            "last_used_at": None,
+            "revoked_at": None,
+        }
 
     async def get_api_key_for_user(self, *, user_id: int, key_id: str) -> dict[str, Any] | None:
         raise NotImplementedError
