@@ -8,7 +8,7 @@ The term **cq** is derived from two sources: *colloquy* (/ˈkɒl.ə.kwi/), a str
 
 Requires: `uv`, Python 3.11+
 
-Optional (for Go SDK and Go CLI): Go 1.26+
+Optional (for Go SDK and Go CLI): Go 1.26.1+
 
 ### Claude Code (plugin)
 
