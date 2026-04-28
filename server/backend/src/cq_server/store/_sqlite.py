@@ -8,7 +8,7 @@ portable SQL is sourced from ``cq_server.store._queries``.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,7 @@ from ._queries import (
     INSERT_UNIT,
     INSERT_UNIT_DOMAIN,
     SELECT_APPROVED_BY_ID,
+    SELECT_APPROVED_DATA,
     SELECT_BY_ID,
     SELECT_COUNTS_BY_STATUS,
     SELECT_COUNTS_BY_TIER,
@@ -31,6 +32,7 @@ from ._queries import (
     SELECT_PENDING_COUNT,
     SELECT_PENDING_QUEUE,
     SELECT_QUERY_UNITS,
+    SELECT_RECENT_ACTIVITY,
     SELECT_REVIEW_STATUS_BY_ID,
     SELECT_TOTAL_COUNT,
     UPDATE_REVIEW_STATUS,
@@ -420,10 +422,77 @@ class SqliteStore:
         raise NotImplementedError
 
     async def confidence_distribution(self) -> dict[str, int]:
-        raise NotImplementedError
+        return await self._run_sync(self._confidence_distribution_sync)
+
+    def _confidence_distribution_sync(self) -> dict[str, int]:
+        buckets = {"0.0-0.3": 0, "0.3-0.6": 0, "0.6-0.8": 0, "0.8-1.0": 0}
+        with self._engine.connect() as conn:
+            rows = conn.execute(SELECT_APPROVED_DATA).fetchall()
+        for row in rows:
+            c = KnowledgeUnit.model_validate_json(row[0]).evidence.confidence
+            if c < 0.3:
+                buckets["0.0-0.3"] += 1
+            elif c < 0.6:
+                buckets["0.3-0.6"] += 1
+            elif c < 0.8:
+                buckets["0.6-0.8"] += 1
+            else:
+                buckets["0.8-1.0"] += 1
+        return buckets
 
     async def recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
-        raise NotImplementedError
+        return await self._run_sync(self._recent_activity_sync, limit=limit)
+
+    def _recent_activity_sync(self, *, limit: int) -> list[dict[str, Any]]:
+        # Over-fetch by 2x to give buffer; the SELECT already ORDER BYs
+        # COALESCE(reviewed_at, created_at) DESC. Final slice trims to limit.
+        with self._engine.connect() as conn:
+            rows = conn.execute(SELECT_RECENT_ACTIVITY, {"limit": limit * 2}).fetchall()
+        activity: list[dict[str, Any]] = []
+        for row in rows:
+            unit = KnowledgeUnit.model_validate_json(row[1])
+            proposed_ts = unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else ""
+            if row[2] in ("approved", "rejected"):
+                activity.append(
+                    {
+                        "type": row[2],
+                        "unit_id": row[0],
+                        "summary": unit.insight.summary,
+                        "reviewed_by": row[3],
+                        "timestamp": row[4] or proposed_ts,
+                    }
+                )
+            else:
+                activity.append(
+                    {
+                        "type": "proposed",
+                        "unit_id": row[0],
+                        "summary": unit.insight.summary,
+                        "timestamp": proposed_ts,
+                    }
+                )
+        return activity[:limit]
 
     async def daily_counts(self, *, days: int = 30) -> list[dict[str, Any]]:
-        raise NotImplementedError
+        if days <= 0:
+            raise ValueError("days must be positive")
+        return await self._run_sync(self._daily_counts_sync, days=days)
+
+    def _daily_counts_sync(self, *, days: int) -> list[dict[str, Any]]:
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).date().isoformat()
+        from ._queries import SELECT_APPROVED_DAILY, SELECT_PROPOSED_DAILY, SELECT_REJECTED_DAILY
+
+        with self._engine.connect() as conn:
+            proposed = {row[0]: row[1] for row in conn.execute(SELECT_PROPOSED_DAILY, {"cutoff": cutoff}).fetchall()}
+            approved = {row[0]: row[1] for row in conn.execute(SELECT_APPROVED_DAILY, {"cutoff": cutoff}).fetchall()}
+            rejected = {row[0]: row[1] for row in conn.execute(SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()}
+        days_set = sorted(set(proposed) | set(approved) | set(rejected))
+        return [
+            {
+                "day": d,
+                "proposed": proposed.get(d, 0),
+                "approved": approved.get(d, 0),
+                "rejected": rejected.get(d, 0),
+            }
+            for d in days_set
+        ]

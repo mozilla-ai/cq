@@ -158,3 +158,29 @@ async def test_pending_and_list_units(db_path: Path) -> None:
         assert len(listing) == 1
     finally:
         await store.close()
+
+
+async def test_distribution_and_activity_and_daily(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        u = _make_unit("auth")
+        await store.insert(u)
+        await store.set_review_status(u.id, "approved", "r")
+
+        dist = await store.confidence_distribution()
+        assert set(dist.keys()) == {"0.0-0.3", "0.3-0.6", "0.6-0.8", "0.8-1.0"}
+        assert sum(dist.values()) == 1
+
+        activity = await store.recent_activity(limit=5)
+        assert len(activity) == 1
+        assert activity[0]["type"] == "approved"
+        assert activity[0]["unit_id"] == u.id
+        assert activity[0]["reviewed_by"] == "r"
+
+        days = await store.daily_counts(days=30)
+        assert isinstance(days, list)
+
+        with pytest.raises(ValueError):
+            await store.daily_counts(days=0)
+    finally:
+        await store.close()
