@@ -76,6 +76,16 @@ class TestInsertAndGet:
         with pytest.raises(ValueError, match="At least one non-empty domain"):
             await store.insert(unit)
 
+    async def test_insert_persists_normalized_domains_in_blob(self, store: SqliteStore) -> None:
+        # The JSON blob's domains must match the normalized rows in
+        # knowledge_unit_domains; calculate_relevance reads unit.domains
+        # from the blob and would mis-rank if the two diverge.
+        unit = _make_unit(domains=["Databases", " Performance "])
+        await store.insert(unit)
+        retrieved = await store.get_any(unit.id)
+        assert retrieved is not None
+        assert retrieved.domains == ["databases", "performance"]
+
 
 class TestUpdate:
     async def test_update_persists_changes(self, store: SqliteStore) -> None:
@@ -97,6 +107,16 @@ class TestUpdate:
         updated = unit.model_copy(update={"domains": ["  "]})
         with pytest.raises(ValueError, match="At least one non-empty domain"):
             await store.update(updated)
+
+    async def test_update_persists_normalized_domains_in_blob(self, store: SqliteStore) -> None:
+        # As with insert: JSON blob's domains must match the normalized rows.
+        unit = _make_unit(domains=["databases"])
+        await store.insert(unit)
+        updated = unit.model_copy(update={"domains": ["Databases", " Performance "]})
+        await store.update(updated)
+        retrieved = await store.get_any(unit.id)
+        assert retrieved is not None
+        assert retrieved.domains == ["databases", "performance"]
 
 
 class TestQuery:
@@ -216,6 +236,17 @@ class TestQuery:
     async def test_rejects_non_positive_limit(self, store: SqliteStore) -> None:
         with pytest.raises(ValueError, match="limit must be positive"):
             await store.query(["databases"], limit=0)
+
+    async def test_tie_break_orders_by_id_descending(self, store: SqliteStore) -> None:
+        # Two units with identical context produce identical scores; the
+        # tie-break must order by id descending (preserves the previous
+        # RemoteStore semantics).
+        a = await _insert_and_approve(store, domains=["databases"])
+        b = await _insert_and_approve(store, domains=["databases"])
+        results = await store.query(["databases"])
+        assert {r.id for r in results} == {a.id, b.id}
+        higher_id = max(a.id, b.id)
+        assert results[0].id == higher_id
 
 
 class TestStats:

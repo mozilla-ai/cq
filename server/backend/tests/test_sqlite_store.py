@@ -520,3 +520,39 @@ async def test_insert_uses_first_observed_for_created_at(db_path: Path) -> None:
         assert row[0] == backdated.isoformat()
     finally:
         await store.close()
+
+
+@pytest.mark.parametrize(
+    "call_method",
+    [
+        lambda s: s.count(),
+        lambda s: s.domain_counts(),
+        lambda s: s.counts_by_status(),
+        lambda s: s.counts_by_tier(),
+        lambda s: s.pending_count(),
+        lambda s: s.list_units(),
+        lambda s: s.confidence_distribution(),
+        lambda s: s.recent_activity(),
+        lambda s: s.daily_counts(),
+        lambda s: s.create_user("u", "p"),
+        lambda s: s.get_user("u"),
+    ],
+    ids=[
+        "count",
+        "domain_counts",
+        "counts_by_status",
+        "counts_by_tier",
+        "pending_count",
+        "list_units",
+        "confidence_distribution",
+        "recent_activity",
+        "daily_counts",
+        "create_user",
+        "get_user",
+    ],
+)
+async def test_method_raises_on_closed_store(db_path: Path, call_method) -> None:
+    store = SqliteStore(db_path=db_path)
+    await store.close()
+    with pytest.raises(RuntimeError, match="SqliteStore is closed"):
+        await call_method(store)

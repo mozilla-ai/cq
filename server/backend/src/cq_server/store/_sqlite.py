@@ -261,8 +261,6 @@ class SqliteStore:
         return buckets
 
     def _count_active_api_keys_for_user_sync(self, user_id: int) -> int:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         now = datetime.now(UTC).isoformat()
         with self._engine.connect() as conn:
             row = conn.execute(COUNT_ACTIVE_KEYS_FOR_USER, {"user_id": user_id, "now": now}).fetchone()
@@ -294,8 +292,6 @@ class SqliteStore:
         ttl: str,
         expires_at: str,
     ) -> dict[str, Any]:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         created_at = datetime.now(UTC).isoformat()
         labels_json = json.dumps(labels)
         try:
@@ -381,8 +377,6 @@ class SqliteStore:
         return {row[0]: row[1] for row in rows}
 
     def _get_active_api_key_by_id_sync(self, key_id: str) -> dict[str, Any] | None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         now = datetime.now(UTC).isoformat()
         # JOIN on users to surface the owner's username. Inline because no
         # _queries.py constant covers this shape; promotion left to a
@@ -413,15 +407,11 @@ class SqliteStore:
         }
 
     def _get_any_sync(self, unit_id: str) -> KnowledgeUnit | None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         with self._engine.connect() as conn:
             row = conn.execute(SELECT_BY_ID, {"id": unit_id}).fetchone()
         return KnowledgeUnit.model_validate_json(row[0]) if row is not None else None
 
     def _get_api_key_for_user_sync(self, *, user_id: int, key_id: str) -> dict[str, Any] | None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         with self._engine.connect() as conn:
             row = conn.execute(SELECT_KEY_FOR_USER, {"key_id": key_id, "user_id": user_id}).fetchone()
         if row is None:
@@ -440,8 +430,6 @@ class SqliteStore:
         }
 
     def _get_review_status_sync(self, unit_id: str) -> dict[str, str | None] | None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         with self._engine.connect() as conn:
             row = conn.execute(SELECT_REVIEW_STATUS_BY_ID, {"id": unit_id}).fetchone()
         if row is None:
@@ -449,8 +437,6 @@ class SqliteStore:
         return {"status": row[0], "reviewed_by": row[1], "reviewed_at": row[2]}
 
     def _get_sync(self, unit_id: str) -> KnowledgeUnit | None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         with self._engine.connect() as conn:
             row = conn.execute(SELECT_APPROVED_BY_ID, {"id": unit_id}).fetchone()
         return KnowledgeUnit.model_validate_json(row[0]) if row is not None else None
@@ -470,11 +456,13 @@ class SqliteStore:
         }
 
     def _insert_sync(self, unit: KnowledgeUnit) -> None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         domains = normalize_domains(unit.domains)
         if not domains:
             raise ValueError("At least one non-empty domain is required")
+        # Persist the normalized form in both the JSON blob and the
+        # knowledge_unit_domains rows so calculate_relevance reads the
+        # same domains from either source.
+        unit = unit.model_copy(update={"domains": domains})
         created_at = (
             unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else datetime.now(UTC).isoformat()
         )
@@ -497,8 +485,6 @@ class SqliteStore:
             raise
 
     def _list_api_keys_for_user_sync(self, user_id: int) -> list[dict[str, Any]]:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         # Inline SQL: no _queries.py constant covers this list shape.
         stmt = text(
             "SELECT id, name, labels, key_prefix, ttl, expires_at, created_at, "
@@ -602,8 +588,6 @@ class SqliteStore:
         pattern: str,
         limit: int,
     ) -> list[KnowledgeUnit]:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         if limit <= 0:
             raise ValueError("limit must be positive")
         normalized = normalize_domains(domains)
@@ -627,7 +611,8 @@ class SqliteStore:
             )
             for u in units
         ]
-        scored.sort(key=lambda item: (-item[0], item[1]))
+        # Match RemoteStore tie-break: score desc, id desc on tie.
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [u for _, _, u in scored[:limit]]
 
     def _recent_activity_sync(self, *, limit: int) -> list[dict[str, Any]]:
@@ -661,8 +646,6 @@ class SqliteStore:
         return activity[:limit]
 
     def _revoke_api_key_sync(self, *, user_id: int, key_id: str) -> bool:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         now = datetime.now(UTC).isoformat()
         # Inline SQL: no _queries.py constant covers this update shape.
         # The "revoked_at IS NULL" guard is what makes the second revoke a no-op.
@@ -678,13 +661,14 @@ class SqliteStore:
 
         All public async methods funnel SQL work through this shim so the
         sqlite3 driver's blocking calls don't tie up the event-loop thread.
-        Kept narrow: a single helper, no per-call allocation of executors.
+        Centralises the closed-store guard so every public method rejects
+        calls after ``close()``.
         """
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
         return await asyncio.to_thread(fn, *args, **kwargs)
 
     def _set_review_status_sync(self, unit_id: str, status: str, reviewed_by: str) -> None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         reviewed_at = datetime.now(UTC).isoformat()
         with self._engine.begin() as conn:
             cursor = conn.execute(
@@ -695,8 +679,6 @@ class SqliteStore:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
 
     def _touch_api_key_last_used_sync(self, key_id: str) -> None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         now = datetime.now(UTC).isoformat()
         stmt = text("UPDATE api_keys SET last_used_at = :now WHERE id = :key_id")
         try:
@@ -707,11 +689,10 @@ class SqliteStore:
             _logger.exception("Failed to update last_used_at for api key %s", key_id)
 
     def _update_sync(self, unit: KnowledgeUnit) -> None:
-        if self._closed:
-            raise RuntimeError("SqliteStore is closed")
         domains = normalize_domains(unit.domains)
         if not domains:
             raise ValueError("At least one non-empty domain is required")
+        unit = unit.model_copy(update={"domains": domains})
         try:
             with self._engine.begin() as conn:
                 cursor = conn.execute(
