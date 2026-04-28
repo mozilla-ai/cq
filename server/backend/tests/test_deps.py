@@ -20,7 +20,7 @@ class _StubStore:
         self.rows = rows or {}
         self.touched: list[str] = []
 
-    def get_active_api_key_by_id(self, key_id: str) -> dict[str, Any] | None:
+    async def get_active_api_key_by_id(self, key_id: str) -> dict[str, Any] | None:
         row = self.rows.get(key_id)
         if row is None or row.get("revoked_at") is not None:
             return None
@@ -28,7 +28,7 @@ class _StubStore:
             return None
         return row
 
-    def touch_api_key_last_used(self, key_id: str) -> None:
+    async def touch_api_key_last_used(self, key_id: str) -> None:
         self.touched.append(key_id)
 
 
