@@ -24,13 +24,13 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
     app.dependency_overrides.pop(require_api_key, None)
 
 
-def _seed_user(client: TestClient, username: str = "peter", password: str = "secret123") -> None:
+async def _seed_user(client: TestClient, username: str = "peter", password: str = "secret123") -> None:
     """Seed a user directly via the store."""
     from cq_server.app import _get_store
     from cq_server.auth import hash_password
 
     store = _get_store()
-    store.create_user(username, hash_password(password))
+    await store.create_user(username, hash_password(password))
 
 
 class TestPasswordHashing:
@@ -73,16 +73,16 @@ class TestJWT:
 class TestLoginEndpoint:
     test_password = "secret123"  # pragma: allowlist secret
 
-    def test_login_success(self, client: TestClient) -> None:
-        _seed_user(client)
+    async def test_login_success(self, client: TestClient) -> None:
+        await _seed_user(client)
         resp = client.post("/auth/login", json={"username": "peter", "password": self.test_password})
         assert resp.status_code == 200
         body = resp.json()
         assert "token" in body
         assert body["username"] == "peter"
 
-    def test_login_wrong_password(self, client: TestClient) -> None:
-        _seed_user(client)
+    async def test_login_wrong_password(self, client: TestClient) -> None:
+        await _seed_user(client)
         resp = client.post(
             "/auth/login",
             json={"username": "peter", "password": "wrong"},  # pragma: allowlist secret
@@ -97,8 +97,8 @@ class TestLoginEndpoint:
 class TestAuthMe:
     test_password = "secret123"  # pragma: allowlist secret
 
-    def test_me_with_valid_token(self, client: TestClient) -> None:
-        _seed_user(client)
+    async def test_me_with_valid_token(self, client: TestClient) -> None:
+        await _seed_user(client)
         login = client.post("/auth/login", json={"username": "peter", "password": self.test_password})
         token = login.json()["token"]
         resp = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
@@ -125,16 +125,16 @@ def api_key_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
         yield c
 
 
-def _login(client: TestClient, username: str = "peter", password: str = "secret123") -> str:
-    _seed_user(client, username=username, password=password)
+async def _login(client: TestClient, username: str = "peter", password: str = "secret123") -> str:
+    await _seed_user(client, username=username, password=password)
     resp = client.post("/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200
     return resp.json()["token"]
 
 
 class TestApiKeyCreate:
-    def test_create_returns_plaintext_once(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_create_returns_plaintext_once(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         resp = api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token}"},
@@ -152,8 +152,8 @@ class TestApiKeyCreate:
         resp = api_key_client.post("/auth/api-keys", json={"name": "x", "ttl": "30d"})
         assert resp.status_code == 401
 
-    def test_create_rejects_invalid_ttl(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_create_rejects_invalid_ttl(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         resp = api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token}"},
@@ -161,8 +161,8 @@ class TestApiKeyCreate:
         )
         assert resp.status_code == 422
 
-    def test_create_rejects_empty_name(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_create_rejects_empty_name(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         resp = api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token}"},
@@ -170,8 +170,8 @@ class TestApiKeyCreate:
         )
         assert resp.status_code == 422
 
-    def test_create_hits_max_active_cap(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_create_hits_max_active_cap(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         for i in range(20):
             resp = api_key_client.post(
                 "/auth/api-keys",
@@ -188,8 +188,8 @@ class TestApiKeyCreate:
 
 
 class TestApiKeyList:
-    def test_list_hides_plaintext(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_list_hides_plaintext(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token}"},
@@ -206,9 +206,9 @@ class TestApiKeyList:
         resp = api_key_client.get("/auth/api-keys")
         assert resp.status_code == 401
 
-    def test_list_scoped_to_caller(self, api_key_client: TestClient) -> None:
-        token_a = _login(api_key_client, username="alice")
-        token_b = _login(api_key_client, username="bob")
+    async def test_list_scoped_to_caller(self, api_key_client: TestClient) -> None:
+        token_a = await _login(api_key_client, username="alice")
+        token_b = await _login(api_key_client, username="bob")
         api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -225,8 +225,8 @@ class TestApiKeyList:
 
 
 class TestApiKeyRevoke:
-    def test_revoke_success(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_revoke_success(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         created = api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token}"},
@@ -242,8 +242,8 @@ class TestApiKeyRevoke:
         assert listed[0]["revoked_at"] is not None
         assert listed[0]["is_active"] is False
 
-    def test_revoke_is_idempotent(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_revoke_is_idempotent(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         created = api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token}"},
@@ -260,9 +260,9 @@ class TestApiKeyRevoke:
         assert first.status_code == 204
         assert second.status_code == 204
 
-    def test_revoke_other_users_key_returns_404(self, api_key_client: TestClient) -> None:
-        token_a = _login(api_key_client, username="alice")
-        token_b = _login(api_key_client, username="bob")
+    async def test_revoke_other_users_key_returns_404(self, api_key_client: TestClient) -> None:
+        token_a = await _login(api_key_client, username="alice")
+        token_b = await _login(api_key_client, username="bob")
         created = api_key_client.post(
             "/auth/api-keys",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -274,8 +274,8 @@ class TestApiKeyRevoke:
         )
         assert resp.status_code == 404
 
-    def test_revoke_unknown_key_returns_404(self, api_key_client: TestClient) -> None:
-        token = _login(api_key_client)
+    async def test_revoke_unknown_key_returns_404(self, api_key_client: TestClient) -> None:
+        token = await _login(api_key_client)
         resp = api_key_client.delete(
             "/auth/api-keys/nonexistent",
             headers={"Authorization": f"Bearer {token}"},

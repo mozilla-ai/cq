@@ -57,3 +57,6 @@ namespaces = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+log_cli = false
+log_cli_level = "DEBUG"
+log_level = "DEBUG"

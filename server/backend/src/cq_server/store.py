@@ -7,6 +7,7 @@ Implements the context manager protocol for deterministic resource cleanup.
 
 import json
 import logging
+import math
 import sqlite3
 import threading
 from datetime import UTC, datetime, timedelta
@@ -41,10 +42,107 @@ CREATE INDEX IF NOT EXISTS idx_domains_domain
     ON knowledge_unit_domains(domain);
 """
 
+_QUERY_BY_DOMAIN_SQL = """
+SELECT ku.data
+FROM knowledge_units ku
+WHERE ku.status = 'approved'
+AND ku.id IN (
+    SELECT DISTINCT unit_id
+    FROM knowledge_unit_domains
+    WHERE domain IN ({placeholders})
+)
+"""
+
 
 def normalize_domains(domains: list[str]) -> list[str]:
     """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
     return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
+
+
+def _build_field_logits(
+    row_data_by_id: dict[str, tuple[Any, ...]],
+    *,
+    invert: bool = True,
+) -> dict[int, dict[Any, float]]:
+    """Build logit-normalized scores for each additional field across all rows.
+
+    Args:
+        row_data_by_id: Dict mapping unit IDs to tuples of additional field values.
+        invert: When True (default), invert the normalized values before computing
+            logits so that lower field values (e.g. distances) receive higher logits.
+
+    Returns:
+        Dict mapping field index to {value: logit_score}.
+    """
+    field_logits: dict[int, dict[Any, float]] = {}
+
+    if not row_data_by_id:
+        return field_logits
+
+    # Determine max number of fields
+    max_fields = max(len(data) for data in row_data_by_id.values()) if row_data_by_id else 0
+
+    # Process each field
+    for field_idx in range(max_fields):
+        # Collect all values for this field
+        values: list[float] = []
+        for data in row_data_by_id.values():
+            if field_idx < len(data) and isinstance(data[field_idx], (int, float)):
+                values.append(float(data[field_idx]))
+
+        if not values:
+            continue
+
+        # Normalize values to [0.01, 0.99] range to avoid log(0) and log(infinity)
+        min_val = min(values)
+        max_val = max(values)
+
+        if min_val == max_val:
+            # All values are the same, map to neutral logit (0.0)
+            field_logits[field_idx] = {v: 0.0 for v in values}
+        else:
+            mean_val = sum(values) / len(values)
+            field_logits[field_idx] = {}
+            for v in values:
+                # Log-ratio to the mean: preserves proportional differences
+                # relative to the mean rather than compressing to [0.01, 0.99].
+                ratio = (v / mean_val) if mean_val != 0 else 1.0
+                logit = -math.log(ratio) if invert else math.log(ratio)
+                field_logits[field_idx][v] = logit
+
+    return field_logits
+
+
+def _compute_combined_relevance(
+    base_relevance: float,
+    unit_id: str,
+    row_data: tuple[Any, ...],
+    field_logits: dict[int, dict[Any, float]],
+) -> float:
+    """Combine base relevance with logit-normalized field scores.
+
+    Multiplies the base relevance by (1.0 + logit) for each field's logit score
+    to keep the combined score positive and adjustable.
+
+    Args:
+        base_relevance: The base relevance score (relevance * confidence).
+        unit_id: The knowledge unit ID.
+        row_data: Tuple of additional field values for this row.
+        field_logits: Dict mapping field index to {value: logit_score}.
+
+    Returns:
+        Combined relevance score.
+    """
+    combined = base_relevance
+
+    for field_idx, logit_map in field_logits.items():
+        if field_idx < len(row_data):
+            value = row_data[field_idx]
+            logit = logit_map.get(value, 0.0)
+            # Use (1.0 + logit) to keep positive: high logits boost, low logits diminish
+            combined *= 1.0 + logit
+
+    return combined
 
 
 class RemoteStore:
@@ -302,32 +400,30 @@ class RemoteStore:
         if not normalized:
             return []
 
-        try:
-            semantic_units = await semsearch.query(self._conn, normalized, limit=limit)
-        except Exception:
-            semantic_units = []
-
         placeholders = ",".join("?" for _ in normalized)
-        sql = f"""
-            SELECT ku.data
-            FROM knowledge_units ku
-            WHERE ku.status = 'approved'
-            AND ku.id IN (
-                SELECT DISTINCT unit_id
-                FROM knowledge_unit_domains
-                WHERE domain IN ({placeholders})
-            )
-        """
         with self._lock:
-            rows = self._conn.execute(sql, normalized).fetchall()
+            if semsearch.is_enabled():
+                rows = await semsearch.combined_query(self._conn, domains=normalized, placeholders=placeholders)
+            else:
+                sql = _QUERY_BY_DOMAIN_SQL.format(placeholders=placeholders)
+                rows = self._conn.execute(sql, normalized).fetchall()
 
-        semantic_rank = {unit.id: idx for idx, unit in enumerate(semantic_units)}
-        units_by_id: dict[str, KnowledgeUnit] = {unit.id: unit for unit in semantic_units}
+        # Extract units and additional field data from rows
+        units: list[KnowledgeUnit] = []
+        row_data_by_id: dict[str, tuple[Any, ...]] = {}
+
         for row in rows:
             unit = KnowledgeUnit.model_validate_json(row[0])
-            units_by_id[unit.id] = unit
+            units.append(unit)
+            # Store additional fields (row[1], row[2], etc.) keyed by unit ID
+            row_data_by_id[unit.id] = row[1:] if len(row) > 1 else ()
 
-        units = list(units_by_id.values())
+        # Build logit-normalized scores for each additional field
+        field_logits = _build_field_logits(row_data_by_id)
+        print(f"Field logits: {field_logits}")
+        print(f"Row data by ID: {row_data_by_id}")
+
+        # Score units using combined relevance (base + field logits)
         scored = []
         for unit in units:
             relevance = calculate_relevance(
@@ -337,11 +433,19 @@ class RemoteStore:
                 query_frameworks=frameworks,
                 query_pattern=pattern,
             )
-            # Keep semantic ordering as a stable tiebreaker when lexical relevance ties.
-            sem_idx = semantic_rank.get(unit.id, 10**9)
-            scored.append((relevance * unit.evidence.confidence, sem_idx, unit))
+            # Combine relevance with field logits
+            print(f"Unit ID: {unit.id}, Base relevance: {relevance}, Confidence: {unit.evidence.confidence}")
+            base_score = relevance * unit.evidence.confidence
+            combined_relevance = _compute_combined_relevance(
+                base_score,
+                unit.id,
+                row_data_by_id.get(unit.id, ()),
+                field_logits,
+            )
+            unit.evidence.confidence = combined_relevance  # Update confidence to combined score for sorting
+            scored.append((combined_relevance, unit.id, unit))
 
-        scored.sort(key=lambda item: (-item[0], item[1], item[2].id))
+        scored.sort(key=lambda item: (-item[0], item[1]))
         return [unit for _, _, unit in scored[:limit]]
 
     async def count(self) -> int:
@@ -364,7 +468,7 @@ class RemoteStore:
             ).fetchall()
         return {row[0]: row[1] for row in rows}
 
-    async def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
+    def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
         """Return pending KUs with review metadata, oldest first.
 
         Args:
@@ -393,7 +497,7 @@ class RemoteStore:
             for row in rows
         ]
 
-    async def pending_count(self) -> int:
+    def pending_count(self) -> int:
         """Return the number of pending KUs."""
         self._check_open()
         with self._lock:

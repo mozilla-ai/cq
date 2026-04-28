@@ -22,7 +22,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
     app.dependency_overrides.pop(require_api_key, None)
 
 
-def _login(client: TestClient, username: str = "reviewer", password: str = "pass123") -> str:
+async def _login(client: TestClient, username: str = "reviewer", password: str = "pass123") -> str:
     """Seed a user, log in, return the JWT token."""
     import contextlib
 
@@ -31,7 +31,7 @@ def _login(client: TestClient, username: str = "reviewer", password: str = "pass
 
     store = _get_store()
     with contextlib.suppress(Exception):
-        store.create_user(username, hash_password(password))
+        await store.create_user(username, hash_password(password))
     resp = client.post("/auth/login", json={"username": username, "password": password})
     return resp.json()["token"]
 
@@ -55,8 +55,8 @@ def _propose(client: TestClient, **overrides: Any) -> dict[str, Any]:
 
 
 class TestReviewQueue:
-    def test_queue_returns_pending(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_queue_returns_pending(self, client: TestClient) -> None:
+        token = await _login(client)
         _propose(client)
         resp = client.get("/review/queue", headers=_auth_header(token))
         assert resp.status_code == 200
@@ -69,16 +69,16 @@ class TestReviewQueue:
         resp = client.get("/review/queue")
         assert resp.status_code == 401
 
-    def test_queue_empty(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_queue_empty(self, client: TestClient) -> None:
+        token = await _login(client)
         resp = client.get("/review/queue", headers=_auth_header(token))
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
 
 
 class TestApprove:
-    def test_approve_pending_unit(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_approve_pending_unit(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         resp = client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         assert resp.status_code == 200
@@ -86,20 +86,20 @@ class TestApprove:
         assert body["status"] == "approved"
         assert body["reviewed_by"] == "reviewer"
 
-    def test_approve_already_reviewed_returns_409(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_approve_already_reviewed_returns_409(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         resp = client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         assert resp.status_code == 409
 
-    def test_approve_nonexistent_returns_404(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_approve_nonexistent_returns_404(self, client: TestClient) -> None:
+        token = await _login(client)
         resp = client.post("/review/ku_nonexistent/approve", headers=_auth_header(token))
         assert resp.status_code == 404
 
-    def test_approved_unit_appears_in_query(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_approved_unit_appears_in_query(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client, domains=["searchable"])
         client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         resp = client.get("/query", params={"domains": ["searchable"]})
@@ -107,16 +107,16 @@ class TestApprove:
 
 
 class TestReject:
-    def test_reject_pending_unit(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_reject_pending_unit(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         resp = client.post(f"/review/{unit['id']}/reject", headers=_auth_header(token))
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "rejected"
 
-    def test_rejected_unit_not_in_query(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_rejected_unit_not_in_query(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client, domains=["hidden"])
         client.post(f"/review/{unit['id']}/reject", headers=_auth_header(token))
         resp = client.get("/query", params={"domains": ["hidden"]})
@@ -124,8 +124,8 @@ class TestReject:
 
 
 class TestListUnits:
-    def test_filter_by_domain(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_filter_by_domain(self, client: TestClient) -> None:
+        token = await _login(client)
         _propose(client, domains=["python"])
         _propose(client, domains=["rust"])
         resp = client.get("/review/units", params={"domain": "python"}, headers=_auth_header(token))
@@ -134,9 +134,9 @@ class TestListUnits:
         assert len(items) == 1
         assert "python" in items[0]["knowledge_unit"]["domains"]
 
-    def test_filter_by_confidence_range(self, client: TestClient) -> None:
+    async def test_filter_by_confidence_range(self, client: TestClient) -> None:
         """Default confidence from propose is 0.5; filter to include/exclude it."""
-        token = _login(client)
+        token = await _login(client)
         _propose(client)
         _propose(client)
         # Both KUs have default confidence 0.5 — range [0.3, 0.6) includes them.
@@ -156,8 +156,8 @@ class TestListUnits:
         assert resp.status_code == 200
         assert len(resp.json()) == 0
 
-    def test_includes_all_statuses(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_includes_all_statuses(self, client: TestClient) -> None:
+        token = await _login(client)
         u1 = _propose(client, domains=["mixed"])
         u2 = _propose(client, domains=["mixed"])
         _propose(client, domains=["mixed"])
@@ -170,8 +170,8 @@ class TestListUnits:
         statuses = {item["status"] for item in items}
         assert statuses == {"approved", "rejected", "pending"}
 
-    def test_filter_by_status(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_filter_by_status(self, client: TestClient) -> None:
+        token = await _login(client)
         u1 = _propose(client, domains=["status-test"])
         _propose(client, domains=["status-test"])
         client.post(f"/review/{u1['id']}/approve", headers=_auth_header(token))
@@ -189,8 +189,8 @@ class TestListUnits:
         resp = client.get("/review/units")
         assert resp.status_code == 401
 
-    def test_no_filters_returns_all(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_no_filters_returns_all(self, client: TestClient) -> None:
+        token = await _login(client)
         _propose(client)
         _propose(client)
         resp = client.get("/review/units", headers=_auth_header(token))
@@ -199,8 +199,8 @@ class TestListUnits:
 
 
 class TestGetUnit:
-    def test_get_pending_unit(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_get_pending_unit(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         resp = client.get(f"/review/{unit['id']}", headers=_auth_header(token))
         assert resp.status_code == 200
@@ -210,8 +210,8 @@ class TestGetUnit:
         assert body["status"] == "pending"
         assert body["reviewed_by"] is None
 
-    def test_get_approved_unit(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_get_approved_unit(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         resp = client.get(f"/review/{unit['id']}", headers=_auth_header(token))
@@ -221,8 +221,8 @@ class TestGetUnit:
         assert body["reviewed_by"] == "reviewer"
         assert body["reviewed_at"] is not None
 
-    def test_get_rejected_unit(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_get_rejected_unit(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         client.post(f"/review/{unit['id']}/reject", headers=_auth_header(token))
         resp = client.get(f"/review/{unit['id']}", headers=_auth_header(token))
@@ -230,8 +230,8 @@ class TestGetUnit:
         body = resp.json()
         assert body["status"] == "rejected"
 
-    def test_get_nonexistent_returns_404(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_get_nonexistent_returns_404(self, client: TestClient) -> None:
+        token = await _login(client)
         resp = client.get("/review/ku_nonexistent", headers=_auth_header(token))
         assert resp.status_code == 404
 
@@ -242,8 +242,8 @@ class TestGetUnit:
 
 
 class TestReviewStats:
-    def test_stats_counts(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_stats_counts(self, client: TestClient) -> None:
+        token = await _login(client)
         u1 = _propose(client)
         u2 = _propose(client)
         _propose(client)
@@ -256,8 +256,8 @@ class TestReviewStats:
         assert body["counts"]["rejected"] == 1
         assert body["counts"]["pending"] == 1
 
-    def test_domains_count_approved_only(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_domains_count_approved_only(self, client: TestClient) -> None:
+        token = await _login(client)
         u1 = _propose(client, domains=["only-approved"])
         u2 = _propose(client, domains=["only-approved"])
         client.post(f"/review/{u1['id']}/approve", headers=_auth_header(token))
@@ -269,8 +269,8 @@ class TestReviewStats:
 
 
 class TestReviewStatsDetail:
-    def test_stats_includes_confidence_distribution(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_stats_includes_confidence_distribution(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         resp = client.get("/review/stats", headers=_auth_header(token))
@@ -279,17 +279,17 @@ class TestReviewStatsDetail:
         total = sum(body["confidence_distribution"].values())
         assert total == 1
 
-    def test_stats_includes_recent_activity(self, client: TestClient) -> None:
-        token = _login(client)
+    async def test_stats_includes_recent_activity(self, client: TestClient) -> None:
+        token = await _login(client)
         unit = _propose(client)
         client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         resp = client.get("/review/stats", headers=_auth_header(token))
         body = resp.json()
         assert len(body["recent_activity"]) >= 1
 
-    def test_activity_shows_terminal_state_only(self, client: TestClient) -> None:
+    async def test_activity_shows_terminal_state_only(self, client: TestClient) -> None:
         """A reviewed KU should appear once (as approved/rejected), not twice."""
-        token = _login(client)
+        token = await _login(client)
         unit = _propose(client)
         approve_resp = client.post(f"/review/{unit['id']}/approve", headers=_auth_header(token))
         assert approve_resp.status_code == 200
@@ -300,9 +300,9 @@ class TestReviewStatsDetail:
         assert len(unit_events) == 1
         assert unit_events[0]["type"] == "approved"
 
-    def test_activity_shows_proposed_for_pending(self, client: TestClient) -> None:
+    async def test_activity_shows_proposed_for_pending(self, client: TestClient) -> None:
         """A pending KU should appear as proposed."""
-        token = _login(client)
+        token = await _login(client)
         unit = _propose(client)
         resp = client.get("/review/stats", headers=_auth_header(token))
         assert resp.status_code == 200

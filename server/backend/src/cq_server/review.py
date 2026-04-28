@@ -85,7 +85,7 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 
 @router.get("/queue")
-async def review_queue(
+def review_queue(
     limit: int = 20,
     offset: int = 0,
     _user: str = Depends(get_current_user),
@@ -102,8 +102,8 @@ async def review_queue(
     Returns:
         A paginated list of pending knowledge units with review metadata.
     """
-    items = await store.pending_queue(limit=limit, offset=offset)
-    total = await store.pending_count()
+    items = store.pending_queue(limit=limit, offset=offset)
+    total = store.pending_count()
     return ReviewQueueResponse(
         items=[
             ReviewItem(

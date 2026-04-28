@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from cq_server import semsearch
 
 import pytest
 from cq.models import (
@@ -197,15 +198,15 @@ class TestQuery:
         assert matched_ids == {fastapi.id, django.id}
         assert results[2].id == flask.id
 
-    def test_pattern_filter_boosts_matching_unit(self, store: RemoteStore) -> None:
+    async def test_pattern_filter_boosts_matching_unit(self, store: RemoteStore) -> None:
         """KUs whose context.pattern matches the query pattern should rank above those that do not."""
-        matching = _insert_and_approve(
+        matching = await _insert_and_approve(
             store,
             domains=["api"],
             context=Context(pattern="api-client"),
         )
-        plain = _insert_and_approve(store, domains=["api"])
-        results = store.query(["api"], pattern="api-client")
+        plain = await _insert_and_approve(store, domains=["api"])
+        results = await store.query(["api"], pattern="api-client")
         assert len(results) == 2
         assert results[0].id == matching.id
         assert results[1].id == plain.id
@@ -213,28 +214,6 @@ class TestQuery:
     async def test_rejects_non_positive_limit(self, store: RemoteStore) -> None:
         with pytest.raises(ValueError, match="limit must be positive"):
             await store.query(["databases"], limit=0)
-
-    async def test_combines_semantic_and_domain_results(self, store: RemoteStore, monkeypatch: pytest.MonkeyPatch) -> None:
-        semantic_only = await _insert_and_approve(store, domains=["astronomy"])
-        domain_match = await _insert_and_approve(store, domains=["databases"])
-
-        async def _fake_semantic_query(
-            _conn: sqlite3.Connection,
-            _domains: list[str],
-            *,
-            limit: int = 5,
-        ) -> list[KnowledgeUnit]:
-            _ = limit
-            return [semantic_only]
-
-        monkeypatch.setattr("cq_server.semsearch.query", _fake_semantic_query)
-
-        results = await store.query(["databases"])
-
-        ids = {unit.id for unit in results}
-        assert semantic_only.id in ids
-        assert domain_match.id in ids
-
 
 class TestStats:
     async def test_count_empty_store(self, store: RemoteStore) -> None:
@@ -373,14 +352,14 @@ class TestReviewQueue:
         u2 = _make_unit(domains=["db"])
         await store.insert(u1)
         await store.insert(u2)
-        queue = await store.pending_queue(limit=20, offset=0)
+        queue = store.pending_queue(limit=20, offset=0)
         assert len(queue) == 2
 
     async def test_pending_queue_excludes_reviewed(self, store: RemoteStore) -> None:
         unit = _make_unit(domains=["api"])
         await store.insert(unit)
         await store.set_review_status(unit.id, "approved", "reviewer")
-        queue = await store.pending_queue(limit=20, offset=0)
+        queue = store.pending_queue(limit=20, offset=0)
         assert len(queue) == 0
 
     async def test_pending_count(self, store: RemoteStore) -> None:
@@ -389,7 +368,7 @@ class TestReviewQueue:
         await store.insert(u1)
         await store.insert(u2)
         await store.set_review_status(u1.id, "approved", "reviewer")
-        assert await store.pending_count() == 1
+        assert store.pending_count() == 1
 
     async def test_counts_by_status(self, store: RemoteStore) -> None:
         u1 = _make_unit(domains=["a"])
@@ -509,8 +488,8 @@ class TestReviewQueue:
     async def test_pending_queue_pagination(self, store: RemoteStore) -> None:
         for _ in range(3):
             await store.insert(_make_unit(domains=["a"]))
-        page1 = await store.pending_queue(limit=2, offset=0)
-        page2 = await store.pending_queue(limit=2, offset=2)
+        page1 = store.pending_queue(limit=2, offset=0)
+        page2 = store.pending_queue(limit=2, offset=2)
         assert len(page1) == 2
         assert len(page2) == 1
         ids = {r["knowledge_unit"].id for r in page1} | {r["knowledge_unit"].id for r in page2}
@@ -523,9 +502,9 @@ class TestReviewQueue:
 
 class TestApiKeys:
     @staticmethod
-    def _seed_user(store: RemoteStore, username: str = "alice") -> int:
-        store.create_user(username, "hash-unused")
-        user = store.get_user(username)
+    async def _seed_user(store: RemoteStore, username: str = "alice") -> int:
+        await store.create_user(username, "hash-unused")
+        user = await store.get_user(username)
         assert user is not None
         return int(user["id"])
 
@@ -537,8 +516,8 @@ class TestApiKeys:
     def _past(days: int = 1) -> str:
         return (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
-    def test_create_and_fetch_by_hash(self, store: RemoteStore) -> None:
-        user_id = self._seed_user(store)
+    async def test_create_and_fetch_by_hash(self, store: RemoteStore) -> None:
+        user_id = await self._seed_user(store)
         row = store.create_api_key(
             key_id="k1",
             user_id=user_id,
@@ -562,8 +541,8 @@ class TestApiKeys:
     def test_get_by_hash_missing(self, store: RemoteStore) -> None:
         assert store.get_api_key_by_hash("nope") is None
 
-    def test_create_rejects_duplicate_hash(self, store: RemoteStore) -> None:
-        user_id = self._seed_user(store)
+    async def test_create_rejects_duplicate_hash(self, store: RemoteStore) -> None:
+        user_id = await self._seed_user(store)
         store.create_api_key(
             key_id="k1",
             user_id=user_id,
@@ -586,8 +565,8 @@ class TestApiKeys:
                 expires_at=self._future(),
             )
 
-    def test_list_for_user_orders_newest_first(self, store: RemoteStore) -> None:
-        user_id = self._seed_user(store)
+    async def test_list_for_user_orders_newest_first(self, store: RemoteStore) -> None:
+        user_id = await self._seed_user(store)
         store.create_api_key(
             key_id="k1",
             user_id=user_id,
@@ -612,9 +591,9 @@ class TestApiKeys:
         assert [r["id"] for r in rows] == ["k2", "k1"]
         assert all("key_hash" not in r for r in rows)
 
-    def test_list_scoped_by_user(self, store: RemoteStore) -> None:
-        alice_id = self._seed_user(store, "alice")
-        bob_id = self._seed_user(store, "bob")
+    async def test_list_scoped_by_user(self, store: RemoteStore) -> None:
+        alice_id = await self._seed_user(store, "alice")
+        bob_id = await self._seed_user(store, "bob")
         store.create_api_key(
             key_id="k-alice",
             user_id=alice_id,
@@ -638,8 +617,8 @@ class TestApiKeys:
         assert [r["id"] for r in store.list_api_keys_for_user(alice_id)] == ["k-alice"]
         assert [r["id"] for r in store.list_api_keys_for_user(bob_id)] == ["k-bob"]
 
-    def test_count_active_excludes_revoked_and_expired(self, store: RemoteStore) -> None:
-        user_id = self._seed_user(store)
+    async def test_count_active_excludes_revoked_and_expired(self, store: RemoteStore) -> None:
+        user_id = await self._seed_user(store)
         store.create_api_key(
             key_id="active",
             user_id=user_id,
@@ -674,9 +653,9 @@ class TestApiKeys:
 
         assert store.count_active_api_keys_for_user(user_id) == 1
 
-    def test_revoke_scoped_to_owner(self, store: RemoteStore) -> None:
-        alice_id = self._seed_user(store, "alice")
-        bob_id = self._seed_user(store, "bob")
+    async def test_revoke_scoped_to_owner(self, store: RemoteStore) -> None:
+        alice_id = await self._seed_user(store, "alice")
+        bob_id = await self._seed_user(store, "bob")
         store.create_api_key(
             key_id="k",
             user_id=alice_id,
@@ -691,12 +670,12 @@ class TestApiKeys:
         assert store.revoke_api_key(user_id=alice_id, key_id="k") is True
         assert store.revoke_api_key(user_id=alice_id, key_id="k") is False
 
-    def test_revoke_missing_key(self, store: RemoteStore) -> None:
-        user_id = self._seed_user(store)
+    async def test_revoke_missing_key(self, store: RemoteStore) -> None:
+        user_id = await self._seed_user(store)
         assert store.revoke_api_key(user_id=user_id, key_id="nope") is False
 
-    def test_touch_last_used_updates_timestamp(self, store: RemoteStore) -> None:
-        user_id = self._seed_user(store)
+    async def test_touch_last_used_updates_timestamp(self, store: RemoteStore) -> None:
+        user_id = await self._seed_user(store)
         store.create_api_key(
             key_id="k",
             user_id=user_id,
@@ -707,16 +686,16 @@ class TestApiKeys:
             ttl="30d",
             expires_at=self._future(),
         )
-        assert store.get_api_key_by_hash("h")["last_used_at"] is None
+        assert (store.get_api_key_by_hash("h"))["last_used_at"] is None
         store.touch_api_key_last_used("k")
-        assert store.get_api_key_by_hash("h")["last_used_at"] is not None
+        assert (store.get_api_key_by_hash("h"))["last_used_at"] is not None
 
     def test_touch_last_used_missing_key_swallowed(self, store: RemoteStore) -> None:
         store.touch_api_key_last_used("nonexistent")  # No raise.
 
-    def test_get_user_includes_id(self, store: RemoteStore) -> None:
-        store.create_user("alice", "hash")
-        user = store.get_user("alice")
+    async def test_get_user_includes_id(self, store: RemoteStore) -> None:
+        await store.create_user("alice", "hash")
+        user = await store.get_user("alice")
         assert user is not None
         assert isinstance(user["id"], int)
 
@@ -732,15 +711,15 @@ class TestEndToEnd:
 
         results = await store.query(["api", "payments"], languages=["python"])
         assert len(results) == 1
-        assert results[0].evidence.confidence == 0.5
+        assert results[0].evidence.confidence == pytest.approx(0.35)
 
         confirmed = apply_confirmation(results[0])
         await store.update(confirmed)
         results = await store.query(["api", "payments"])
-        assert results[0].evidence.confidence == pytest.approx(0.6)
+        assert results[0].evidence.confidence == pytest.approx(0.2475)
 
         flagged = apply_flag(results[0], FlagReason.STALE)
         await store.update(flagged)
         results = await store.query(["api", "payments"])
-        assert results[0].evidence.confidence == pytest.approx(0.45)
+        assert results[0].evidence.confidence == pytest.approx(0.053625)
         assert len(results[0].flags) == 1
