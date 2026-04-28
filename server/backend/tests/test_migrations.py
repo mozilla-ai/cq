@@ -31,9 +31,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import pytest_asyncio
 
 from cq_server.migrations import BASELINE_REVISION, run_migrations
-from cq_server.store import RemoteStore
+from cq_server.store import SqliteStore
 
 # --- Helpers --------------------------------------------------------------
 
@@ -129,7 +130,7 @@ def _row_counts(conn: sqlite3.Connection, tables: set[str]) -> dict[str, int]:
     return {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tables}
 
 
-def _seed_kus(store: RemoteStore) -> list[str]:
+async def _seed_kus(store: SqliteStore) -> list[str]:
     """Insert three KUs covering different review states and tiers."""
     from cq.models import Context, Insight, Tier, create_knowledge_unit
 
@@ -157,20 +158,20 @@ def _seed_kus(store: RemoteStore) -> list[str]:
         ),
     ]
     for u in units:
-        store.insert(u)
+        await store.insert(u)
     # Approve one so reviewed_by/reviewed_at are exercised on a real row.
-    store.set_review_status(units[0].id, "approved", "reviewer-bob")
+    await store.set_review_status(units[0].id, "approved", "reviewer-bob")
     return [u.id for u in units]
 
 
-def _seed_user_and_api_key(store: RemoteStore) -> tuple[int, str]:
+async def _seed_user_and_api_key(store: SqliteStore) -> tuple[int, str]:
     """Insert one user + one API key. Returns (user_id, key_id)."""
-    store.create_user("alice", "$2b$12$fakehashfakehashfakehashfakehashfake")
-    user = store.get_user("alice")
+    await store.create_user("alice", "$2b$12$fakehashfakehashfakehashfakehashfake")
+    user = await store.get_user("alice")
     assert user is not None
     user_id = int(user["id"])
     key_id = uuid.uuid4().hex
-    store.create_api_key(
+    await store.create_api_key(
         key_id=key_id,
         user_id=user_id,
         name="seed",
@@ -244,16 +245,16 @@ class TestFreshDatabase:
 class TestExistingPreAlembicDatabase:
     """The critical case: real prod DB has data, no alembic_version."""
 
-    @pytest.fixture()
-    def seeded_pre_alembic_db(self, tmp_path: Path) -> tuple[Path, Mapping[str, Any]]:
+    @pytest_asyncio.fixture()
+    async def seeded_pre_alembic_db(self, tmp_path: Path) -> tuple[Path, Mapping[str, Any]]:
         """Build a production-shape SQLite DB by going through the legacy
         ``_ensure_schema()`` path, then seed every table and snapshot
         the resulting state. Returns (db_path, snapshot)."""
         db = tmp_path / "prod.db"
-        store = RemoteStore(db_path=db)
-        ku_ids = _seed_kus(store)
-        user_id, key_id = _seed_user_and_api_key(store)
-        store.close()
+        store = SqliteStore(db_path=db)
+        ku_ids = await _seed_kus(store)
+        user_id, key_id = await _seed_user_and_api_key(store)
+        await store.close()
 
         with _open_ro(db) as conn:
             assert "alembic_version" not in _user_table_names(conn)
@@ -271,7 +272,7 @@ class TestExistingPreAlembicDatabase:
             }
         return db, snapshot
 
-    def test_existing_pre_alembic_database_is_stamped(
+    async def test_existing_pre_alembic_database_is_stamped(
         self, seeded_pre_alembic_db: tuple[Path, Mapping[str, Any]]
     ) -> None:
         db, before = seeded_pre_alembic_db
@@ -300,7 +301,9 @@ class TestExistingPreAlembicDatabase:
                 == before["kus"]
             )
 
-    def test_pre_alembic_migration_is_idempotent(self, seeded_pre_alembic_db: tuple[Path, Mapping[str, Any]]) -> None:
+    async def test_pre_alembic_migration_is_idempotent(
+        self, seeded_pre_alembic_db: tuple[Path, Mapping[str, Any]]
+    ) -> None:
         """SIGTERM-during-stamp could land us here; re-running must not
         corrupt anything."""
         db, before = seeded_pre_alembic_db
@@ -320,18 +323,18 @@ class TestExistingPreAlembicDatabase:
 
 
 class TestAlreadyStampedDatabase:
-    def test_already_stamped_database_is_idempotent(self, tmp_path: Path) -> None:
+    async def test_already_stamped_database_is_idempotent(self, tmp_path: Path) -> None:
         db = tmp_path / "stamped.db"
 
         # First call: fresh DB → upgrade head.
         run_migrations(_sqlite_url(db))
 
-        # Insert a sentinel row through a real RemoteStore.
-        store = RemoteStore(db_path=db)
+        # Insert a sentinel row through a real SqliteStore.
+        store = SqliteStore(db_path=db)
         try:
-            ku_ids = _seed_kus(store)
+            ku_ids = await _seed_kus(store)
         finally:
-            store.close()
+            await store.close()
 
         with _open_ro(db) as conn:
             counts_before = _row_counts(conn, _user_table_names(conn) - {"alembic_version"})
@@ -373,12 +376,12 @@ class TestBaselineMatchesLegacySchema:
     the migration is the sole source of truth.
     """
 
-    def test_baseline_schema_matches_legacy_ensure_schema(self, tmp_path: Path) -> None:
+    async def test_baseline_schema_matches_legacy_ensure_schema(self, tmp_path: Path) -> None:
         legacy_db = tmp_path / "legacy.db"
         migrated_db = tmp_path / "migrated.db"
 
         # DB-A: legacy code path.
-        RemoteStore(db_path=legacy_db).close()
+        await SqliteStore(db_path=legacy_db).close()
         # DB-B: baseline migration.
         run_migrations(_sqlite_url(migrated_db))
 
@@ -408,9 +411,7 @@ class TestSqliteParentDirCreation:
     of Docker or silently created the wrong directory inside it.
     """
 
-    def test_relative_sqlite_url_creates_relative_parent(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_relative_sqlite_url_creates_relative_parent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(tmp_path)
         rel_db = "subdir/nested.db"
         url = f"sqlite:///{rel_db}"
@@ -463,9 +464,7 @@ class TestPercentInUrlIsConfigParserSafe:
         with _open_ro(db) as conn:
             assert _alembic_version(conn) == BASELINE_REVISION
 
-    def test_cli_path_handles_percent_in_url(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cli_path_handles_percent_in_url(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Drives the CLI branch in ``env.py`` — no connection on the Config.
 
         Without the fix, ``env.py``'s module-level ``set_main_option(
