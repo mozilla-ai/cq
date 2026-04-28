@@ -413,3 +413,33 @@ async def test_revoke_api_key(db_path: Path) -> None:
         assert await store.revoke_api_key(user_id=user_id, key_id="missing") is False
     finally:
         await store.close()
+
+
+async def test_touch_api_key_last_used(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        user_id = await _seed_user(store)
+        expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+        await store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="laptop",
+            labels=[],
+            key_prefix="cq_x",
+            key_hash="h",
+            ttl="P30D",
+            expires_at=expires_at,
+        )
+
+        before = await store.get_api_key_for_user(user_id=user_id, key_id="k1")
+        assert before is not None and before["last_used_at"] is None
+
+        await store.touch_api_key_last_used("k1")
+
+        after = await store.get_api_key_for_user(user_id=user_id, key_id="k1")
+        assert after is not None and after["last_used_at"] is not None
+
+        # Missing key id: best-effort, no raise.
+        await store.touch_api_key_last_used("missing")
+    finally:
+        await store.close()

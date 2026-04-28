@@ -17,6 +17,7 @@ from typing import Any
 from cq.models import KnowledgeUnit
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
 from ..scoring import calculate_relevance
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
@@ -238,7 +239,7 @@ class SqliteStore:
         await self._run_sync(self._set_review_status_sync, unit_id, status, reviewed_by)
 
     async def touch_api_key_last_used(self, key_id: str) -> None:
-        raise NotImplementedError
+        await self._run_sync(self._touch_api_key_last_used_sync, key_id)
 
     async def update(self, unit: KnowledgeUnit) -> None:
         await self._run_sync(self._update_sync, unit)
@@ -664,6 +665,18 @@ class SqliteStore:
             )
             if cursor.rowcount == 0:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
+
+    def _touch_api_key_last_used_sync(self, key_id: str) -> None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        now = datetime.now(UTC).isoformat()
+        stmt = text("UPDATE api_keys SET last_used_at = :now WHERE id = :key_id")
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(stmt, {"now": now, "key_id": key_id})
+        except SQLAlchemyError:
+            # Observability hook only; failures must not break the request path.
+            _logger.exception("Failed to update last_used_at for api key %s", key_id)
 
     def _update_sync(self, unit: KnowledgeUnit) -> None:
         if self._closed:
