@@ -19,10 +19,14 @@ from sqlalchemy.engine import Engine
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
 from ._normalize import normalize_domains
 from ._queries import (
+    DELETE_UNIT_DOMAINS,
     INSERT_UNIT,
     INSERT_UNIT_DOMAIN,
     SELECT_APPROVED_BY_ID,
     SELECT_BY_ID,
+    SELECT_REVIEW_STATUS_BY_ID,
+    UPDATE_REVIEW_STATUS,
+    UPDATE_UNIT_DATA,
 )
 
 DEFAULT_DB_PATH = Path("/data/cq.db")
@@ -144,13 +148,51 @@ class SqliteStore:
         return KnowledgeUnit.model_validate_json(row[0]) if row is not None else None
 
     async def get_review_status(self, unit_id: str) -> dict[str, str | None] | None:
-        raise NotImplementedError
+        return await self._run_sync(self._get_review_status_sync, unit_id)
+
+    def _get_review_status_sync(self, unit_id: str) -> dict[str, str | None] | None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        with self._engine.connect() as conn:
+            row = conn.execute(SELECT_REVIEW_STATUS_BY_ID, {"id": unit_id}).fetchone()
+        if row is None:
+            return None
+        return {"status": row[0], "reviewed_by": row[1], "reviewed_at": row[2]}
 
     async def set_review_status(self, unit_id: str, status: str, reviewed_by: str) -> None:
-        raise NotImplementedError
+        await self._run_sync(self._set_review_status_sync, unit_id, status, reviewed_by)
+
+    def _set_review_status_sync(self, unit_id: str, status: str, reviewed_by: str) -> None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        reviewed_at = datetime.now(UTC).isoformat()
+        with self._engine.begin() as conn:
+            cursor = conn.execute(
+                UPDATE_REVIEW_STATUS,
+                {"id": unit_id, "status": status, "reviewed_by": reviewed_by, "reviewed_at": reviewed_at},
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Knowledge unit not found: {unit_id}")
 
     async def update(self, unit: KnowledgeUnit) -> None:
-        raise NotImplementedError
+        await self._run_sync(self._update_sync, unit)
+
+    def _update_sync(self, unit: KnowledgeUnit) -> None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        domains = normalize_domains(unit.domains)
+        if not domains:
+            raise ValueError("knowledge unit must have at least one domain")
+        with self._engine.begin() as conn:
+            cursor = conn.execute(
+                UPDATE_UNIT_DATA,
+                {"id": unit.id, "data": unit.model_dump_json(), "tier": unit.tier.value},
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Knowledge unit not found: {unit.id}")
+            conn.execute(DELETE_UNIT_DOMAINS, {"unit_id": unit.id})
+            for d in domains:
+                conn.execute(INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
 
     async def query(
         self,

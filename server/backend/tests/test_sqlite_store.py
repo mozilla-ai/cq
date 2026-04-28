@@ -96,3 +96,20 @@ async def test_insert_get_any_roundtrip(db_path: Path) -> None:
         assert await store.get(unit.id) is None
     finally:
         await store.close()
+
+
+async def test_update_and_review_roundtrip(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        unit = _make_unit()
+        await store.insert(unit)
+        await store.set_review_status(unit.id, "approved", "bob")
+        status = await store.get_review_status(unit.id)
+        assert status == {"status": "approved", "reviewed_by": "bob", "reviewed_at": status["reviewed_at"]}
+        # update preserves id; replace summary
+        unit2 = unit.model_copy(update={"insight": Insight(summary="new", detail="d", action="a")})
+        await store.update(unit2)
+        retrieved = await store.get_any(unit.id)
+        assert retrieved.insight.summary == "new"
+    finally:
+        await store.close()
