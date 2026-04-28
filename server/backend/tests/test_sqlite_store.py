@@ -263,3 +263,51 @@ async def test_get_api_key_for_user(db_path: Path) -> None:
         assert await store.get_api_key_for_user(user_id=user_id, key_id="missing") is None
     finally:
         await store.close()
+
+
+async def test_count_active_api_keys_for_user(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        user_id = await _seed_user(store)
+        expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+        await store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="laptop",
+            labels=[],
+            key_prefix="cq_x1",
+            key_hash="h1",
+            ttl="P30D",
+            expires_at=expires_at,
+        )
+        await store.create_api_key(
+            key_id="k2",
+            user_id=user_id,
+            name="desktop",
+            labels=[],
+            key_prefix="cq_x2",
+            key_hash="h2",
+            ttl="P30D",
+            expires_at=expires_at,
+        )
+
+        assert await store.count_active_api_keys_for_user(user_id) == 2
+
+        # Expired key does not count toward "active".
+        expired_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+        await store.create_api_key(
+            key_id="k_exp",
+            user_id=user_id,
+            name="x",
+            labels=[],
+            key_prefix="cq_e",
+            key_hash="he",
+            ttl="P1D",
+            expires_at=expired_at,
+        )
+        assert await store.count_active_api_keys_for_user(user_id) == 2
+
+        # Other user has none.
+        assert await store.count_active_api_keys_for_user(user_id + 99) == 0
+    finally:
+        await store.close()

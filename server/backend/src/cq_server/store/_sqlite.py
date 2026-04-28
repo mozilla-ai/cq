@@ -22,6 +22,7 @@ from ..scoring import calculate_relevance
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
 from ._normalize import normalize_domains
 from ._queries import (
+    COUNT_ACTIVE_KEYS_FOR_USER,
     DELETE_UNIT_DOMAINS,
     INSERT_API_KEY,
     INSERT_UNIT,
@@ -420,7 +421,15 @@ class SqliteStore:
         }
 
     async def count_active_api_keys_for_user(self, user_id: int) -> int:
-        raise NotImplementedError
+        return await self._run_sync(self._count_active_api_keys_for_user_sync, user_id)
+
+    def _count_active_api_keys_for_user_sync(self, user_id: int) -> int:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        now = datetime.now(UTC).isoformat()
+        with self._engine.connect() as conn:
+            row = conn.execute(COUNT_ACTIVE_KEYS_FOR_USER, {"user_id": user_id, "now": now}).fetchone()
+        return int(row[0]) if row is not None else 0
 
     async def create_api_key(
         self,
