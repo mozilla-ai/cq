@@ -28,6 +28,8 @@ from ._queries import (
     SELECT_COUNTS_BY_STATUS,
     SELECT_COUNTS_BY_TIER,
     SELECT_DOMAIN_COUNTS,
+    SELECT_PENDING_COUNT,
+    SELECT_PENDING_QUEUE,
     SELECT_QUERY_UNITS,
     SELECT_REVIEW_STATUS_BY_ID,
     SELECT_TOTAL_COUNT,
@@ -269,10 +271,27 @@ class SqliteStore:
         return {row[0]: row[1] for row in rows}
 
     async def pending_queue(self, *, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
-        raise NotImplementedError
+        return await self._run_sync(self._pending_queue_sync, limit=limit, offset=offset)
+
+    def _pending_queue_sync(self, *, limit: int, offset: int) -> list[dict[str, Any]]:
+        with self._engine.connect() as conn:
+            rows = conn.execute(SELECT_PENDING_QUEUE, {"limit": limit, "offset": offset}).fetchall()
+        return [
+            {
+                "knowledge_unit": KnowledgeUnit.model_validate_json(row[0]),
+                "status": row[1] or "pending",
+                "reviewed_by": row[2],
+                "reviewed_at": row[3],
+            }
+            for row in rows
+        ]
 
     async def pending_count(self) -> int:
-        raise NotImplementedError
+        return await self._run_sync(self._pending_count_sync)
+
+    def _pending_count_sync(self) -> int:
+        with self._engine.connect() as conn:
+            return int(conn.execute(SELECT_PENDING_COUNT).scalar() or 0)
 
     async def counts_by_status(self) -> dict[str, int]:
         return await self._run_sync(self._counts_by_status_sync)
@@ -299,7 +318,68 @@ class SqliteStore:
         status: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        raise NotImplementedError
+        return await self._run_sync(
+            self._list_units_sync,
+            domain=domain,
+            confidence_min=confidence_min,
+            confidence_max=confidence_max,
+            status=status,
+            limit=limit,
+        )
+
+    def _list_units_sync(
+        self,
+        *,
+        domain: str | None,
+        confidence_min: float | None,
+        confidence_max: float | None,
+        status: str | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        from ._queries import select_list_units
+
+        normalized_domain: str | None = None
+        if domain is not None and domain.strip():
+            normalized_domain = domain.strip().lower()
+
+        normalized_status: str | None = status if (status is not None and status.strip()) else None
+
+        confidence_filter_active = confidence_min is not None or confidence_max is not None
+        stmt = select_list_units(
+            domain=normalized_domain,
+            status=normalized_status,
+            apply_limit=not confidence_filter_active,
+        )
+        params: dict[str, Any] = {}
+        if normalized_domain is not None:
+            params["domain"] = normalized_domain
+        if normalized_status is not None:
+            params["status"] = normalized_status
+        if not confidence_filter_active:
+            params["limit"] = limit
+
+        with self._engine.connect() as conn:
+            rows = conn.execute(stmt, params).fetchall()
+
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            unit = KnowledgeUnit.model_validate_json(row[0])
+            c = unit.evidence.confidence
+            if confidence_min is not None and c < confidence_min:
+                continue
+            if confidence_max is not None and (c > confidence_max or (c >= confidence_max and confidence_max < 1.0)):
+                continue
+            results.append(
+                {
+                    "knowledge_unit": unit,
+                    "status": row[1] or "pending",
+                    "reviewed_by": row[2],
+                    "reviewed_at": row[3],
+                }
+            )
+            if len(results) >= limit:
+                break
+        return results
 
     async def create_user(self, username: str, password_hash: str) -> None:
         raise NotImplementedError

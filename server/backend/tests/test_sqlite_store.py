@@ -142,3 +142,19 @@ async def test_count_and_domain_counts(db_path: Path) -> None:
         assert await store.counts_by_tier() == {"private": 1}
     finally:
         await store.close()
+
+
+async def test_pending_and_list_units(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        u = _make_unit("auth")
+        await store.insert(u)
+        # pending before approval
+        assert await store.pending_count() == 1
+        queue = await store.pending_queue(limit=10)
+        assert len(queue) == 1 and queue[0]["status"] == "pending"
+        # list_units sees it as pending
+        listing = await store.list_units(status="pending")
+        assert len(listing) == 1
+    finally:
+        await store.close()
