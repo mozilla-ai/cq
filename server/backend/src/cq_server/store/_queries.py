@@ -95,7 +95,7 @@ SELECT_APPROVED_DATA: TextClause = text("SELECT data FROM knowledge_units WHERE 
 # is re-sorted in Python by ``COALESCE(reviewed_at, created_at)`` and then
 # truncated, so over-fetching keeps the truncation honest when many KUs
 # have been reviewed since the most recent one was created. See
-# ``RemoteStore.recent_activity``.
+# ``SqliteStore.recent_activity``.
 SELECT_RECENT_ACTIVITY: TextClause = text(
     "SELECT id, data, status, reviewed_by, reviewed_at "
     "FROM knowledge_units "
@@ -123,7 +123,7 @@ SELECT_REJECTED_DAILY: TextClause = text(
     "WHERE status = 'rejected' AND reviewed_at >= :cutoff GROUP BY day"
 )
 
-# Variable IN-list for ``RemoteStore.query``. Bind ``:domains`` to the list
+# Variable IN-list for ``SqliteStore.query``. Bind ``:domains`` to the list
 # of normalised domain strings; SQLAlchemy expands it at execute time.
 # Empty list: SQLAlchemy 2.0 rewrites ``IN ()`` to a no-rows subquery
 # (``IN (SELECT 1 FROM (SELECT 1) WHERE 1!=1)``) and the helper returns
@@ -140,13 +140,13 @@ SELECT_QUERY_UNITS: TextClause = text(
 
 
 def select_list_units(*, domain: str | None, status: str | None, apply_limit: bool) -> TextClause:
-    """Build the SELECT for ``RemoteStore.list_units``.
+    """Build the SELECT for ``SqliteStore.list_units``.
 
     Pure SQL builder — does no normalization, the caller owns it. WHERE
     conditions on ``status`` and ``domain`` are inlined only when the
     argument is non-``None``; an empty or whitespace-only string is
     treated as a *real* filter value and binds literally (returning zero
-    rows). To mirror ``RemoteStore.list_units``, callers must (a) pass
+    rows). To mirror ``SqliteStore.list_units``, callers must (a) pass
     ``None`` when the user-supplied filter is empty/whitespace, and (b)
     run ``domain`` through ``normalize_domains`` (lowercase + strip)
     first. ``apply_limit`` controls whether SQL-side ``LIMIT`` is

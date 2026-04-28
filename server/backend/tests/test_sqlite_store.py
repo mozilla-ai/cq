@@ -498,7 +498,7 @@ async def test_daily_counts_uses_date_key_and_gap_fills(db_path: Path) -> None:
 
 
 async def test_insert_uses_first_observed_for_created_at(db_path: Path) -> None:
-    """Mirrors RemoteStore.insert: created_at falls back to evidence.first_observed."""
+    """Verifies created_at falls back to evidence.first_observed when present."""
     from datetime import datetime as _dt
 
     store = SqliteStore(db_path=db_path)

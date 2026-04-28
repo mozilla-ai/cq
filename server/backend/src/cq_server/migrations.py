@@ -58,7 +58,7 @@ def _ensure_sqlite_parent_dir(url: str) -> None:
     """Create the parent directory of a sqlite file URL if missing.
 
     Until #309 wires the runtime store to ``CQ_DATABASE_URL``, the
-    server still mkdir's the SQLite parent inside ``RemoteStore``;
+    server still mkdir's the SQLite parent inside ``SqliteStore``;
     but the migration runs first now, so we hoist the directory
     creation here. No-op for non-sqlite URLs.
     """

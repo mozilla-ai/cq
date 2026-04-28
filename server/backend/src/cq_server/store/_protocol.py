@@ -17,8 +17,7 @@ class Store(Protocol):
     """Async storage protocol for the cq server.
 
     Implementations are expected to be one-per-dialect (`SqliteStore`,
-    `PostgresStore`). Method names and argument shapes match the current
-    `RemoteStore` exactly so callers migrate without rewriting call sites.
+    `PostgresStore`).
     """
 
     async def close(self) -> None:

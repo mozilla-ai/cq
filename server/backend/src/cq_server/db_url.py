@@ -29,7 +29,7 @@ def resolve_sqlite_db_path() -> tuple[str, Path]:
     """Return ``(url, path)`` for the cq SQLite database.
 
     Used by the FastAPI lifespan to drive both the migration runner and
-    the ``RemoteStore`` from the same source — without this, setting
+    the ``SqliteStore`` from the same source — without this, setting
     ``CQ_DATABASE_URL`` would migrate one database while the runtime
     store opened another. Until the Postgres store lands (#309/#311)
     the runtime is SQLite-only, so a non-SQLite URL is rejected here
