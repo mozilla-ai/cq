@@ -233,3 +233,33 @@ async def test_create_api_key_returns_row(db_path: Path) -> None:
         assert row["revoked_at"] is None
     finally:
         await store.close()
+
+
+async def test_get_api_key_for_user(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        user_id = await _seed_user(store)
+        expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+        await store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="laptop",
+            labels=["dev"],
+            key_prefix="cq_xxxx",
+            key_hash="h",
+            ttl="P30D",
+            expires_at=expires_at,
+        )
+
+        row = await store.get_api_key_for_user(user_id=user_id, key_id="k1")
+        assert row is not None
+        assert row["id"] == "k1"
+        assert row["user_id"] == user_id
+        assert row["labels"] == ["dev"]
+
+        # Wrong user id: None.
+        assert await store.get_api_key_for_user(user_id=user_id + 99, key_id="k1") is None
+        # Missing key id: None.
+        assert await store.get_api_key_for_user(user_id=user_id, key_id="missing") is None
+    finally:
+        await store.close()

@@ -32,6 +32,7 @@ from ._queries import (
     SELECT_COUNTS_BY_STATUS,
     SELECT_COUNTS_BY_TIER,
     SELECT_DOMAIN_COUNTS,
+    SELECT_KEY_FOR_USER,
     SELECT_PENDING_COUNT,
     SELECT_PENDING_QUEUE,
     SELECT_QUERY_UNITS,
@@ -491,7 +492,27 @@ class SqliteStore:
         }
 
     async def get_api_key_for_user(self, *, user_id: int, key_id: str) -> dict[str, Any] | None:
-        raise NotImplementedError
+        return await self._run_sync(self._get_api_key_for_user_sync, user_id=user_id, key_id=key_id)
+
+    def _get_api_key_for_user_sync(self, *, user_id: int, key_id: str) -> dict[str, Any] | None:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        with self._engine.connect() as conn:
+            row = conn.execute(SELECT_KEY_FOR_USER, {"key_id": key_id, "user_id": user_id}).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "user_id": row[1],
+            "name": row[2],
+            "labels": json.loads(row[3] or "[]"),
+            "key_prefix": row[4],
+            "ttl": row[5],
+            "expires_at": row[6],
+            "created_at": row[7],
+            "last_used_at": row[8],
+            "revoked_at": row[9],
+        }
 
     async def get_active_api_key_by_id(self, key_id: str) -> dict[str, Any] | None:
         raise NotImplementedError
