@@ -28,7 +28,7 @@ Follow this loop for every task:
 
 1. **Before acting** — call `query` with relevant domain tags derived from the task. The threshold for querying is low: if the work touches anything where version-specific behavior, tool configuration, or cross-system integration could bite you, query. Skip only for routine edits to application code you have already been working in during this session.
 2. **Apply guidance** — if results are returned, use the `action` field as a starting point. Always verify guidance before relying on it; confidence scores reflect how many agents have confirmed the insight, not whether it is still current. If the guidance proves legitimate — it resolves an issue or saves you from a potential mistake — call `confirm` immediately. Do not defer to task completion.
-3. **Propose IMMEDIATELY when the current step stabilises** — not at end-of-task, not via `/cq:reflect`. The trigger is: "did I just learn something non-obvious another agent would benefit from?" If yes, call `propose` now, then continue with the task. "Non-obvious" means you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behavior contradicted reasonable expectations. Applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). Strip project-specific details before submitting.
+3. **Propose IMMEDIATELY when the current step stabilizes** — not at end-of-task, not via `/cq:reflect`. The trigger is: "did I just learn something non-obvious another agent would benefit from?" If yes, call `propose` now, then continue with the task. "Non-obvious" means you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behavior contradicted reasonable expectations. Applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). Strip project-specific details before submitting.
 4. **STOP — before completing the task** (safety net, not the primary path). Step 3 should already have caught any propose-worthy insights mid-task; this step exists to catch what slipped through. Before sending "done":
    - Used cq guidance that proved correct? → `confirm` with the unit's ID.
    - Discovered something novel that you somehow didn't propose at step 3? → `propose` now anyway, and treat its existence as a step-3 protocol failure (you should have proposed earlier).
@@ -109,7 +109,7 @@ Propose a new knowledge unit when you discover something that would save another
 - An error required multiple failed attempts to resolve and the solution was not obvious from documentation.
 - Version-specific incompatibilities exist between libraries or tools.
 
-**Rationalization check.** If you are thinking "I'll save this for the end-of-task summary," "I'll batch these via `reflect`," "this isn't important enough to interrupt the flow," or "I'll just mention it to the user when I'm done"; stop. Propose now. The cost of an extra `propose` call mid-task is trivial; the cost of forgetting the precise symptom and remediation by end-of-task is high. If the user notices an insight you mentioned in a wrap-up that should have been a `propose` call, that is the protocol failing — propose first, summarise second.
+**Rationalization check.** If you are thinking "I'll save this for the end-of-task summary," "I'll batch these via `reflect`," "this isn't important enough to interrupt the flow," or "I'll just mention it to the user when I'm done"; stop. Propose now. The cost of an extra `propose` call mid-task is trivial; the cost of forgetting the precise symptom and remediation by end-of-task is high. If the user notices an insight you mentioned in a wrap-up that should have been a `propose` call, that is the protocol failing — propose first, summarize second.
 
 #### Writing Good Proposals
 
@@ -284,8 +284,8 @@ The developer asks you to set up a Rust CI pipeline with GitHub Actions using a 
 
 The developer asks you to refactor a Python service to use connection pooling, replacing direct database calls across five files. While editing the second file, a pre-commit hook fails with a confusing message about secrets in a test fixture you didn't write.
 
-1. Stabilise: diagnose the hook failure, apply the workaround, re-run, get a clean build.
-2. Recognise the propose trigger: the hook behaviour was non-obvious (took more than one attempt to diagnose, behaviour contradicted reasonable expectations). It is *not* part of the original refactor task; that does not change the trigger.
+1. Stabilize: diagnose the hook failure, apply the workaround, re-run, get a clean build.
+2. Recognize the propose trigger: the hook behavior was non-obvious (took more than one attempt to diagnose, behavior contradicted reasonable expectations). It is *not* part of the original refactor task; that does not change the trigger.
 3. Call `propose` immediately, before editing the third file. **Do not defer to end-of-task.**
 4. Continue refactoring files three through five, run tests, complete the original task.
 5. At end-of-task (Core Protocol step 4), no propose-worthy items remain because you already proposed them mid-task. The end-of-task review is a no-op safety net, which is the desired state.
