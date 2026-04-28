@@ -62,3 +62,13 @@ async def test_threadpool_shim_runs_off_event_loop(db_path: Path) -> None:
         assert captured["thread_id"] != loop_thread_id
     finally:
         await store.close()
+
+
+async def test_schema_present_after_construct(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        with store._engine.connect() as conn:
+            tables = {row[0] for row in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")}
+            assert {"knowledge_units", "knowledge_unit_domains", "users", "api_keys"} <= tables
+    finally:
+        await store.close()

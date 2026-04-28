@@ -15,7 +15,26 @@ from cq.models import KnowledgeUnit
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 
+from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
+
 DEFAULT_DB_PATH = Path("/data/cq.db")
+
+_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS knowledge_units (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_unit_domains (
+    unit_id TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    FOREIGN KEY (unit_id) REFERENCES knowledge_units(id) ON DELETE CASCADE,
+    PRIMARY KEY (unit_id, domain)
+);
+
+CREATE INDEX IF NOT EXISTS idx_domains_domain
+    ON knowledge_unit_domains(domain);
+"""
 
 
 def _apply_sqlite_pragmas(dbapi_connection, _connection_record):  # noqa: ANN001  (sqlalchemy event signature)
@@ -49,6 +68,14 @@ class SqliteStore:
             future=True,
         )
         event.listen(self._engine, "connect", _apply_sqlite_pragmas)
+        with self._engine.begin() as conn:
+            for stmt in filter(None, (s.strip() for s in _SCHEMA_SQL.split(";"))):
+                conn.exec_driver_sql(stmt)
+            raw = conn.connection.driver_connection  # underlying sqlite3.Connection.
+            assert raw is not None  # active engine connection always has a DBAPI connection.
+            ensure_review_columns(raw)
+            ensure_users_table(raw)
+            ensure_api_keys_table(raw)
 
     async def close(self) -> None:
         if self._closed:
