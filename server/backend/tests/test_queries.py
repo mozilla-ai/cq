@@ -1,9 +1,9 @@
 """Tests for the shared SQLAlchemy Core query helpers in ``store._queries``.
 
 Each test binds the helper to an on-disk SQLite database that is also
-managed by the existing ``RemoteStore``. ``RemoteStore`` sets up the
+managed by the existing ``SqliteStore``. ``SqliteStore`` sets up the
 schema via its ``_ensure_schema()`` path and is used as the parity oracle:
-results from the helpers must match whatever ``RemoteStore`` produces for
+results from the helpers must match whatever ``SqliteStore`` produces for
 the same fixture data.
 
 This avoids redeclaring the schema in test code and lets the issue land
@@ -14,31 +14,32 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
+import pytest_asyncio
 from cq.models import Insight, KnowledgeUnit, Tier, create_knowledge_unit
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import IntegrityError
 
-from cq_server.store import RemoteStore
+from cq_server.store import SqliteStore
 from cq_server.store import _queries as q
 
 
-@pytest.fixture()
-def db(tmp_path: Path) -> Iterator[tuple[RemoteStore, Engine]]:
-    """Shared on-disk SQLite database with both a RemoteStore and an SA engine."""
+@pytest_asyncio.fixture()
+async def db(tmp_path: Path) -> AsyncIterator[tuple[SqliteStore, Engine]]:
+    """Shared on-disk SQLite database with both a SqliteStore and an SA engine."""
     db_path = tmp_path / "test.db"
-    store = RemoteStore(db_path=db_path)
+    store = SqliteStore(db_path=db_path)
     engine = create_engine(f"sqlite:///{db_path}")
     try:
         yield store, engine
     finally:
         engine.dispose()
-        store.close()
+        await store.close()
 
 
 def _make_unit(**overrides: Any) -> KnowledgeUnit:
@@ -53,10 +54,10 @@ def _make_unit(**overrides: Any) -> KnowledgeUnit:
     return create_knowledge_unit(**{**defaults, **overrides})
 
 
-def _seed_user(store: RemoteStore, username: str = "alice") -> int:
+async def _seed_user(store: SqliteStore, username: str = "alice") -> int:
     """Create a user and return its integer id."""
-    store.create_user(username, "hashed-pw")
-    user = store.get_user(username)
+    await store.create_user(username, "hashed-pw")
+    user = await store.get_user(username)
     assert user is not None
     return int(user["id"])
 
@@ -65,115 +66,115 @@ def _seed_user(store: RemoteStore, username: str = "alice") -> int:
 
 
 class TestSelectByIdHelpers:
-    def test_select_approved_by_id(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_approved_by_id(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit()
-        store.insert(unit)
-        store.set_review_status(unit.id, "approved", "reviewer")
+        await store.insert(unit)
+        await store.set_review_status(unit.id, "approved", "reviewer")
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_APPROVED_BY_ID, {"id": unit.id}).fetchone()
         assert row is not None
-        assert KnowledgeUnit.model_validate_json(row[0]) == store.get(unit.id)
+        assert KnowledgeUnit.model_validate_json(row[0]) == await store.get(unit.id)
 
-    def test_select_approved_by_id_skips_pending(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_approved_by_id_skips_pending(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit()
-        store.insert(unit)
+        await store.insert(unit)
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_APPROVED_BY_ID, {"id": unit.id}).fetchone()
         assert row is None
 
-    def test_select_by_id_returns_regardless_of_status(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_by_id_returns_regardless_of_status(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit()
-        store.insert(unit)
+        await store.insert(unit)
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_BY_ID, {"id": unit.id}).fetchone()
         assert row is not None
-        assert KnowledgeUnit.model_validate_json(row[0]) == store.get_any(unit.id)
+        assert KnowledgeUnit.model_validate_json(row[0]) == await store.get_any(unit.id)
 
-    def test_select_by_id_missing(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_by_id_missing(self, db: tuple[SqliteStore, Engine]) -> None:
         _, engine = db
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_BY_ID, {"id": "ku_missing"}).fetchone()
         assert row is None
 
-    def test_select_review_status_by_id(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_review_status_by_id(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit()
-        store.insert(unit)
-        store.set_review_status(unit.id, "approved", "reviewer")
+        await store.insert(unit)
+        await store.set_review_status(unit.id, "approved", "reviewer")
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_REVIEW_STATUS_BY_ID, {"id": unit.id}).fetchone()
         assert row is not None
-        expected = store.get_review_status(unit.id)
+        expected = await store.get_review_status(unit.id)
         assert {"status": row[0], "reviewed_by": row[1], "reviewed_at": row[2]} == expected
 
 
 class TestAggregates:
-    def test_select_total_count(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_total_count(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         for _ in range(3):
-            store.insert(_make_unit())
+            await store.insert(_make_unit())
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_TOTAL_COUNT).fetchone()
         assert row is not None
-        assert row[0] == store.count() == 3
+        assert row[0] == await store.count() == 3
 
-    def test_select_pending_count(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_pending_count(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         units = [_make_unit() for _ in range(3)]
         for u in units:
-            store.insert(u)
-        store.set_review_status(units[0].id, "approved", "rev")
+            await store.insert(u)
+        await store.set_review_status(units[0].id, "approved", "rev")
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_PENDING_COUNT).fetchone()
         assert row is not None
-        assert row[0] == store.pending_count() == 2
+        assert row[0] == await store.pending_count() == 2
 
-    def test_select_counts_by_status(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_counts_by_status(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         units = [_make_unit() for _ in range(3)]
         for u in units:
-            store.insert(u)
-        store.set_review_status(units[0].id, "approved", "rev")
-        store.set_review_status(units[1].id, "rejected", "rev")
+            await store.insert(u)
+        await store.set_review_status(units[0].id, "approved", "rev")
+        await store.set_review_status(units[1].id, "rejected", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_COUNTS_BY_STATUS).fetchall()
-        assert {row[0]: row[1] for row in rows} == store.counts_by_status()
+        assert {row[0]: row[1] for row in rows} == await store.counts_by_status()
 
-    def test_select_counts_by_tier(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_counts_by_tier(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         u_local = _make_unit(tier=Tier.LOCAL)
         u_public = _make_unit(tier=Tier.PUBLIC)
-        store.insert(u_local)
-        store.insert(u_public)
-        store.set_review_status(u_local.id, "approved", "rev")
-        store.set_review_status(u_public.id, "approved", "rev")
+        await store.insert(u_local)
+        await store.insert(u_public)
+        await store.set_review_status(u_local.id, "approved", "rev")
+        await store.set_review_status(u_public.id, "approved", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_COUNTS_BY_TIER).fetchall()
-        assert {row[0]: row[1] for row in rows} == store.counts_by_tier()
+        assert {row[0]: row[1] for row in rows} == await store.counts_by_tier()
 
-    def test_select_domain_counts(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_domain_counts(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit_a = _make_unit(domains=["databases", "performance"])
         unit_b = _make_unit(domains=["databases"])
-        store.insert(unit_a)
-        store.insert(unit_b)
-        store.set_review_status(unit_a.id, "approved", "rev")
-        store.set_review_status(unit_b.id, "approved", "rev")
+        await store.insert(unit_a)
+        await store.insert(unit_b)
+        await store.set_review_status(unit_a.id, "approved", "rev")
+        await store.set_review_status(unit_b.id, "approved", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_DOMAIN_COUNTS).fetchall()
-        assert {row[0]: row[1] for row in rows} == store.domain_counts()
+        assert {row[0]: row[1] for row in rows} == await store.domain_counts()
 
 
 class TestPendingQueue:
-    def test_select_pending_queue(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_pending_queue(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         units = [_make_unit() for _ in range(3)]
         for u in units:
-            store.insert(u)
-        store.set_review_status(units[0].id, "approved", "rev")
+            await store.insert(u)
+        await store.set_review_status(units[0].id, "approved", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_PENDING_QUEUE, {"limit": 10, "offset": 0}).fetchall()
         helper = [
@@ -185,56 +186,56 @@ class TestPendingQueue:
             }
             for row in rows
         ]
-        assert helper == store.pending_queue(limit=10, offset=0)
+        assert helper == await store.pending_queue(limit=10, offset=0)
 
-    def test_select_pending_queue_offset(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_pending_queue_offset(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         for _ in range(3):
-            store.insert(_make_unit())
+            await store.insert(_make_unit())
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_PENDING_QUEUE, {"limit": 1, "offset": 1}).fetchall()
         assert len(rows) == 1
 
 
 class TestApprovedDataAndActivity:
-    def test_select_approved_data(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_approved_data(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         u_a = _make_unit()
         u_b = _make_unit()
-        store.insert(u_a)
-        store.insert(u_b)
-        store.set_review_status(u_a.id, "approved", "rev")
+        await store.insert(u_a)
+        await store.insert(u_b)
+        await store.set_review_status(u_a.id, "approved", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_APPROVED_DATA).fetchall()
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {u_a.id}
 
-    def test_select_recent_activity(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_recent_activity(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         units = [_make_unit() for _ in range(3)]
         for u in units:
-            store.insert(u)
-        store.set_review_status(units[0].id, "approved", "rev")
+            await store.insert(u)
+        await store.set_review_status(units[0].id, "approved", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_RECENT_ACTIVITY, {"limit": 10}).fetchall()
         # Just assert shape and ordering hint: reviewed row appears once and
-        # ordering matches RemoteStore's ORDER BY COALESCE(reviewed_at, created_at) DESC.
+        # ordering matches SqliteStore's ORDER BY COALESCE(reviewed_at, created_at) DESC.
         assert len(rows) == 3
         ids = [row[0] for row in rows]
         assert units[0].id == ids[0]
 
-    def test_recent_activity_parity_with_remote_store(self, db: tuple[RemoteStore, Engine]) -> None:
-        """Helper feeds RemoteStore.recent_activity's exact pipeline (over-fetch + Python sort)."""
+    async def test_recent_activity_parity_with_remote_store(self, db: tuple[SqliteStore, Engine]) -> None:
+        """Helper feeds SqliteStore.recent_activity's exact pipeline (over-fetch + Python sort)."""
         store, engine = db
         units = [_make_unit() for _ in range(3)]
         for u in units:
-            store.insert(u)
-        store.set_review_status(units[0].id, "approved", "rev")
-        store.set_review_status(units[1].id, "rejected", "rev")
+            await store.insert(u)
+        await store.set_review_status(units[0].id, "approved", "rev")
+        await store.set_review_status(units[1].id, "rejected", "rev")
         limit = 5
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_RECENT_ACTIVITY, {"limit": limit * 2}).fetchall()
-        # Mirror RemoteStore.recent_activity decoration verbatim.
+        # Mirror SqliteStore.recent_activity decoration verbatim.
         decorated: list[dict[str, Any]] = []
         for row in rows:
             unit = KnowledgeUnit.model_validate_json(row[1])
@@ -259,26 +260,26 @@ class TestApprovedDataAndActivity:
                     }
                 )
         decorated.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
-        assert decorated[:limit] == store.recent_activity(limit=limit)
+        assert decorated[:limit] == await store.recent_activity(limit=limit)
 
 
 class TestSelectQueryUnits:
-    def test_returns_approved_units_matching_any_domain(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_returns_approved_units_matching_any_domain(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         match = _make_unit(domains=["databases"])
         other = _make_unit(domains=["frontend"])
         pending = _make_unit(domains=["databases"])  # not approved -> excluded
-        store.insert(match)
-        store.insert(other)
-        store.insert(pending)
-        store.set_review_status(match.id, "approved", "rev")
-        store.set_review_status(other.id, "approved", "rev")
+        await store.insert(match)
+        await store.insert(other)
+        await store.insert(pending)
+        await store.set_review_status(match.id, "approved", "rev")
+        await store.set_review_status(other.id, "approved", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_QUERY_UNITS, {"domains": ["databases"]}).fetchall()
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {match.id}
 
-    def test_empty_domains_list_returns_zero_rows(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_empty_domains_list_returns_zero_rows(self, db: tuple[SqliteStore, Engine]) -> None:
         """Pin SQLAlchemy's empty-expanding-bind contract.
 
         SQLAlchemy 2.0 rewrites ``IN ()`` to a no-rows subquery so an empty
@@ -289,73 +290,73 @@ class TestSelectQueryUnits:
         """
         store, engine = db
         approved = _make_unit(domains=["databases"])
-        store.insert(approved)
-        store.set_review_status(approved.id, "approved", "rev")
+        await store.insert(approved)
+        await store.set_review_status(approved.id, "approved", "rev")
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_QUERY_UNITS, {"domains": []}).fetchall()
         assert rows == []
 
 
 class TestSelectListUnitsBuilder:
-    def test_no_filters_no_limit(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_no_filters_no_limit(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         for _ in range(3):
-            store.insert(_make_unit())
+            await store.insert(_make_unit())
         stmt = q.select_list_units(domain=None, status=None, apply_limit=False)
         with engine.connect() as conn:
             rows = conn.execute(stmt).fetchall()
         assert len(rows) == 3
 
-    def test_filter_by_status(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_filter_by_status(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         u_a = _make_unit()
         u_b = _make_unit()
-        store.insert(u_a)
-        store.insert(u_b)
-        store.set_review_status(u_a.id, "approved", "rev")
+        await store.insert(u_a)
+        await store.insert(u_b)
+        await store.set_review_status(u_a.id, "approved", "rev")
         stmt = q.select_list_units(domain=None, status="approved", apply_limit=True)
         with engine.connect() as conn:
             rows = conn.execute(stmt, {"status": "approved", "limit": 10}).fetchall()
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {u_a.id}
 
-    def test_filter_by_domain(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_filter_by_domain(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         match = _make_unit(domains=["databases"])
         other = _make_unit(domains=["frontend"])
-        store.insert(match)
-        store.insert(other)
+        await store.insert(match)
+        await store.insert(other)
         stmt = q.select_list_units(domain="databases", status=None, apply_limit=True)
         with engine.connect() as conn:
             rows = conn.execute(stmt, {"domain": "databases", "limit": 10}).fetchall()
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {match.id}
 
-    def test_filter_by_domain_and_status(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_filter_by_domain_and_status(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         match = _make_unit(domains=["databases"])
         unapproved = _make_unit(domains=["databases"])
         wrong_domain = _make_unit(domains=["frontend"])
         for u in (match, unapproved, wrong_domain):
-            store.insert(u)
-        store.set_review_status(match.id, "approved", "rev")
-        store.set_review_status(wrong_domain.id, "approved", "rev")
+            await store.insert(u)
+        await store.set_review_status(match.id, "approved", "rev")
+        await store.set_review_status(wrong_domain.id, "approved", "rev")
         stmt = q.select_list_units(domain="databases", status="approved", apply_limit=True)
         with engine.connect() as conn:
             rows = conn.execute(stmt, {"domain": "databases", "status": "approved", "limit": 10}).fetchall()
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {match.id}
 
-    def test_parity_with_remote_store_list_units(self, db: tuple[RemoteStore, Engine]) -> None:
-        """Helper output, after RemoteStore-style decoration, matches store.list_units()."""
+    async def test_parity_with_remote_store_list_units(self, db: tuple[SqliteStore, Engine]) -> None:
+        """Helper output, after SqliteStore-style decoration, matches store.list_units()."""
         store, engine = db
         u_pending = _make_unit(domains=["databases"])
         u_approved = _make_unit(domains=["databases"])
         u_rejected = _make_unit(domains=["frontend"])
         for u in (u_pending, u_approved, u_rejected):
-            store.insert(u)
-        store.set_review_status(u_approved.id, "approved", "rev")
-        store.set_review_status(u_rejected.id, "rejected", "rev")
+            await store.insert(u)
+        await store.set_review_status(u_approved.id, "approved", "rev")
+        await store.set_review_status(u_rejected.id, "rejected", "rev")
         stmt = q.select_list_units(domain=None, status=None, apply_limit=True)
         with engine.connect() as conn:
             rows = conn.execute(stmt, {"limit": 100}).fetchall()
@@ -368,13 +369,13 @@ class TestSelectListUnitsBuilder:
             }
             for row in rows
         ]
-        assert decorated == store.list_units(limit=100)
+        assert decorated == await store.list_units(limit=100)
 
 
 def _backdate(engine: Engine, *, column: str, unit_id: str, when: datetime) -> None:
     """Backdate a timestamp column directly via the engine.
 
-    Avoids reaching into ``RemoteStore`` internals so these tests survive
+    Avoids reaching into ``SqliteStore`` internals so these tests survive
     the SQLAlchemy-backed ``SqliteStore`` rewrite in #308.
     """
     stmt = text(f"UPDATE knowledge_units SET {column} = :when WHERE id = :id")  # noqa: S608  (column whitelisted)
@@ -385,13 +386,13 @@ def _backdate(engine: Engine, *, column: str, unit_id: str, when: datetime) -> N
 class TestDailyCounts:
     """Cutoff is computed in Python per RFC #275."""
 
-    def test_proposed_daily(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_proposed_daily(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         now = datetime.now(UTC)
         u_recent = _make_unit()
         u_old = _make_unit()
-        store.insert(u_recent)
-        store.insert(u_old)
+        await store.insert(u_recent)
+        await store.insert(u_old)
         _backdate(engine, column="created_at", unit_id=u_old.id, when=now - timedelta(days=60))
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
@@ -399,31 +400,31 @@ class TestDailyCounts:
         # u_old is older than the cutoff and excluded.
         assert sum(row[1] for row in rows) == 1
 
-    def test_approved_daily(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_approved_daily(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         now = datetime.now(UTC)
         u = _make_unit()
-        store.insert(u)
-        store.set_review_status(u.id, "approved", "rev")
+        await store.insert(u)
+        await store.set_review_status(u.id, "approved", "rev")
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_APPROVED_DAILY, {"cutoff": cutoff}).fetchall()
         assert sum(row[1] for row in rows) == 1
 
-    def test_rejected_daily_excludes_old(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_rejected_daily_excludes_old(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         now = datetime.now(UTC)
         u = _make_unit()
-        store.insert(u)
-        store.set_review_status(u.id, "rejected", "rev")
+        await store.insert(u)
+        await store.set_review_status(u.id, "rejected", "rev")
         _backdate(engine, column="reviewed_at", unit_id=u.id, when=now - timedelta(days=60))
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
             rows = conn.execute(q.SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()
         assert rows == []
 
-    def test_daily_helpers_match_remote_store(self, db: tuple[RemoteStore, Engine]) -> None:
-        """Assembled helper output matches ``RemoteStore.daily_counts()``.
+    async def test_daily_helpers_match_remote_store(self, db: tuple[SqliteStore, Engine]) -> None:
+        """Assembled helper output matches ``SqliteStore.daily_counts()``.
 
         Builds the same merged/zero-filled shape ``daily_counts`` returns
         (one entry per day from the earliest activity through today), so a
@@ -440,10 +441,10 @@ class TestDailyCounts:
         u_rejected = _make_unit()
         u_outside = _make_unit()
         for u in (u_pending, u_approved_recent, u_approved_old, u_rejected, u_outside):
-            store.insert(u)
-        store.set_review_status(u_approved_recent.id, "approved", "rev")
-        store.set_review_status(u_approved_old.id, "approved", "rev")
-        store.set_review_status(u_rejected.id, "rejected", "rev")
+            await store.insert(u)
+        await store.set_review_status(u_approved_recent.id, "approved", "rev")
+        await store.set_review_status(u_approved_old.id, "approved", "rev")
+        await store.set_review_status(u_rejected.id, "rejected", "rev")
         _backdate(engine, column="reviewed_at", unit_id=u_approved_old.id, when=now - timedelta(days=10))
         _backdate(engine, column="created_at", unit_id=u_approved_old.id, when=now - timedelta(days=10))
         _backdate(engine, column="created_at", unit_id=u_outside.id, when=now - timedelta(days=60))
@@ -475,14 +476,14 @@ class TestDailyCounts:
                 )
                 current += timedelta(days=1)
 
-        assert assembled == store.daily_counts(days=days)
+        assert assembled == await store.daily_counts(days=days)
 
 
 # --- knowledge_units: write helpers ----------------------------------------
 
 
 class TestWriteHelpers:
-    def test_insert_unit_then_unit_domain(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_insert_unit_then_unit_domain(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit(domains=["databases", "performance"])
         created_at = datetime.now(UTC).isoformat()
@@ -498,13 +499,13 @@ class TestWriteHelpers:
             )
             for d in unit.domains:
                 conn.execute(q.INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
-        # Verify via the orthogonal RemoteStore API.
-        assert store.get_any(unit.id) == unit
+        # Verify via the orthogonal SqliteStore API.
+        assert await store.get_any(unit.id) == unit
 
-    def test_update_unit_data(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_update_unit_data(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit()
-        store.insert(unit)
+        await store.insert(unit)
         new_data = unit.model_copy(
             update={"insight": Insight(summary="updated", detail="d", action="a")}
         ).model_dump_json()
@@ -513,14 +514,14 @@ class TestWriteHelpers:
                 q.UPDATE_UNIT_DATA,
                 {"id": unit.id, "data": new_data, "tier": unit.tier.value},
             )
-        retrieved = store.get_any(unit.id)
+        retrieved = await store.get_any(unit.id)
         assert retrieved is not None
         assert retrieved.insight.summary == "updated"
 
-    def test_update_review_status(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_update_review_status(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit()
-        store.insert(unit)
+        await store.insert(unit)
         now = datetime.now(UTC).isoformat()
         with engine.begin() as conn:
             result = conn.execute(
@@ -528,13 +529,13 @@ class TestWriteHelpers:
                 {"id": unit.id, "status": "approved", "reviewed_by": "rev", "reviewed_at": now},
             )
         assert result.rowcount == 1
-        assert store.get_review_status(unit.id) == {
+        assert await store.get_review_status(unit.id) == {
             "status": "approved",
             "reviewed_by": "rev",
             "reviewed_at": now,
         }
 
-    def test_update_review_status_missing_returns_zero_rowcount(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_update_review_status_missing_returns_zero_rowcount(self, db: tuple[SqliteStore, Engine]) -> None:
         _, engine = db
         with engine.begin() as conn:
             result = conn.execute(
@@ -548,17 +549,17 @@ class TestWriteHelpers:
             )
         assert result.rowcount == 0
 
-    def test_delete_unit_domains(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_delete_unit_domains(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         unit = _make_unit(domains=["a", "b"])
-        store.insert(unit)
+        await store.insert(unit)
         with engine.begin() as conn:
             conn.execute(q.DELETE_UNIT_DOMAINS, {"unit_id": unit.id})
         # No domain rows remain -> domain_counts() is empty for this unit.
-        store.set_review_status(unit.id, "approved", "rev")
-        assert store.domain_counts() == {}
+        await store.set_review_status(unit.id, "approved", "rev")
+        assert await store.domain_counts() == {}
 
-    def test_insert_unit_duplicate_id_raises(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_insert_unit_duplicate_id_raises(self, db: tuple[SqliteStore, Engine]) -> None:
         """Pins the PRIMARY KEY constraint on knowledge_units.id.
 
         If a future migration drops this constraint the test fires.
@@ -580,22 +581,22 @@ class TestWriteHelpers:
 
 
 class TestUserHelpers:
-    def test_insert_user_and_select(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_insert_user_and_select(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
         created_at = datetime.now(UTC).isoformat()
         with engine.begin() as conn:
             conn.execute(
                 q.INSERT_USER,
-                {"username": "bob", "password_hash": "hashed", "created_at": created_at},
+                {"username": "bob", "password_hash": "hashed", "created_at": created_at},  # pragma: allowlist secret
             )
-        user_via_store = store.get_user("bob")
+        user_via_store = await store.get_user("bob")
         assert user_via_store is not None
         with engine.connect() as conn:
             row = conn.execute(q.SELECT_USER_BY_USERNAME, {"username": "bob"}).fetchone()
         assert row is not None
         assert {"id": row[0], "username": row[1], "password_hash": row[2], "created_at": row[3]} == user_via_store
 
-    def test_insert_user_duplicate_username_raises(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_insert_user_duplicate_username_raises(self, db: tuple[SqliteStore, Engine]) -> None:
         """Pins the UNIQUE constraint on users.username."""
         _, engine = db
         row = {"username": "duplicate", "password_hash": "h", "created_at": datetime.now(UTC).isoformat()}
@@ -628,9 +629,9 @@ def _api_key_row(*, user_id: int, **overrides: Any) -> dict[str, Any]:
 
 
 class TestApiKeyHelpers:
-    def test_insert_and_count_active(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_insert_and_count_active(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store)
+        user_id = await _seed_user(store)
         row = _api_key_row(user_id=user_id)
         with engine.begin() as conn:
             conn.execute(q.INSERT_API_KEY, row)
@@ -640,11 +641,11 @@ class TestApiKeyHelpers:
                 {"user_id": user_id, "now": datetime.now(UTC).isoformat()},
             ).scalar()
         assert count == 1
-        assert store.count_active_api_keys_for_user(user_id) == 1
+        assert await store.count_active_api_keys_for_user(user_id) == 1
 
-    def test_count_active_excludes_expired(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_count_active_excludes_expired(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store)
+        user_id = await _seed_user(store)
         row = _api_key_row(
             user_id=user_id,
             expires_at=(datetime.now(UTC) - timedelta(days=1)).isoformat(),
@@ -658,9 +659,9 @@ class TestApiKeyHelpers:
             ).scalar()
         assert count == 0
 
-    def test_select_key_for_user(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_key_for_user(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store)
+        user_id = await _seed_user(store)
         row = _api_key_row(user_id=user_id)
         with engine.begin() as conn:
             conn.execute(q.INSERT_API_KEY, row)
@@ -677,9 +678,9 @@ class TestApiKeyHelpers:
             other = conn.execute(q.SELECT_KEY_FOR_USER, {"key_id": row["id"], "user_id": user_id + 999}).fetchone()
         assert other is None
 
-    def test_select_active_key_by_id_joins_username(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_active_key_by_id_joins_username(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store, username="carol")
+        user_id = await _seed_user(store, username="carol")
         row = _api_key_row(user_id=user_id)
         with engine.begin() as conn:
             conn.execute(q.INSERT_API_KEY, row)
@@ -692,9 +693,9 @@ class TestApiKeyHelpers:
         assert active[0] == row["id"]
         assert active[2] == "carol"  # username from the JOIN
 
-    def test_select_active_key_excludes_revoked(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_select_active_key_excludes_revoked(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store)
+        user_id = await _seed_user(store)
         row = _api_key_row(user_id=user_id)
         with engine.begin() as conn:
             conn.execute(q.INSERT_API_KEY, row)
@@ -709,9 +710,9 @@ class TestApiKeyHelpers:
             ).fetchone()
         assert active is None
 
-    def test_list_keys_for_user_newest_first(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_list_keys_for_user_newest_first(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store)
+        user_id = await _seed_user(store)
         older = _api_key_row(user_id=user_id, created_at="2026-01-01T00:00:00+00:00")
         newer = _api_key_row(user_id=user_id, created_at="2026-04-01T00:00:00+00:00")
         with engine.begin() as conn:
@@ -721,11 +722,11 @@ class TestApiKeyHelpers:
             rows = conn.execute(q.LIST_KEYS_FOR_USER, {"user_id": user_id}).fetchall()
         assert [row[0] for row in rows] == [newer["id"], older["id"]]
 
-    def test_list_keys_isolates_users(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_list_keys_isolates_users(self, db: tuple[SqliteStore, Engine]) -> None:
         """Caller's keys only — another user's keys must not appear."""
         store, engine = db
-        alice = _seed_user(store, username="alice")
-        bob = _seed_user(store, username="bob")
+        alice = await _seed_user(store, username="alice")
+        bob = await _seed_user(store, username="bob")
         alice_row = _api_key_row(user_id=alice, name="alice-key")
         bob_row = _api_key_row(user_id=bob, name="bob-key")
         with engine.begin() as conn:
@@ -737,9 +738,9 @@ class TestApiKeyHelpers:
         assert [row[0] for row in alice_rows] == [alice_row["id"]]
         assert [row[0] for row in bob_rows] == [bob_row["id"]]
 
-    def test_update_key_revoke_only_affects_unrevoked(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_update_key_revoke_only_affects_unrevoked(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store)
+        user_id = await _seed_user(store)
         row = _api_key_row(user_id=user_id)
         with engine.begin() as conn:
             conn.execute(q.INSERT_API_KEY, row)
@@ -754,9 +755,9 @@ class TestApiKeyHelpers:
         assert first.rowcount == 1
         assert second.rowcount == 0  # already revoked, idempotent
 
-    def test_update_key_last_used(self, db: tuple[RemoteStore, Engine]) -> None:
+    async def test_update_key_last_used(self, db: tuple[SqliteStore, Engine]) -> None:
         store, engine = db
-        user_id = _seed_user(store)
+        user_id = await _seed_user(store)
         row = _api_key_row(user_id=user_id)
         with engine.begin() as conn:
             conn.execute(q.INSERT_API_KEY, row)
