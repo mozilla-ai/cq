@@ -477,3 +477,21 @@ async def test_query_rejects_non_positive_limit(db_path: Path) -> None:
             await store.query(["x"], limit=-1)
     finally:
         await store.close()
+
+
+async def test_daily_counts_uses_date_key_and_gap_fills(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        # Empty store: empty list.
+        assert await store.daily_counts(days=30) == []
+
+        # One unit today: one row with "date" key.
+        unit = _make_unit()
+        await store.insert(unit)
+        rows = await store.daily_counts(days=30)
+        assert len(rows) >= 1
+        assert all("date" in r for r in rows)
+        assert all("day" not in r for r in rows)
+        assert rows[-1]["date"] == datetime.now(UTC).date().isoformat()
+    finally:
+        await store.close()

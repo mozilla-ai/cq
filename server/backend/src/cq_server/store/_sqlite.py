@@ -355,16 +355,25 @@ class SqliteStore:
             proposed = {row[0]: row[1] for row in conn.execute(SELECT_PROPOSED_DAILY, {"cutoff": cutoff}).fetchall()}
             approved = {row[0]: row[1] for row in conn.execute(SELECT_APPROVED_DAILY, {"cutoff": cutoff}).fetchall()}
             rejected = {row[0]: row[1] for row in conn.execute(SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()}
-        days_set = sorted(set(proposed) | set(approved) | set(rejected))
-        return [
-            {
-                "day": d,
-                "proposed": proposed.get(d, 0),
-                "approved": approved.get(d, 0),
-                "rejected": rejected.get(d, 0),
-            }
-            for d in days_set
-        ]
+        all_dates = set(proposed) | set(approved) | set(rejected)
+        if not all_dates:
+            return []
+        start = min(datetime.strptime(d, "%Y-%m-%d").date() for d in all_dates)
+        end = datetime.now(UTC).date()
+        rows: list[dict[str, Any]] = []
+        current = start
+        while current <= end:
+            key = current.isoformat()
+            rows.append(
+                {
+                    "date": key,
+                    "proposed": proposed.get(key, 0),
+                    "approved": approved.get(key, 0),
+                    "rejected": rejected.get(key, 0),
+                }
+            )
+            current += timedelta(days=1)
+        return rows
 
     def _domain_counts_sync(self) -> dict[str, int]:
         with self._engine.connect() as conn:
