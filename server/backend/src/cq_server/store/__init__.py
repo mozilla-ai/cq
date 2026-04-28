@@ -18,8 +18,6 @@ __all__ = [
     "normalize_domains",
 ]
 
-_POSTGRES_DRIVERS = frozenset({"postgresql", "postgresql+psycopg"})
-
 
 def create_store(database_url: str) -> Store:
     """Return the concrete ``Store`` for ``database_url``.
@@ -47,7 +45,13 @@ def create_store(database_url: str) -> Store:
                 "needs a persistent file path."
             )
         return SqliteStore(db_path=Path(parsed.database))
-    if driver in _POSTGRES_DRIVERS:
+    # Match every Postgres driver suffix (``+psycopg``, ``+psycopg2``,
+    # ``+asyncpg``, …) so a typo'd driver still hits the helpful
+    # NotImplementedError instead of falling through to the generic
+    # "unsupported scheme" branch. Phase 2 (#311) will pick the actual
+    # driver; until then anything postgres-shaped is rejected the same
+    # way.
+    if driver == "postgresql" or driver.startswith("postgresql+"):
         raise NotImplementedError(
             "PostgreSQL backend is not implemented yet; lands with "
             "PostgresStore in epic #257 (issues #311/#312)."

@@ -50,19 +50,26 @@ class TestSqlite:
 
 
 class TestPostgres:
-    def test_postgres_psycopg_url_raises_not_implemented(self) -> None:
+    @pytest.mark.parametrize(
+        "url",
+        [
+            # Bare ``postgresql://`` is a common copy-paste from libpq URLs;
+            # the explicit driver suffixes cover the drivers users actually
+            # paste — psycopg v3 (#311's target), psycopg2 (still ubiquitous),
+            # and asyncpg. All four must hit the same NotImplementedError so
+            # the #311/#312 pointer is the user's first signal rather than a
+            # generic "unsupported scheme" or a SQLAlchemy dialect-load
+            # failure.
+            "postgresql://u:p@h/d",
+            "postgresql+psycopg://u:p@h/d",
+            "postgresql+psycopg2://u:p@h/d",
+            "postgresql+asyncpg://u:p@h/d",
+        ],
+    )
+    def test_postgres_url_raises_not_implemented_with_guidance(self, url: str) -> None:
         with pytest.raises(NotImplementedError) as exc:
-            create_store("postgresql+psycopg://u:p@h/d")
-        # The message must point at the Phase 2 children so users hit a
-        # self-explanatory error rather than a "did I typo my URL?" loop.
+            create_store(url)
         assert "#311" in str(exc.value) or "#312" in str(exc.value)
-
-    def test_bare_postgresql_url_also_raises_not_implemented(self) -> None:
-        # Bare ``postgresql://`` (no driver) is a common copy-paste from
-        # libpq URLs; rejecting it with the same NotImplementedError
-        # avoids dropping the user into a SQLAlchemy dialect-load failure.
-        with pytest.raises(NotImplementedError):
-            create_store("postgresql://u:p@h/d")
 
 
 class TestUnknownScheme:

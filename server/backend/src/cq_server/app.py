@@ -83,11 +83,17 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # equivalent — the legacy idempotent ``_ensure_schema()`` inside
     # ``SqliteStore`` creates the tables, then ``run_migrations`` sees
     # them, stamps baseline and upgrades to head (a no-op today).
-    # The legacy path goes away in #310 and the order can be flipped
-    # back to migrations-first then.
+    # TODO(#310): once the legacy ``_ensure_schema()`` path is gone,
+    # flip back to migrations-first so fresh installs actually exercise
+    # migration 0001 instead of being stamped at baseline.
     database_url = resolve_database_url()
-    _store = create_store(database_url)
+    new_store = create_store(database_url)
     run_migrations(database_url)
+    # Assign the global only after both startup steps succeed, so a
+    # failure mid-boot doesn't leave a half-initialised ``_store``
+    # leaking from the previous lifespan (matters when tests re-enter
+    # ``lifespan`` in-process after a startup failure).
+    _store = new_store
     app_instance.state.store = _store
     app_instance.state.api_key_pepper = pepper
     try:
