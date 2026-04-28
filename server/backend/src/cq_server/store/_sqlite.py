@@ -593,6 +593,8 @@ class SqliteStore:
     ) -> list[KnowledgeUnit]:
         if self._closed:
             raise RuntimeError("SqliteStore is closed")
+        if limit <= 0:
+            raise ValueError("limit must be positive")
         normalized = normalize_domains(domains)
         if not normalized:
             return []

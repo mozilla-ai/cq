@@ -466,3 +466,14 @@ async def test_insert_with_empty_domains_raises(db_path: Path) -> None:
             await store.insert(unit_no_domains)
     finally:
         await store.close()
+
+
+async def test_query_rejects_non_positive_limit(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        with pytest.raises(ValueError, match="limit must be positive"):
+            await store.query(["x"], limit=0)
+        with pytest.raises(ValueError, match="limit must be positive"):
+            await store.query(["x"], limit=-1)
+    finally:
+        await store.close()
