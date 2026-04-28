@@ -184,7 +184,7 @@ class SqliteStore:
         await self._run_sync(self._insert_sync, unit)
 
     async def list_api_keys_for_user(self, user_id: int) -> list[dict[str, Any]]:
-        raise NotImplementedError
+        return await self._run_sync(self._list_api_keys_for_user_sync, user_id)
 
     async def list_units(
         self,
@@ -468,6 +468,32 @@ class SqliteStore:
             )
             for d in domains:
                 conn.execute(INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": d})
+
+    def _list_api_keys_for_user_sync(self, user_id: int) -> list[dict[str, Any]]:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        # Inline SQL: no _queries.py constant covers this list shape.
+        stmt = text(
+            "SELECT id, name, labels, key_prefix, ttl, expires_at, created_at, "
+            "last_used_at, revoked_at "
+            "FROM api_keys WHERE user_id = :user_id ORDER BY created_at DESC"
+        )
+        with self._engine.connect() as conn:
+            rows = conn.execute(stmt, {"user_id": user_id}).fetchall()
+        return [
+            {
+                "id": row[0],
+                "name": row[1],
+                "labels": json.loads(row[2] or "[]"),
+                "key_prefix": row[3],
+                "ttl": row[4],
+                "expires_at": row[5],
+                "created_at": row[6],
+                "last_used_at": row[7],
+                "revoked_at": row[8],
+            }
+            for row in rows
+        ]
 
     def _list_units_sync(
         self,

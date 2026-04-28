@@ -353,3 +353,33 @@ async def test_get_active_api_key_by_id(db_path: Path) -> None:
         assert await store.get_active_api_key_by_id("k_exp") is None
     finally:
         await store.close()
+
+
+async def test_list_api_keys_for_user(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        user_id = await _seed_user(store)
+        expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+        for i in range(3):
+            await store.create_api_key(
+                key_id=f"k{i}",
+                user_id=user_id,
+                name=f"name-{i}",
+                labels=[f"l{i}"],
+                key_prefix=f"cq_{i}",
+                key_hash=f"h{i}",
+                ttl="P30D",
+                expires_at=expires_at,
+            )
+
+        keys = await store.list_api_keys_for_user(user_id)
+        assert len(keys) == 3
+        # Newest first (insertion order is reverse of creation order; SQL
+        # ORDER BY created_at DESC handles this).
+        assert {k["id"] for k in keys} == {"k0", "k1", "k2"}
+        assert all("key_hash" not in k for k in keys), "list shape must omit the hash"
+
+        # Other user gets empty.
+        assert await store.list_api_keys_for_user(user_id + 99) == []
+    finally:
+        await store.close()
