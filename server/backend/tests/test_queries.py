@@ -224,7 +224,7 @@ class TestApprovedDataAndActivity:
         ids = [row[0] for row in rows]
         assert units[0].id == ids[0]
 
-    async def test_recent_activity_parity_with_remote_store(self, db: tuple[SqliteStore, Engine]) -> None:
+    async def test_recent_activity_parity_with_store(self, db: tuple[SqliteStore, Engine]) -> None:
         """Helper feeds SqliteStore.recent_activity's exact pipeline (over-fetch + Python sort)."""
         store, engine = db
         units = [_make_unit() for _ in range(3)]
@@ -347,7 +347,7 @@ class TestSelectListUnitsBuilder:
         ids = {KnowledgeUnit.model_validate_json(row[0]).id for row in rows}
         assert ids == {match.id}
 
-    async def test_parity_with_remote_store_list_units(self, db: tuple[SqliteStore, Engine]) -> None:
+    async def test_parity_with_store_list_units(self, db: tuple[SqliteStore, Engine]) -> None:
         """Helper output, after SqliteStore-style decoration, matches store.list_units()."""
         store, engine = db
         u_pending = _make_unit(domains=["databases"])
@@ -423,7 +423,7 @@ class TestDailyCounts:
             rows = conn.execute(q.SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()
         assert rows == []
 
-    async def test_daily_helpers_match_remote_store(self, db: tuple[SqliteStore, Engine]) -> None:
+    async def test_daily_helpers_match_store(self, db: tuple[SqliteStore, Engine]) -> None:
         """Assembled helper output matches ``SqliteStore.daily_counts()``.
 
         Builds the same merged/zero-filled shape ``daily_counts`` returns

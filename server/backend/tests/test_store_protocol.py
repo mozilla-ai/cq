@@ -8,5 +8,5 @@ declares exists on the concrete `SqliteStore` class.
 from cq_server.store import SqliteStore, Store
 
 
-def test_remote_store_satisfies_store_protocol() -> None:
+def test_sqlite_store_satisfies_store_protocol() -> None:
     assert issubclass(SqliteStore, Store)
