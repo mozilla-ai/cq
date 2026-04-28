@@ -1,5 +1,6 @@
 """Tests for the review endpoints."""
 
+import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -31,7 +32,7 @@ def _login(client: TestClient, username: str = "reviewer", password: str = "pass
 
     store = _get_store()
     with contextlib.suppress(Exception):
-        store.create_user(username, hash_password(password))
+        asyncio.run(store.create_user(username, hash_password(password)))
     resp = client.post("/auth/login", json={"username": username, "password": password})
     return resp.json()["token"]
 
