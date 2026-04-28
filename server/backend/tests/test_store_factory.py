@@ -15,10 +15,13 @@ from cq.models import Insight, create_knowledge_unit
 
 from cq_server.store import SqliteStore, create_store
 
+from .db_helpers import init_test_db
+
 
 class TestSqlite:
     async def test_sqlite_url_returns_sqlite_store(self, tmp_path: Path) -> None:
         db = tmp_path / "factory.db"
+        init_test_db(db)
         store = create_store(f"sqlite:///{db}")
         try:
             assert isinstance(store, SqliteStore)

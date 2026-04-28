@@ -20,6 +20,8 @@ from cq.models import (
 from cq_server.scoring import apply_confirmation, apply_flag
 from cq_server.store import SqliteStore
 
+from .db_helpers import init_test_db
+
 
 def _make_insight(**overrides: Any) -> Insight:
     defaults = {
@@ -40,7 +42,9 @@ def _make_unit(**overrides: Any) -> KnowledgeUnit:
 
 @pytest_asyncio.fixture()
 async def store(tmp_path: Path) -> AsyncIterator[SqliteStore]:
-    s = SqliteStore(db_path=tmp_path / "test.db")
+    db_path = tmp_path / "test.db"
+    init_test_db(db_path)
+    s = SqliteStore(db_path=db_path)
     try:
         yield s
     finally:

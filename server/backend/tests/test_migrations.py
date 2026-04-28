@@ -5,21 +5,11 @@ Covers the three startup cases the migration runner has to handle:
 1. ``test_fresh_database_runs_baseline_migration`` — empty file, no
    tables. Migration creates everything and stamps at baseline.
 2. ``test_existing_pre_alembic_database_is_stamped`` — production-shape
-   DB built by the legacy ``_ensure_schema()`` path, with seed data in
-   every table. Migration runner must stamp at baseline (not re-run
-   the DDL) and preserve every row.
+   DB hand-built to match the schema that legacy ``_ensure_schema()``
+   used to produce, with seed data in every table. Migration runner
+   must stamp at baseline (not re-run the DDL) and preserve every row.
 3. ``test_already_stamped_database_is_idempotent`` — DB with
    ``alembic_version`` already at head. Re-running is a no-op.
-
-Plus a fourth structural test:
-
-4. ``test_baseline_schema_matches_legacy_ensure_schema`` — the in-repo
-   substitute for "byte-checked against current production schema".
-   Builds DB-A via legacy ``_ensure_schema`` and DB-B via the baseline
-   migration and asserts they produce the equivalent set of
-   tables/columns/indexes/foreign-keys. **Delete this test in #310**
-   when ``_ensure_schema`` is removed and the migration becomes the
-   sole source of truth.
 """
 
 from __future__ import annotations
@@ -36,11 +26,8 @@ import pytest_asyncio
 from cq_server.migrations import BASELINE_REVISION, run_migrations
 from cq_server.store import SqliteStore
 
-# --- Helpers --------------------------------------------------------------
-
-
-def _sqlite_url(db: Path) -> str:
-    return f"sqlite:///{db}"
+from .db_helpers import build_pre_alembic_schema
+from .db_helpers import sqlite_url as _sqlite_url
 
 
 def _open_ro(db: Path) -> sqlite3.Connection:
@@ -247,10 +234,14 @@ class TestExistingPreAlembicDatabase:
 
     @pytest_asyncio.fixture()
     async def seeded_pre_alembic_db(self, tmp_path: Path) -> tuple[Path, Mapping[str, Any]]:
-        """Build a production-shape SQLite DB by going through the legacy
-        ``_ensure_schema()`` path, then seed every table and snapshot
+        """Build a production-shape SQLite DB matching the legacy
+        ``_ensure_schema()`` end-state, seed every table, and snapshot
         the resulting state. Returns (db_path, snapshot)."""
         db = tmp_path / "prod.db"
+        # Synthesise the legacy schema directly — the old
+        # ``_ensure_*`` startup path is gone, so we rebuild it from
+        # the historical SQL preserved in ``db_helpers``.
+        build_pre_alembic_schema(db)
         store = SqliteStore(db_path=db)
         ku_ids = await _seed_kus(store)
         user_id, key_id = await _seed_user_and_api_key(store)
@@ -353,52 +344,7 @@ class TestAlreadyStampedDatabase:
             assert sorted(r[0] for r in ku_rows) == sorted(ku_ids)
 
 
-# --- Test 4: parity with legacy _ensure_schema -----------------------------
-
-
-class TestBaselineMatchesLegacySchema:
-    """In-repo proxy for #305's "byte-checked against production schema".
-
-    The current ``_ensure_schema()`` is what builds every production DB,
-    so if the baseline migration produces a structurally equivalent
-    schema on an empty file, we have parity with prod.
-
-    Caveat: ``_normalized_table_shape`` deliberately normalises NOT-NULL
-    on PRIMARY KEY columns to ``0`` because the legacy schema and
-    SQLAlchemy/Alembic disagree on whether to spell ``NOT NULL`` out for
-    PKs. This is load-bearing — the parity check accepts any future
-    PK-nullability divergence as well, including bugs introduced by a
-    new migration. Future migrations that touch PK columns should be
-    reviewed against the migration source, not just this test.
-
-    DELETE THIS TEST in #310 alongside ``_ensure_schema()`` — once
-    the legacy path is gone there is nothing to compare against and
-    the migration is the sole source of truth.
-    """
-
-    async def test_baseline_schema_matches_legacy_ensure_schema(self, tmp_path: Path) -> None:
-        legacy_db = tmp_path / "legacy.db"
-        migrated_db = tmp_path / "migrated.db"
-
-        # DB-A: legacy code path.
-        await SqliteStore(db_path=legacy_db).close()
-        # DB-B: baseline migration.
-        run_migrations(_sqlite_url(migrated_db))
-
-        with _open_ro(legacy_db) as conn_a, _open_ro(migrated_db) as conn_b:
-            schema_a = _normalized_schema(conn_a)
-            schema_b = _normalized_schema(conn_b)
-
-        # alembic_version is excluded by _normalized_schema; everything
-        # else must agree.
-        assert schema_b == schema_a, (
-            "Baseline migration drifted from current production schema — "
-            "fix the migration so PRAGMA table_info / PRAGMA index_list / "
-            "PRAGMA foreign_key_list match what _ensure_schema() produces."
-        )
-
-
-# --- Test 5: default URL resolution ----------------------------------------
+# --- Test 4: default URL resolution ----------------------------------------
 
 
 class TestSqliteParentDirCreation:
