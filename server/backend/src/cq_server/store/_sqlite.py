@@ -232,7 +232,7 @@ class SqliteStore:
         return await self._run_sync(self._recent_activity_sync, limit=limit)
 
     async def revoke_api_key(self, *, user_id: int, key_id: str) -> bool:
-        raise NotImplementedError
+        return await self._run_sync(self._revoke_api_key_sync, user_id=user_id, key_id=key_id)
 
     async def set_review_status(self, unit_id: str, status: str, reviewed_by: str) -> None:
         await self._run_sync(self._set_review_status_sync, unit_id, status, reviewed_by)
@@ -630,6 +630,19 @@ class SqliteStore:
                     }
                 )
         return activity[:limit]
+
+    def _revoke_api_key_sync(self, *, user_id: int, key_id: str) -> bool:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        now = datetime.now(UTC).isoformat()
+        # Inline SQL: no _queries.py constant covers this update shape.
+        # The "revoked_at IS NULL" guard is what makes the second revoke a no-op.
+        stmt = text(
+            "UPDATE api_keys SET revoked_at = :now WHERE id = :key_id AND user_id = :user_id AND revoked_at IS NULL"
+        )
+        with self._engine.begin() as conn:
+            cursor = conn.execute(stmt, {"now": now, "key_id": key_id, "user_id": user_id})
+        return cursor.rowcount > 0
 
     async def _run_sync(self, fn, /, *args, **kwargs):
         """Run a sync callable on the default executor and await its result.

@@ -383,3 +383,33 @@ async def test_list_api_keys_for_user(db_path: Path) -> None:
         assert await store.list_api_keys_for_user(user_id + 99) == []
     finally:
         await store.close()
+
+
+async def test_revoke_api_key(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        user_id = await _seed_user(store)
+        expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+        await store.create_api_key(
+            key_id="k1",
+            user_id=user_id,
+            name="laptop",
+            labels=[],
+            key_prefix="cq_x",
+            key_hash="h",
+            ttl="P30D",
+            expires_at=expires_at,
+        )
+        assert await store.count_active_api_keys_for_user(user_id) == 1
+
+        assert await store.revoke_api_key(user_id=user_id, key_id="k1") is True
+        assert await store.count_active_api_keys_for_user(user_id) == 0
+
+        # Second revoke returns False.
+        assert await store.revoke_api_key(user_id=user_id, key_id="k1") is False
+        # Wrong user returns False.
+        assert await store.revoke_api_key(user_id=user_id + 99, key_id="k1") is False
+        # Missing key returns False.
+        assert await store.revoke_api_key(user_id=user_id, key_id="missing") is False
+    finally:
+        await store.close()
