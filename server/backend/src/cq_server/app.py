@@ -26,7 +26,7 @@ from .deps import API_KEY_PEPPER_ENV, require_api_key
 from .migrations import run_migrations
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
-from .store import RemoteStore, normalize_domains
+from .store import SqliteStore, Store, normalize_domains
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -54,10 +54,10 @@ class StatsResponse(BaseModel):
     domains: dict[str, int]
 
 
-_store: RemoteStore | None = None
+_store: Store | None = None
 
 
-def _get_store() -> RemoteStore:
+def _get_store() -> Store:
     """Return the global store instance."""
     if _store is None:
         raise RuntimeError("Store not initialised")
@@ -77,21 +77,23 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # Resolve URL and filesystem path together so the migration runner
     # and the runtime store cannot diverge on which database they're
     # using — see ``resolve_sqlite_db_path``. This drops once #309
-    # wires ``RemoteStore`` to ``CQ_DATABASE_URL`` directly.
+    # wires ``SqliteStore`` to ``CQ_DATABASE_URL`` directly.
     database_url, db_path = resolve_sqlite_db_path()
     # Bring the database under Alembic management before opening the
     # store. Three cases handled: fresh DB → upgrade head; pre-Alembic
     # DB → stamp baseline + upgrade head; already-stamped DB → upgrade
     # head (no-op when no pending revisions). The legacy
-    # ``_ensure_schema()`` inside RemoteStore still runs after this;
+    # ``_ensure_schema()`` inside SqliteStore still runs after this;
     # both paths are idempotent and the legacy one will be removed in
     # #310 once this PR has rolled out everywhere.
     run_migrations(database_url)
-    _store = RemoteStore(db_path=db_path)
+    _store = SqliteStore(db_path=db_path)
     app_instance.state.store = _store
     app_instance.state.api_key_pepper = pepper
-    yield
-    _store.close()
+    try:
+        yield
+    finally:
+        await _store.close()
 
 
 # --- API routes on a shared router so they can be mounted at both / and /api. ---
@@ -108,7 +110,7 @@ def health() -> dict[str, str]:
 
 
 @api_router.get("/query")
-def query_units(
+async def query_units(
     domains: Annotated[list[str], Query()],
     languages: Annotated[list[str] | None, Query()] = None,
     frameworks: Annotated[list[str] | None, Query()] = None,
@@ -117,7 +119,7 @@ def query_units(
 ) -> list[KnowledgeUnit]:
     """Search knowledge units by domain tags with relevance ranking."""
     store = _get_store()
-    return store.query(
+    return await store.query(
         domains,
         languages=languages,
         frameworks=frameworks,
@@ -127,7 +129,7 @@ def query_units(
 
 
 @api_router.post("/propose", status_code=201)
-def propose_unit(
+async def propose_unit(
     request: ProposeRequest,
     username: str = Depends(require_api_key),
 ) -> KnowledgeUnit:
@@ -147,42 +149,42 @@ def propose_unit(
         tier=Tier.PRIVATE,
         created_by=username,
     )
-    store.insert(unit)
+    await store.insert(unit)
     return unit
 
 
 @api_router.post("/confirm/{unit_id}")
-def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
+async def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Confirm a knowledge unit, boosting its confidence."""
     store = _get_store()
-    unit = store.get(unit_id)
+    unit = await store.get(unit_id)
     if unit is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     confirmed = apply_confirmation(unit)
-    store.update(confirmed)
+    await store.update(confirmed)
     return confirmed
 
 
 @api_router.post("/flag/{unit_id}")
-def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
+async def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Flag a knowledge unit, reducing its confidence."""
     store = _get_store()
-    unit = store.get(unit_id)
+    unit = await store.get(unit_id)
     if unit is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     flagged = apply_flag(unit, request.reason)
-    store.update(flagged)
+    await store.update(flagged)
     return flagged
 
 
 @api_router.get("/stats")
-def stats() -> StatsResponse:
+async def stats() -> StatsResponse:
     """Return store statistics."""
     store = _get_store()
     return StatsResponse(
-        total_units=store.count(),
-        tiers=store.counts_by_tier(),
-        domains=store.domain_counts(),
+        total_units=await store.count(),
+        tiers=await store.counts_by_tier(),
+        domains=await store.domain_counts(),
     )
 
 

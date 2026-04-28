@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from .auth import get_current_user
 from .deps import get_store
-from .store import RemoteStore
+from .store import Store
 
 
 class ReviewItem(BaseModel):
@@ -85,11 +85,11 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 
 @router.get("/queue")
-def review_queue(
+async def review_queue(
     limit: int = 20,
     offset: int = 0,
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewQueueResponse:
     """Return pending KUs for review.
 
@@ -97,13 +97,13 @@ def review_queue(
         limit: Maximum number of items to return.
         offset: Number of items to skip.
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         A paginated list of pending knowledge units with review metadata.
     """
-    items = store.pending_queue(limit=limit, offset=offset)
-    total = store.pending_count()
+    items = await store.pending_queue(limit=limit, offset=offset)
+    total = await store.pending_count()
     return ReviewQueueResponse(
         items=[
             ReviewItem(
@@ -121,17 +121,17 @@ def review_queue(
 
 
 @router.post("/{unit_id}/approve")
-def approve_unit(
+async def approve_unit(
     unit_id: str,
     username: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewDecisionResponse:
     """Approve a pending KU.
 
     Args:
         unit_id: The knowledge unit identifier.
         username: The authenticated reviewer's username.
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         The updated review decision with status and reviewer details.
@@ -140,29 +140,29 @@ def approve_unit(
         HTTPException: With status 404 if the unit does not exist.
         HTTPException: With status 409 if the unit has already been reviewed.
     """
-    status = store.get_review_status(unit_id)
+    status = await store.get_review_status(unit_id)
     if status is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     if status["status"] != "pending":
         raise HTTPException(status_code=409, detail=f"Knowledge unit already {status['status']}")
-    store.set_review_status(unit_id, "approved", username)
-    updated = store.get_review_status(unit_id)
+    await store.set_review_status(unit_id, "approved", username)
+    updated = await store.get_review_status(unit_id)
     assert updated is not None  # Unit exists; we just wrote to it.
     return _build_decision(unit_id, updated)
 
 
 @router.post("/{unit_id}/reject")
-def reject_unit(
+async def reject_unit(
     unit_id: str,
     username: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewDecisionResponse:
     """Reject a pending KU.
 
     Args:
         unit_id: The knowledge unit identifier.
         username: The authenticated reviewer's username.
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         The updated review decision with status and reviewer details.
@@ -171,57 +171,57 @@ def reject_unit(
         HTTPException: With status 404 if the unit does not exist.
         HTTPException: With status 409 if the unit has already been reviewed.
     """
-    status = store.get_review_status(unit_id)
+    status = await store.get_review_status(unit_id)
     if status is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
     if status["status"] != "pending":
         raise HTTPException(status_code=409, detail=f"Knowledge unit already {status['status']}")
-    store.set_review_status(unit_id, "rejected", username)
-    updated = store.get_review_status(unit_id)
+    await store.set_review_status(unit_id, "rejected", username)
+    updated = await store.get_review_status(unit_id)
     assert updated is not None  # Unit exists; we just wrote to it.
     return _build_decision(unit_id, updated)
 
 
 @router.get("/stats")
-def review_stats(
+async def review_stats(
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewStatsResponse:
     """Return dashboard metrics.
 
     Args:
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         Aggregated counts by status, domain distribution, confidence
         distribution, recent activity, and daily trend data.
     """
-    counts = store.counts_by_status()
+    counts = await store.counts_by_status()
     return ReviewStatsResponse(
         counts={
             "pending": counts.get("pending", 0),
             "approved": counts.get("approved", 0),
             "rejected": counts.get("rejected", 0),
         },
-        domains=store.domain_counts(),
-        confidence_distribution=store.confidence_distribution(),
-        recent_activity=store.recent_activity(),
+        domains=await store.domain_counts(),
+        confidence_distribution=await store.confidence_distribution(),
+        recent_activity=await store.recent_activity(),
         trends=TrendsResponse(
-            daily=[DailyCount(**d) for d in store.daily_counts()],
+            daily=[DailyCount(**d) for d in await store.daily_counts()],
         ),
     )
 
 
 @router.get("/units")
-def list_units(
+async def list_units(
     domain: str | None = None,
     confidence_min: float | None = None,
     confidence_max: float | None = None,
     status: str | None = None,
     limit: int = 100,
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> list[ReviewItem]:
     """Return KUs filtered by domain, confidence range, or status.
 
@@ -233,12 +233,12 @@ def list_units(
         status: Optional review status (e.g. "approved", "rejected").
         limit: Maximum number of results to return.
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         List of knowledge units with review metadata.
     """
-    items = store.list_units(
+    items = await store.list_units(
         domain=domain,
         confidence_min=confidence_min,
         confidence_max=confidence_max,
@@ -257,17 +257,17 @@ def list_units(
 
 
 @router.get("/{unit_id}")
-def get_unit(
+async def get_unit(
     unit_id: str,
     _user: str = Depends(get_current_user),
-    store: RemoteStore = Depends(get_store),
+    store: Store = Depends(get_store),
 ) -> ReviewItem:
     """Return a single knowledge unit with its review metadata.
 
     Args:
         unit_id: The knowledge unit identifier.
         _user: The authenticated user (unused, enforces auth).
-        store: The remote store dependency.
+        store: The store dependency.
 
     Returns:
         The knowledge unit with review status, reviewer, and timestamp.
@@ -275,10 +275,10 @@ def get_unit(
     Raises:
         HTTPException: With status 404 if the unit does not exist.
     """
-    ku = store.get_any(unit_id)
+    ku = await store.get_any(unit_id)
     if ku is None:
         raise HTTPException(status_code=404, detail="Knowledge unit not found")
-    review = store.get_review_status(unit_id)
+    review = await store.get_review_status(unit_id)
     assert review is not None  # Unit exists; get_any just returned it.
     return ReviewItem(
         knowledge_unit=ku,
