@@ -82,12 +82,15 @@ async def test_threadpool_shim_runs_off_event_loop(db_path: Path) -> None:
         await store.close()
 
 
-async def test_schema_visible_through_store_engine(db_path: Path) -> None:
-    """Smoke check that the store can see the Alembic-created schema.
+async def test_alembic_schema_reachable_from_store_engine(db_path: Path) -> None:
+    """Fast-fail check that the migration runner produced a usable schema.
 
-    ``SqliteStore`` no longer creates schema itself; this confirms the
-    engine the store opens against an already-migrated DB resolves the
-    expected production tables.
+    Every other test in this file would crash deep inside a store method
+    with ``OperationalError: no such table`` if the migration runner
+    regressed, which buries the actual failure. This test fails crisply
+    at the boundary instead — "the engine the store opens does not see
+    the expected production tables" — and is the cheapest place to
+    notice the dependency on Alembic broke.
     """
     store = SqliteStore(db_path=db_path)
     try:

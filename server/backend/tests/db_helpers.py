@@ -27,64 +27,62 @@ def init_test_db(db: Path) -> None:
     run_migrations(sqlite_url(db))
 
 
-# Historical pre-Alembic schema, reproduced here so the
-# ``TestExistingPreAlembicDatabase`` migration test can synthesise a
-# legacy production database without depending on the deleted
-# ``cq_server.tables`` module. This is the union of the old
-# ``_SCHEMA_SQL`` + ``_REVIEW_COLUMN_STATEMENTS`` + ``USERS_TABLE_SQL`` +
-# ``API_KEYS_TABLE_SQL`` end-state. **Do not change** — it must stay
-# byte-for-byte equivalent to what production DBs had before the
-# baseline migration stamped them.
-_PRE_ALEMBIC_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS knowledge_units (
-    id TEXT PRIMARY KEY,
-    data TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS knowledge_unit_domains (
-    unit_id TEXT NOT NULL,
-    domain TEXT NOT NULL,
-    FOREIGN KEY (unit_id) REFERENCES knowledge_units(id) ON DELETE CASCADE,
-    PRIMARY KEY (unit_id, domain)
-);
-
-CREATE INDEX IF NOT EXISTS idx_domains_domain
-    ON knowledge_unit_domains(domain);
-"""
-
-_PRE_ALEMBIC_REVIEW_COLUMN_STATEMENTS = (
+# Historical pre-Alembic schema, reproduced here as one frozen artifact
+# so ``TestExistingPreAlembicDatabase`` can synthesise a legacy
+# production DB without depending on the deleted runtime DDL. **Do not
+# split into reusable building blocks** — the whole point is that this
+# is one immutable snapshot of the pre-Alembic schema (the union of
+# what ``_ensure_schema`` + ``ensure_review_columns`` +
+# ``ensure_users_table`` + ``ensure_api_keys_table`` used to emit, in
+# that order). Anything that wants to reuse a fragment of this should
+# instead initialise via ``init_test_db`` (Alembic owns the schema
+# now).
+_PRE_ALEMBIC_STATEMENTS: tuple[str, ...] = (
+    """
+    CREATE TABLE IF NOT EXISTS knowledge_units (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS knowledge_unit_domains (
+        unit_id TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        FOREIGN KEY (unit_id) REFERENCES knowledge_units(id) ON DELETE CASCADE,
+        PRIMARY KEY (unit_id, domain)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_domains_domain ON knowledge_unit_domains(domain)",
     "ALTER TABLE knowledge_units ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'",
     "ALTER TABLE knowledge_units ADD COLUMN reviewed_by TEXT",
     "ALTER TABLE knowledge_units ADD COLUMN reviewed_at TEXT",
     "ALTER TABLE knowledge_units ADD COLUMN created_at TEXT",
     "ALTER TABLE knowledge_units ADD COLUMN tier TEXT NOT NULL DEFAULT 'private'",
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        labels TEXT NOT NULL DEFAULT '[]',
+        key_prefix TEXT NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        ttl TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_used_at TEXT,
+        revoked_at TEXT
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id)",
 )
-
-_PRE_ALEMBIC_USERS_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-"""
-
-_PRE_ALEMBIC_API_KEYS_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS api_keys (
-    id TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    labels TEXT NOT NULL DEFAULT '[]',
-    key_prefix TEXT NOT NULL,
-    key_hash TEXT NOT NULL UNIQUE,
-    ttl TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    last_used_at TEXT,
-    revoked_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
-"""
 
 
 def build_pre_alembic_schema(db: Path) -> None:
@@ -99,11 +97,8 @@ def build_pre_alembic_schema(db: Path) -> None:
     conn = sqlite3.connect(str(db))
     try:
         conn.execute("PRAGMA foreign_keys = ON")
-        conn.executescript(_PRE_ALEMBIC_SCHEMA_SQL)
-        for stmt in _PRE_ALEMBIC_REVIEW_COLUMN_STATEMENTS:
+        for stmt in _PRE_ALEMBIC_STATEMENTS:
             conn.execute(stmt)
-        conn.executescript(_PRE_ALEMBIC_USERS_TABLE_SQL)
-        conn.executescript(_PRE_ALEMBIC_API_KEYS_TABLE_SQL)
         conn.commit()
     finally:
         conn.close()
