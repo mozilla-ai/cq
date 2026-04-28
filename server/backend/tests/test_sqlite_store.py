@@ -113,3 +113,18 @@ async def test_update_and_review_roundtrip(db_path: Path) -> None:
         assert retrieved.insight.summary == "new"
     finally:
         await store.close()
+
+
+async def test_query_filters_and_ranks(db_path: Path) -> None:
+    store = SqliteStore(db_path=db_path)
+    try:
+        a = _make_unit("auth")
+        b = _make_unit("auth")
+        await store.insert(a)
+        await store.insert(b)
+        await store.set_review_status(a.id, "approved", "r")
+        await store.set_review_status(b.id, "approved", "r")
+        results = await store.query(["auth"])
+        assert {u.id for u in results} == {a.id, b.id}
+    finally:
+        await store.close()

@@ -16,6 +16,7 @@ from cq.models import KnowledgeUnit
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 
+from ..scoring import calculate_relevance
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
 from ._normalize import normalize_domains
 from ._queries import (
@@ -24,6 +25,7 @@ from ._queries import (
     INSERT_UNIT_DOMAIN,
     SELECT_APPROVED_BY_ID,
     SELECT_BY_ID,
+    SELECT_QUERY_UNITS,
     SELECT_REVIEW_STATUS_BY_ID,
     UPDATE_REVIEW_STATUS,
     UPDATE_UNIT_DATA,
@@ -203,7 +205,49 @@ class SqliteStore:
         pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
-        raise NotImplementedError
+        return await self._run_sync(
+            self._query_sync,
+            domains,
+            languages=languages,
+            frameworks=frameworks,
+            pattern=pattern,
+            limit=limit,
+        )
+
+    def _query_sync(
+        self,
+        domains: list[str],
+        *,
+        languages: list[str] | None,
+        frameworks: list[str] | None,
+        pattern: str,
+        limit: int,
+    ) -> list[KnowledgeUnit]:
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        normalized = normalize_domains(domains)
+        if not normalized:
+            return []
+        with self._engine.connect() as conn:
+            rows = conn.execute(SELECT_QUERY_UNITS, {"domains": normalized}).fetchall()
+        units = [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
+        scored = [
+            (
+                calculate_relevance(
+                    u,
+                    normalized,
+                    query_languages=languages,
+                    query_frameworks=frameworks,
+                    query_pattern=pattern,
+                )
+                * u.evidence.confidence,
+                u.id,
+                u,
+            )
+            for u in units
+        ]
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [u for _, _, u in scored[:limit]]
 
     async def count(self) -> int:
         raise NotImplementedError
