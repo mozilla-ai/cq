@@ -436,9 +436,8 @@ class TestDatabaseUrlBoot:
         monkeypatch.setenv("CQ_JWT_SECRET", "test-secret-please-ignore-len")
         monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
         monkeypatch.setenv("CQ_DATABASE_URL", "postgresql+psycopg://u:p@h/d")
-        with pytest.raises(NotImplementedError, match="#311"):
-            with TestClient(app):
-                pass
+        with pytest.raises(NotImplementedError, match="not implemented"), TestClient(app):
+            pass
 
 
 class TestApiKeyEnforcement:

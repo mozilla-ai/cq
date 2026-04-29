@@ -88,7 +88,15 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # migration 0001 instead of being stamped at baseline.
     database_url = resolve_database_url()
     new_store = create_store(database_url)
-    run_migrations(database_url)
+    # Close ``new_store`` if migrations fail — otherwise its engine and
+    # SQLite file handle leak across in-process lifespan re-entries
+    # (tests, restart loops). The post-yield ``finally`` only covers
+    # successful boots.
+    try:
+        run_migrations(database_url)
+    except BaseException:
+        await new_store.close()
+        raise
     # Assign the global only after both startup steps succeed, so a
     # failure mid-boot doesn't leave a half-initialised ``_store``
     # leaking from the previous lifespan (matters when tests re-enter

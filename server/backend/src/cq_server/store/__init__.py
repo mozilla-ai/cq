@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from ._normalize import normalize_domains
 from ._protocol import Store
@@ -32,7 +33,10 @@ def create_store(database_url: str) -> Store:
     self-explanatory. Anything else raises ``ValueError`` with the
     offending driver string.
     """
-    parsed = make_url(database_url)
+    try:
+        parsed = make_url(database_url)
+    except ArgumentError as exc:
+        raise ValueError(f"Invalid CQ_DATABASE_URL: {database_url!r}") from exc
     driver = parsed.drivername
     if driver.startswith("sqlite"):
         if not parsed.database:

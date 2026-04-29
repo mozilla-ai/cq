@@ -57,19 +57,24 @@ _ALEMBIC_INI = _find_alembic_ini()
 def _ensure_sqlite_parent_dir(url: str) -> None:
     """Create the parent directory of a sqlite file URL if missing.
 
-    The migration runs before the store is constructed, so directory
-    creation has to happen here too — ``SqliteStore.__init__`` also
-    mkdir's the parent, but Alembic would crash first if the path
-    didn't exist. No-op for non-sqlite URLs.
+    Defensive coverage for callers that invoke ``run_migrations(url)``
+    standalone (CLI, ops scripts, ad-hoc tests) without first
+    constructing a ``SqliteStore``. The lifespan path goes through the
+    store first today, and ``SqliteStore.__init__`` mkdir's the parent
+    itself, but keeping the mkdir here means standalone migration runs
+    don't have to know about that. No-op for non-sqlite URLs.
     """
-    if not url.startswith("sqlite:"):
-        return
     # Use SQLAlchemy's URL parser rather than urlparse: it correctly
     # round-trips both absolute (`sqlite:////abs/path`) and relative
     # (`sqlite:///./rel.db`) SQLite URLs to a usable filesystem path,
     # whereas `urlparse(...).path` prefixes a stray `/` that turns
-    # `./data/dev.db` into the absolute `/data/dev.db`.
-    database = make_url(url).database
+    # `./data/dev.db` into the absolute `/data/dev.db`. Parsing the URL
+    # also lets us catch driver-suffixed schemes like
+    # ``sqlite+pysqlite://`` that a naive ``startswith("sqlite:")`` miss.
+    parsed = make_url(url)
+    if not parsed.drivername.startswith("sqlite"):
+        return
+    database = parsed.database
     if not database or database == ":memory:":
         return
     Path(database).parent.mkdir(parents=True, exist_ok=True)
