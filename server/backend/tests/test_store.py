@@ -16,8 +16,8 @@ from cq.models import (
     Tier,
     create_knowledge_unit,
 )
+from cq.scoring import apply_confirmation, apply_flag
 
-from cq_server.scoring import apply_confirmation, apply_flag
 from cq_server.store import SqliteStore
 
 

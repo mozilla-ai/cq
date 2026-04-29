@@ -15,12 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from cq.models import KnowledgeUnit
+from cq.scoring import calculate_relevance
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from .. import semsearch
-from ..scoring import calculate_relevance
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
 from ._normalize import normalize_domains
 from ._queries import (

@@ -15,6 +15,7 @@ from cq.models import (
     Tier,
     create_knowledge_unit,
 )
+from cq.scoring import apply_confirmation, apply_flag
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -25,7 +26,6 @@ from .db_url import resolve_sqlite_db_path
 from .deps import API_KEY_PEPPER_ENV, require_api_key
 from .migrations import run_migrations
 from .review import router as review_router
-from .scoring import apply_confirmation, apply_flag
 from .store import SqliteStore, Store, normalize_domains
 
 _STATIC_DIR = Path(__file__).parent / "static"
