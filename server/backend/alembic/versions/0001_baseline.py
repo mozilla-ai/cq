@@ -4,22 +4,25 @@ Revision ID: 0001
 Revises:
 Create Date: 2026-04-25
 
-Reverse-engineered from the current production SQLite schema — i.e.
-the union of:
+Reverse-engineered from the production SQLite schema as it stood
+before Alembic took over — i.e. the union of the historical
+``_ensure_schema()`` + ``ensure_review_columns()`` +
+``ensure_users_table()`` + ``ensure_api_keys_table()`` startup path
+that #310 has since deleted.
 
-  - ``cq_server.store._SCHEMA_SQL`` (knowledge_units, knowledge_unit_domains,
-    idx_domains_domain).
-  - ``cq_server.tables._REVIEW_COLUMN_STATEMENTS`` (the trailing ALTER
-    TABLE … ADD COLUMN suite that grew the review/tier columns).
-  - ``cq_server.tables.USERS_TABLE_SQL`` and ``API_KEYS_TABLE_SQL``.
+The exact pre-Alembic SQL is preserved verbatim in
+``tests/db_helpers.py`` (the ``_PRE_ALEMBIC_*`` constants) and is the
+oracle for ``TestExistingPreAlembicDatabase``. If this migration's
+output drifts from those constants, that test fails — keep them in
+sync, with this migration as the source of truth going forward.
 
 Existing pre-Alembic databases are stamped at this revision in
 ``cq_server.migrations.run_migrations`` rather than upgraded into it,
 so the column order and constraints below must match what's already
-on disk in production. **Do not edit this migration after merge** —
-production DBs will be stamped at this revision and any change here
-will diverge from what's actually on disk. Add a new migration file
-instead.
+on disk in production. **Do not edit this migration's ``upgrade()``
+body after merge** — production DBs will be stamped at this revision
+and any structural change here will diverge from what's actually on
+disk. Add a new migration file instead.
 """
 
 from collections.abc import Sequence

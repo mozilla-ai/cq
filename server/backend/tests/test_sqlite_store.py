@@ -15,10 +15,15 @@ from cq.models import Context, Insight, KnowledgeUnit, Tier, create_knowledge_un
 
 from cq_server.store import SqliteStore, Store
 
+from .db_helpers import init_test_db
+
 
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
-    return tmp_path / "cq.db"
+    """Path to a fresh, Alembic-initialised SQLite DB."""
+    db = tmp_path / "cq.db"
+    init_test_db(db)
+    return db
 
 
 def _make_unit(domain: str = "auth") -> KnowledgeUnit:
@@ -77,7 +82,16 @@ async def test_threadpool_shim_runs_off_event_loop(db_path: Path) -> None:
         await store.close()
 
 
-async def test_schema_present_after_construct(db_path: Path) -> None:
+async def test_alembic_schema_reachable_from_store_engine(db_path: Path) -> None:
+    """Fast-fail check that the migration runner produced a usable schema.
+
+    Every other test in this file would crash deep inside a store method
+    with ``OperationalError: no such table`` if the migration runner
+    regressed, which buries the actual failure. This test fails crisply
+    at the boundary instead — "the engine the store opens does not see
+    the expected production tables" — and is the cheapest place to
+    notice the dependency on Alembic broke.
+    """
     store = SqliteStore(db_path=db_path)
     try:
         with store._engine.connect() as conn:

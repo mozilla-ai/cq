@@ -1,13 +1,10 @@
 """Tests for the shared SQLAlchemy Core query helpers in ``store._queries``.
 
-Each test binds the helper to an on-disk SQLite database that is also
-managed by the existing ``SqliteStore``. ``SqliteStore`` sets up the
-schema via its ``_ensure_schema()`` path and is used as the parity oracle:
-results from the helpers must match whatever ``SqliteStore`` produces for
-the same fixture data.
-
-This avoids redeclaring the schema in test code and lets the issue land
-without a dependency on the baseline Alembic migration (#305).
+Each test binds the helper to an on-disk SQLite database whose schema
+is built by Alembic (via ``init_test_db``) and shared with a
+``SqliteStore``. The store acts as the parity oracle: results from the
+helpers must match whatever ``SqliteStore`` produces for the same
+fixture data.
 """
 
 from __future__ import annotations
@@ -28,11 +25,14 @@ from sqlalchemy.exc import IntegrityError
 from cq_server.store import SqliteStore
 from cq_server.store import _queries as q
 
+from .db_helpers import init_test_db
+
 
 @pytest_asyncio.fixture()
 async def db(tmp_path: Path) -> AsyncIterator[tuple[SqliteStore, Engine]]:
     """Shared on-disk SQLite database with both a SqliteStore and an SA engine."""
     db_path = tmp_path / "test.db"
+    init_test_db(db_path)
     store = SqliteStore(db_path=db_path)
     engine = create_engine(f"sqlite:///{db_path}")
     try:

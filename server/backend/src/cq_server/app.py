@@ -79,13 +79,9 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # using — see ``resolve_sqlite_db_path``. This drops once #309
     # wires ``SqliteStore`` to ``CQ_DATABASE_URL`` directly.
     database_url, db_path = resolve_sqlite_db_path()
-    # Bring the database under Alembic management before opening the
-    # store. Three cases handled: fresh DB → upgrade head; pre-Alembic
-    # DB → stamp baseline + upgrade head; already-stamped DB → upgrade
-    # head (no-op when no pending revisions). The legacy
-    # ``_ensure_schema()`` inside SqliteStore still runs after this;
-    # both paths are idempotent and the legacy one will be removed in
-    # #310 once this PR has rolled out everywhere.
+    # Alembic owns the schema. Three cases: fresh DB → upgrade head;
+    # pre-Alembic DB → stamp baseline + upgrade head; already-stamped
+    # DB → upgrade head (no-op when no pending revisions).
     run_migrations(database_url)
     _store = SqliteStore(db_path=db_path)
     app_instance.state.store = _store
