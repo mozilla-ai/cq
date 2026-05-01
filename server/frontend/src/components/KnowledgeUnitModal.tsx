@@ -60,7 +60,8 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <button
         type="button"
-        aria-label="Close dialog"
+        tabIndex={-1}
+        aria-hidden="true"
         onClick={onClose}
         className="absolute inset-0 bg-black/40 cursor-default"
       />
