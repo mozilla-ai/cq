@@ -1,182 +1,190 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../api";
-import type { ApiKeyPublic, CreatedApiKey } from "../types";
-import { secondsUntil, timeAgo, timeUntil } from "../utils";
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { api } from "../api"
+import type { ApiKeyPublic, CreatedApiKey } from "../types"
+import { secondsUntil, timeAgo, timeUntil } from "../utils"
 
-const TTL_PATTERN = /^\d+[smhd]$/;
-const TTL_SUGGESTIONS = ["30d", "90d", "365d", "1h", "15m"];
+const TTL_PATTERN = /^\d+[smhd]$/
+const TTL_SUGGESTIONS = ["30d", "90d", "365d", "1h", "15m"]
 
-const DAY_SECONDS = 24 * 60 * 60;
-const WEEK_SECONDS = 7 * DAY_SECONDS;
-const MAX_ACTIVE_KEYS = 20;
+const DAY_SECONDS = 24 * 60 * 60
+const WEEK_SECONDS = 7 * DAY_SECONDS
+const MAX_ACTIVE_KEYS = 20
 
-type KeyFilter = "all" | "active" | "revoked";
+type KeyFilter = "all" | "active" | "revoked"
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "never";
-  return new Date(iso).toLocaleString();
+  if (!iso) return "never"
+  return new Date(iso).toLocaleString()
 }
 
 function statusLabel(key: ApiKeyPublic): string {
-  if (key.revoked_at) return "Revoked";
-  if (key.is_expired) return "Expired";
-  return "Active";
+  if (key.revoked_at) return "Revoked"
+  if (key.is_expired) return "Expired"
+  return "Active"
 }
 
 function statusBadgeClasses(key: ApiKeyPublic): string {
-  if (key.revoked_at) return "bg-red-100 text-red-700";
-  if (key.is_expired) return "bg-gray-200 text-gray-600";
-  return "bg-green-100 text-green-700";
+  if (key.revoked_at) return "bg-red-100 text-red-700"
+  if (key.is_expired) return "bg-gray-200 text-gray-600"
+  return "bg-green-100 text-green-700"
 }
 
 function expiryUrgencyClasses(key: ApiKeyPublic): string {
-  if (key.revoked_at || key.is_expired) return "bg-gray-100 text-gray-500";
-  const remaining = secondsUntil(key.expires_at);
-  if (remaining <= DAY_SECONDS) return "bg-red-100 text-red-700";
-  if (remaining <= WEEK_SECONDS) return "bg-amber-100 text-amber-700";
-  return "bg-green-100 text-green-700";
+  if (key.revoked_at || key.is_expired) return "bg-gray-100 text-gray-500"
+  const remaining = secondsUntil(key.expires_at)
+  if (remaining <= DAY_SECONDS) return "bg-red-100 text-red-700"
+  if (remaining <= WEEK_SECONDS) return "bg-amber-100 text-amber-700"
+  return "bg-green-100 text-green-700"
 }
 
 function expiryLabel(key: ApiKeyPublic): string {
-  if (key.revoked_at) return "revoked";
-  if (key.is_expired) return "expired";
-  return `${timeUntil(key.expires_at)} left`;
+  if (key.revoked_at) return "revoked"
+  if (key.is_expired) return "expired"
+  return `${timeUntil(key.expires_at)} left`
 }
 
 function expiryTooltip(key: ApiKeyPublic): string {
-  if (key.revoked_at) return `Revoked ${formatDate(key.revoked_at)}`;
-  if (key.is_expired) return `Expired ${formatDate(key.expires_at)}`;
-  return `Expires ${formatDate(key.expires_at)}`;
+  if (key.revoked_at) return `Revoked ${formatDate(key.revoked_at)}`
+  if (key.is_expired) return `Expired ${formatDate(key.expires_at)}`
+  return `Expires ${formatDate(key.expires_at)}`
 }
 
 function parseLabelsInput(raw: string): string[] {
   return raw
     .split(",")
     .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .filter((s) => s.length > 0)
 }
 
 function matchesFilter(key: ApiKeyPublic, filter: KeyFilter): boolean {
-  if (filter === "all") return true;
-  if (filter === "revoked") return key.revoked_at !== null;
-  return key.is_active;
+  if (filter === "all") return true
+  if (filter === "revoked") return key.revoked_at !== null
+  return key.is_active
 }
 
 function matchesSearch(key: ApiKeyPublic, query: string): boolean {
-  if (query === "") return true;
-  const needle = query.toLowerCase();
+  if (query === "") return true
+  const needle = query.toLowerCase()
   return (
     key.name.toLowerCase().includes(needle) ||
     key.labels.some((label) => label.toLowerCase().includes(needle))
-  );
+  )
 }
 
 interface RevokePrompt {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
 export function ApiKeysPage() {
-  const [keys, setKeys] = useState<ApiKeyPublic[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [ttl, setTtl] = useState("90d");
-  const [labelsInput, setLabelsInput] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [revokePrompt, setRevokePrompt] = useState<RevokePrompt | null>(null);
-  const [revoking, setRevoking] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState<KeyFilter>("all");
-  const [search, setSearch] = useState("");
+  const [keys, setKeys] = useState<ApiKeyPublic[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [name, setName] = useState("")
+  const [ttl, setTtl] = useState("90d")
+  const [labelsInput, setLabelsInput] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [revokePrompt, setRevokePrompt] = useState<RevokePrompt | null>(null)
+  const [revoking, setRevoking] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [filter, setFilter] = useState<KeyFilter>("all")
+  const [search, setSearch] = useState("")
 
-  const activeCount = useMemo(() => keys.filter((k) => k.is_active).length, [keys]);
+  const activeCount = useMemo(
+    () => keys.filter((k) => k.is_active).length,
+    [keys],
+  )
   const revokedCount = useMemo(
     () => keys.filter((k) => k.revoked_at !== null).length,
     [keys],
-  );
+  )
   const filteredKeys = useMemo(
-    () => keys.filter((k) => matchesFilter(k, filter) && matchesSearch(k, search)),
+    () =>
+      keys.filter((k) => matchesFilter(k, filter) && matchesSearch(k, search)),
     [keys, filter, search],
-  );
-  const atCap = activeCount >= MAX_ACTIVE_KEYS;
+  )
+  const atCap = activeCount >= MAX_ACTIVE_KEYS
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev)
       if (next.has(id)) {
-        next.delete(id);
+        next.delete(id)
       } else {
-        next.add(id);
+        next.add(id)
       }
-      return next;
-    });
+      return next
+    })
   }
 
-  const ttlIsValid = TTL_PATTERN.test(ttl);
+  const ttlIsValid = TTL_PATTERN.test(ttl)
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      const response = await api.listApiKeys();
-      setKeys(response.data);
-      setError(null);
+      const response = await api.listApiKeys()
+      setKeys(response.data)
+      setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load API keys");
+      setError(err instanceof Error ? err.message : "Failed to load API keys")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    refresh()
+  }, [refresh])
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+    event.preventDefault()
     if (!ttlIsValid) {
-      setError(`TTL must match ${TTL_PATTERN.source} (for example 90d)`);
-      return;
+      setError(`TTL must match ${TTL_PATTERN.source} (for example 90d)`)
+      return
     }
-    setCreating(true);
-    setError(null);
+    setCreating(true)
+    setError(null)
     try {
-      const created = await api.createApiKey(name.trim(), ttl, parseLabelsInput(labelsInput));
-      setCreatedKey(created);
-      setCopied(false);
-      setAcknowledged(false);
-      setName("");
-      setTtl("90d");
-      setLabelsInput("");
-      await refresh();
+      const created = await api.createApiKey(
+        name.trim(),
+        ttl,
+        parseLabelsInput(labelsInput),
+      )
+      setCreatedKey(created)
+      setCopied(false)
+      setAcknowledged(false)
+      setName("")
+      setTtl("90d")
+      setLabelsInput("")
+      await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create key");
+      setError(err instanceof Error ? err.message : "Failed to create key")
     } finally {
-      setCreating(false);
+      setCreating(false)
     }
   }
 
   async function confirmRevoke() {
-    if (!revokePrompt) return;
-    setRevoking(true);
+    if (!revokePrompt) return
+    setRevoking(true)
     try {
-      await api.revokeApiKey(revokePrompt.id);
-      setRevokePrompt(null);
-      await refresh();
+      await api.revokeApiKey(revokePrompt.id)
+      setRevokePrompt(null)
+      await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revoke key");
+      setError(err instanceof Error ? err.message : "Failed to revoke key")
     } finally {
-      setRevoking(false);
+      setRevoking(false)
     }
   }
 
   async function copyToken() {
-    if (!createdKey) return;
-    await navigator.clipboard.writeText(createdKey.token);
-    setCopied(true);
+    if (!createdKey) return
+    await navigator.clipboard.writeText(createdKey.token)
+    setCopied(true)
   }
 
   return (
@@ -184,14 +192,18 @@ export function ApiKeysPage() {
       <section>
         <h1 className="text-2xl font-semibold text-gray-900">API Keys</h1>
         <p className="mt-2 text-sm text-gray-600">
-          API keys let agents act on your behalf. Give each key a name and an expiry; attach optional
-          labels to group or filter keys later. The full key is shown only once at creation.
+          API keys let agents act on your behalf. Give each key a name and an
+          expiry; attach optional labels to group or filter keys later. The full
+          key is shown only once at creation.
         </p>
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h2 className="text-lg font-medium text-gray-900">Create a new key</h2>
-        <form onSubmit={handleCreate} className="mt-4 grid gap-4 md:grid-cols-2">
+        <form
+          onSubmit={handleCreate}
+          className="mt-4 grid gap-4 md:grid-cols-2"
+        >
           <label className="flex flex-col text-sm">
             <span className="text-gray-700">Name</span>
             <input
@@ -222,7 +234,8 @@ export function ApiKeysPage() {
               ))}
             </datalist>
             <span className="mt-1 text-xs text-gray-500">
-              e.g. <code>30s</code>, <code>15m</code>, <code>2h</code>, <code>90d</code> (max 365d).
+              e.g. <code>30s</code>, <code>15m</code>, <code>2h</code>,{" "}
+              <code>90d</code> (max 365d).
             </span>
           </label>
           <label className="flex flex-col text-sm md:col-span-2">
@@ -245,7 +258,8 @@ export function ApiKeysPage() {
             </button>
             {atCap && (
               <p className="mt-2 text-xs text-amber-700 md:col-span-2">
-                You have the maximum of {MAX_ACTIVE_KEYS} active keys. Revoke one to create another.
+                You have the maximum of {MAX_ACTIVE_KEYS} active keys. Revoke
+                one to create another.
               </p>
             )}
           </div>
@@ -261,8 +275,7 @@ export function ApiKeysPage() {
               {activeCount} of {MAX_ACTIVE_KEYS} active
             </span>
           </h2>
-          <div
-            role="group"
+          <fieldset
             aria-label="Filter keys"
             className="inline-flex shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white text-sm"
           >
@@ -287,7 +300,7 @@ export function ApiKeysPage() {
                 {label}
               </button>
             ))}
-          </div>
+          </fieldset>
           <input
             type="search"
             value={search}
@@ -302,11 +315,13 @@ export function ApiKeysPage() {
         ) : keys.length === 0 ? (
           <p className="mt-4 text-sm text-gray-500">No API keys yet.</p>
         ) : filteredKeys.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">No keys match the current filter.</p>
+          <p className="mt-4 text-sm text-gray-500">
+            No keys match the current filter.
+          </p>
         ) : (
           <ul className="mt-4 space-y-3">
             {filteredKeys.map((key) => {
-              const isOpen = expanded.has(key.id);
+              const isOpen = expanded.has(key.id)
               return (
                 <li
                   key={key.id}
@@ -376,7 +391,9 @@ export function ApiKeysPage() {
                     >
                       {key.labels.length > 0 && (
                         <div className="mb-4">
-                          <div className="text-xs uppercase tracking-wide text-gray-400">Labels</div>
+                          <div className="text-xs uppercase tracking-wide text-gray-400">
+                            Labels
+                          </div>
                           <div className="mt-1 flex flex-wrap gap-1">
                             {key.labels.map((label) => (
                               <span
@@ -391,24 +408,39 @@ export function ApiKeysPage() {
                       )}
                       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-400">TTL</dt>
-                          <dd className="mt-0.5 font-mono text-gray-800">{key.ttl}</dd>
+                          <dt className="text-xs uppercase tracking-wide text-gray-400">
+                            TTL
+                          </dt>
+                          <dd className="mt-0.5 font-mono text-gray-800">
+                            {key.ttl}
+                          </dd>
                         </div>
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-400">Created</dt>
-                          <dd className="mt-0.5 text-gray-700">{timeAgo(key.created_at)}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-400">Last used</dt>
+                          <dt className="text-xs uppercase tracking-wide text-gray-400">
+                            Created
+                          </dt>
                           <dd className="mt-0.5 text-gray-700">
-                            {key.last_used_at ? timeAgo(key.last_used_at) : "never"}
+                            {timeAgo(key.created_at)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-wide text-gray-400">
+                            Last used
+                          </dt>
+                          <dd className="mt-0.5 text-gray-700">
+                            {key.last_used_at
+                              ? timeAgo(key.last_used_at)
+                              : "never"}
                           </dd>
                         </div>
                       </dl>
                       {key.is_active && (
                         <div className="mt-4 flex justify-end">
                           <button
-                            onClick={() => setRevokePrompt({ id: key.id, name: key.name })}
+                            type="button"
+                            onClick={() =>
+                              setRevokePrompt({ id: key.id, name: key.name })
+                            }
                             className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
                           >
                             <svg
@@ -430,7 +462,7 @@ export function ApiKeysPage() {
                     </div>
                   )}
                 </li>
-              );
+              )
             })}
           </ul>
         )}
@@ -444,15 +476,21 @@ export function ApiKeysPage() {
           className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
         >
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-            <h3 id="created-key-heading" className="text-lg font-semibold text-gray-900">
+            <h3
+              id="created-key-heading"
+              className="text-lg font-semibold text-gray-900"
+            >
               Your new API key
             </h3>
             <p className="mt-2 text-sm text-gray-600">
               Copy this token now. It will not be shown again.
             </p>
             <div className="mt-4 flex items-center gap-2 rounded-md bg-gray-100 p-3">
-              <code className="flex-1 break-all text-sm">{createdKey.token}</code>
+              <code className="flex-1 break-all text-sm">
+                {createdKey.token}
+              </code>
               <button
+                type="button"
                 onClick={copyToken}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
               >
@@ -469,6 +507,7 @@ export function ApiKeysPage() {
             </label>
             <div className="mt-4 flex justify-end">
               <button
+                type="button"
                 onClick={() => setCreatedKey(null)}
                 disabled={!acknowledged}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
@@ -488,14 +527,19 @@ export function ApiKeysPage() {
           className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
         >
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h3 id="revoke-key-heading" className="text-lg font-semibold text-gray-900">
+            <h3
+              id="revoke-key-heading"
+              className="text-lg font-semibold text-gray-900"
+            >
               Revoke &ldquo;{revokePrompt.name}&rdquo;?
             </h3>
             <p className="mt-2 text-sm text-gray-600">
-              Clients using this key will start receiving 401 responses immediately. This cannot be undone.
+              Clients using this key will start receiving 401 responses
+              immediately. This cannot be undone.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
+                type="button"
                 onClick={() => setRevokePrompt(null)}
                 disabled={revoking}
                 className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
@@ -503,6 +547,7 @@ export function ApiKeysPage() {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={confirmRevoke}
                 disabled={revoking}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
@@ -514,5 +559,5 @@ export function ApiKeysPage() {
         </div>
       )}
     </div>
-  );
+  )
 }
