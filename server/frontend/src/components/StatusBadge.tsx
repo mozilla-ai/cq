@@ -2,7 +2,7 @@ const STYLES: Record<string, string> = {
   proposed: "bg-amber-100 text-amber-800",
   approved: "bg-green-100 text-green-800",
   rejected: "bg-red-100 text-red-800",
-};
+}
 
 export function StatusBadge({ status }: { status: string }) {
   return (
@@ -11,5 +11,5 @@ export function StatusBadge({ status }: { status: string }) {
     >
       {status}
     </span>
-  );
+  )
 }

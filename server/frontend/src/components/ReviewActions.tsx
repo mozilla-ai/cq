@@ -1,19 +1,29 @@
-import type { Selection } from "../types";
+import type { Selection } from "../types"
 
 interface Props {
-  selection: Selection;
-  onSelect: (s: Selection) => void;
-  onConfirm: () => void;
-  disabled: boolean;
+  selection: Selection
+  onSelect: (s: Selection) => void
+  onConfirm: () => void
+  disabled: boolean
 }
 
-export function ReviewActions({ selection, onSelect, onConfirm, disabled }: Props) {
+export function ReviewActions({
+  selection,
+  onSelect,
+  onConfirm,
+  disabled,
+}: Props) {
   return (
     <div className="max-w-xl mx-auto mt-4 hidden pointer-fine:flex flex-col items-center gap-3">
       <div className="flex gap-3 justify-center">
         <button
+          type="button"
           onClick={() => {
-            if (selection === "reject") { onConfirm(); } else { onSelect("reject"); }
+            if (selection === "reject") {
+              onConfirm()
+            } else {
+              onSelect("reject")
+            }
           }}
           disabled={disabled}
           className={`px-8 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 disabled:opacity-50 ${
@@ -27,8 +37,13 @@ export function ReviewActions({ selection, onSelect, onConfirm, disabled }: Prop
           {selection === "reject" ? "Confirm Reject" : "\u2190 Reject"}
         </button>
         <button
+          type="button"
           onClick={() => {
-            if (selection === "skip") { onConfirm(); } else { onSelect("skip"); }
+            if (selection === "skip") {
+              onConfirm()
+            } else {
+              onSelect("skip")
+            }
           }}
           disabled={disabled}
           className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 disabled:opacity-50 ${
@@ -42,8 +57,13 @@ export function ReviewActions({ selection, onSelect, onConfirm, disabled }: Prop
           {selection === "skip" ? "Confirm Skip" : "\u2191\u2193 Skip"}
         </button>
         <button
+          type="button"
           onClick={() => {
-            if (selection === "approve") { onConfirm(); } else { onSelect("approve"); }
+            if (selection === "approve") {
+              onConfirm()
+            } else {
+              onSelect("approve")
+            }
           }}
           disabled={disabled}
           className={`px-8 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 disabled:opacity-50 ${
@@ -57,13 +77,15 @@ export function ReviewActions({ selection, onSelect, onConfirm, disabled }: Prop
           {selection === "approve" ? "Confirm Approve" : "Approve \u2192"}
         </button>
       </div>
-      <p className={`text-center text-xs ${
-        selection ? "text-gray-500 font-medium" : "text-gray-400"
-      }`}>
+      <p
+        className={`text-center text-xs ${
+          selection ? "text-gray-500 font-medium" : "text-gray-400"
+        }`}
+      >
         {selection
           ? "Click again or press Space/Enter to confirm \u00b7 Esc to cancel"
           : "Arrow keys to select \u00b7 Space/Enter to confirm"}
       </p>
     </div>
-  );
+  )
 }

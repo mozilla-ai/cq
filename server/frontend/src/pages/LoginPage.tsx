@@ -1,23 +1,23 @@
-import { useState, type FormEvent } from "react";
-import { useAuth } from "../auth";
+import { type FormEvent, useState } from "react"
+import { useAuth } from "../auth"
 
 export function LoginPage() {
-  const { login } = useAuth();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { login } = useAuth()
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
     try {
-      await login(username, password);
+      await login(username, password)
     } catch {
-      setError("Invalid credentials");
+      setError("Invalid credentials")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
@@ -62,5 +62,5 @@ export function LoginPage() {
         </button>
       </form>
     </div>
-  );
+  )
 }

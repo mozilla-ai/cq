@@ -20,7 +20,7 @@ flowchart TB
 
     subgraph mcp["Local MCP Server Process"]
         direction TB
-        server["cq MCP Server\nPython / FastMCP"]
+        server["cq MCP Server\nGo / mcp-go"]
         local_db[("Local Store\n~/.local/share/cq/local.db\nSQLite")]
         server --> local_db
     end
@@ -48,7 +48,7 @@ flowchart TB
 
 **Claude Code** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
 
-**MCP Server** is spawned by Claude Code via stdio. It runs FastMCP, exposes five tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
+**MCP Server** is spawned by Claude Code via stdio. It runs the Go CLI (`mcp-go`), exposes five tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
 
 **Docker Container** runs the Remote API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
 

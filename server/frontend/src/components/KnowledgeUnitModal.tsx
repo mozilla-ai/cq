@@ -1,80 +1,83 @@
-import { useEffect, useRef, useState } from "react";
-import { api, ApiError } from "../api";
-import { StatusBadge } from "./StatusBadge";
-import { DomainTags } from "./DomainTags";
-import { timeAgo } from "../utils";
-import type { ReviewItem } from "../types";
+import { useEffect, useRef, useState } from "react"
+import { ApiError, api } from "../api"
+import type { ReviewItem } from "../types"
+import { timeAgo } from "../utils"
+import { DomainTags } from "./DomainTags"
+import { StatusBadge } from "./StatusBadge"
 
 interface Props {
-  unitId: string;
-  onClose: () => void;
+  unitId: string
+  onClose: () => void
 }
 
 function confidenceColor(c: number): string {
-  if (c < 0.3) return "text-red-600";
-  if (c < 0.5) return "text-amber-600";
-  if (c < 0.7) return "text-yellow-500";
-  return "text-green-600";
+  if (c < 0.3) return "text-red-600"
+  if (c < 0.5) return "text-amber-600"
+  if (c < 0.7) return "text-yellow-500"
+  return "text-green-600"
 }
 
-const MODAL_TITLE_ID = "ku-modal-title";
+const MODAL_TITLE_ID = "ku-modal-title"
 
 export function KnowledgeUnitModal({ unitId, onClose }: Props) {
-  const [item, setItem] = useState<ReviewItem | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const [item, setItem] = useState<ReviewItem | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    let ignore = false;
+    let ignore = false
     api
       .getUnit(unitId)
       .then((data) => {
-        if (!ignore) setItem(data);
+        if (!ignore) setItem(data)
       })
       .catch((err) => {
-        if (ignore) return;
+        if (ignore) return
         if (err instanceof ApiError && err.status === 404) {
-          setError("Knowledge unit not found.");
+          setError("Knowledge unit not found.")
         } else {
-          setError("Failed to load knowledge unit.");
+          setError("Failed to load knowledge unit.")
         }
-      });
+      })
     return () => {
-      ignore = true;
-    };
-  }, [unitId]);
+      ignore = true
+    }
+  }, [unitId])
 
   useEffect(() => {
-    dialogRef.current?.focus();
-  }, []);
+    dialogRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onClose()
     }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+    window.addEventListener("keydown", handleKey)
+    return () => window.removeEventListener("keydown", handleKey)
+  }, [onClose])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-hidden="true"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/40 cursor-default"
+      />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={item ? MODAL_TITLE_ID : undefined}
         tabIndex={-1}
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto outline-none"
+        className="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto outline-none"
       >
         {error && (
           <div className="p-6 text-center">
             <p className="text-red-600 text-sm">{error}</p>
             <button
+              type="button"
               onClick={onClose}
               className="mt-3 text-sm text-gray-500 hover:text-gray-700"
             >
@@ -94,10 +97,14 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
         {item && (
           <div className="p-6 space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <h2 id={MODAL_TITLE_ID} className="text-lg font-semibold text-gray-900">
+              <h2
+                id={MODAL_TITLE_ID}
+                className="text-lg font-semibold text-gray-900"
+              >
                 {item.knowledge_unit.insight.summary}
               </h2>
               <button
+                type="button"
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0"
                 aria-label="Close"
@@ -137,13 +144,19 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="bg-gray-50 rounded-lg p-3">
-                <span className="text-xs text-gray-500 uppercase">Confidence</span>
-                <p className={`font-semibold ${confidenceColor(item.knowledge_unit.evidence.confidence)}`}>
+                <span className="text-xs text-gray-500 uppercase">
+                  Confidence
+                </span>
+                <p
+                  className={`font-semibold ${confidenceColor(item.knowledge_unit.evidence.confidence)}`}
+                >
                   {item.knowledge_unit.evidence.confidence.toFixed(2)}
                 </p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
-                <span className="text-xs text-gray-500 uppercase">Confirmations</span>
+                <span className="text-xs text-gray-500 uppercase">
+                  Confirmations
+                </span>
                 <p className="font-semibold text-gray-800">
                   {item.knowledge_unit.evidence.confirmations}
                 </p>
@@ -155,7 +168,8 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
               <div className="text-sm text-gray-500">
                 {item.knowledge_unit.context.languages.length > 0 && (
                   <span>
-                    Languages: {item.knowledge_unit.context.languages.join(", ")}
+                    Languages:{" "}
+                    {item.knowledge_unit.context.languages.join(", ")}
                   </span>
                 )}
                 {item.knowledge_unit.context.languages.length > 0 &&
@@ -164,7 +178,8 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
                   )}
                 {item.knowledge_unit.context.frameworks.length > 0 && (
                   <span>
-                    Frameworks: {item.knowledge_unit.context.frameworks.join(", ")}
+                    Frameworks:{" "}
+                    {item.knowledge_unit.context.frameworks.join(", ")}
                   </span>
                 )}
               </div>
@@ -173,12 +188,14 @@ export function KnowledgeUnitModal({ unitId, onClose }: Props) {
             <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
               <span className="font-mono">{item.knowledge_unit.id}</span>
               {item.knowledge_unit.evidence.first_observed && (
-                <span>{timeAgo(item.knowledge_unit.evidence.first_observed)}</span>
+                <span>
+                  {timeAgo(item.knowledge_unit.evidence.first_observed)}
+                </span>
               )}
             </div>
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }
