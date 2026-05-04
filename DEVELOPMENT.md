@@ -177,7 +177,8 @@ Running the server (see `server/`) requires:
 |----------|----------|---------|---------|
 | `CQ_JWT_SECRET` | Yes | — | Secret used to sign JWTs issued by `/auth/login`. |
 | `CQ_API_KEY_PEPPER` | Yes | — | Server-side pepper combined with each API key under HMAC-SHA256. |
-| `CQ_DB_PATH` | No | `/data/cq.db` | Path to the SQLite database. |
+| `CQ_DATABASE_URL` | No | — | SQLAlchemy URL for the backing database. Currently only `sqlite:///<path>` is supported; `postgresql+psycopg://...` is reserved for the upcoming PostgreSQL backend ([epic #257](https://github.com/mozilla-ai/cq/issues/257)) and rejected at startup. |
+| `CQ_DB_PATH` | No | `/data/cq.db` | Shortcut for SQLite deployments — wrapped as `sqlite:///<path>` internally. Used when `CQ_DATABASE_URL` is unset. |
 | `CQ_PORT` | No | `3000` | HTTP listen port. |
 
 API keys are created per user from the web UI: log in, open **API Keys**, give the key a name, choose a TTL, and copy the plaintext token when it is shown. The token is displayed exactly once. Set it as `CQ_API_KEY` on each client (plugin, SDK, CLI) that should authenticate against this server.

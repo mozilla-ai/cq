@@ -32,16 +32,19 @@ three cases:
 3. **Already-managed database** — `upgrade head` is a no-op when
    there are no pending revisions, so restart is idempotent.
 
-Database URL resolution (used by `alembic/env.py`, the migration
-runner, and — in a later child issue — the runtime store factory)
-lives in `cq_server.db_url.resolve_database_url`. Precedence:
+Database URL resolution lives in
+`cq_server.db_url.resolve_database_url` and is the single source of
+truth for both `alembic/env.py`, the migration runner, and the
+runtime store factory (`cq_server.store.create_store`). Precedence:
 
-1. `CQ_DATABASE_URL` — used verbatim. **Today this must be a SQLite
-   URL** (e.g. `sqlite:////data/cq.db`); the runtime store is still
-   SQLite-only and the server rejects non-SQLite URLs at startup.
-   Postgres support lands with #309/#311.
-2. `CQ_DB_PATH` — wrapped as `sqlite:///<path>` (back-compat with
-   the existing env var).
+1. `CQ_DATABASE_URL` — used verbatim. SQLite URLs
+   (`sqlite:///<path>`) work today; `postgresql+psycopg://...` is
+   reserved for the Postgres backend and currently rejected at
+   startup with a `NotImplementedError` pointing at the Phase 2
+   child issues ([#311][issue-311] / [#312][issue-312]).
+2. `CQ_DB_PATH` — wrapped as `sqlite:///<path>`. The SQLite shortcut
+   for single-instance deployments; stays supported indefinitely
+   alongside `CQ_DATABASE_URL`.
 3. Default — `sqlite:////data/cq.db`.
 
 The `SqliteStore` constructor still calls the legacy
@@ -63,7 +66,9 @@ CQ_DB_PATH=./dev.db uv run alembic current   # show current revision
 CQ_DB_PATH=./dev.db uv run alembic upgrade head
 ```
 
-Full environment-variable documentation will land alongside the
-`CQ_DATABASE_URL` runtime wiring in a later phase-1 child issue.
+The full environment-variable table for self-hosters lives in
+[DEVELOPMENT.md](../../DEVELOPMENT.md#self-hosted-server).
 
 [issue-310]: https://github.com/mozilla-ai/cq/issues/310
+[issue-311]: https://github.com/mozilla-ai/cq/issues/311
+[issue-312]: https://github.com/mozilla-ai/cq/issues/312
