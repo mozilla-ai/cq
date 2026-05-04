@@ -15,11 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from cq.models import KnowledgeUnit
+from cq.scoring import calculate_relevance
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from ..scoring import calculate_relevance
+from .. import semsearch
 from ..tables import ensure_api_keys_table, ensure_review_columns, ensure_users_table
 from ._normalize import normalize_domains
 from ._queries import (
@@ -83,6 +84,9 @@ def _apply_sqlite_pragmas(dbapi_connection, _connection_record):  # noqa: ANN001
         cursor.execute("PRAGMA busy_timeout = 5000")
     finally:
         cursor.close()
+    # Load sqlite-vec on every fresh DBAPI connection so any pooled
+    # connection can answer combined_query without re-loading.
+    semsearch.load(dbapi_connection)
 
 
 class SqliteStore:
@@ -106,6 +110,7 @@ class SqliteStore:
             ensure_review_columns(raw)
             ensure_users_table(raw)
             ensure_api_keys_table(raw)
+            semsearch.ensure_schema(raw)
 
     async def close(self) -> None:
         if self._closed:
@@ -183,6 +188,8 @@ class SqliteStore:
 
     async def insert(self, unit: KnowledgeUnit) -> None:
         await self._run_sync(self._insert_sync, unit)
+        if semsearch.is_enabled():
+            await self._upsert_embedding(unit)
 
     async def list_api_keys_for_user(self, user_id: int) -> list[dict[str, Any]]:
         return await self._run_sync(self._list_api_keys_for_user_sync, user_id)
@@ -220,6 +227,23 @@ class SqliteStore:
         pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
+        if semsearch.is_enabled():
+            if limit <= 0:
+                raise ValueError("limit must be positive")
+            normalized = normalize_domains(domains)
+            if not normalized:
+                return []
+            placeholders = ",".join("?" for _ in normalized)
+            if self._closed:
+                raise RuntimeError("SqliteStore is closed")
+            raw_conn = await asyncio.to_thread(self._engine.raw_connection)
+            try:
+                driver = raw_conn.driver_connection
+                assert driver is not None  # active pool connection always has a DBAPI handle.
+                rows = await semsearch.combined_query(driver, domains=normalized, placeholders=placeholders)
+            finally:
+                await asyncio.to_thread(raw_conn.close)
+            return self._score_semsearch_rows(rows, normalized, languages, frameworks, pattern, limit)
         return await self._run_sync(
             self._query_sync,
             domains,
@@ -243,6 +267,26 @@ class SqliteStore:
 
     async def update(self, unit: KnowledgeUnit) -> None:
         await self._run_sync(self._update_sync, unit)
+        if semsearch.is_enabled():
+            await self._upsert_embedding(unit)
+
+    async def _upsert_embedding(self, unit: KnowledgeUnit) -> None:
+        """Reindex the unit's embedding row in the sqlite-vec table.
+
+        Acquires a DBAPI connection from the pool (sqlite-vec is already
+        loaded via the SQLAlchemy connect event) and commits before
+        returning it to the pool.
+        """
+        if self._closed:
+            raise RuntimeError("SqliteStore is closed")
+        raw_conn = await asyncio.to_thread(self._engine.raw_connection)
+        try:
+            driver = raw_conn.driver_connection
+            assert driver is not None  # active pool connection always has a DBAPI handle.
+            await semsearch.upsert_unit(driver, unit)
+            await asyncio.to_thread(raw_conn.commit)
+        finally:
+            await asyncio.to_thread(raw_conn.close)
 
     def _confidence_distribution_sync(self) -> dict[str, int]:
         buckets = {"0.0-0.3": 0, "0.3-0.6": 0, "0.6-0.8": 0, "0.8-1.0": 0}
@@ -578,6 +622,50 @@ class SqliteStore:
             }
             for row in rows
         ]
+
+    def _score_semsearch_rows(
+        self,
+        rows: list[Any],
+        normalized: list[str],
+        languages: list[str] | None,
+        frameworks: list[str] | None,
+        pattern: str,
+        limit: int,
+    ) -> list[KnowledgeUnit]:
+        """Rank combined_query rows: relevance × confidence × field-logit modulation.
+
+        ``combined_query`` returns ``(data, distance, ...)`` tuples; the
+        per-row distance feeds field-logit modulation so semantically
+        closer units boost their score and far ones diminish it. The
+        unit's confidence is mutated to the combined score so the API
+        response surfaces the modulated ranking.
+        """
+        units: list[KnowledgeUnit] = []
+        row_data_by_id: dict[str, tuple[Any, ...]] = {}
+        for row in rows:
+            unit = KnowledgeUnit.model_validate_json(row[0])
+            units.append(unit)
+            row_data_by_id[unit.id] = tuple(row[1:]) if len(row) > 1 else ()
+
+        field_logits = semsearch.build_field_logits(row_data_by_id)
+        scored: list[tuple[float, str, KnowledgeUnit]] = []
+        for unit in units:
+            base = (
+                calculate_relevance(
+                    unit,
+                    normalized,
+                    query_languages=languages,
+                    query_frameworks=frameworks,
+                    query_pattern=pattern,
+                )
+                * unit.evidence.confidence
+            )
+            combined = semsearch.compute_combined_relevance(base, row_data_by_id.get(unit.id, ()), field_logits)
+            unit.evidence.confidence = combined
+            scored.append((combined, unit.id, unit))
+
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        return [u for _, _, u in scored[:limit]]
 
     def _query_sync(
         self,

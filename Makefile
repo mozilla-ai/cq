@@ -101,7 +101,7 @@ setup-sdk-python: setup-schema
 
 .PHONY: setup-server-backend
 setup-server-backend:
-	cd server/backend && uv sync --group dev
+	cd server/backend && uv sync --group dev --extra semsearch
 
 .PHONY: setup-server-frontend
 setup-server-frontend:

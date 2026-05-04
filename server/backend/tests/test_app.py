@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from cq_server import semsearch
 from cq_server.app import app
 from cq_server.deps import require_api_key
 
@@ -216,6 +217,87 @@ class TestQuery:
         results = resp.json()
         assert len(results) == 2
         assert results[0]["context"]["pattern"] == "api-client"
+
+    def test_query_finds_expected_unit_across_distinct_domains(self, client: TestClient) -> None:
+        self._insert_unit(
+            client,
+            domains=["astronomy"],
+            insight={
+                "summary": "Classify exoplanets by transit depth",
+                "detail": "Use transit-light-curve features to identify likely exoplanets.",
+                "action": "Prioritize follow-up spectroscopy for high-confidence candidates.",
+            },
+        )
+        self._insert_unit(
+            client,
+            domains=["culinary"],
+            insight={
+                "summary": "Balance acidity in tomato sauces",
+                "detail": "A small amount of fat and slow simmering rounds harsh acidity.",
+                "action": "Adjust with olive oil and reduce over low heat.",
+            },
+        )
+        self._insert_unit(
+            client,
+            domains=["cybersecurity"],
+            insight={
+                "summary": "Rotate API keys on a fixed cadence",
+                "detail": "Short-lived credentials reduce blast radius after compromise.",
+                "action": "Automate key rollover every 30 days.",
+            },
+        )
+
+        resp = client.get("/query", params={"domains": ["astronomy"]})
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) == 1
+        assert results[0]["domains"] == ["astronomy"]
+        assert "exoplanets" in results[0]["insight"]["summary"].lower()
+
+    def test_query_returns_best_result_with_domain_overlap(self, client: TestClient) -> None:
+        if not semsearch.is_enabled():
+            pytest.skip("semantic dependencies are not enabled")
+        try:
+            asyncio.run(semsearch._get_embeddings(["connectivity check"]))
+        except Exception as exc:
+            pytest.skip(f"embedding server unavailable: {exc}")
+
+        ku1 = self._insert_unit(
+            client,
+            domains=["astronomy"],
+            insight={
+                "summary": "Detect exoplanets from transit dips",
+                "detail": "Transit photometry captures periodic brightness dips from orbiting planets.",
+                "action": "Prioritize stars with consistent dip timing for follow-up observations.",
+            },
+        )
+        ku2 = self._insert_unit(
+            client,
+            domains=["astronomy"],
+            insight={
+                "summary": "Map chemical enrichment in HII regions",
+                "detail": "Emission line analysis identifies the abundance of heavy elements (metals) like oxygen and nitrogen within ionized gas clouds.",
+                "action": "Target low-metallicity regions to study star formation conditions similar to the early universe.",
+            },
+        )
+        self._insert_unit(
+            client,
+            domains=["cybersecurity"],
+            insight={
+                "summary": "Rotate credentials after incident response",
+                "detail": "Credential rotation limits persistence after compromise.",
+                "action": "Automate revocation and key replacement workflows.",
+            },
+        )
+
+        resp = client.get("/query", params={"domains": ["astronomy"]})
+        assert resp.status_code == 200
+        results = resp.json()
+        result_confidences = {result["id"]: result["evidence"]["confidence"] for result in results}
+        assert len(results) >= 1
+        assert ku1["id"] in result_confidences and ku2["id"] in result_confidences
+        assert results[0]["domains"] == ["astronomy"]
+        assert result_confidences[ku1["id"]] >= result_confidences[ku2["id"]]
 
 
 class TestConfirm:
