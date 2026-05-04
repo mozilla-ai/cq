@@ -76,3 +76,9 @@ class TestUnknownScheme:
     def test_unknown_scheme_rejected(self) -> None:
         with pytest.raises(ValueError, match="mysql"):
             create_store("mysql://u:p@h/d")
+
+
+class TestMalformedUrl:
+    def test_malformed_url_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="Invalid CQ_DATABASE_URL"):
+            create_store("not a url")
