@@ -69,7 +69,9 @@ class TestPostgres:
     def test_postgres_url_raises_not_implemented_with_guidance(self, url: str) -> None:
         with pytest.raises(NotImplementedError) as exc:
             create_store(url)
-        assert "#311" in str(exc.value) or "#312" in str(exc.value)
+        message = str(exc.value)
+        assert "#311" in message
+        assert "#312" in message
 
 
 class TestUnknownScheme:
