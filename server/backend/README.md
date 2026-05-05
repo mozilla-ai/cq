@@ -70,6 +70,5 @@ CQ_DB_PATH=./dev.db uv run alembic upgrade head
 The full environment-variable table for self-hosters lives in
 [DEVELOPMENT.md](../../DEVELOPMENT.md#self-hosted-server).
 
-[issue-310]: https://github.com/mozilla-ai/cq/issues/310
 [issue-311]: https://github.com/mozilla-ai/cq/issues/311
 [issue-312]: https://github.com/mozilla-ai/cq/issues/312

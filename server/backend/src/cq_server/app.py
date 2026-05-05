@@ -76,9 +76,8 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
         raise RuntimeError(f"{API_KEY_PEPPER_ENV} environment variable is required")
     # Single URL feeds both the store factory and the migration runner,
     # so they can't diverge on which database they target. Run the
-    # factory first: it's the one place that maps URL → backend, and we
-    # want a Postgres URL to surface its ``NotImplementedError`` with
-    # #311/#312 guidance rather than failing inside Alembic with a
+    # factory first so a Postgres URL surfaces ``NotImplementedError``
+    # (#311/#312 guidance) instead of failing inside Alembic with a
     # raw psycopg ``ModuleNotFoundError``.
     database_url = resolve_database_url()
     new_store = create_store(database_url)
