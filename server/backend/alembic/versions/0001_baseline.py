@@ -11,10 +11,12 @@ before Alembic took over — i.e. the union of the historical
 that #310 has since deleted.
 
 The exact pre-Alembic SQL is preserved verbatim in
-``tests/db_helpers.py`` (the ``_PRE_ALEMBIC_*`` constants) and is the
-oracle for ``TestExistingPreAlembicDatabase``. If this migration's
-output drifts from those constants, that test fails — keep them in
-sync, with this migration as the source of truth going forward.
+``tests/db_helpers.py`` as ``_PRE_ALEMBIC_STATEMENTS``. The drift
+oracle is ``TestBaselineMatchesPreAlembicSchema`` — it builds one DB
+via that snapshot and another via this migration's ``upgrade()``, and
+compares their normalized schemas. If this migration's output drifts
+from the snapshot, that test fails — keep them in sync, with this
+migration as the source of truth going forward.
 
 Existing pre-Alembic databases are stamped at this revision in
 ``cq_server.migrations.run_migrations`` rather than upgraded into it,

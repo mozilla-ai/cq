@@ -86,9 +86,8 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # (tests, restart loops). The post-yield ``finally`` only covers
     # successful boots.
     try:
-        # Alembic owns the schema. Three cases: fresh DB → upgrade
-        # head; pre-Alembic DB → stamp baseline + upgrade head;
-        # already-stamped DB → upgrade head (no-op).
+        # See ``cq_server.migrations.run_migrations`` for the
+        # three-case startup contract.
         run_migrations(database_url)
     except BaseException:
         await new_store.close()

@@ -42,16 +42,17 @@ the runtime store factory (`cq_server.store.create_store`). Precedence:
    `NotImplementedError` pointing at the Phase 2 child issues
    ([#311][issue-311] / [#312][issue-312]).
 2. `CQ_DB_PATH` — wrapped as `sqlite:///<path>`. The SQLite shortcut
-   for single-instance deployments; stays supported indefinitely
-   alongside `CQ_DATABASE_URL`.
+   for single-instance deployments; supported alongside
+   `CQ_DATABASE_URL`.
 3. Default — `sqlite:////data/cq.db`.
 
 ### Rollback
 
 Migrations are forward-only. If a new migration causes a bad deploy,
 redeploy the previous server image; if its head is older than the
-`alembic_version` row on disk, Alembic refuses to start (its normal
-behaviour, and the safeguard against silently downgrading data). To
+`alembic_version` row on disk, Alembic raises its standard "Can't
+locate revision" error from `command.upgrade` and the server refuses
+to start — the safeguard against silently downgrading data. To
 recover, either redeploy the version that wrote the newer
 `alembic_version`, or hand-write a downgrade migration before
 redeploying the older image.

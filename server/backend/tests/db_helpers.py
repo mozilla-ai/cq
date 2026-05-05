@@ -93,12 +93,19 @@ def build_pre_alembic_schema(db: Path) -> None:
     can verify the stamp-on-legacy-DB case without resurrecting deleted
     code. Connection settings (``foreign_keys = ON``) match the
     pragmas applied at runtime.
+
+    Caller must pass a fresh path: the ``ALTER TABLE … ADD COLUMN``
+    statements in ``_PRE_ALEMBIC_STATEMENTS`` are not idempotent, so
+    running against an existing DB raises
+    ``sqlite3.OperationalError: duplicate column name``.
     """
     conn = sqlite3.connect(str(db))
     try:
-        conn.execute("PRAGMA foreign_keys = ON")
-        for stmt in _PRE_ALEMBIC_STATEMENTS:
-            conn.execute(stmt)
-        conn.commit()
+        # Context-manage the connection so a malformed statement
+        # mid-list rolls back instead of leaving a half-built DB on disk.
+        with conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            for stmt in _PRE_ALEMBIC_STATEMENTS:
+                conn.execute(stmt)
     finally:
         conn.close()

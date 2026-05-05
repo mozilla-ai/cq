@@ -1,6 +1,8 @@
 """Tests for Alembic baseline migration + stamp-on-startup logic.
 
-Covers the three startup cases the migration runner has to handle:
+Covers the three startup cases the migration runner has to handle,
+plus a parity check between the baseline migration and the frozen
+pre-Alembic snapshot:
 
 1. ``test_fresh_database_runs_baseline_migration`` — empty file, no
    tables. Migration creates everything and stamps at baseline.
@@ -8,7 +10,11 @@ Covers the three startup cases the migration runner has to handle:
    DB hand-built to match the schema that legacy ``_ensure_schema()``
    used to produce, with seed data in every table. Migration runner
    must stamp at baseline (not re-run the DDL) and preserve every row.
-3. ``test_already_stamped_database_is_idempotent`` — DB with
+3. ``test_upgrade_head_matches_pre_alembic_snapshot`` — drift oracle
+   for the baseline migration: a fresh-DB ``upgrade head`` must
+   produce the same schema as ``_PRE_ALEMBIC_STATEMENTS``, otherwise
+   stamped legacy DBs and fresh installs diverge.
+4. ``test_already_stamped_database_is_idempotent`` — DB with
    ``alembic_version`` already at head. Re-running is a no-op.
 """
 
@@ -193,8 +199,8 @@ class TestFreshDatabase:
             } <= tables
             assert _alembic_version(conn) == BASELINE_REVISION
 
-            # knowledge_units columns and order match the historical
-            # _SCHEMA_SQL + ALTER end-state on prod.
+            # knowledge_units columns and order match the pre-Alembic
+            # end-state preserved in db_helpers._PRE_ALEMBIC_STATEMENTS.
             ku_cols = [c[0] for c in _columns(conn, "knowledge_units")]
             assert ku_cols == [
                 "id",
@@ -234,13 +240,11 @@ class TestExistingPreAlembicDatabase:
 
     @pytest_asyncio.fixture()
     async def seeded_pre_alembic_db(self, tmp_path: Path) -> tuple[Path, Mapping[str, Any]]:
-        """Build a production-shape SQLite DB matching the legacy
-        ``_ensure_schema()`` end-state, seed every table, and snapshot
-        the resulting state. Returns (db_path, snapshot)."""
+        """Build a production-shape SQLite DB matching the pre-Alembic
+        schema preserved in ``db_helpers._PRE_ALEMBIC_STATEMENTS``,
+        seed every table, and snapshot the resulting state. Returns
+        (db_path, snapshot)."""
         db = tmp_path / "prod.db"
-        # Synthesise the legacy schema directly — the old
-        # ``_ensure_*`` startup path is gone, so we rebuild it from
-        # the historical SQL preserved in ``db_helpers``.
         build_pre_alembic_schema(db)
         store = SqliteStore(db_path=db)
         ku_ids = await _seed_kus(store)
@@ -310,7 +314,39 @@ class TestExistingPreAlembicDatabase:
             assert _row_counts(conn, data_tables) == before["counts"]
 
 
-# --- Test 3: already-stamped database --------------------------------------
+# --- Test 3: baseline migration matches pre-Alembic snapshot ---------------
+
+
+class TestBaselineMatchesPreAlembicSchema:
+    """Drift check: the baseline migration's ``upgrade()`` output must
+    match the frozen pre-Alembic schema in
+    ``db_helpers._PRE_ALEMBIC_STATEMENTS``.
+
+    This is the oracle the baseline migration's docstring promises.
+    ``TestExistingPreAlembicDatabase`` only round-trips the snapshot
+    through stamp + upgrade-head-noop — the migration's ``upgrade()``
+    body never executes on that path, so it can't catch drift between
+    the migration and the snapshot.
+
+    A fresh-DB ``run_migrations`` does run ``upgrade()``, so comparing
+    its result against ``build_pre_alembic_schema`` (which replays the
+    snapshot) catches the case where someone edits the baseline
+    migration in a way that diverges from what's already on every
+    pre-#310 production disk.
+    """
+
+    def test_upgrade_head_matches_pre_alembic_snapshot(self, tmp_path: Path) -> None:
+        legacy = tmp_path / "legacy.db"
+        migrated = tmp_path / "migrated.db"
+
+        build_pre_alembic_schema(legacy)
+        run_migrations(_sqlite_url(migrated))
+
+        with _open_ro(legacy) as a, _open_ro(migrated) as b:
+            assert _normalized_schema(a) == _normalized_schema(b)
+
+
+# --- Test 4: already-stamped database --------------------------------------
 
 
 class TestAlreadyStampedDatabase:
@@ -344,7 +380,7 @@ class TestAlreadyStampedDatabase:
             assert sorted(r[0] for r in ku_rows) == sorted(ku_ids)
 
 
-# --- Test 4: default URL resolution ----------------------------------------
+# --- Test 5: default URL resolution ----------------------------------------
 
 
 class TestSqliteParentDirCreation:
