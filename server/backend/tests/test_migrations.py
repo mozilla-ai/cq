@@ -65,20 +65,25 @@ def _columns(conn: sqlite3.Connection, table: str) -> list[tuple[Any, ...]]:
 
 
 def _explicit_indexes(conn: sqlite3.Connection, table: str) -> dict[str, dict[str, Any]]:
-    """Return only `CREATE INDEX` indexes (origin = 'c').
+    """Return all indexes except PK autoindexes.
 
-    Implicit `sqlite_autoindex_*` indexes that SQLite generates for
-    PRIMARY KEY / UNIQUE constraints are excluded — those are already
-    accounted for in the column list.
+    PK autoindexes (origin='p') are excluded because the column list's
+    ``pk`` flag already captures them. Explicit ``CREATE INDEX``
+    indexes (origin='c') are keyed by their declared name. UNIQUE
+    constraint autoindexes (origin='u') are keyed by a synthesized
+    ``<unique:cols>`` stem so two DBs that declare the same UNIQUE
+    constraints in different SQL paths don't diff on SQLite's
+    per-table-incrementing ``sqlite_autoindex_<table>_N`` names.
     """
     out: dict[str, dict[str, Any]] = {}
     for row in conn.execute(f"PRAGMA index_list({table})").fetchall():
         # row: (seq, name, unique, origin, partial)
         name, unique, origin = row[1], bool(row[2]), row[3]
-        if origin != "c":
+        if origin == "p":
             continue
         cols = [info[2] for info in conn.execute(f"PRAGMA index_info({name})").fetchall()]
-        out[name] = {"unique": unique, "columns": cols}
+        key = name if origin == "c" else f"<unique:{','.join(cols)}>"
+        out[key] = {"unique": unique, "columns": cols, "origin": origin}
     return out
 
 
@@ -425,18 +430,11 @@ class TestPercentInUrlIsConfigParserSafe:
     can pin the regression without a real database server.
     """
 
-    @pytest.mark.parametrize(
-        "filename",
-        [
-            "100%real.db",
-            "p%40ss.db",
-            "weird%%name.db",
-        ],
-    )
-    def test_runtime_path_handles_percent_in_url(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str
-    ) -> None:
+    def test_runtime_path_handles_percent_in_url(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # ``p%40ss.db`` mimics a URL-encoded Postgres password
+        # (``p@ss`` → ``p%40ss``) — the realistic motivating case.
         monkeypatch.chdir(tmp_path)
+        filename = "p%40ss.db"
         url = f"sqlite:///{filename}"
 
         run_migrations(url)

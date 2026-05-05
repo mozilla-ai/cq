@@ -94,15 +94,16 @@ def build_pre_alembic_schema(db: Path) -> None:
     code. Connection settings (``foreign_keys = ON``) match the
     pragmas applied at runtime.
 
-    Caller must pass a fresh path: the ``ALTER TABLE … ADD COLUMN``
-    statements in ``_PRE_ALEMBIC_STATEMENTS`` are not idempotent, so
-    running against an existing DB raises
-    ``sqlite3.OperationalError: duplicate column name``.
+    Raises ``FileExistsError`` if ``db`` already exists: the
+    ``ALTER TABLE … ADD COLUMN`` statements in
+    ``_PRE_ALEMBIC_STATEMENTS`` are not idempotent, and the deep
+    ``sqlite3.OperationalError: duplicate column name`` you'd get
+    otherwise is harder to trace back to the misuse.
     """
+    if db.exists():
+        raise FileExistsError(f"build_pre_alembic_schema requires a fresh path; got existing {db}")
     conn = sqlite3.connect(str(db))
     try:
-        # Context-manage the connection so a malformed statement
-        # mid-list rolls back instead of leaving a half-built DB on disk.
         with conn:
             conn.execute("PRAGMA foreign_keys = ON")
             for stmt in _PRE_ALEMBIC_STATEMENTS:
