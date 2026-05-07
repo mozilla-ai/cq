@@ -28,6 +28,14 @@ const (
 //go:embed callback_success.html
 var callbackSuccessPage string
 
+// callbackErrorPage is the HTML returned to the browser when the
+// provider redirected with an error or the callback was malformed. It
+// keeps the user from staring at a "you're signed in" page while the
+// CLI is reporting failure.
+//
+//go:embed callback_error.html
+var callbackErrorPage string
+
 // callbackResult is the outcome captured from the OAuth provider's
 // redirect: either a non-empty exchangeCode (success) or err (failure).
 type callbackResult struct {
@@ -124,11 +132,19 @@ func (l *listener) Wait(ctx context.Context) (string, error) {
 // handle is the only HTTP handler registered, scoped to callbackPath.
 // Subsequent calls after the first are ignored to satisfy the
 // single-shot contract.
+//
+// The HTTP response mirrors the parsed result: a 200 success page when
+// the provider redirected with an exchange_code, and a 400 error page
+// when it redirected with `error=` or omitted both. Without the split,
+// the user would see "signed in" in the browser while the CLI reports
+// a failure in the terminal.
 func (l *listener) handle(w http.ResponseWriter, r *http.Request) {
+	result := parseCallback(r)
+
 	delivered := false
 
 	l.once.Do(func() {
-		l.result <- parseCallback(r)
+		l.result <- result
 		delivered = true
 	})
 
@@ -139,6 +155,14 @@ func (l *listener) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	if result.err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(callbackErrorPage))
+
+		return
+	}
+
 	_, _ = w.Write([]byte(callbackSuccessPage))
 }
 

@@ -126,6 +126,14 @@ func keyringHealthy() bool {
 
 // runWithTimeout runs op in a goroutine, returning errKeyringTimeout if op
 // does not complete within timeout.
+//
+// On timeout the goroutine outlives this call and exits when op finally
+// returns; the buffered result channel guarantees it never blocks on send.
+// Repeated calls against a hung backend can't accumulate stuck goroutines
+// because keyringHealthy is consulted exactly once at credstore.New, and
+// an unhealthy backend routes the rest of the process to the file store.
+// zalando/go-keyring exposes no context-aware variant, so a cancellable
+// alternative would require forking the dependency.
 func runWithTimeout(timeout time.Duration, op func() error) error {
 	ch := make(chan error, 1)
 
