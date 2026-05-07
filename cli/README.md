@@ -20,6 +20,12 @@ make build
 ## Usage
 
 ```bash
+# Sign in interactively via your identity provider (control-plane).
+cq auth providers
+cq auth login github
+cq auth status
+cq auth logout
+
 # Search for relevant knowledge.
 cq query --domain api --language go --format json
 
@@ -51,12 +57,54 @@ cq mcp
 
 The CLI works out of the box in local-only mode with no configuration.
 
-| Variable           | Description           | Default                      |
-|--------------------|-----------------------|------------------------------|
-| `CQ_ADDR`          | Remote cq API address | None (local-only)            |
-| `CQ_API_KEY`      | API key               | None                         |
-| `CQ_LOCAL_DB_PATH` | Local SQLite path     | `~/.local/share/cq/local.db` |
-| `CQ_TIMEOUT`      | CLI operation timeout | 30s                          |
+| Variable           | Description                        | Default                        |
+|--------------------|------------------------------------|--------------------------------|
+| `CQ_ADDR`          | Remote cq API address              | None (local-only)              |
+| `CQ_API_KEY`       | API key (data-plane, long-lived)   | None                           |
+| `CQ_LOCAL_DB_PATH` | Local SQLite path                  | `~/.local/share/cq/local.db`   |
+| `CQ_CONFIG_DIR`    | Credential and config directory    | `${XDG_CONFIG_HOME:-~/.config}/cq` |
+| `CQ_TIMEOUT`       | CLI operation timeout              | 30s                            |
+
+## Authentication
+
+`cq auth login [provider]` signs you in via your identity provider's OIDC flow. cq opens your default browser, completes the redirect on a short-lived loopback listener, and stores the resulting session JWT locally for use by control-plane commands.
+
+```bash
+# List the providers configured on the platform.
+cq auth providers
+
+# Sign in via the named provider.
+cq auth login github
+
+# Inspect the current sign-in state.
+cq auth status
+
+# Clear locally-stored credentials.
+cq auth logout
+```
+
+`cq auth` requires `CQ_ADDR` (or `--addr`) to point at a cq-compatible platform. `logout` is local-only; server-side session revocation is tracked separately and will land under a future `--revoke` flag once the platform exposes the necessary endpoint.
+
+### Authentication vs API keys
+
+cq separates two concerns:
+
+- **`cq auth`** establishes an interactive *user* session via OIDC. The session JWT is short-lived and used for control-plane operations (creating API keys, managing your profile).
+- **`CQ_API_KEY`** holds the long-lived *agent* credential used for data-plane operations (`propose`, `query`, `confirm`, `flag`). Set it directly for CI/CD and scripts; `cq auth` never stores or prints API keys.
+
+### Credential storage
+
+Session credentials are stored in your operating system's native credential store when reachable:
+
+| Platform | Backend                    |
+|----------|----------------------------|
+| macOS    | Keychain                   |
+| Linux    | Secret Service (D-Bus)     |
+| Windows  | Credential Manager (DPAPI) |
+
+When the OS keyring is unreachable (most commonly headless Linux without a running D-Bus session), cq falls back to a `chmod 600` JSON file at `${CQ_CONFIG_DIR}/credentials`.
+
+> **macOS note:** the cq binary is currently distributed unsigned, so its Keychain entry is no more resistant to same-user processes than the file fallback would be. Stronger ACL-protected storage will land once code-signing infrastructure is in place.
 
 ## Knowledge tiers
 
