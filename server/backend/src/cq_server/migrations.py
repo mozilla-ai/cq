@@ -91,8 +91,10 @@ def run_migrations(database_url: str | None = None) -> None:
 
     Args:
         database_url: SQLAlchemy URL to migrate. Defaults to the value
-            resolved by :class:`cq_server.core.config.Settings`, which
-            consults ``CQ_DATABASE_URL`` and ``CQ_DB_PATH``.
+            from :func:`cq_server.core.config.database_url_from_env`,
+            which consults ``CQ_DATABASE_URL`` and ``CQ_DB_PATH`` directly
+            (no need to satisfy the rest of the ``Settings`` schema, since
+            the migration runner doesn't touch JWT or pepper).
     """
     url = database_url or database_url_from_env()
     _ensure_sqlite_parent_dir(url)

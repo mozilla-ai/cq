@@ -568,7 +568,7 @@ class TestRemoteIntegration:
         httpx_mock.add_response(
             url="http://test-remote/api/v1/knowledge/ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01/confirmations",
             json={"knowledge_unit": confirmed_unit},
-            status_code=200,
+            status_code=201,
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
@@ -591,7 +591,7 @@ class TestRemoteIntegration:
         httpx_mock.add_response(
             url="http://test-remote/api/v1/knowledge/ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01/flags",
             json={"knowledge_unit": flagged_unit},
-            status_code=200,
+            status_code=201,
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")

@@ -7,13 +7,14 @@ Higher layers consume these helpers:
 - ``create_token`` issues a JWT after a successful login.
 - ``verify_token`` is consumed by the ``get_current_user`` FastAPI
   dependency in ``api/deps.py``.
-- ``jwt_secret`` reads the configured signing secret from the environment.
 
 Route handlers and FastAPI dependencies live elsewhere; this module is
-pure utility and has no FastAPI surface.
+pure utility and has no FastAPI surface. The signing secret itself
+lives on ``Settings.jwt_secret``; both sides of the JWT lifecycle
+(issuance via ``AuthService``, verification via ``get_current_user``)
+read it from the same ``Settings`` instance.
 """
 
-import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -35,21 +36,6 @@ def create_token(username: str, *, secret: str, ttl_hours: int = 24) -> str:
 def hash_password(password: str) -> str:
     """Hash a password with bcrypt."""
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-
-def jwt_secret() -> str:
-    """Return the JWT signing secret, failing if unset.
-
-    Returns:
-        The value of the CQ_JWT_SECRET environment variable.
-
-    Raises:
-        RuntimeError: If the environment variable is not set.
-    """
-    secret = os.environ.get("CQ_JWT_SECRET")
-    if not secret:
-        raise RuntimeError("CQ_JWT_SECRET environment variable is required")
-    return secret
 
 
 def verify_password(password: str, hashed: str) -> bool:

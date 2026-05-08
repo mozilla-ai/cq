@@ -32,7 +32,7 @@ class KnowledgeRepository:
         self._db = db
 
     async def count(self) -> int:
-        """Return the total number of approved units."""
+        """Return the total number of stored units across all review statuses."""
         return await self._db.run_sync(self._count_sync)
 
     async def counts_by_tier(self) -> dict[str, int]:

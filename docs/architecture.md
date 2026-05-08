@@ -74,7 +74,7 @@ sequenceDiagram
     CC->>MCP: query(domain=["api","payments","stripe"])
     MCP->>Local: Search local store
     Local-->>MCP: 0 results
-    MCP->>Team: GET /api/v1/knowledge?domain=api,payments,stripe
+    MCP->>Team: GET /api/v1/knowledge?domains=api&domains=payments&domains=stripe
     Team-->>MCP: 1 result (confidence: 0.94)
     MCP-->>CC: "Stripe returns 200 with error body for rate limits"
 

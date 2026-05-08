@@ -15,7 +15,7 @@ from typing import Annotated
 import jwt
 from fastapi import BackgroundTasks, Depends, HTTPException, Request
 
-from ..auth import jwt_secret, verify_token
+from ..auth import verify_token
 from ..core.config import Settings
 from ..core.db import Database
 from ..repositories import APIKeyRepository, KnowledgeRepository, ReviewRepository, UserRepository
@@ -109,11 +109,17 @@ def get_review_service(
 ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 
 
-def get_current_user(request: Request) -> str:
+def get_current_user(request: Request, settings: SettingsDep) -> str:
     """FastAPI dependency that extracts and validates the JWT from the Authorization header.
+
+    Verification routes through ``settings.jwt_secret`` (the same source
+    ``AuthService`` signs with) so test overrides via
+    ``app.dependency_overrides[get_settings]`` apply consistently to both
+    sides of the JWT lifecycle.
 
     Args:
         request: The incoming FastAPI request.
+        settings: Application settings; the JWT signing secret is read here.
 
     Returns:
         The username extracted from the validated token.
@@ -126,7 +132,7 @@ def get_current_user(request: Request) -> str:
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     token = auth_header.removeprefix("Bearer ")
     try:
-        payload = verify_token(token, secret=jwt_secret())
+        payload = verify_token(token, secret=settings.jwt_secret)
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
     return payload["sub"]
