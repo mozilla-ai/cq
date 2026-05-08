@@ -10,6 +10,11 @@ This module mirrors the SDK parser locally so the platform can validate
 without taking a runtime dependency on a specific SDK release. The two
 implementations must agree on grammar, max bound, and case-folding;
 their tests should be kept in lockstep.
+
+TODO(#359): drop this module once cq-sdk publishes ``cq.ttl``. The
+server pins cq-sdk from PyPI, so switching to ``from cq.ttl import
+parse_ttl`` requires a published SDK release bump in
+``server/backend/pyproject.toml``.
 """
 
 import re
