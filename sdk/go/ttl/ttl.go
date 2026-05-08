@@ -1,7 +1,8 @@
 // Package ttl parses the duration grammar shared by the cq platform's
 // API-key TTL field. The grammar is a strict subset of Go's
-// time.ParseDuration: a single non-negative integer followed by exactly
-// one unit suffix from {s, m, h, d}. It is case-insensitive on input
+// time.ParseDuration: a single positive ASCII integer followed by
+// exactly one unit suffix from {s, m, h, d}. Zero is rejected because
+// a zero-TTL key is meaningless. Parsing is case-insensitive on input
 // but always returns the canonical lower-case form so the value the
 // platform validates and persists is unambiguous regardless of which
 // client emitted it.
@@ -36,6 +37,16 @@ const canonicalMax = "365d"
 // rejected before any case-folding, regexp, or numeric parse runs.
 const maxInputLen = 64
 
+// maxCanonicalLen caps the canonical (post-trim, post-lower) input
+// length so a caller cannot pad a small value with leading zeros to
+// inflate the digit run past the platform's contract. The longest
+// legitimate canonical value is "31536000s" (9 chars). The bound
+// here matches sdk/python/cq.ttl so the two parsers agree on which
+// values they reject as too long; without this cap an input like
+// "00000000000000001d" would be accepted by Go and rejected by
+// Python.
+const maxCanonicalLen = 16
+
 // ErrEmpty is returned by Parse when the input is empty or whitespace.
 var ErrEmpty = errors.New("ttl is required")
 
@@ -60,9 +71,12 @@ var ErrTooSmall = errors.New("must be greater than zero")
 var pattern = regexp.MustCompile(`^[0-9]+[smhd]$`)
 
 // Parse normalises s and returns the canonical lower-case form along
-// with the parsed duration. It wraps ErrEmpty when s is blank,
-// ErrGrammar when s does not match <integer><s|m|h|d>, and ErrTooLarge
-// when the parsed duration exceeds Max.
+// with the parsed duration. It wraps one of:
+//   - ErrEmpty when s is blank,
+//   - ErrGrammar when s does not match <integer><s|m|h|d>,
+//   - ErrTooSmall when s parses to zero,
+//   - ErrTooLarge when s parses to a duration above Max or its
+//     canonical length exceeds maxCanonicalLen.
 //
 // Callers should send the returned canonical string on the wire so the
 // platform's stored value is independent of the input casing.
@@ -77,6 +91,12 @@ func Parse(s string) (string, time.Duration, error) {
 
 	if canonical == "" {
 		return "", 0, ErrEmpty
+	}
+
+	if len(canonical) > maxCanonicalLen {
+		// The raw input is already <= maxInputLen so quoting s is
+		// safe and matches the user's actual keystrokes.
+		return "", 0, fmt.Errorf("%q: %w", s, ErrTooLarge)
 	}
 
 	if !pattern.MatchString(canonical) {

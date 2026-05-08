@@ -1,10 +1,11 @@
 """Duration-string parser for API key TTLs.
 
-The grammar matches the cq SDK's ``cq.ttl`` parser: a single non-negative
-integer followed by exactly one unit suffix from ``s``, ``m``, ``h``,
-``d``. Parsing is case-insensitive on input and always returns the
-canonical lower-case form so the value the platform persists is
-unambiguous regardless of which client emitted it.
+The grammar matches the cq SDK's ``cq.ttl`` parser: a single positive
+ASCII integer followed by exactly one unit suffix from ``s``, ``m``,
+``h``, ``d``. Zero is rejected because a zero-TTL key is meaningless.
+Parsing is case-insensitive on input and always returns the canonical
+lower-case form so the value the platform persists is unambiguous
+regardless of which client emitted it.
 
 This module mirrors the SDK parser locally so the platform can validate
 without taking a runtime dependency on a specific SDK release. The two
@@ -43,9 +44,19 @@ _MAX_CANONICAL_LEN = 16
 # arithmetic check in ``parse_ttl`` does not recompute on every call.
 _MAX_SECONDS = int(MAX_TTL.total_seconds())
 
+# _MAX_ECHO_LEN caps the number of characters of the original input
+# echoed in any error message. Bounds the size of the exception string
+# so an attacker-controlled megabyte input does not produce a megabyte
+# error (which would amplify allocation cost and bloat logs). Mirrors
+# the truncation budget in sdk/python/cq.ttl and sdk/go/ttl.
+_MAX_ECHO_LEN = 64
+
 # _PATTERN matches the canonical (lower-case, trimmed) grammar:
-# one or more digits followed by exactly one unit suffix.
-_PATTERN = re.compile(r"^(\d+)([smhd])$")
+# one or more ASCII digits followed by exactly one unit suffix.
+# [0-9]+ rather than \d+: Python's \d would accept Unicode "decimal
+# digit" characters (category Nd), so values like "١٢h" would otherwise
+# parse and diverge from sdk/go/ttl which uses an explicit ASCII class.
+_PATTERN = re.compile(r"^([0-9]+)([smhd])$")
 
 # _UNIT_SECONDS maps each accepted unit suffix to its duration in
 # seconds. Lookup is keyed by the unit byte the regexp captured, so
@@ -62,9 +73,9 @@ def parse_ttl(value: str) -> tuple[str, timedelta]:
     r"""Parse a TTL duration string.
 
     Args:
-        value: A string matching ``^\d+[smhd]$`` after case-folding and
-            whitespace trimming. Both ``"30D"`` and ``"30d"`` are accepted
-            and return the lower-case canonical form ``"30d"``.
+        value: A string matching ``^[0-9]+[smhd]$`` after case-folding
+            and whitespace trimming. Both ``"30D"`` and ``"30d"`` are
+            accepted and return the lower-case canonical form ``"30d"``.
 
     Returns:
         A ``(canonical, duration)`` tuple. ``canonical`` is the
@@ -81,14 +92,19 @@ def parse_ttl(value: str) -> tuple[str, timedelta]:
     # Length-cap before int() so a multi-megabyte digit run cannot make
     # the parser do real CPU work before the MAX check fires.
     if len(canonical) > _MAX_CANONICAL_LEN:
-        raise ValueError(f"TTL '{value}' exceeds maximum of {_CANONICAL_MAX}")
+        raise ValueError(f"TTL {_echo(value)!r} exceeds maximum of {_CANONICAL_MAX}")
     match = _PATTERN.fullmatch(canonical)
     if match is None:
-        raise ValueError(f"Invalid TTL '{value}'; expected format like '30s', '15m', '2h', or '90d'")
+        raise ValueError(f"Invalid TTL {_echo(value)!r}; expected format like '30s', '15m', '2h', or '90d'")
     quantity = int(match.group(1))
     if quantity <= 0:
         raise ValueError("TTL must be greater than zero")
     seconds = quantity * _UNIT_SECONDS[match.group(2)]
     if seconds > _MAX_SECONDS:
-        raise ValueError(f"TTL '{value}' exceeds maximum of {_CANONICAL_MAX}")
+        raise ValueError(f"TTL {_echo(value)!r} exceeds maximum of {_CANONICAL_MAX}")
     return canonical, timedelta(seconds=seconds)
+
+
+def _echo(value: str) -> str:
+    """Return ``value`` truncated for safe inclusion in error messages."""
+    return value if len(value) <= _MAX_ECHO_LEN else value[:_MAX_ECHO_LEN]

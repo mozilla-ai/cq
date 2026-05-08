@@ -113,6 +113,28 @@ class TestParseRejections:
         with pytest.raises(TTLError):
             parse(("9" * (1 << 20)) + "d")
 
+    @pytest.mark.parametrize("value", ["١٢h", "١d", "1٢h"])
+    def test_rejects_unicode_digits(self, value: str) -> None:
+        # Python's \d would otherwise accept Nd-category characters
+        # (e.g. Arabic-Indic) and diverge from sdk/go/ttl's [0-9]+.
+        with pytest.raises(TTLError):
+            parse(value)
+
+
+class TestErrorMessageBounds:
+    """Error messages echo a bounded prefix of the user input.
+
+    An attacker-controlled megabyte input must not produce a megabyte
+    exception string; the parser caps the echoed prefix the same way
+    sdk/go/ttl does.
+    """
+
+    def test_megabyte_input_produces_bounded_error(self) -> None:
+        huge = ("9" * (1 << 20)) + "d"
+        with pytest.raises(TTLError) as exc:
+            parse(huge)
+        assert len(str(exc.value)) < 256
+
 
 class TestExceptionContract:
     """``TTLError`` subclasses ``ValueError`` for backward compatibility."""

@@ -1,9 +1,10 @@
 """Duration-string parser for the cq platform's API-key TTL field.
 
 The grammar is a strict subset of Go's ``time.ParseDuration``: a single
-non-negative integer followed by exactly one unit suffix from
-``s``, ``m``, ``h``, ``d``. Longer units such as ``mo`` and ``y`` are
-deliberately not supported to keep the grammar unambiguous.
+positive ASCII integer followed by exactly one unit suffix from
+``s``, ``m``, ``h``, ``d``. Zero is rejected because a zero-TTL key
+is meaningless. Longer units such as ``mo`` and ``y`` are deliberately
+not supported to keep the grammar unambiguous.
 
 Parsing is case-insensitive on input but always returns the canonical
 lower-case form so the value the platform validates and persists is
@@ -25,7 +26,10 @@ MAX = timedelta(days=365)
 
 _CANONICAL_MAX = "365d"
 
-_PATTERN = re.compile(r"^(\d+)([smhd])$")
+# [0-9]+ rather than \d+: Python's \d matches Unicode "decimal digit"
+# (category Nd), so values like "١٢h" would otherwise parse as 12h and
+# diverge from sdk/go/ttl which uses an explicit ASCII class.
+_PATTERN = re.compile(r"^([0-9]+)([smhd])$")
 
 _UNIT_SECONDS = {
     "s": 1,
@@ -44,6 +48,18 @@ _MAX_SECONDS = int(MAX.total_seconds())
 # outside an HTTP layer that would have its own body-size limit.
 _MAX_CANONICAL_LEN = 16
 
+# Maximum number of characters of the original input echoed in any error
+# message. Bounds the size of the exception string so an attacker-
+# controlled megabyte input does not produce a megabyte-sized error
+# (which would amplify allocation cost and bloat logs). Mirrors the
+# truncation budget in sdk/go/ttl.
+_MAX_ECHO_LEN = 64
+
+
+def _echo(value: str) -> str:
+    """Return ``value`` truncated for safe inclusion in error messages."""
+    return value if len(value) <= _MAX_ECHO_LEN else value[:_MAX_ECHO_LEN]
+
 
 class TTLError(ValueError):
     """Raised when a TTL value is empty, malformed, or exceeds MAX.
@@ -58,8 +74,8 @@ def parse(value: str) -> tuple[str, timedelta]:
     r"""Parse a TTL duration string.
 
     Args:
-        value: A string matching ``^\d+[smhd]$`` after case-folding and
-            whitespace trimming.
+        value: A string matching ``^[0-9]+[smhd]$`` after case-folding
+            and whitespace trimming.
 
     Returns:
         A ``(canonical, duration)`` tuple. ``canonical`` is the
@@ -79,14 +95,14 @@ def parse(value: str) -> tuple[str, timedelta]:
     # the parser do real CPU work before the MAX check fires. The bound
     # is well above any legitimate value (longest is "31536000s").
     if len(canonical) > _MAX_CANONICAL_LEN:
-        raise TTLError(f"{value!r} exceeds the maximum of {_CANONICAL_MAX}")
+        raise TTLError(f"{_echo(value)!r} exceeds the maximum of {_CANONICAL_MAX}")
     match = _PATTERN.fullmatch(canonical)
     if match is None:
-        raise TTLError(f"{value!r} is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h")
+        raise TTLError(f"{_echo(value)!r} is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h")
     quantity = int(match.group(1))
     if quantity <= 0:
-        raise TTLError(f"{value!r}: ttl must be greater than zero")
+        raise TTLError(f"{_echo(value)!r}: ttl must be greater than zero")
     seconds = quantity * _UNIT_SECONDS[match.group(2)]
     if seconds > _MAX_SECONDS:
-        raise TTLError(f"{value!r} exceeds the maximum of {_CANONICAL_MAX}")
+        raise TTLError(f"{_echo(value)!r} exceeds the maximum of {_CANONICAL_MAX}")
     return canonical, timedelta(seconds=seconds)

@@ -98,3 +98,16 @@ class TestParseTtlRejections:
     def test_rejects_megabyte_digit_run_before_int_parse(self) -> None:
         with pytest.raises(ValueError):
             parse_ttl(("9" * (1 << 20)) + "d")
+
+    @pytest.mark.parametrize("value", ["١٢h", "١d", "1٢h"])
+    def test_rejects_unicode_digits(self, value: str) -> None:
+        with pytest.raises(ValueError):
+            parse_ttl(value)
+
+
+class TestParseTtlErrorMessageBounds:
+    def test_megabyte_input_produces_bounded_error(self) -> None:
+        huge = ("9" * (1 << 20)) + "d"
+        with pytest.raises(ValueError) as exc:
+            parse_ttl(huge)
+        assert len(str(exc.value)) < 256

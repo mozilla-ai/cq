@@ -60,6 +60,9 @@ func TestParse(t *testing.T) {
 		{name: "zero days rejected", input: "0d", wantErr: ttl.ErrTooSmall},
 		{name: "zero seconds rejected", input: "0s", wantErr: ttl.ErrTooSmall},
 		{name: "zero with leading zeros rejected", input: "000h", wantErr: ttl.ErrTooSmall},
+
+		{name: "canonical length cap rejects padded leading zeros", input: "00000000000000001d", wantErr: ttl.ErrTooLarge},
+		{name: "canonical length cap rejects 17-char digit run", input: "11111111111111111s", wantErr: ttl.ErrTooLarge},
 	}
 
 	for _, tc := range cases {

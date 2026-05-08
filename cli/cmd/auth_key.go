@@ -253,23 +253,35 @@ func formatLabels(labels []string) string {
 	return strings.Join(labels, ",")
 }
 
+// ttlEchoMax bounds how many bytes of the user-supplied --ttl value
+// appear in any error message, so an attacker-controlled megabyte
+// input cannot produce a megabyte error string in cobra output or
+// logs. Matches the truncation budget in sdk/go/ttl.Parse.
+const ttlEchoMax = 64
+
 // parseTTL is a thin CLI-facing wrapper around ttl.Parse that maps the
 // SDK's typed errors into --ttl-prefixed cobra messages. The SDK owns
 // the canonical grammar, max bound, and case normalisation; this layer
 // only reshapes errors so the user sees the flag name they typed.
 func parseTTL(s string) (string, error) {
 	canonical, _, err := ttl.Parse(s)
+	// Truncate before quoting so the wrapper does not undo ttl.Parse's
+	// own bounded-output guarantee for very long inputs.
+	echo := s
+	if len(echo) > ttlEchoMax {
+		echo = echo[:ttlEchoMax]
+	}
 	switch {
 	case errors.Is(err, ttl.ErrEmpty):
 		return "", errors.New("--ttl is required: supply a value like 30d, 12h, 90d (max 365d)")
 	case errors.Is(err, ttl.ErrGrammar):
-		return "", fmt.Errorf("--ttl %q is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h", s)
+		return "", fmt.Errorf("--ttl %q is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h", echo)
 	case errors.Is(err, ttl.ErrTooLarge):
-		return "", fmt.Errorf("--ttl %q exceeds the maximum of 365d", s)
+		return "", fmt.Errorf("--ttl %q exceeds the maximum of 365d", echo)
 	case errors.Is(err, ttl.ErrTooSmall):
-		return "", fmt.Errorf("--ttl %q must be greater than zero", s)
+		return "", fmt.Errorf("--ttl %q must be greater than zero", echo)
 	case err != nil:
-		return "", fmt.Errorf("--ttl %q: %w", s, err)
+		return "", fmt.Errorf("--ttl %q: %w", echo, err)
 	}
 
 	return canonical, nil
