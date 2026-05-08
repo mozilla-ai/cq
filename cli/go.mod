@@ -34,5 +34,6 @@ require (
 	modernc.org/sqlite v1.48.0 // indirect
 )
 
-// Monorepo: uncomment to use the local SDK during development.
-//replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
+// Monorepo: the SDK is consumed locally. Re-pin to a published version
+// when the SDK is released alongside the CLI.
+replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go

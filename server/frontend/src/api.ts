@@ -75,7 +75,7 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
-  me: () => request<{ username: string; created_at: string }>("/auth/me"),
+  me: () => request<{ username: string; created_at: string }>("/users/me"),
 
   reviewQueue: (limit = 20, offset = 0) =>
     request<ReviewQueueResponse>(
@@ -113,16 +113,18 @@ export const api = {
     return request<ReviewItem[]>(`/review/units${query ? `?${query}` : ""}`)
   },
 
-  listApiKeys: () => request<ApiKeysList>("/auth/api-keys"),
+  listApiKeys: () => request<ApiKeysList>("/users/me/api-keys"),
 
   createApiKey: (name: string, ttl: string, labels: string[] = []) =>
-    request<CreatedApiKey>("/auth/api-keys", {
+    request<CreatedApiKey>("/users/me/api-keys", {
       method: "POST",
       body: JSON.stringify({ name, ttl, labels }),
     }),
 
   revokeApiKey: (id: string) =>
-    request<MessageResponse>(`/auth/api-keys/${id}/revoke`, { method: "POST" }),
+    request<MessageResponse>(`/users/me/api-keys/${id}/revoke`, {
+      method: "POST",
+    }),
 }
 
 export { ApiError }

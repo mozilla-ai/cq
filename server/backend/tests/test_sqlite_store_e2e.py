@@ -39,7 +39,7 @@ def test_e2e_propose_via_store_query_via_api(tmp_path: Path, monkeypatch: pytest
         asyncio.run(store.insert(unit))
         asyncio.run(store.set_review_status(unit.id, "approved", "smoke-reviewer"))
 
-        resp = client.get("/query", params={"domains": "smoke"})
+        resp = client.get("/api/v1/knowledge", params={"domains": "smoke"})
         assert resp.status_code == 200
         ids = [r["id"] for r in resp.json()]
         assert unit.id in ids

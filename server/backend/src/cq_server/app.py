@@ -27,6 +27,7 @@ from .migrations import run_migrations
 from .review import router as review_router
 from .scoring import apply_confirmation, apply_flag
 from .store import Store, create_store, normalize_domains
+from .users import router as users_router
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
@@ -105,11 +106,14 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
         await _store.close()
 
 
-# --- API routes on a shared router so they can be mounted at both / and /api. ---
+# --- API routes assembled into a versioned router mounted at /api/v1. ---
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
+api_router.include_router(users_router)
 api_router.include_router(review_router)
+
+knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 
 @api_router.get("/health")
@@ -118,7 +122,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@api_router.get("/query")
+@knowledge_router.get("")
 async def query_units(
     domains: Annotated[list[str], Query()],
     languages: Annotated[list[str] | None, Query()] = None,
@@ -137,7 +141,7 @@ async def query_units(
     )
 
 
-@api_router.post("/propose", status_code=201)
+@knowledge_router.post("", status_code=201)
 async def propose_unit(
     request: ProposeRequest,
     username: str = Depends(require_api_key),
@@ -162,7 +166,7 @@ async def propose_unit(
     return unit
 
 
-@api_router.post("/confirm/{unit_id}")
+@knowledge_router.post("/{unit_id}/confirmations", status_code=201)
 async def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Confirm a knowledge unit, boosting its confidence."""
     store = _get_store()
@@ -174,7 +178,7 @@ async def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) 
     return confirmed
 
 
-@api_router.post("/flag/{unit_id}")
+@knowledge_router.post("/{unit_id}/flags", status_code=201)
 async def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
     """Flag a knowledge unit, reducing its confidence."""
     store = _get_store()
@@ -186,7 +190,7 @@ async def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends
     return flagged
 
 
-@api_router.get("/stats")
+@knowledge_router.get("/stats")
 async def stats() -> StatsResponse:
     """Return store statistics."""
     store = _get_store()
@@ -197,12 +201,16 @@ async def stats() -> StatsResponse:
     )
 
 
+api_router.include_router(knowledge_router)
+
+
 # --- Application assembly. ---
 
 app = FastAPI(title="cq Server", version="0.1.0", lifespan=lifespan)
 
-# Mount API routes at root (SDK compatibility) and at /api (frontend).
-app.include_router(api_router)
+# Mount API routes only at /api/v1; the previous root mount has been
+# removed so versioning is unambiguous and clients always route through
+# the same prefix.
 app.include_router(api_router, prefix="/api/v1")
 
 # Serve the frontend static build when present (combined Docker image).

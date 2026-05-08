@@ -76,7 +76,7 @@ class TestLoginEndpoint:
 
     def test_login_success(self, client: TestClient) -> None:
         _seed_user(client)
-        resp = client.post("/auth/login", json={"username": "peter", "password": self.test_password})
+        resp = client.post("/api/v1/auth/login", json={"username": "peter", "password": self.test_password})
         assert resp.status_code == 200
         body = resp.json()
         assert "token" in body
@@ -85,13 +85,13 @@ class TestLoginEndpoint:
     def test_login_wrong_password(self, client: TestClient) -> None:
         _seed_user(client)
         resp = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             json={"username": "peter", "password": "wrong"},  # pragma: allowlist secret
         )
         assert resp.status_code == 401
 
     def test_login_unknown_user(self, client: TestClient) -> None:
-        resp = client.post("/auth/login", json={"username": "nobody", "password": self.test_password})
+        resp = client.post("/api/v1/auth/login", json={"username": "nobody", "password": self.test_password})
         assert resp.status_code == 401
 
 
@@ -100,18 +100,18 @@ class TestAuthMe:
 
     def test_me_with_valid_token(self, client: TestClient) -> None:
         _seed_user(client)
-        login = client.post("/auth/login", json={"username": "peter", "password": self.test_password})
+        login = client.post("/api/v1/auth/login", json={"username": "peter", "password": self.test_password})
         token = login.json()["token"]
-        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+        resp = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         assert resp.json()["username"] == "peter"
 
     def test_me_without_token(self, client: TestClient) -> None:
-        resp = client.get("/auth/me")
+        resp = client.get("/api/v1/users/me")
         assert resp.status_code == 401
 
     def test_me_with_invalid_token(self, client: TestClient) -> None:
-        resp = client.get("/auth/me", headers={"Authorization": "Bearer invalid"})
+        resp = client.get("/api/v1/users/me", headers={"Authorization": "Bearer invalid"})
         assert resp.status_code == 401
 
 
@@ -128,7 +128,7 @@ def api_key_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
 
 def _login(client: TestClient, username: str = "peter", password: str = "secret123") -> str:
     _seed_user(client, username=username, password=password)
-    resp = client.post("/auth/login", json={"username": username, "password": password})
+    resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200
     return resp.json()["token"]
 
@@ -137,7 +137,7 @@ class TestApiKeyCreate:
     def test_create_returns_plaintext_once(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         resp = api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "laptop", "ttl": "30d"},
         )
@@ -154,13 +154,13 @@ class TestApiKeyCreate:
         assert body["is_expired"] is False
 
     def test_create_requires_jwt(self, api_key_client: TestClient) -> None:
-        resp = api_key_client.post("/auth/api-keys", json={"name": "x", "ttl": "30d"})
+        resp = api_key_client.post("/api/v1/users/me/api-keys", json={"name": "x", "ttl": "30d"})
         assert resp.status_code == 401
 
     def test_create_rejects_invalid_ttl(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         resp = api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "x", "ttl": "3mo"},
         )
@@ -169,7 +169,7 @@ class TestApiKeyCreate:
     def test_create_rejects_empty_name(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         resp = api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "", "ttl": "30d"},
         )
@@ -179,13 +179,13 @@ class TestApiKeyCreate:
         token = _login(api_key_client)
         for i in range(20):
             resp = api_key_client.post(
-                "/auth/api-keys",
+                "/api/v1/users/me/api-keys",
                 headers={"Authorization": f"Bearer {token}"},
                 json={"name": f"k{i}", "ttl": "30d"},
             )
             assert resp.status_code == 201
         resp = api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "k21", "ttl": "30d"},
         )
@@ -196,11 +196,11 @@ class TestApiKeyList:
     def test_list_hides_plaintext(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "laptop", "ttl": "30d"},
         )
-        resp = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token}"})
+        resp = api_key_client.get("/api/v1/users/me/api-keys", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         body = resp.json()
         assert body["count"] == 1
@@ -209,23 +209,23 @@ class TestApiKeyList:
         assert body["data"][0]["name"] == "laptop"
 
     def test_list_requires_jwt(self, api_key_client: TestClient) -> None:
-        resp = api_key_client.get("/auth/api-keys")
+        resp = api_key_client.get("/api/v1/users/me/api-keys")
         assert resp.status_code == 401
 
     def test_list_scoped_to_caller(self, api_key_client: TestClient) -> None:
         token_a = _login(api_key_client, username="alice")
         token_b = _login(api_key_client, username="bob")
         api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token_a}"},
             json={"name": "alice-key", "ttl": "30d"},
         )
         api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token_b}"},
             json={"name": "bob-key", "ttl": "30d"},
         )
-        resp = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token_a}"})
+        resp = api_key_client.get("/api/v1/users/me/api-keys", headers={"Authorization": f"Bearer {token_a}"})
         body = resp.json()
         assert body["count"] == 1
         assert [k["name"] for k in body["data"]] == ["alice-key"]
@@ -235,34 +235,34 @@ class TestApiKeyRevoke:
     def test_revoke_success(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         created = api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "x", "ttl": "30d"},
         ).json()
         resp = api_key_client.post(
-            f"/auth/api-keys/{created['id']}/revoke",
+            f"/api/v1/users/me/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200
         assert resp.json() == {"message": "API key revoked."}
 
-        body = api_key_client.get("/auth/api-keys", headers={"Authorization": f"Bearer {token}"}).json()
+        body = api_key_client.get("/api/v1/users/me/api-keys", headers={"Authorization": f"Bearer {token}"}).json()
         assert body["data"][0]["revoked_at"] is not None
         assert body["data"][0]["is_active"] is False
 
     def test_revoke_is_idempotent(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         created = api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token}"},
             json={"name": "x", "ttl": "30d"},
         ).json()
         first = api_key_client.post(
-            f"/auth/api-keys/{created['id']}/revoke",
+            f"/api/v1/users/me/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
         second = api_key_client.post(
-            f"/auth/api-keys/{created['id']}/revoke",
+            f"/api/v1/users/me/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert first.status_code == 200
@@ -272,12 +272,12 @@ class TestApiKeyRevoke:
         token_a = _login(api_key_client, username="alice")
         token_b = _login(api_key_client, username="bob")
         created = api_key_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {token_a}"},
             json={"name": "alice-key", "ttl": "30d"},
         ).json()
         resp = api_key_client.post(
-            f"/auth/api-keys/{created['id']}/revoke",
+            f"/api/v1/users/me/api-keys/{created['id']}/revoke",
             headers={"Authorization": f"Bearer {token_b}"},
         )
         assert resp.status_code == 404
@@ -285,11 +285,11 @@ class TestApiKeyRevoke:
     def test_revoke_unknown_key_returns_404(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         resp = api_key_client.post(
-            "/auth/api-keys/nonexistent/revoke",
+            "/api/v1/users/me/api-keys/nonexistent/revoke",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 404
 
     def test_revoke_requires_jwt(self, api_key_client: TestClient) -> None:
-        resp = api_key_client.post("/auth/api-keys/anything/revoke")
+        resp = api_key_client.post("/api/v1/users/me/api-keys/anything/revoke")
         assert resp.status_code == 401

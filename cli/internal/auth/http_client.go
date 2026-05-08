@@ -61,7 +61,7 @@ func (c *httpClient) ClaimUsername(ctx context.Context, jwt, username string) (U
 
 // CreateAPIKey implements Client.
 func (c *httpClient) CreateAPIKey(ctx context.Context, jwt string, in CreateAPIKeyRequest) (CreatedAPIKey, error) {
-	req, err := c.newRequest(ctx, http.MethodPost, apiVersionPrefix+"/auth/me/api-keys", in)
+	req, err := c.newRequest(ctx, http.MethodPost, apiVersionPrefix+"/users/me/api-keys", in)
 	if err != nil {
 		return CreatedAPIKey{}, err
 	}
@@ -78,7 +78,7 @@ func (c *httpClient) CreateAPIKey(ctx context.Context, jwt string, in CreateAPIK
 
 // ListAPIKeys implements Client.
 func (c *httpClient) ListAPIKeys(ctx context.Context, jwt string) ([]APIKey, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, apiVersionPrefix+"/auth/me/api-keys", nil)
+	req, err := c.newRequest(ctx, http.MethodGet, apiVersionPrefix+"/users/me/api-keys", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (c *httpClient) OAuthProviders(ctx context.Context) ([]Provider, error) {
 
 // RevokeAPIKey implements Client.
 func (c *httpClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {
-	path := apiVersionPrefix + "/auth/me/api-keys/" + url.PathEscape(keyID) + "/revoke"
+	path := apiVersionPrefix + "/users/me/api-keys/" + url.PathEscape(keyID) + "/revoke"
 
 	req, err := c.newRequest(ctx, http.MethodPost, path, nil)
 	if err != nil {

@@ -2,8 +2,9 @@
 """Load seed knowledge units into the cq server.
 
 Reads seed-kus.json and POSTs each unit to the running server. After creation,
-approves most units via the review API, then calls /confirm or /flag to reach
-the target confidence defined by _target_confidence.
+approves most units via the review API, then posts to the confirmations or
+flags sub-resource to reach the target confidence defined by
+_target_confidence.
 
 Leaves the last few units in 'pending' status so the review queue is not
 empty for demo purposes.
@@ -23,6 +24,9 @@ import urllib.request
 from pathlib import Path
 
 SEED_FILE = Path(__file__).parent / "seed-kus.json"
+
+# All routes are mounted under the versioned API prefix.
+API_PREFIX = "/api/v1"
 
 # Number of units to leave in pending status for the review queue.
 PENDING_COUNT = 3
@@ -52,7 +56,7 @@ def _request(
 
 def _check_health(base_url: str) -> None:
     """Verify the server is reachable."""
-    req = urllib.request.Request(f"{base_url}/health")
+    req = urllib.request.Request(f"{base_url}{API_PREFIX}/health")
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
             result = json.loads(resp.read())
@@ -68,7 +72,7 @@ def _check_health(base_url: str) -> None:
 def _login(base_url: str, username: str, password: str) -> str:
     """Log in and return a JWT token."""
     result = _request(
-        f"{base_url}/auth/login",
+        f"{base_url}{API_PREFIX}/auth/login",
         body={"username": username, "password": password},
     )
     return result["token"]
@@ -77,7 +81,7 @@ def _login(base_url: str, username: str, password: str) -> str:
 def _create_api_key(base_url: str, jwt_token: str) -> tuple[str, str]:
     """Create a short-lived API key for data-plane calls and return (id, plaintext)."""
     result = _request(
-        f"{base_url}/auth/api-keys",
+        f"{base_url}{API_PREFIX}/users/me/api-keys",
         body={"name": "seed-kus", "ttl": "1h"},
         token=jwt_token,
     )
@@ -87,18 +91,22 @@ def _create_api_key(base_url: str, jwt_token: str) -> tuple[str, str]:
 def _revoke_api_key(base_url: str, jwt_token: str, key_id: str) -> None:
     """Revoke the seed API key. Failures are logged and swallowed."""
     try:
-        _request(f"{base_url}/auth/api-keys/{key_id}/revoke", method="POST", token=jwt_token)
+        _request(
+            f"{base_url}{API_PREFIX}/users/me/api-keys/{key_id}/revoke",
+            method="POST",
+            token=jwt_token,
+        )
     except SystemExit as exc:
         print(f"  warning: failed to revoke seed API key {key_id}: {exc}")
 
 
 def _confirms_needed(target: float) -> int:
-    """Number of /confirm calls to reach target confidence from 0.5."""
+    """Number of confirmations needed to reach target confidence from 0.5."""
     return max(0, math.ceil((target - 0.5) / 0.1 - 1e-9))
 
 
 def _flags_needed(target: float) -> int:
-    """Number of /flag calls to reach target confidence from 0.5."""
+    """Number of flags needed to reach target confidence from 0.5."""
     return max(0, math.ceil((0.5 - target) / 0.15 - 1e-9))
 
 
@@ -106,7 +114,7 @@ def load(base_url: str, jwt_token: str, api_key: str) -> None:
     """Load seed units: propose, approve, and adjust confidence.
 
     JWT authenticates the /review routes; the API key authenticates the
-    /propose, /confirm, and /flag data-plane routes.
+    /knowledge data-plane routes (propose, confirmations, flags).
     """
     units = json.loads(SEED_FILE.read_text())
     total = len(units)
@@ -121,22 +129,25 @@ def load(base_url: str, jwt_token: str, api_key: str) -> None:
         payload = {k: v for k, v in unit.items() if not k.startswith("_")}
 
         # Propose the unit with the API key; server overrides created_by to the key's owner.
-        result = _request(f"{base_url}/propose", body=payload, token=api_key)
+        result = _request(f"{base_url}{API_PREFIX}/knowledge", body=payload, token=api_key)
         unit_id = result["id"]
 
         # Approve most units; leave the last PENDING_COUNT in pending.
         if i <= approve_count:
-            _request(f"{base_url}/review/{unit_id}/approve", token=jwt_token)
+            _request(f"{base_url}{API_PREFIX}/review/{unit_id}/approve", token=jwt_token)
             status_label = "approved"
 
-            # Adjust confidence via confirm/flag (only works on approved units).
+            # Adjust confidence via confirmations/flags (only works on approved units).
             if target > 0.5:
                 for _ in range(_confirms_needed(target)):
-                    _request(f"{base_url}/confirm/{unit_id}", token=api_key)
+                    _request(
+                        f"{base_url}{API_PREFIX}/knowledge/{unit_id}/confirmations",
+                        token=api_key,
+                    )
             elif target < 0.5:
                 for _ in range(_flags_needed(target)):
                     _request(
-                        f"{base_url}/flag/{unit_id}",
+                        f"{base_url}{API_PREFIX}/knowledge/{unit_id}/flags",
                         body={"reason": flag_reason},
                         token=api_key,
                     )

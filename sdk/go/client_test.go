@@ -7,11 +7,42 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+const (
+	knowledgePathPrefix     = "/api/v1/knowledge/"
+	confirmationsPathSuffix = "/confirmations"
+	flagsPathSuffix         = "/flags"
+)
+
+// confirmationsUnitID returns the unit id from a /api/v1/knowledge/{id}/confirmations path.
+func confirmationsUnitID(p string) (string, bool) {
+	if !strings.HasPrefix(p, knowledgePathPrefix) || !strings.HasSuffix(p, confirmationsPathSuffix) {
+		return "", false
+	}
+	mid := strings.TrimSuffix(strings.TrimPrefix(p, knowledgePathPrefix), confirmationsPathSuffix)
+	if mid == "" || strings.Contains(mid, "/") {
+		return "", false
+	}
+	return mid, true
+}
+
+// flagsUnitID returns the unit id from a /api/v1/knowledge/{id}/flags path.
+func flagsUnitID(p string) (string, bool) {
+	if !strings.HasPrefix(p, knowledgePathPrefix) || !strings.HasSuffix(p, flagsPathSuffix) {
+		return "", false
+	}
+	mid := strings.TrimSuffix(strings.TrimPrefix(p, knowledgePathPrefix), flagsPathSuffix)
+	if mid == "" || strings.Contains(mid, "/") {
+		return "", false
+	}
+	return mid, true
+}
 
 // testClearEnv clears CQ environment variables so tests are isolated from the host.
 func testClearEnv(t *testing.T) {
@@ -395,7 +426,7 @@ func TestProposeRemoteAuthRejectFallsBackLocally(t *testing.T) {
 func TestQueryMergesLocalAndRemote(t *testing.T) {
 
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/propose" {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			// Unreachable for propose; forces local storage.
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
@@ -464,13 +495,13 @@ func TestConfirmLocalUnit(t *testing.T) {
 
 	var confirmedRemotely bool
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/propose" {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			// Unreachable; forces local fallback.
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 
-		if r.Method == "POST" && len(r.URL.Path) > 9 && r.URL.Path[:9] == "/confirm/" {
+		if _, ok := confirmationsUnitID(r.URL.Path); ok && r.Method == "POST" {
 			confirmedRemotely = true
 		}
 
@@ -494,10 +525,10 @@ func TestConfirmRemoteUnit(t *testing.T) {
 
 	var confirmedRemotely bool
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" && len(r.URL.Path) > 9 && r.URL.Path[:9] == "/confirm/" {
+		if id, ok := confirmationsUnitID(r.URL.Path); ok && r.Method == "POST" {
 			confirmedRemotely = true
 			w.Header().Set("Content-Type", "application/json")
-			resp := testRemoteKUJSON(r.URL.Path[9:])
+			resp := testRemoteKUJSON(id)
 			resp["evidence"].(map[string]any)["confidence"] = 0.8
 			_ = json.NewEncoder(w).Encode(resp)
 
@@ -520,7 +551,7 @@ func TestDrain(t *testing.T) {
 
 	var pushCount int
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/propose" && r.Method == "POST" {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			pushCount++
 			w.WriteHeader(http.StatusCreated)
 			w.Header().Set("Content-Type", "application/json")
@@ -612,10 +643,10 @@ func TestFlagRemoteUnit(t *testing.T) {
 
 	var received map[string]any
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" && len(r.URL.Path) > 6 && r.URL.Path[:6] == "/flag/" {
+		if id, ok := flagsUnitID(r.URL.Path); ok && r.Method == "POST" {
 			_ = json.NewDecoder(r.Body).Decode(&received)
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(testRemoteKUJSON(r.URL.Path[6:]))
+			_ = json.NewEncoder(w).Encode(testRemoteKUJSON(id))
 
 			return
 		}
@@ -663,7 +694,7 @@ func TestStatusLocalOnlyHasTierCounts(t *testing.T) {
 
 func TestStatusWithRemoteMergesTierCounts(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/stats" && r.Method == "GET" {
+		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_units": 3,
@@ -694,7 +725,7 @@ func TestStatusWithRemoteMergesTierCounts(t *testing.T) {
 
 func TestStatusWithRemoteMergesDomainCounts(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/stats" && r.Method == "GET" {
+		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_units": 5,
@@ -745,7 +776,7 @@ func TestStatusRemoteUnreachableStillReturnsLocal(t *testing.T) {
 
 func TestStatusIgnoresLocalTierFromRemote(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/stats" && r.Method == "GET" {
+		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"total_units": 6,

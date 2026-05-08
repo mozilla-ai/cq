@@ -45,14 +45,14 @@ def _seed_user_and_login(
     from cq_server.auth import hash_password
 
     asyncio.run(_get_store().create_user(username, hash_password(password)))
-    resp = client.post("/auth/login", json={"username": username, "password": password})
+    resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200
     return resp.json()["token"]
 
 
 def _create_api_key_plaintext(client: TestClient, jwt_token: str, name: str = "test") -> str:
     resp = client.post(
-        "/auth/api-keys",
+        "/api/v1/users/me/api-keys",
         headers={"Authorization": f"Bearer {jwt_token}"},
         json={"name": name, "ttl": "30d"},
     )
@@ -82,14 +82,14 @@ def _approve_unit(client: TestClient, unit_id: str) -> None:
 
 class TestHealth:
     def test_health_returns_ok(self, client: TestClient) -> None:
-        resp = client.get("/health")
+        resp = client.get("/api/v1/health")
         assert resp.status_code == 200
         assert resp.json() == {"status": "ok"}
 
 
 class TestPropose:
     def test_propose_creates_unit(self, client: TestClient) -> None:
-        resp = client.post("/propose", json=_propose_payload())
+        resp = client.post("/api/v1/knowledge", json=_propose_payload())
         assert resp.status_code == 201
         body = resp.json()
         assert body["id"].startswith("ku_")
@@ -101,7 +101,7 @@ class TestPropose:
         payload = _propose_payload(
             context={"languages": ["python"], "frameworks": ["fastapi"]},
         )
-        resp = client.post("/propose", json=payload)
+        resp = client.post("/api/v1/knowledge", json=payload)
         assert resp.status_code == 201
         body = resp.json()
         assert "python" in body["context"]["languages"]
@@ -109,24 +109,24 @@ class TestPropose:
 
     def test_propose_with_empty_domains_rejected(self, client: TestClient) -> None:
         payload = _propose_payload(domains=[])
-        resp = client.post("/propose", json=payload)
+        resp = client.post("/api/v1/knowledge", json=payload)
         assert resp.status_code == 422
 
     def test_propose_with_whitespace_only_domains_rejected(self, client: TestClient) -> None:
         payload = _propose_payload(domains=["  ", ""])
-        resp = client.post("/propose", json=payload)
+        resp = client.post("/api/v1/knowledge", json=payload)
         assert resp.status_code == 422
 
     def test_propose_normalizes_domains(self, client: TestClient) -> None:
         payload = _propose_payload(domains=["API", " Databases "])
-        resp = client.post("/propose", json=payload)
+        resp = client.post("/api/v1/knowledge", json=payload)
         assert resp.status_code == 201
         assert resp.json()["domains"] == ["api", "databases"]
 
 
 class TestQuery:
     def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:
-        resp = client.post("/propose", json=_propose_payload(**overrides))
+        resp = client.post("/api/v1/knowledge", json=_propose_payload(**overrides))
         assert resp.status_code == 201
         body = resp.json()
         _approve_unit(client, body["id"])
@@ -134,7 +134,7 @@ class TestQuery:
 
     def test_query_returns_matching_units(self, client: TestClient) -> None:
         self._insert_unit(client, domains=["databases"])
-        resp = client.get("/query", params={"domains": ["databases"]})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["databases"]})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 1
@@ -142,7 +142,7 @@ class TestQuery:
 
     def test_query_returns_empty_for_no_match(self, client: TestClient) -> None:
         self._insert_unit(client, domains=["databases"])
-        resp = client.get("/query", params={"domains": ["networking"]})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["networking"]})
         assert resp.status_code == 200
         assert resp.json() == []
 
@@ -157,7 +157,7 @@ class TestQuery:
             domains=["web"],
             context={"languages": ["go"], "frameworks": []},
         )
-        resp = client.get("/query", params={"domains": ["web"], "languages": ["python"]})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["web"], "languages": ["python"]})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 2
@@ -180,7 +180,7 @@ class TestQuery:
             context={"languages": ["rust"], "frameworks": []},
         )
         resp = client.get(
-            "/query",
+            "/api/v1/knowledge",
             params={"domains": ["web"], "languages": ["python", "go"]},
         )
         assert resp.status_code == 200
@@ -192,12 +192,12 @@ class TestQuery:
     def test_query_respects_limit(self, client: TestClient) -> None:
         for _ in range(3):
             self._insert_unit(client, domains=["api"])
-        resp = client.get("/query", params={"domains": ["api"], "limit": 2})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["api"], "limit": 2})
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
     def test_query_rejects_zero_limit(self, client: TestClient) -> None:
-        resp = client.get("/query", params={"domains": ["api"], "limit": 0})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["api"], "limit": 0})
         assert resp.status_code == 422
 
     def test_query_boosts_matching_pattern(self, client: TestClient) -> None:
@@ -211,7 +211,7 @@ class TestQuery:
             domains=["api"],
             context={"languages": [], "frameworks": [], "pattern": "other-pattern"},
         )
-        resp = client.get("/query", params={"domains": ["api"], "pattern": "api-client"})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["api"], "pattern": "api-client"})
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 2
@@ -220,53 +220,53 @@ class TestQuery:
 
 class TestConfirm:
     def test_confirm_boosts_confidence(self, client: TestClient) -> None:
-        created = client.post("/propose", json=_propose_payload()).json()
+        created = client.post("/api/v1/knowledge", json=_propose_payload()).json()
         _approve_unit(client, created["id"])
-        resp = client.post(f"/confirm/{created['id']}")
-        assert resp.status_code == 200
+        resp = client.post(f"/api/v1/knowledge/{created['id']}/confirmations")
+        assert resp.status_code == 201
         body = resp.json()
         assert body["evidence"]["confirmations"] == 2
         assert body["evidence"]["confidence"] > 0.5
 
     def test_confirm_pending_unit_returns_404(self, client: TestClient) -> None:
-        created = client.post("/propose", json=_propose_payload()).json()
-        resp = client.post(f"/confirm/{created['id']}")
+        created = client.post("/api/v1/knowledge", json=_propose_payload()).json()
+        resp = client.post(f"/api/v1/knowledge/{created['id']}/confirmations")
         assert resp.status_code == 404
 
     def test_confirm_missing_unit_returns_404(self, client: TestClient) -> None:
-        resp = client.post("/confirm/ku_nonexistent")
+        resp = client.post("/api/v1/knowledge/ku_nonexistent/confirmations")
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
 
 
 class TestFlag:
     def test_flag_reduces_confidence(self, client: TestClient) -> None:
-        created = client.post("/propose", json=_propose_payload()).json()
+        created = client.post("/api/v1/knowledge", json=_propose_payload()).json()
         _approve_unit(client, created["id"])
-        resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
-        assert resp.status_code == 200
+        resp = client.post(f"/api/v1/knowledge/{created['id']}/flags", json={"reason": "stale"})
+        assert resp.status_code == 201
         body = resp.json()
         assert body["evidence"]["confidence"] < 0.5
         assert len(body["flags"]) == 1
 
     def test_flag_pending_unit_returns_404(self, client: TestClient) -> None:
-        created = client.post("/propose", json=_propose_payload()).json()
-        resp = client.post(f"/flag/{created['id']}", json={"reason": "stale"})
+        created = client.post("/api/v1/knowledge", json=_propose_payload()).json()
+        resp = client.post(f"/api/v1/knowledge/{created['id']}/flags", json={"reason": "stale"})
         assert resp.status_code == 404
 
     def test_flag_missing_unit_returns_404(self, client: TestClient) -> None:
-        resp = client.post("/flag/ku_nonexistent", json={"reason": "stale"})
+        resp = client.post("/api/v1/knowledge/ku_nonexistent/flags", json={"reason": "stale"})
         assert resp.status_code == 404
 
     def test_flag_with_invalid_reason_rejected(self, client: TestClient) -> None:
-        created = client.post("/propose", json=_propose_payload()).json()
-        resp = client.post(f"/flag/{created['id']}", json={"reason": "invalid_reason"})
+        created = client.post("/api/v1/knowledge", json=_propose_payload()).json()
+        resp = client.post(f"/api/v1/knowledge/{created['id']}/flags", json={"reason": "invalid_reason"})
         assert resp.status_code == 422
 
 
 class TestStats:
     def test_stats_empty_store(self, client: TestClient) -> None:
-        resp = client.get("/stats")
+        resp = client.get("/api/v1/knowledge/stats")
         assert resp.status_code == 200
         body = resp.json()
         assert body["total_units"] == 0
@@ -276,12 +276,12 @@ class TestStats:
     def test_stats_after_inserts(self, client: TestClient) -> None:
         from cq_server.app import _get_store
 
-        r1 = client.post("/propose", json=_propose_payload(domains=["api", "auth"]))
-        r2 = client.post("/propose", json=_propose_payload(domains=["api", "payments"]))
+        r1 = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api", "auth"]))
+        r2 = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api", "payments"]))
         store = _get_store()
         asyncio.run(store.set_review_status(r1.json()["id"], "approved", "tester"))
         asyncio.run(store.set_review_status(r2.json()["id"], "approved", "tester"))
-        resp = client.get("/stats")
+        resp = client.get("/api/v1/knowledge/stats")
         assert resp.status_code == 200
         body = resp.json()
         assert body["total_units"] == 2
@@ -303,7 +303,7 @@ class TestReviewLifecycleEndToEnd:
 
         # Log in.
         login_resp = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             json={
                 "username": "reviewer",
                 "password": "pass123",  # pragma: allowlist secret
@@ -314,38 +314,38 @@ class TestReviewLifecycleEndToEnd:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Agent proposes a KU.
-        propose_resp = client.post("/propose", json=_propose_payload(domains=["e2e-test"]))
+        propose_resp = client.post("/api/v1/knowledge", json=_propose_payload(domains=["e2e-test"]))
         assert propose_resp.status_code == 201
         unit_id = propose_resp.json()["id"]
 
         # KU is not queryable yet (pending).
-        query_resp = client.get("/query", params={"domains": ["e2e-test"]})
+        query_resp = client.get("/api/v1/knowledge", params={"domains": ["e2e-test"]})
         assert len(query_resp.json()) == 0
 
         # KU appears in review queue.
-        queue_resp = client.get("/review/queue", headers=headers)
+        queue_resp = client.get("/api/v1/review/queue", headers=headers)
         assert queue_resp.json()["total"] == 1
 
         # Reviewer approves the KU.
-        approve_resp = client.post(f"/review/{unit_id}/approve", headers=headers)
+        approve_resp = client.post(f"/api/v1/review/{unit_id}/approve", headers=headers)
         assert approve_resp.status_code == 200
         assert approve_resp.json()["status"] == "approved"
 
         # KU is now queryable.
-        query_resp = client.get("/query", params={"domains": ["e2e-test"]})
+        query_resp = client.get("/api/v1/knowledge", params={"domains": ["e2e-test"]})
         assert len(query_resp.json()) == 1
 
         # Queue is empty.
-        queue_resp = client.get("/review/queue", headers=headers)
+        queue_resp = client.get("/api/v1/review/queue", headers=headers)
         assert queue_resp.json()["total"] == 0
 
         # Agent can confirm the approved KU.
-        confirm_resp = client.post(f"/confirm/{unit_id}")
-        assert confirm_resp.status_code == 200
+        confirm_resp = client.post(f"/api/v1/knowledge/{unit_id}/confirmations")
+        assert confirm_resp.status_code == 201
         assert confirm_resp.json()["evidence"]["confirmations"] == 2
 
         # Stats reflect the state including trends.
-        stats_resp = client.get("/review/stats", headers=headers)
+        stats_resp = client.get("/api/v1/review/stats", headers=headers)
         body = stats_resp.json()
         assert body["counts"]["approved"] == 1
         assert "trends" in body
@@ -359,7 +359,7 @@ class TestEndToEnd:
             domains=["api", "payments"],
             context={"languages": ["python"], "frameworks": ["fastapi"]},
         )
-        created = client.post("/propose", json=payload)
+        created = client.post("/api/v1/knowledge", json=payload)
         assert created.status_code == 201
         unit_id = created.json()["id"]
 
@@ -368,30 +368,30 @@ class TestEndToEnd:
 
         # Query returns the unit.
         resp = client.get(
-            "/query",
+            "/api/v1/knowledge",
             params={"domains": ["api", "payments"], "languages": ["python"]},
         )
         assert len(resp.json()) == 1
         assert resp.json()[0]["evidence"]["confidence"] == 0.5
 
         # Confirm boosts confidence.
-        resp = client.post(f"/confirm/{unit_id}")
-        assert resp.status_code == 200
+        resp = client.post(f"/api/v1/knowledge/{unit_id}/confirmations")
+        assert resp.status_code == 201
 
-        resp = client.get("/query", params={"domains": ["api", "payments"]})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["api", "payments"]})
         assert resp.json()[0]["evidence"]["confidence"] == pytest.approx(0.6)
 
         # Flag reduces confidence.
-        resp = client.post(f"/flag/{unit_id}", json={"reason": "stale"})
-        assert resp.status_code == 200
+        resp = client.post(f"/api/v1/knowledge/{unit_id}/flags", json={"reason": "stale"})
+        assert resp.status_code == 201
 
-        resp = client.get("/query", params={"domains": ["api", "payments"]})
+        resp = client.get("/api/v1/knowledge", params={"domains": ["api", "payments"]})
         result = resp.json()[0]
         assert result["evidence"]["confidence"] == pytest.approx(0.45)
         assert len(result["flags"]) == 1
 
         # Stats reflect the unit.
-        resp = client.get("/stats")
+        resp = client.get("/api/v1/knowledge/stats")
         assert resp.json()["total_units"] == 1
 
 
@@ -408,7 +408,7 @@ class TestDatabaseUrlBoot:
         monkeypatch.setenv("CQ_JWT_SECRET", "test-secret-please-ignore-len")
         monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
         with TestClient(app) as c:
-            assert c.get("/health").status_code == 200
+            assert c.get("/api/v1/health").status_code == 200
 
     def test_boots_with_only_cq_db_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("CQ_DATABASE_URL", raising=False)
@@ -445,12 +445,12 @@ class TestDatabaseUrlBoot:
 
 class TestApiKeyEnforcement:
     def test_propose_without_key_is_rejected(self, enforced_client: TestClient) -> None:
-        resp = enforced_client.post("/propose", json=_propose_payload())
+        resp = enforced_client.post("/api/v1/knowledge", json=_propose_payload())
         assert resp.status_code == 401
 
     def test_propose_with_wrong_prefix_is_rejected(self, enforced_client: TestClient) -> None:
         resp = enforced_client.post(
-            "/propose",
+            "/api/v1/knowledge",
             json=_propose_payload(),
             headers={"Authorization": "Bearer sk-something"},
         )
@@ -458,7 +458,7 @@ class TestApiKeyEnforcement:
 
     def test_propose_with_unknown_key_is_rejected(self, enforced_client: TestClient) -> None:
         resp = enforced_client.post(
-            "/propose",
+            "/api/v1/knowledge",
             json=_propose_payload(),
             headers={"Authorization": "Bearer cqa_unknownkey"},
         )
@@ -468,7 +468,7 @@ class TestApiKeyEnforcement:
         jwt_token = _seed_user_and_login(enforced_client)
         api_token = _create_api_key_plaintext(enforced_client, jwt_token)
         resp = enforced_client.post(
-            "/propose",
+            "/api/v1/knowledge",
             json=_propose_payload(),
             headers={"Authorization": f"Bearer {api_token}"},
         )
@@ -480,7 +480,7 @@ class TestApiKeyEnforcement:
         payload = _propose_payload()
         payload["created_by"] = "impostor"
         resp = enforced_client.post(
-            "/propose",
+            "/api/v1/knowledge",
             json=payload,
             headers={"Authorization": f"Bearer {api_token}"},
         )
@@ -490,57 +490,57 @@ class TestApiKeyEnforcement:
     def test_propose_with_revoked_key_is_rejected(self, enforced_client: TestClient) -> None:
         jwt_token = _seed_user_and_login(enforced_client)
         create_resp = enforced_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
             json={"name": "revokeable", "ttl": "30d"},
         )
         body = create_resp.json()
         api_token = body["token"]
         enforced_client.post(
-            f"/auth/api-keys/{body['id']}/revoke",
+            f"/api/v1/users/me/api-keys/{body['id']}/revoke",
             headers={"Authorization": f"Bearer {jwt_token}"},
         )
         resp = enforced_client.post(
-            "/propose",
+            "/api/v1/knowledge",
             json=_propose_payload(),
             headers={"Authorization": f"Bearer {api_token}"},
         )
         assert resp.status_code == 401
 
     def test_query_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
-        resp = enforced_client.get("/query", params={"domains": ["anything"]})
+        resp = enforced_client.get("/api/v1/knowledge", params={"domains": ["anything"]})
         assert resp.status_code == 200
 
     def test_stats_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
-        resp = enforced_client.get("/stats")
+        resp = enforced_client.get("/api/v1/knowledge/stats")
         assert resp.status_code == 200
 
     def test_health_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
-        resp = enforced_client.get("/health")
+        resp = enforced_client.get("/api/v1/health")
         assert resp.status_code == 200
 
     def test_last_used_at_updates_after_request(self, enforced_client: TestClient) -> None:
         jwt_token = _seed_user_and_login(enforced_client)
         create = enforced_client.post(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
             json={"name": "trace", "ttl": "30d"},
         ).json()
         api_token = create["token"]
         listed = enforced_client.get(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
         ).json()
         assert listed["data"][0]["last_used_at"] is None
 
         enforced_client.post(
-            "/propose",
+            "/api/v1/knowledge",
             json=_propose_payload(),
             headers={"Authorization": f"Bearer {api_token}"},
         )
 
         listed_after = enforced_client.get(
-            "/auth/api-keys",
+            "/api/v1/users/me/api-keys",
             headers={"Authorization": f"Bearer {jwt_token}"},
         ).json()
         assert listed_after["data"][0]["last_used_at"] is not None
@@ -549,7 +549,7 @@ class TestApiKeyEnforcement:
         jwt_token = _seed_user_and_login(enforced_client)
         api_token = _create_api_key_plaintext(enforced_client, jwt_token)
         propose_resp = enforced_client.post(
-            "/propose",
+            "/api/v1/knowledge",
             json=_propose_payload(),
             headers={"Authorization": f"Bearer {api_token}"},
         )
@@ -557,10 +557,15 @@ class TestApiKeyEnforcement:
         _approve_unit(enforced_client, unit_id)
 
         # Without key both are rejected.
-        assert enforced_client.post(f"/confirm/{unit_id}").status_code == 401
-        assert enforced_client.post(f"/flag/{unit_id}", json={"reason": "stale"}).status_code == 401
+        assert enforced_client.post(f"/api/v1/knowledge/{unit_id}/confirmations").status_code == 401
+        assert enforced_client.post(f"/api/v1/knowledge/{unit_id}/flags", json={"reason": "stale"}).status_code == 401
 
         # With key both succeed.
         headers = {"Authorization": f"Bearer {api_token}"}
-        assert enforced_client.post(f"/confirm/{unit_id}", headers=headers).status_code == 200
-        assert enforced_client.post(f"/flag/{unit_id}", json={"reason": "stale"}, headers=headers).status_code == 200
+        assert enforced_client.post(f"/api/v1/knowledge/{unit_id}/confirmations", headers=headers).status_code == 201
+        assert (
+            enforced_client.post(
+                f"/api/v1/knowledge/{unit_id}/flags", json={"reason": "stale"}, headers=headers
+            ).status_code
+            == 201
+        )

@@ -15,7 +15,7 @@ import (
 func TestRemoteQuery(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/query", r.URL.Path)
+		require.Equal(t, "/api/v1/knowledge", r.URL.Path)
 		require.Equal(t, "GET", r.Method)
 		require.Equal(t, []string{"api", "testing"}, r.URL.Query()["domains"])
 
@@ -61,7 +61,7 @@ func TestRemotePropose(t *testing.T) {
 	t.Parallel()
 	var received map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/propose", r.URL.Path)
+		require.Equal(t, "/api/v1/knowledge", r.URL.Path)
 		require.Equal(t, "POST", r.Method)
 		_ = json.NewDecoder(r.Body).Decode(&received)
 
@@ -103,7 +103,7 @@ func TestRemoteProposeRejected(t *testing.T) {
 func TestRemoteConfirm(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/confirm/ku_00000000000000000000000000000005", r.URL.Path)
+		require.Equal(t, "/api/v1/knowledge/ku_00000000000000000000000000000005/confirmations", r.URL.Path)
 		require.Equal(t, "POST", r.Method)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(testRemoteKUJSON("ku_00000000000000000000000000000005"))
@@ -120,7 +120,7 @@ func TestRemoteFlag(t *testing.T) {
 	t.Parallel()
 	var received map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/flag/ku_00000000000000000000000000000005", r.URL.Path)
+		require.Equal(t, "/api/v1/knowledge/ku_00000000000000000000000000000005/flags", r.URL.Path)
 		_ = json.NewDecoder(r.Body).Decode(&received)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(testRemoteKUJSON("ku_00000000000000000000000000000005"))
@@ -221,7 +221,7 @@ func TestRemoteQuerySendsPluralParamNames(t *testing.T) {
 func TestRemoteStats(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/stats", r.URL.Path)
+		require.Equal(t, "/api/v1/knowledge/stats", r.URL.Path)
 		require.Equal(t, "GET", r.Method)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{

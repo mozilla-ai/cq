@@ -53,7 +53,7 @@ func TestClient_CreateAPIKey_SuccessReturnsTokenAndMetadata(t *testing.T) {
 
 	c := cap.snapshot()
 	require.Equal(t, http.MethodPost, c.method)
-	require.Equal(t, "/api/v1/auth/me/api-keys", c.path)
+	require.Equal(t, "/api/v1/users/me/api-keys", c.path)
 	require.Equal(t, "Bearer test-jwt", c.auth)
 
 	var body map[string]any
@@ -162,7 +162,7 @@ func TestClient_ListAPIKeys_DecodesEnvelope(t *testing.T) {
 
 	c := cap.snapshot()
 	require.Equal(t, http.MethodGet, c.method)
-	require.Equal(t, "/api/v1/auth/me/api-keys", c.path)
+	require.Equal(t, "/api/v1/users/me/api-keys", c.path)
 }
 
 func TestClient_ListAPIKeys_SessionExpired_ReturnsSentinel(t *testing.T) {
@@ -194,7 +194,7 @@ func TestClient_RevokeAPIKey_SuccessReturnsNoError(t *testing.T) {
 
 	c := cap.snapshot()
 	require.Equal(t, http.MethodPost, c.method)
-	require.Equal(t, "/api/v1/auth/me/api-keys/key-123/revoke", c.path)
+	require.Equal(t, "/api/v1/users/me/api-keys/key-123/revoke", c.path)
 	require.Equal(t, "Bearer jwt", c.auth)
 }
 
@@ -219,7 +219,7 @@ func TestClient_RevokeAPIKey_PathEscapesKeyID(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Equal(t, "/api/v1/auth/me/api-keys/weird%2Fkey%20id/revoke", rawPath)
+	require.Equal(t, "/api/v1/users/me/api-keys/weird%2Fkey%20id/revoke", rawPath)
 }
 
 func TestClient_RevokeAPIKey_NotFoundReturnsTypedErrorWithKeyID(t *testing.T) {

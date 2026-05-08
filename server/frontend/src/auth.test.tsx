@@ -101,7 +101,7 @@ describe("AuthProvider session restore", () => {
       </AuthProvider>,
     )
 
-    // While /auth/me is pending, loading should be true.
+    // While /users/me is pending, loading should be true.
     expect(screen.getByTestId("loading")).toHaveTextContent("true")
     expect(screen.getByTestId("status")).toHaveTextContent("unauthenticated")
 

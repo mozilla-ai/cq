@@ -183,7 +183,17 @@ Running the server (see `server/`) requires:
 
 API keys are created per user from the web UI: log in, open **API Keys**, give the key a name, choose a TTL, and copy the plaintext token when it is shown. The token is displayed exactly once. Set it as `CQ_API_KEY` on each client (plugin, SDK, CLI) that should authenticate against this server.
 
-The data-plane write routes (`/propose`, `/confirm`, `/flag`) require a valid API key. Reads (`/query`, `/stats`, `/health`) remain open.
+The data-plane write routes require a valid API key:
+
+— `POST /api/v1/knowledge`
+- `POST /api/v1/knowledge/{id}/confirmations`
+- `POST /api/v1/knowledge/{id}/flags`
+
+Data-plane reads remain open:
+
+- `GET /api/v1/knowledge`
+- `GET /api/v1/knowledge/stats`
+- `GET /api/v1/health`
 
 ## Docker Compose
 
