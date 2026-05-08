@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from cq_server.api.deps import require_api_key
 from cq_server.app import app
-from cq_server.deps import require_api_key
 
 TEST_USERNAME = "test-user"
 

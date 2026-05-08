@@ -9,8 +9,8 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
+from cq_server.api.deps import require_api_key
 from cq_server.api_keys import encode_token, generate_secret, hash_secret
-from cq_server.deps import require_api_key
 
 
 class _StubStore:

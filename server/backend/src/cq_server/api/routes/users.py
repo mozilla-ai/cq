@@ -5,69 +5,24 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
 
-from .api_keys import encode_token, generate_secret, hash_secret, secret_prefix
-from .auth import get_current_user
-from .deps import get_api_key_pepper, get_store
-from .store import Store
-from .ttl import parse_ttl
+from ...api_keys import encode_token, generate_secret, hash_secret, secret_prefix
+from ...models.users import (
+    ApiKeyPublic,
+    ApiKeysPublic,
+    CreateApiKeyRequest,
+    CreateApiKeyResponse,
+    MeResponse,
+    Message,
+)
+from ...store import Store
+from ...ttl import parse_ttl
+from ..deps import get_api_key_pepper, get_current_user, get_store
 
 MAX_ACTIVE_API_KEYS_PER_USER = 20
 
 
-class MeResponse(BaseModel):
-    """Current user response body."""
-
-    username: str
-    created_at: str
-
-
-class Message(BaseModel):
-    """Generic message response body."""
-
-    message: str
-
-
-class CreateApiKeyRequest(BaseModel):
-    """Request body for creating an API key."""
-
-    name: str = Field(min_length=1, max_length=64)
-    ttl: str = Field(min_length=1, max_length=16)
-    labels: list[str] = Field(default_factory=list, max_length=16)
-
-
-class ApiKeyPublic(BaseModel):
-    """Public view of an API key; never includes the plaintext or hash."""
-
-    id: str
-    name: str
-    labels: list[str]
-    prefix: str
-    ttl: str
-    expires_at: str
-    created_at: str
-    last_used_at: str | None
-    revoked_at: str | None
-    is_expired: bool
-    is_active: bool
-
-
-class CreateApiKeyResponse(ApiKeyPublic):
-    """Create response; the plaintext ``token`` is returned exactly once."""
-
-    token: str
-
-
-class ApiKeysPublic(BaseModel):
-    """Collection wrapper for API key listings.
-
-    The envelope shape leaves room for pagination metadata (e.g. a
-    ``next_cursor`` field) without breaking existing clients.
-    """
-
-    data: list[ApiKeyPublic]
-    count: int
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 def _normalise_labels(labels: list[str]) -> list[str]:
@@ -111,9 +66,6 @@ async def _require_user_id(store: Store, username: str) -> int:
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return int(user["id"])
-
-
-router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/me")
@@ -190,6 +142,14 @@ async def list_api_keys_route(
 
     Revoked keys are included with ``is_active: false`` so users can audit
     their own revocation history.
+
+    Args:
+        username: The authenticated username from the JWT dependency.
+        store: The store dependency.
+
+    Returns:
+        An ``ApiKeysPublic`` envelope with every API key owned by the
+        caller, including revoked ones for audit purposes.
     """
     user_id = await _require_user_id(store, username)
     data = [_to_public(row) for row in await store.list_api_keys_for_user(user_id)]

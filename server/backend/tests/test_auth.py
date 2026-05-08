@@ -9,9 +9,9 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 
+from cq_server.api.deps import require_api_key
 from cq_server.app import app
 from cq_server.auth import create_token, hash_password, verify_password, verify_token
-from cq_server.deps import require_api_key
 
 
 @pytest.fixture()

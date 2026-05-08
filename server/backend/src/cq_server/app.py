@@ -4,56 +4,22 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
 
 import uvicorn
-from cq.models import (
-    Context,
-    FlagReason,
-    Insight,
-    KnowledgeUnit,
-    Tier,
-    create_knowledge_unit,
-)
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
 from starlette.responses import FileResponse
 
-from .auth import router as auth_router
+from .api.deps import API_KEY_PEPPER_ENV
+from .api.routes.auth import router as auth_router
+from .api.routes.knowledge import router as knowledge_router
+from .api.routes.review import router as review_router
+from .api.routes.users import router as users_router
 from .db_url import resolve_database_url
-from .deps import API_KEY_PEPPER_ENV, require_api_key
 from .migrations import run_migrations
-from .review import router as review_router
-from .scoring import apply_confirmation, apply_flag
-from .store import Store, create_store, normalize_domains
-from .users import router as users_router
+from .store import Store, create_store
 
 _STATIC_DIR = Path(__file__).parent / "static"
-
-
-class ProposeRequest(BaseModel):
-    """Request body for proposing a new knowledge unit."""
-
-    domains: list[str] = Field(min_length=1)
-    insight: Insight
-    context: Context = Field(default_factory=Context)
-    created_by: str = ""
-
-
-class FlagRequest(BaseModel):
-    """Request body for flagging a knowledge unit."""
-
-    reason: FlagReason
-
-
-class StatsResponse(BaseModel):
-    """Response body for store statistics."""
-
-    total_units: int
-    tiers: dict[str, int]
-    domains: dict[str, int]
-
 
 _store: Store | None = None
 
@@ -106,102 +72,19 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
         await _store.close()
 
 
-# --- API routes assembled into a versioned router mounted at /api/v1. ---
+# --- API assembly: every domain router under /api/v1. ---
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
+api_router.include_router(knowledge_router)
 api_router.include_router(review_router)
-
-knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 
 @api_router.get("/health")
 def health() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
-
-
-@knowledge_router.get("")
-async def query_units(
-    domains: Annotated[list[str], Query()],
-    languages: Annotated[list[str] | None, Query()] = None,
-    frameworks: Annotated[list[str] | None, Query()] = None,
-    pattern: Annotated[str | None, Query()] = None,
-    limit: Annotated[int, Query(gt=0)] = 5,
-) -> list[KnowledgeUnit]:
-    """Search knowledge units by domain tags with relevance ranking."""
-    store = _get_store()
-    return await store.query(
-        domains,
-        languages=languages,
-        frameworks=frameworks,
-        pattern=pattern or "",
-        limit=limit,
-    )
-
-
-@knowledge_router.post("", status_code=201)
-async def propose_unit(
-    request: ProposeRequest,
-    username: str = Depends(require_api_key),
-) -> KnowledgeUnit:
-    """Submit a new knowledge unit.
-
-    ``created_by`` is always set to the authenticated caller's username; any
-    value supplied by the client is discarded.
-    """
-    store = _get_store()
-    normalized = normalize_domains(request.domains)
-    if not normalized:
-        raise HTTPException(status_code=422, detail="At least one non-empty domain is required")
-    unit = create_knowledge_unit(
-        domains=normalized,
-        insight=request.insight,
-        context=request.context,
-        tier=Tier.PRIVATE,
-        created_by=username,
-    )
-    await store.insert(unit)
-    return unit
-
-
-@knowledge_router.post("/{unit_id}/confirmations", status_code=201)
-async def confirm_unit(unit_id: str, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
-    """Confirm a knowledge unit, boosting its confidence."""
-    store = _get_store()
-    unit = await store.get(unit_id)
-    if unit is None:
-        raise HTTPException(status_code=404, detail="Knowledge unit not found")
-    confirmed = apply_confirmation(unit)
-    await store.update(confirmed)
-    return confirmed
-
-
-@knowledge_router.post("/{unit_id}/flags", status_code=201)
-async def flag_unit(unit_id: str, request: FlagRequest, _username: str = Depends(require_api_key)) -> KnowledgeUnit:
-    """Flag a knowledge unit, reducing its confidence."""
-    store = _get_store()
-    unit = await store.get(unit_id)
-    if unit is None:
-        raise HTTPException(status_code=404, detail="Knowledge unit not found")
-    flagged = apply_flag(unit, request.reason)
-    await store.update(flagged)
-    return flagged
-
-
-@knowledge_router.get("/stats")
-async def stats() -> StatsResponse:
-    """Return store statistics."""
-    store = _get_store()
-    return StatsResponse(
-        total_units=await store.count(),
-        tiers=await store.counts_by_tier(),
-        domains=await store.domain_counts(),
-    )
-
-
-api_router.include_router(knowledge_router)
 
 
 # --- Application assembly. ---
