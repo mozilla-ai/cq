@@ -69,6 +69,10 @@ func TestParseTTL(t *testing.T) {
 		{name: "upper-case days canonicalised", input: "3D", want: "3d"},
 		{name: "upper-case hours canonicalised", input: "2H", want: "2h"},
 		{name: "leading and trailing whitespace trimmed", input: "  90d  ", want: "90d"},
+		{name: "max boundary 365d accepted", input: "365d", want: "365d"},
+		{name: "max boundary 8760h accepted", input: "8760h", want: "8760h"},
+		{name: "max boundary 525600m accepted", input: "525600m", want: "525600m"},
+		{name: "max boundary 31536000s accepted", input: "31536000s", want: "31536000s"},
 		{name: "empty rejected", input: "", wantErr: "--ttl is required"},
 		{name: "whitespace-only rejected", input: "   ", wantErr: "--ttl is required"},
 		{name: "weeks rejected", input: "1w", wantErr: `--ttl "1w" is not a valid duration`},
@@ -78,6 +82,11 @@ func TestParseTTL(t *testing.T) {
 		{name: "decimal rejected", input: "3.5d", wantErr: `--ttl "3.5d" is not a valid duration`},
 		{name: "negative rejected", input: "-1d", wantErr: `--ttl "-1d" is not a valid duration`},
 		{name: "compound rejected", input: "1d2h", wantErr: `--ttl "1d2h" is not a valid duration`},
+		{name: "366d rejected as exceeding cap", input: "366d", wantErr: `--ttl "366d" exceeds the maximum of 365d`},
+		{name: "8761h rejected as exceeding cap", input: "8761h", wantErr: `--ttl "8761h" exceeds the maximum of 365d`},
+		{name: "525601m rejected as exceeding cap", input: "525601m", wantErr: `--ttl "525601m" exceeds the maximum of 365d`},
+		{name: "31536001s rejected as exceeding cap", input: "31536001s", wantErr: `--ttl "31536001s" exceeds the maximum of 365d`},
+		{name: "huge value out of int64 range rejected", input: "99999999999999999999d", wantErr: `--ttl "99999999999999999999d" exceeds the maximum of 365d`},
 	}
 
 	for _, tc := range cases {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,11 @@ import (
 	"github.com/mozilla-ai/cq/cli/internal/auth"
 	"github.com/mozilla-ai/cq/cli/internal/credstore"
 )
+
+// maxAPIKeyTTL caps the lifetime parseTTL will accept. Matches the
+// platform's upper bound; kept here so the CLI can fail fast without
+// a round-trip and the help text and validator agree.
+const maxAPIKeyTTL = 365 * 24 * time.Hour // pragma: allowlist secret
 
 // ttlPattern is the canonical (lower-case) form of the platform's TTL
 // grammar. Inputs are lower-cased before matching so "3D" and "3d" are
@@ -267,7 +273,8 @@ func formatLabels(labels []string) string {
 // <integer><unit>, where unit is one of s, m, h, d. The CLI accepts
 // either case (3D and 3d are equivalent on input) and always sends
 // the lower-case form on the wire because the platform validator is
-// case-sensitive today.
+// case-sensitive today. Values whose total duration exceeds
+// maxAPIKeyTTL are rejected so the help text and the validator agree.
 //
 // TODO: replace with the shared SDK TTL parser once it lands; the
 // validator should be a single source of truth across CLI and any
@@ -281,6 +288,34 @@ func parseTTL(s string) (string, error) {
 
 	if !ttlPattern.MatchString(canonical) {
 		return "", fmt.Errorf("--ttl %q is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h", s)
+	}
+
+	// The grammar guarantees a non-empty digit run followed by exactly
+	// one unit byte, so the slice operations below are safe and the
+	// numeric parse only fails when the user supplies more digits than
+	// fit in an int64 (which trivially exceeds the cap anyway).
+	digits := canonical[:len(canonical)-1]
+	unit := canonical[len(canonical)-1]
+
+	value, err := strconv.ParseInt(digits, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("--ttl %q exceeds the maximum of 365d", s)
+	}
+
+	var unitDuration time.Duration
+	switch unit {
+	case 's':
+		unitDuration = time.Second
+	case 'm':
+		unitDuration = time.Minute
+	case 'h':
+		unitDuration = time.Hour
+	case 'd':
+		unitDuration = 24 * time.Hour
+	}
+
+	if value > int64(maxAPIKeyTTL/unitDuration) {
+		return "", fmt.Errorf("--ttl %q exceeds the maximum of 365d", s)
 	}
 
 	return canonical, nil
