@@ -8,8 +8,10 @@ class body.
 
 from __future__ import annotations
 
+from ._protocol import Store
 
-class PostgresStore:
+
+class PostgresStore(Store):
     """psycopg v3-backed Store. Implementation lands in #312."""
 
     def __init__(self, database_url: str) -> None:

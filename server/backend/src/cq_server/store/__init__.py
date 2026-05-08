@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -30,11 +29,12 @@ def create_store(database_url: str) -> Store:
     lifespan and any future Postgres caller can't drift on which scheme
     maps to which store.
 
-    SQLite URLs return a live ``SqliteStore``. Postgres URLs raise
-    ``NotImplementedError`` until the Phase 2 ``PostgresStore`` lands
-    (#311/#312); the message names those issues so the failure is
-    self-explanatory. Anything else raises ``ValueError`` with the
-    offending driver string.
+    SQLite URLs return a live ``SqliteStore``. The canonical
+    ``postgresql+psycopg://...`` URL is dispatched through the
+    ``PostgresStore`` stub, which raises ``NotImplementedError`` until
+    the Phase 2 implementation lands (#312). Other PostgreSQL driver
+    suffixes are rejected inline with a message naming the canonical
+    driver. Anything else raises ``ValueError``.
     """
     try:
         parsed = make_url(database_url)
@@ -49,21 +49,8 @@ def create_store(database_url: str) -> Store:
                 "in-memory SQLite databases are not supported; the cq server needs a persistent file path."
             )
         return SqliteStore(db_path=Path(parsed.database))
-    # The canonical Postgres URL (``postgresql+psycopg://...``) is
-    # dispatched through the ``PostgresStore`` stub so that Phase 2 only
-    # needs to fill in the class — the factory wiring is already correct.
-    # Every other Postgres driver suffix (bare ``postgresql://``,
-    # ``+psycopg2``, ``+asyncpg``, …) is also rejected with a helpful
-    # NotImplementedError pointing at the implementation issue, rather
-    # than falling through to the generic "unsupported scheme" branch
-    # which would obscure the real reason.
     if driver == "postgresql+psycopg":
-        # ``PostgresStore.__init__`` raises ``NotImplementedError`` until
-        # Phase 2 (#312) lands, so this ``return`` is unreachable at
-        # runtime. The ``cast`` keeps the type checker happy without
-        # forcing the stub to fully impersonate the ``Store`` protocol —
-        # #312 will replace the cast with a proper implementation.
-        return cast(Store, PostgresStore(database_url))
+        return PostgresStore(database_url)
     if driver == "postgresql" or driver.startswith("postgresql+"):
         raise NotImplementedError(
             f"PostgreSQL driver {driver!r} is not supported; use "

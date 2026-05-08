@@ -57,14 +57,15 @@ class TestPostgres:
         "url",
         [
             # Bare ``postgresql://`` is a common copy-paste from libpq URLs;
-            # the explicit driver suffixes cover the drivers users actually
-            # paste — psycopg v3 (the canonical driver), psycopg2 (still
-            # ubiquitous), and asyncpg. All four must hit a clear
-            # NotImplementedError pointing at the Phase 2 implementation
+            # ``+psycopg2`` and ``+asyncpg`` cover the other drivers users
+            # paste. All three must hit a clear NotImplementedError pointing
+            # at the canonical ``+psycopg`` driver and Phase 2 implementation
             # (#312) rather than a generic "unsupported scheme" or a
-            # SQLAlchemy dialect-load failure.
+            # SQLAlchemy dialect-load failure. The canonical ``+psycopg``
+            # URL is exercised separately by
+            # ``test_psycopg_url_dispatches_through_postgres_store`` since
+            # it goes through the stub instead of the inline-raise branch.
             "postgresql://u:p@h/d",
-            "postgresql+psycopg://u:p@h/d",
             "postgresql+psycopg2://u:p@h/d",
             "postgresql+asyncpg://u:p@h/d",
         ],
@@ -80,10 +81,14 @@ class TestPostgres:
         # The canonical psycopg v3 URL must be routed through the
         # ``PostgresStore`` stub (not raised inline by the factory) so
         # that Phase 2 only needs to fill in the class — the factory
-        # dispatch is already correct.
+        # dispatch is already correct. ``Got database URL:`` is unique to
+        # the stub's message; the inline-raise branch quotes the driver
+        # only, so this substring proves the dispatch path was taken.
         with pytest.raises(NotImplementedError) as exc:
             create_store("postgresql+psycopg://u:p@h/d")
-        assert "#312" in str(exc.value)
+        message = str(exc.value)
+        assert "Got database URL:" in message
+        assert "#312" in message
 
     def test_postgres_store_stub_raises_not_implemented(self) -> None:
         with pytest.raises(NotImplementedError) as exc:
