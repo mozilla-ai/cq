@@ -32,7 +32,7 @@ type Credentials struct {
 	SessionExpiresAt time.Time `json:"session_expires_at,omitzero"`
 
 	// Username is the platform-side username at the time of last login,
-	// cached so `cq auth status` can render identity without a network call.
+	// cached so "cq auth status" can render identity without a network call.
 	Username string `json:"username"`
 }
 

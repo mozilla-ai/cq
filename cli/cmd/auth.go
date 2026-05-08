@@ -12,7 +12,7 @@ import (
 	"github.com/mozilla-ai/cq/cli/internal/credstore"
 )
 
-// authLoginLongDoc is the help text shown for `cq auth login`.
+// authLoginLongDoc is the help text shown for "cq auth login".
 var authLoginLongDoc = fmt.Sprintf(`Sign in via a browser-based OIDC flow.
 
 cq starts a short-lived listener on 127.0.0.1, asks the platform for an
@@ -33,7 +33,7 @@ Notes:
 	envVarAPIKey,
 )
 
-// authLogoutLongDoc is the help text shown for `cq auth logout`.
+// authLogoutLongDoc is the help text shown for "cq auth logout".
 var authLogoutLongDoc = `Clear locally-stored sign-in credentials.
 
 logout is currently local-only: it removes the session JWT and cached
@@ -41,7 +41,7 @@ identity from the credential store but does not invalidate the session
 on the server side. Server-side revocation will land under a future
 --revoke flag once the platform exposes the necessary endpoint.`
 
-// authLongDoc is the help text shown for the `cq auth` parent command.
+// authLongDoc is the help text shown for the "cq auth" parent command.
 var authLongDoc = fmt.Sprintf(`Manage interactive sign-in for the cq platform.
 
 cq auth covers control-plane operations: signing in via your identity
@@ -53,13 +53,13 @@ via the %s environment variable; cq auth never stores or prints them.`,
 	envVarAPIKey,
 )
 
-// authProvidersLongDoc is the help text shown for `cq auth providers`.
+// authProvidersLongDoc is the help text shown for "cq auth providers".
 var authProvidersLongDoc = `List the OIDC providers enabled on the configured platform.
 
 Output is one machine-readable provider name per line, ready to be passed
 straight to "cq auth login" or piped into another command.`
 
-// authStatusLongDoc is the help text shown for `cq auth status`.
+// authStatusLongDoc is the help text shown for "cq auth status".
 var authStatusLongDoc = `Show the current sign-in state.
 
 Reports the configured server, the cached identity from the last
@@ -89,7 +89,7 @@ type authOptions struct {
 // over the defaults wired to the production credstore and auth client.
 type AuthOption func(*authOptions)
 
-// NewAuthCmd returns the `cq auth` parent command and its login,
+// NewAuthCmd returns the "cq auth" parent command and its login,
 // logout, providers, and status subcommands. Variadic AuthOptions
 // override the defaults wired to credstore.New and auth.NewClient.
 func NewAuthCmd(opts ...AuthOption) *cobra.Command {
@@ -139,7 +139,7 @@ func WithCredStore(fn func() (credstore.Store, error)) AuthOption {
 	return func(o *authOptions) { o.newStore = fn }
 }
 
-// newAuthLoginCmd returns the `cq auth login` subcommand.
+// newAuthLoginCmd returns the "cq auth login" subcommand.
 func newAuthLoginCmd(cfg authOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "login <provider>",
@@ -174,7 +174,7 @@ func newAuthLoginCmd(cfg authOptions) *cobra.Command {
 	}
 }
 
-// newAuthLogoutCmd returns the `cq auth logout` subcommand.
+// newAuthLogoutCmd returns the "cq auth logout" subcommand.
 func newAuthLogoutCmd(cfg authOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
@@ -195,9 +195,9 @@ func newAuthLogoutCmd(cfg authOptions) *cobra.Command {
 	}
 }
 
-// newAuthProvidersCmd returns the `cq auth providers` subcommand: a
+// newAuthProvidersCmd returns the "cq auth providers" subcommand: a
 // read-only query of the platform's enabled OIDC providers, intended
-// to make `cq auth login <provider>` discoverable without forcing the
+// to make "cq auth login <provider>" discoverable without forcing the
 // user to trigger an error first.
 func newAuthProvidersCmd(cfg authOptions) *cobra.Command {
 	return &cobra.Command{
@@ -235,7 +235,7 @@ func newAuthProvidersCmd(cfg authOptions) *cobra.Command {
 	}
 }
 
-// newAuthStatusCmd returns the `cq auth status` subcommand.
+// newAuthStatusCmd returns the "cq auth status" subcommand.
 func newAuthStatusCmd(cfg authOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
@@ -254,7 +254,7 @@ func newAuthStatusCmd(cfg authOptions) *cobra.Command {
 				Out:    cmd.OutOrStdout(),
 			})
 			if errors.Is(err, credstore.ErrNotFound) {
-				// `auth.Status` already wrote a user-friendly message;
+				// auth.Status already wrote a user-friendly message;
 				// suppress cobra's default error rendering and let the
 				// non-zero exit do the talking for shell scripts.
 				cmd.SilenceErrors = true

@@ -135,7 +135,7 @@ func (l *listener) Wait(ctx context.Context) (string, error) {
 //
 // The HTTP response mirrors the parsed result: a 200 success page when
 // the provider redirected with an exchange_code, and a 400 error page
-// when it redirected with `error=` or omitted both. Without the split,
+// when it redirected with "error=" or omitted both. Without the split,
 // the user would see "signed in" in the browser while the CLI reports
 // a failure in the terminal.
 func (l *listener) handle(w http.ResponseWriter, r *http.Request) {
@@ -167,8 +167,8 @@ func (l *listener) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseCallback extracts the result from the redirect query string.
-// The OAuth provider supplies either `exchange_code=...` (success) or
-// `error=...&error_description=...` (failure).
+// The OAuth provider supplies either "exchange_code=..." (success) or
+// "error=...&error_description=..." (failure).
 func parseCallback(r *http.Request) callbackResult {
 	q := r.URL.Query()
 

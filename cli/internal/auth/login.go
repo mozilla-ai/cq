@@ -115,7 +115,7 @@ func Login(ctx context.Context, c LoginConfig) error {
 	}
 
 	// One scanner shared between the press-Enter prompt and the
-	// onboarding-username prompt so input from `c.In` is buffered in
+	// onboarding-username prompt so input from c.In is buffered in
 	// exactly one place.
 	scanner := bufio.NewScanner(c.In)
 

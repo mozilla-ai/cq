@@ -21,7 +21,7 @@ type pkce struct {
 	verifier string
 
 	// challenge is base64url-encoded SHA-256 of the verifier (no padding),
-	// sent on the authorization request as `code_challenge`.
+	// sent on the authorization request as "code_challenge".
 	challenge string
 }
 

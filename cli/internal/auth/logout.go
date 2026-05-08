@@ -21,7 +21,7 @@ type LogoutConfig struct {
 // Logout removes any locally-stored session credentials.
 //
 // Logout is currently local-only: server-side session revocation is
-// tracked separately. A `--revoke` flag will be added once the platform
+// tracked separately. A --revoke flag will be added once the platform
 // exposes a logout endpoint.
 func Logout(_ context.Context, p LogoutConfig) error {
 	out := p.Out
