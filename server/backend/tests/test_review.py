@@ -27,12 +27,12 @@ def _login(client: TestClient, username: str = "reviewer", password: str = "pass
     """Seed a user, log in, return the JWT token."""
     import contextlib
 
-    from cq_server.app import _get_store
     from cq_server.auth import hash_password
+    from cq_server.repositories import UserRepository
 
-    store = _get_store()
+    users = UserRepository(client.app.state.database)
     with contextlib.suppress(Exception):
-        asyncio.run(store.create_user(username, hash_password(password)))
+        asyncio.run(users.create(username, hash_password(password)))
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     return resp.json()["token"]
 

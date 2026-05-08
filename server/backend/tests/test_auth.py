@@ -26,12 +26,12 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
 
 
 def _seed_user(client: TestClient, username: str = "peter", password: str = "secret123") -> None:
-    """Seed a user directly via the store."""
-    from cq_server.app import _get_store
+    """Seed a user directly through the user repository."""
     from cq_server.auth import hash_password
+    from cq_server.repositories import UserRepository
 
-    store = _get_store()
-    asyncio.run(store.create_user(username, hash_password(password)))
+    users = UserRepository(client.app.state.database)
+    asyncio.run(users.create(username, hash_password(password)))
 
 
 class TestPasswordHashing:

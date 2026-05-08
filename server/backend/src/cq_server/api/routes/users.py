@@ -1,88 +1,28 @@
 """User-owned resources: the current user record and their API keys."""
 
-import uuid
-from datetime import UTC, datetime
-from typing import Any
+from fastapi import APIRouter, HTTPException
 
-from fastapi import APIRouter, Depends, HTTPException
-
-from ...api_keys import encode_token, generate_secret, hash_secret, secret_prefix
 from ...models.users import (
-    ApiKeyPublic,
     ApiKeysPublic,
     CreateApiKeyRequest,
     CreateApiKeyResponse,
     MeResponse,
     Message,
 )
-from ...store import Store
-from ...ttl import parse_ttl
-from ..deps import get_api_key_pepper, get_current_user, get_store
-
-MAX_ACTIVE_API_KEYS_PER_USER = 20
-
+from ..deps import APIKeyServiceDep, CurrentUserDep, UserRepositoryDep
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-def _normalise_labels(labels: list[str]) -> list[str]:
-    """Trim, deduplicate, and drop empty labels while preserving order."""
-    seen: dict[str, None] = {}
-    for label in labels:
-        cleaned = label.strip()
-        if cleaned and cleaned not in seen:
-            seen[cleaned] = None
-    return list(seen.keys())
-
-
-def _to_public(row: dict[str, Any]) -> ApiKeyPublic:
-    """Build the public view of an API key row."""
-    now = datetime.now(UTC)
-    expires_at = datetime.fromisoformat(row["expires_at"])
-    is_expired = expires_at <= now
-    is_active = row["revoked_at"] is None and not is_expired
-    return ApiKeyPublic(
-        id=row["id"],
-        name=row["name"],
-        labels=list(row.get("labels") or []),
-        prefix=row["key_prefix"],
-        ttl=row["ttl"],
-        expires_at=row["expires_at"],
-        created_at=row["created_at"],
-        last_used_at=row["last_used_at"],
-        revoked_at=row["revoked_at"],
-        is_expired=is_expired,
-        is_active=is_active,
-    )
-
-
-async def _require_user_id(store: Store, username: str) -> int:
-    """Return the integer user id for the authenticated caller.
-
-    Raises:
-        HTTPException: 404 if the user record has been removed while the JWT remains valid.
-    """
-    user = await store.get_user(username)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return int(user["id"])
-
-
 @router.get("/me")
-async def me(username: str = Depends(get_current_user), store: Store = Depends(get_store)) -> MeResponse:
+async def me(username: CurrentUserDep, users: UserRepositoryDep) -> MeResponse:
     """Return the current user's info.
 
-    Args:
-        username: The authenticated username from the JWT dependency.
-        store: The store dependency.
-
-    Returns:
-        A MeResponse with the user's username and creation timestamp.
-
     Raises:
-        HTTPException: With status 404 if the user no longer exists.
+        HTTPException: 404 if the user record has been removed while the JWT
+            remains valid.
     """
-    user = await store.get_user(username)
+    user = await users.get(username)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return MeResponse(username=user["username"], created_at=user["created_at"])
@@ -91,9 +31,8 @@ async def me(username: str = Depends(get_current_user), store: Store = Depends(g
 @router.post("/me/api-keys", status_code=201)
 async def create_api_key_route(
     request: CreateApiKeyRequest,
-    username: str = Depends(get_current_user),
-    store: Store = Depends(get_store),
-    pepper: str = Depends(get_api_key_pepper),
+    username: CurrentUserDep,
+    api_keys: APIKeyServiceDep,
 ) -> CreateApiKeyResponse:
     """Create a new API key owned by the authenticated user.
 
@@ -105,62 +44,32 @@ async def create_api_key_route(
         HTTPException: 422 if the TTL is invalid, 409 if the user already has
             the maximum number of active keys.
     """
-    try:
-        duration = parse_ttl(request.ttl)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    user_id = await _require_user_id(store, username)
-    if await store.count_active_api_keys_for_user(user_id) >= MAX_ACTIVE_API_KEYS_PER_USER:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Maximum of {MAX_ACTIVE_API_KEYS_PER_USER} active API keys per user",
-        )
-    key_id = uuid.uuid4()
-    secret = generate_secret()
-    plaintext = encode_token(key_id=key_id, secret=secret)
-    expires_at = (datetime.now(UTC) + duration).isoformat()
-    row = await store.create_api_key(
-        key_id=key_id.hex,
-        user_id=user_id,
+    return await api_keys.create(
+        username=username,
         name=request.name,
-        labels=_normalise_labels(request.labels),
-        key_prefix=secret_prefix(secret),
-        key_hash=hash_secret(secret, pepper=pepper),
         ttl=request.ttl,
-        expires_at=expires_at,
+        labels=request.labels,
     )
-    public = _to_public(row)
-    return CreateApiKeyResponse(**public.model_dump(), token=plaintext)
 
 
 @router.get("/me/api-keys")
 async def list_api_keys_route(
-    username: str = Depends(get_current_user),
-    store: Store = Depends(get_store),
+    username: CurrentUserDep,
+    api_keys: APIKeyServiceDep,
 ) -> ApiKeysPublic:
     """Return the authenticated user's API keys. Never returns plaintext.
 
     Revoked keys are included with ``is_active: false`` so users can audit
     their own revocation history.
-
-    Args:
-        username: The authenticated username from the JWT dependency.
-        store: The store dependency.
-
-    Returns:
-        An ``ApiKeysPublic`` envelope with every API key owned by the
-        caller, including revoked ones for audit purposes.
     """
-    user_id = await _require_user_id(store, username)
-    data = [_to_public(row) for row in await store.list_api_keys_for_user(user_id)]
-    return ApiKeysPublic(data=data, count=len(data))
+    return await api_keys.list_for_user(username)
 
 
 @router.post("/me/api-keys/{key_id}/revoke")
 async def revoke_api_key_route(
     key_id: str,
-    username: str = Depends(get_current_user),
-    store: Store = Depends(get_store),
+    username: CurrentUserDep,
+    api_keys: APIKeyServiceDep,
 ) -> Message:
     """Revoke the given API key if it belongs to the caller.
 
@@ -169,8 +78,4 @@ async def revoke_api_key_route(
     A 404 is returned when the key does not exist or is owned by a
     different user (uniform response, no enumeration oracle).
     """
-    user_id = await _require_user_id(store, username)
-    if await store.get_api_key_for_user(user_id=user_id, key_id=key_id) is None:
-        raise HTTPException(status_code=404, detail="API key not found")
-    await store.revoke_api_key(user_id=user_id, key_id=key_id)
-    return Message(message="API key revoked.")
+    return await api_keys.revoke(username=username, key_id=key_id)

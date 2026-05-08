@@ -41,10 +41,11 @@ def _seed_user_and_login(
     username: str = "alice",
     password: str = "secret123",
 ) -> str:
-    from cq_server.app import _get_store
     from cq_server.auth import hash_password
+    from cq_server.repositories import UserRepository
 
-    asyncio.run(_get_store().create_user(username, hash_password(password)))
+    users = UserRepository(client.app.state.database)
+    asyncio.run(users.create(username, hash_password(password)))
     resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200
     return resp.json()["token"]
@@ -73,11 +74,11 @@ def _propose_payload(**overrides: Any) -> dict[str, Any]:
 
 
 def _approve_unit(client: TestClient, unit_id: str) -> None:
-    """Approve a unit via the store for testing."""
-    from cq_server.app import _get_store
+    """Approve a unit by writing the review row directly, bypassing the auth flow."""
+    from cq_server.repositories import ReviewRepository
 
-    store = _get_store()
-    asyncio.run(store.set_review_status(unit_id, "approved", "test-reviewer"))
+    reviews = ReviewRepository(client.app.state.database)
+    asyncio.run(reviews.set_status(unit_id, "approved", "test-reviewer"))
 
 
 class TestHealth:
@@ -274,13 +275,13 @@ class TestStats:
         assert body["domains"] == {}
 
     def test_stats_after_inserts(self, client: TestClient) -> None:
-        from cq_server.app import _get_store
+        from cq_server.repositories import ReviewRepository
 
         r1 = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api", "auth"]))
         r2 = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api", "payments"]))
-        store = _get_store()
-        asyncio.run(store.set_review_status(r1.json()["id"], "approved", "tester"))
-        asyncio.run(store.set_review_status(r2.json()["id"], "approved", "tester"))
+        reviews = ReviewRepository(client.app.state.database)
+        asyncio.run(reviews.set_status(r1.json()["id"], "approved", "tester"))
+        asyncio.run(reviews.set_status(r2.json()["id"], "approved", "tester"))
         resp = client.get("/api/v1/knowledge/stats")
         assert resp.status_code == 200
         body = resp.json()
@@ -295,11 +296,11 @@ class TestReviewLifecycleEndToEnd:
     """End-to-end test covering propose -> review -> query -> stats lifecycle."""
 
     def test_full_review_lifecycle(self, client: TestClient) -> None:
-        from cq_server.app import _get_store
         from cq_server.auth import hash_password
+        from cq_server.repositories import UserRepository
 
-        store = _get_store()
-        asyncio.run(store.create_user("reviewer", hash_password("pass123")))
+        users = UserRepository(client.app.state.database)
+        asyncio.run(users.create("reviewer", hash_password("pass123")))
 
         # Log in.
         login_resp = client.post(

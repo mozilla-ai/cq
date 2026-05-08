@@ -10,66 +10,48 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
-from .api.deps import API_KEY_PEPPER_ENV
 from .api.routes.auth import router as auth_router
 from .api.routes.knowledge import router as knowledge_router
 from .api.routes.review import router as review_router
 from .api.routes.users import router as users_router
-from .db_url import resolve_database_url
+from .core.config import Settings
+from .core.db import Database
 from .migrations import run_migrations
-from .store import Store, create_store
 
 _STATIC_DIR = Path(__file__).parent / "static"
-
-_store: Store | None = None
-
-
-def _get_store() -> Store:
-    """Return the global store instance."""
-    if _store is None:
-        raise RuntimeError("Store not initialised")
-    return _store
 
 
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
-    """Manage the store lifecycle."""
-    global _store  # noqa: PLW0603
-    jwt_secret = os.environ.get("CQ_JWT_SECRET")
-    if not jwt_secret:
-        raise RuntimeError("CQ_JWT_SECRET environment variable is required")
-    pepper = os.environ.get(API_KEY_PEPPER_ENV, "")
-    if not pepper:
-        raise RuntimeError(f"{API_KEY_PEPPER_ENV} environment variable is required")
-    # Single URL feeds both the store factory and the migration runner,
-    # so they can't diverge on which database they target. Run the
-    # factory first so a Postgres URL surfaces ``NotImplementedError``
-    # (#311/#312 guidance) instead of failing inside Alembic with a
-    # raw psycopg ``ModuleNotFoundError``.
-    database_url = resolve_database_url()
-    new_store = create_store(database_url)
-    # Close ``new_store`` if migrations fail — otherwise its engine and
+    """Load configuration, run migrations, and own the database lifecycle."""
+    # ``Settings`` raises a ValidationError if either secret is unset, so
+    # the lifespan fails fast with a clear message instead of crashing
+    # later at first request.
+    # Fields populated from CQ_* env vars; the static type checker can't see that.
+    settings = Settings()  # ty: ignore[missing-argument]
+    # Single URL feeds both the database wrapper and the migration runner,
+    # so they can't diverge on which database they target. Build the
+    # ``Database`` first so a Postgres URL surfaces ``NotImplementedError``
+    # (#311/#312 guidance) instead of failing inside Alembic with a raw
+    # psycopg ``ModuleNotFoundError``.
+    database = Database(settings)
+    # Close the database if migrations fail — otherwise its engine and
     # SQLite file handle leak across in-process lifespan re-entries
     # (tests, restart loops). The post-yield ``finally`` only covers
     # successful boots.
     try:
         # See ``cq_server.migrations.run_migrations`` for the
         # three-case startup contract.
-        run_migrations(database_url)
+        run_migrations(settings.resolved_database_url)
     except BaseException:
-        await new_store.close()
+        await database.close()
         raise
-    # Assign the global only after both startup steps succeed, so a
-    # failure mid-boot doesn't leave a half-initialised ``_store``
-    # leaking from the previous lifespan (matters when tests re-enter
-    # ``lifespan`` in-process after a startup failure).
-    _store = new_store
-    app_instance.state.store = _store
-    app_instance.state.api_key_pepper = pepper
+    app_instance.state.settings = settings
+    app_instance.state.database = database
     try:
         yield
     finally:
-        await _store.close()
+        await database.close()
 
 
 # --- API assembly: every domain router under /api/v1. ---

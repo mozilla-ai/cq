@@ -29,9 +29,11 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
+from cq_server.core.config import Settings
+from cq_server.core.db import Database
 from cq_server.migrations import BASELINE_REVISION, run_migrations
-from cq_server.store import SqliteStore
 
+from .conftest import _RepoBundle
 from .db_helpers import build_pre_alembic_schema
 from .db_helpers import sqlite_url as _sqlite_url
 
@@ -128,7 +130,7 @@ def _row_counts(conn: sqlite3.Connection, tables: set[str]) -> dict[str, int]:
     return {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tables}
 
 
-async def _seed_kus(store: SqliteStore) -> list[str]:
+async def _seed_kus(store: _RepoBundle) -> list[str]:
     """Insert three KUs covering different review states and tiers."""
     from cq.models import Context, Insight, Tier, create_knowledge_unit
 
@@ -162,7 +164,7 @@ async def _seed_kus(store: SqliteStore) -> list[str]:
     return [u.id for u in units]
 
 
-async def _seed_user_and_api_key(store: SqliteStore) -> tuple[int, str]:
+async def _seed_user_and_api_key(store: _RepoBundle) -> tuple[int, str]:
     """Insert one user + one API key. Returns (user_id, key_id)."""
     await store.create_user("alice", "$2b$12$fakehashfakehashfakehashfakehashfake")
     user = await store.get_user("alice")
@@ -251,7 +253,9 @@ class TestExistingPreAlembicDatabase:
         (db_path, snapshot)."""
         db = tmp_path / "prod.db"
         build_pre_alembic_schema(db)
-        store = SqliteStore(db_path=db)
+        store = _RepoBundle(
+            Database(Settings(jwt_secret="t", api_key_pepper="t", database_url=f"sqlite:///{db}", db_path=db))
+        )
         ku_ids = await _seed_kus(store)
         user_id, key_id = await _seed_user_and_api_key(store)
         await store.close()
@@ -361,8 +365,10 @@ class TestAlreadyStampedDatabase:
         # First call: fresh DB → upgrade head.
         run_migrations(_sqlite_url(db))
 
-        # Insert a sentinel row through a real SqliteStore.
-        store = SqliteStore(db_path=db)
+        # Insert a sentinel row through a real _RepoBundle.
+        store = _RepoBundle(
+            Database(Settings(jwt_secret="t", api_key_pepper="t", database_url=f"sqlite:///{db}", db_path=db))
+        )
         try:
             ku_ids = await _seed_kus(store)
         finally:
