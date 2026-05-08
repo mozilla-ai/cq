@@ -166,6 +166,20 @@ class TestApiKeyCreate:
         )
         assert resp.status_code == 422
 
+    def test_create_canonicalises_uppercase_ttl(self, api_key_client: TestClient) -> None:
+        token = _login(api_key_client)
+        resp = api_key_client.post(
+            "/api/v1/users/me/api-keys",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "case-fold", "ttl": "30D"},
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        # The platform persists the lower-case canonical form regardless
+        # of the input casing, so non-CLI clients that submit "30D" see
+        # the same stored value as a CLI that has already lower-cased.
+        assert body["ttl"] == "30d"
+
     def test_create_rejects_empty_name(self, api_key_client: TestClient) -> None:
         token = _login(api_key_client)
         resp = api_key_client.post(

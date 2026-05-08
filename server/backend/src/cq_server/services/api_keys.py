@@ -72,7 +72,7 @@ class APIKeyService:
                 active-key cap.
         """
         try:
-            duration = parse_ttl(ttl)
+            canonical_ttl, duration = parse_ttl(ttl)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         user_id = await self._require_user_id(username)
@@ -85,6 +85,9 @@ class APIKeyService:
         secret = generate_secret()
         plaintext = encode_token(key_id=key_id, secret=secret)
         expires_at = (datetime.now(UTC) + duration).isoformat()
+        # Persist the canonical (lower-case, trimmed) TTL so non-CLI
+        # clients that submit "30D" or "  30d  " round-trip identically
+        # to clients that already canonicalise client-side.
         row = await self._api_keys.create(
             key_id=key_id.hex,
             user_id=user_id,
@@ -92,7 +95,7 @@ class APIKeyService:
             labels=_normalise_labels(labels),
             key_prefix=secret_prefix(secret),
             key_hash=hash_secret(secret, pepper=self._pepper),
-            ttl=ttl,
+            ttl=canonical_ttl,
             expires_at=expires_at,
         )
         public = _to_public(row)

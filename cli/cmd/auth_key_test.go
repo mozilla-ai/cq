@@ -45,14 +45,12 @@ func runKey(t *testing.T, client auth.Client, store credstore.Store, args ...str
 	return stdout.String(), stderr.String(), err
 }
 
-// TestParseTTL covers the inline TTL validator the create flow uses
-// before reaching the platform. Mixed-case input is accepted and
-// normalised to lower-case; anything that does not match the platform
-// grammar is rejected with a single-shot, parse-locally error.
-//
-// TODO: remove this test once TTL parsing moves into the Go SDK; the
-// SDK should own its own coverage and the CLI will then exercise it
-// only through the create command's stub-based tests above.
+// TestParseTTL pins the CLI-facing wrapper around the SDK parser. The
+// SDK owns the grammar and coverage (see sdk/go/ttl); this test only
+// confirms the wrapper reshapes typed SDK errors into --ttl-prefixed
+// cobra messages with the user-supplied (un-normalised) value quoted
+// back. Coverage is therefore deliberately narrow: one case per error
+// class plus the canonicalisation paths.
 func TestParseTTL(t *testing.T) {
 	t.Parallel()
 
@@ -62,31 +60,17 @@ func TestParseTTL(t *testing.T) {
 		want    string
 		wantErr string
 	}{
-		{name: "lower-case days", input: "30d", want: "30d"},
-		{name: "lower-case hours", input: "12h", want: "12h"},
-		{name: "lower-case minutes", input: "45m", want: "45m"},
-		{name: "lower-case seconds", input: "60s", want: "60s"},
-		{name: "upper-case days canonicalised", input: "3D", want: "3d"},
-		{name: "upper-case hours canonicalised", input: "2H", want: "2h"},
-		{name: "leading and trailing whitespace trimmed", input: "  90d  ", want: "90d"},
-		{name: "max boundary 365d accepted", input: "365d", want: "365d"},
-		{name: "max boundary 8760h accepted", input: "8760h", want: "8760h"},
-		{name: "max boundary 525600m accepted", input: "525600m", want: "525600m"},
-		{name: "max boundary 31536000s accepted", input: "31536000s", want: "31536000s"},
+		{name: "lower-case canonical accepted", input: "30d", want: "30d"},
+		{name: "upper-case canonicalised", input: "3D", want: "3d"},
+		{name: "whitespace trimmed", input: "  90d  ", want: "90d"},
+		{name: "max boundary accepted", input: "365d", want: "365d"},
+
 		{name: "empty rejected", input: "", wantErr: "--ttl is required"},
-		{name: "whitespace-only rejected", input: "   ", wantErr: "--ttl is required"},
-		{name: "weeks rejected", input: "1w", wantErr: `--ttl "1w" is not a valid duration`},
-		{name: "missing unit rejected", input: "30", wantErr: `--ttl "30" is not a valid duration`},
-		{name: "unit only rejected", input: "d", wantErr: `--ttl "d" is not a valid duration`},
-		{name: "wrong order rejected", input: "d30", wantErr: `--ttl "d30" is not a valid duration`},
-		{name: "decimal rejected", input: "3.5d", wantErr: `--ttl "3.5d" is not a valid duration`},
-		{name: "negative rejected", input: "-1d", wantErr: `--ttl "-1d" is not a valid duration`},
-		{name: "compound rejected", input: "1d2h", wantErr: `--ttl "1d2h" is not a valid duration`},
-		{name: "366d rejected as exceeding cap", input: "366d", wantErr: `--ttl "366d" exceeds the maximum of 365d`},
-		{name: "8761h rejected as exceeding cap", input: "8761h", wantErr: `--ttl "8761h" exceeds the maximum of 365d`},
-		{name: "525601m rejected as exceeding cap", input: "525601m", wantErr: `--ttl "525601m" exceeds the maximum of 365d`},
-		{name: "31536001s rejected as exceeding cap", input: "31536001s", wantErr: `--ttl "31536001s" exceeds the maximum of 365d`},
-		{name: "huge value out of int64 range rejected", input: "99999999999999999999d", wantErr: `--ttl "99999999999999999999d" exceeds the maximum of 365d`},
+		{name: "grammar error quotes original input", input: "1w", wantErr: `--ttl "1w" is not a valid duration`},
+		{name: "negative rejected via grammar", input: "-1d", wantErr: `--ttl "-1d" is not a valid duration`},
+		{name: "over-cap rejected with cap message", input: "366d", wantErr: `--ttl "366d" exceeds the maximum of 365d`},
+		{name: "huge value rejected with cap message", input: "99999999999999999999d", wantErr: `--ttl "99999999999999999999d" exceeds the maximum of 365d`},
+		{name: "zero rejected with positive message", input: "0d", wantErr: `--ttl "0d" must be greater than zero`},
 	}
 
 	for _, tc := range cases {
