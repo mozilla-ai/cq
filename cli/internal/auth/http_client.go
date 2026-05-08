@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +57,43 @@ func (c *httpClient) ClaimUsername(ctx context.Context, jwt, username string) (U
 	}
 
 	return resp, nil
+}
+
+// CreateAPIKey implements Client.
+func (c *httpClient) CreateAPIKey(ctx context.Context, jwt string, in CreateAPIKeyRequest) (CreatedAPIKey, error) {
+	req, err := c.newRequest(ctx, http.MethodPost, apiVersionPrefix+"/auth/me/api-keys", in)
+	if err != nil {
+		return CreatedAPIKey{}, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+jwt)
+
+	var resp CreatedAPIKey
+	if err := c.send(req, &resp); err != nil {
+		return CreatedAPIKey{}, err
+	}
+
+	return resp, nil
+}
+
+// ListAPIKeys implements Client.
+func (c *httpClient) ListAPIKeys(ctx context.Context, jwt string) ([]APIKey, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, apiVersionPrefix+"/auth/me/api-keys", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+jwt)
+
+	var resp struct {
+		Data  []APIKey `json:"data"`
+		Count int      `json:"count"`
+	}
+	if err := c.send(req, &resp); err != nil {
+		return nil, err
+	}
+
+	return resp.Data, nil
 }
 
 // Me implements Client.
@@ -131,6 +170,34 @@ func (c *httpClient) OAuthProviders(ctx context.Context) ([]Provider, error) {
 	}
 
 	return resp.Providers, nil
+}
+
+// RevokeAPIKey implements Client.
+func (c *httpClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {
+	path := apiVersionPrefix + "/auth/me/api-keys/" + url.PathEscape(keyID) + "/revoke"
+
+	req, err := c.newRequest(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+jwt)
+
+	if err := c.send(req, nil); err != nil {
+		// A 404 on the revoke route is the route-level "API key not
+		// found" signal. mapError leaves status-code interpretation to
+		// the caller because the same code can mean "user record gone"
+		// on list/create; here, with a key ID in hand, we know exactly
+		// what to surface.
+		var status *PlatformStatusError
+		if errors.As(err, &status) && status.StatusCode == http.StatusNotFound {
+			return &APIKeyNotFoundError{KeyID: keyID}
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // newRequest builds a JSON request rooted at httpClient.baseURL. body
@@ -215,6 +282,11 @@ func mapError(resp *http.Response) error {
 			return ErrInvalidGrant
 		}
 
+	case http.StatusUnauthorized:
+		// The platform deliberately collapses missing-token,
+		// malformed-token, and expired-token into one wire response.
+		return ErrSessionExpired
+
 	case http.StatusConflict:
 		switch body.Error {
 		case "username_unavailable":
@@ -224,17 +296,36 @@ func mapError(resp *http.Response) error {
 			return ErrUsernameAlreadySet
 		}
 
+		// API-key cap responses use FastAPI's default "detail" field
+		// without the structured "error" discriminator the username
+		// endpoints supply.
+		if body.Detail != "" {
+			return &APIKeyLimitReachedError{Detail: body.Detail}
+		}
+
 	case http.StatusUnprocessableEntity:
 		if body.Error == "username_invalid_format" {
 			return &UsernameFormatError{Detail: body.Detail}
 		}
+
+		// API-key validation failures (TTL grammar, name/labels length)
+		// arrive as plain FastAPI 422s with "detail" set.
+		if body.Detail != "" {
+			return &APIKeyValidationError{Detail: body.Detail}
+		}
 	}
 
-	if body.Error != "" {
-		return fmt.Errorf("platform returned %d: '%s'", resp.StatusCode, body.Error)
+	// Unmapped status codes return PlatformStatusError so callers that
+	// care about a particular code (for example, RevokeAPIKey wrapping a
+	// 404 with the requested key ID) can match on the type rather than
+	// the rendered message. The rendered message preserves the prior
+	// fmt.Errorf format so existing log surfaces stay stable.
+	return &PlatformStatusError{
+		StatusCode: resp.StatusCode,
+		Detail:     body.Detail,
+		Errored:    body.Error,
+		Body:       string(raw),
 	}
-
-	return fmt.Errorf("platform returned %d: %s", resp.StatusCode, string(raw))
 }
 
 // parseRetryAfter parses the Retry-After header's delta-seconds form.

@@ -22,6 +22,9 @@ type stubAuthClient struct {
 	oauthNativeExchange func(ctx context.Context, req NativeExchangeRequest) (string, error)
 	me                  func(ctx context.Context, jwt string) (User, error)
 	claimUsername       func(ctx context.Context, jwt, username string) (User, error)
+	createAPIKey        func(ctx context.Context, jwt string, req CreateAPIKeyRequest) (CreatedAPIKey, error)
+	listAPIKeys         func(ctx context.Context, jwt string) ([]APIKey, error)
+	revokeAPIKey        func(ctx context.Context, jwt string, keyID string) error
 }
 
 func (s *stubAuthClient) OAuthProviders(ctx context.Context) ([]Provider, error) {
@@ -62,6 +65,30 @@ func (s *stubAuthClient) ClaimUsername(ctx context.Context, jwt, username string
 	}
 
 	return s.claimUsername(ctx, jwt, username)
+}
+
+func (s *stubAuthClient) CreateAPIKey(ctx context.Context, jwt string, req CreateAPIKeyRequest) (CreatedAPIKey, error) {
+	if s.createAPIKey == nil { // pragma: allowlist secret
+		panic("CreateAPIKey not stubbed")
+	}
+
+	return s.createAPIKey(ctx, jwt, req)
+}
+
+func (s *stubAuthClient) ListAPIKeys(ctx context.Context, jwt string) ([]APIKey, error) {
+	if s.listAPIKeys == nil { // pragma: allowlist secret
+		panic("ListAPIKeys not stubbed")
+	}
+
+	return s.listAPIKeys(ctx, jwt)
+}
+
+func (s *stubAuthClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {
+	if s.revokeAPIKey == nil { // pragma: allowlist secret
+		panic("RevokeAPIKey not stubbed")
+	}
+
+	return s.revokeAPIKey(ctx, jwt, keyID)
 }
 
 func TestClaimUsernameInteractively_FirstAttemptSucceeds(t *testing.T) {

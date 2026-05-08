@@ -18,18 +18,28 @@ const httpDefaultTimeout = 30 * time.Second
 // JWT-bearing methods take the token as an explicit parameter so the
 // Client itself stays stateless and easier to mock.
 //
-// The interface holds five methods, more than the typical "small
-// interface" Go ideal. They are kept together because they form a
-// cohesive auth-control-plane surface with a single in-package
-// consumer (the Login orchestration); splitting into a ProviderLister
-// + OAuthClient + UserClient triad would add indirection without
-// reducing coupling, since every call site already needs all three.
+// The interface holds the methods that make up the auth control plane:
+// OAuth sign-in, identity, and per-user API key management. They live
+// behind one type because every call site uses the same baseURL and
+// transport; splitting them into separate interfaces would force a
+// matching split at every consumer without reducing coupling.
 type Client interface {
 	// ClaimUsername sets the user's username. Returns
 	// *UsernameUnavailableError, *UsernameFormatError,
 	// ErrUsernameAlreadySet, or *RateLimitedError on the typed failure
 	// modes.
 	ClaimUsername(ctx context.Context, jwt, username string) (User, error)
+
+	// CreateAPIKey provisions a new API key for the authenticated user
+	// and returns the API key value exactly once. Returns
+	// ErrSessionExpired (401), *APIKeyLimitReachedError (409), or
+	// *APIKeyValidationError (422) on the typed failure modes.
+	CreateAPIKey(ctx context.Context, jwt string, req CreateAPIKeyRequest) (CreatedAPIKey, error)
+
+	// ListAPIKeys returns the authenticated user's API keys. Revoked
+	// and expired keys are included so callers can render audit
+	// history. Returns ErrSessionExpired (401) when the JWT is invalid.
+	ListAPIKeys(ctx context.Context, jwt string) ([]APIKey, error)
 
 	// Me returns the user identity associated with the supplied JWT.
 	Me(ctx context.Context, jwt string) (User, error)
@@ -44,6 +54,12 @@ type Client interface {
 
 	// OAuthProviders returns the providers configured on the platform.
 	OAuthProviders(ctx context.Context) ([]Provider, error)
+
+	// RevokeAPIKey marks the named key revoked. The operation is
+	// idempotent: revoking an already-revoked key still returns nil.
+	// Returns ErrSessionExpired (401) or *APIKeyNotFoundError (404) on
+	// the typed failure modes.
+	RevokeAPIKey(ctx context.Context, jwt string, keyID string) error
 }
 
 // NewClient returns a Client that talks to the platform at baseURL.

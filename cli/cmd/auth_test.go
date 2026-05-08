@@ -56,6 +56,9 @@ func (s *memStore) Delete() error {
 // unexpected calls are obvious.
 type stubAuthClient struct {
 	oauthProviders func(ctx context.Context) ([]auth.Provider, error)
+	createAPIKey   func(ctx context.Context, jwt string, req auth.CreateAPIKeyRequest) (auth.CreatedAPIKey, error)
+	listAPIKeys    func(ctx context.Context, jwt string) ([]auth.APIKey, error)
+	revokeAPIKey   func(ctx context.Context, jwt string, keyID string) error
 }
 
 func (s *stubAuthClient) OAuthProviders(ctx context.Context) ([]auth.Provider, error) {
@@ -80,6 +83,30 @@ func (s *stubAuthClient) Me(context.Context, string) (auth.User, error) {
 
 func (s *stubAuthClient) ClaimUsername(context.Context, string, string) (auth.User, error) {
 	panic("ClaimUsername not stubbed")
+}
+
+func (s *stubAuthClient) CreateAPIKey(ctx context.Context, jwt string, req auth.CreateAPIKeyRequest) (auth.CreatedAPIKey, error) {
+	if s.createAPIKey == nil { // pragma: allowlist secret
+		panic("CreateAPIKey not stubbed")
+	}
+
+	return s.createAPIKey(ctx, jwt, req)
+}
+
+func (s *stubAuthClient) ListAPIKeys(ctx context.Context, jwt string) ([]auth.APIKey, error) {
+	if s.listAPIKeys == nil { // pragma: allowlist secret
+		panic("ListAPIKeys not stubbed")
+	}
+
+	return s.listAPIKeys(ctx, jwt)
+}
+
+func (s *stubAuthClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {
+	if s.revokeAPIKey == nil { // pragma: allowlist secret
+		panic("RevokeAPIKey not stubbed")
+	}
+
+	return s.revokeAPIKey(ctx, jwt, keyID)
 }
 
 // stubStore returns a WithCredStore option that always yields store.

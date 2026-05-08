@@ -116,6 +116,7 @@ func NewAuthCmd(opts ...AuthOption) *cobra.Command {
 		Long:  authLongDoc,
 	}
 
+	cmd.AddCommand(newAuthKeyCmd(cfg))
 	cmd.AddCommand(newAuthLoginCmd(cfg))
 	cmd.AddCommand(newAuthLogoutCmd(cfg))
 	cmd.AddCommand(newAuthProvidersCmd(cfg))
