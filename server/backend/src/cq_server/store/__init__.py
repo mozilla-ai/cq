@@ -8,11 +8,13 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 from ._normalize import normalize_domains
+from ._postgres import PostgresStore
 from ._protocol import Store
 from ._sqlite import DEFAULT_DB_PATH, SqliteStore
 
 __all__ = [
     "DEFAULT_DB_PATH",
+    "PostgresStore",
     "SqliteStore",
     "Store",
     "create_store",
@@ -40,24 +42,26 @@ def create_store(database_url: str) -> Store:
     driver = parsed.drivername
     if driver.startswith("sqlite"):
         if not parsed.database:
-            raise ValueError(
-                "SQLite URL must point at a file path; got an empty database."
-            )
+            raise ValueError("SQLite URL must point at a file path; got an empty database.")
         if parsed.database == ":memory:":
             raise ValueError(
-                "in-memory SQLite databases are not supported; the cq server "
-                "needs a persistent file path."
+                "in-memory SQLite databases are not supported; the cq server needs a persistent file path."
             )
         return SqliteStore(db_path=Path(parsed.database))
-    # Match every Postgres driver suffix (``+psycopg``, ``+psycopg2``,
-    # ``+asyncpg``, …) so a typo'd driver still hits the helpful
-    # NotImplementedError instead of falling through to the generic
-    # "unsupported scheme" branch. Phase 2 (#311) will pick the actual
-    # driver; until then anything postgres-shaped is rejected the same
-    # way.
+    # The canonical Postgres URL (``postgresql+psycopg://...``) is
+    # dispatched through the ``PostgresStore`` stub so that Phase 2 only
+    # needs to fill in the class — the factory wiring is already correct.
+    # Every other Postgres driver suffix (bare ``postgresql://``,
+    # ``+psycopg2``, ``+asyncpg``, …) is also rejected with a helpful
+    # NotImplementedError pointing at the implementation issue, rather
+    # than falling through to the generic "unsupported scheme" branch
+    # which would obscure the real reason.
+    if driver == "postgresql+psycopg":
+        return PostgresStore(database_url)
     if driver == "postgresql" or driver.startswith("postgresql+"):
         raise NotImplementedError(
-            "PostgreSQL backend is not implemented yet; lands with "
-            "PostgresStore in epic #257 (issues #311/#312)."
+            f"PostgreSQL driver {driver!r} is not supported; use "
+            "``postgresql+psycopg://...`` once the PostgresStore "
+            "implementation lands in epic #257 (issue #312)."
         )
     raise ValueError(f"Unsupported database URL scheme: {driver!r}")

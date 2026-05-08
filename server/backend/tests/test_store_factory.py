@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from cq.models import Insight, create_knowledge_unit
 
-from cq_server.store import SqliteStore, create_store
+from cq_server.store import PostgresStore, SqliteStore, create_store
 
 from .db_helpers import init_test_db
 
@@ -58,11 +58,11 @@ class TestPostgres:
         [
             # Bare ``postgresql://`` is a common copy-paste from libpq URLs;
             # the explicit driver suffixes cover the drivers users actually
-            # paste — psycopg v3 (#311's target), psycopg2 (still ubiquitous),
-            # and asyncpg. All four must hit the same NotImplementedError so
-            # the #311/#312 pointer is the user's first signal rather than a
-            # generic "unsupported scheme" or a SQLAlchemy dialect-load
-            # failure.
+            # paste — psycopg v3 (the canonical driver), psycopg2 (still
+            # ubiquitous), and asyncpg. All four must hit a clear
+            # NotImplementedError pointing at the Phase 2 implementation
+            # (#312) rather than a generic "unsupported scheme" or a
+            # SQLAlchemy dialect-load failure.
             "postgresql://u:p@h/d",
             "postgresql+psycopg://u:p@h/d",
             "postgresql+psycopg2://u:p@h/d",
@@ -73,7 +73,22 @@ class TestPostgres:
         with pytest.raises(NotImplementedError) as exc:
             create_store(url)
         message = str(exc.value)
-        assert "#311" in message
+        assert "#312" in message
+        assert "PostgresStore" in message
+
+    def test_psycopg_url_dispatches_through_postgres_store(self) -> None:
+        # The canonical psycopg v3 URL must be routed through the
+        # ``PostgresStore`` stub (not raised inline by the factory) so
+        # that Phase 2 only needs to fill in the class — the factory
+        # dispatch is already correct.
+        with pytest.raises(NotImplementedError) as exc:
+            create_store("postgresql+psycopg://u:p@h/d")
+        assert "#312" in str(exc.value)
+
+    def test_postgres_store_stub_raises_not_implemented(self) -> None:
+        with pytest.raises(NotImplementedError) as exc:
+            PostgresStore("postgresql+psycopg://u:p@h/d")
+        message = str(exc.value)
         assert "#312" in message
 
 
