@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -57,7 +58,12 @@ def create_store(database_url: str) -> Store:
     # than falling through to the generic "unsupported scheme" branch
     # which would obscure the real reason.
     if driver == "postgresql+psycopg":
-        return PostgresStore(database_url)
+        # ``PostgresStore.__init__`` raises ``NotImplementedError`` until
+        # Phase 2 (#312) lands, so this ``return`` is unreachable at
+        # runtime. The ``cast`` keeps the type checker happy without
+        # forcing the stub to fully impersonate the ``Store`` protocol —
+        # #312 will replace the cast with a proper implementation.
+        return cast(Store, PostgresStore(database_url))
     if driver == "postgresql" or driver.startswith("postgresql+"):
         raise NotImplementedError(
             f"PostgreSQL driver {driver!r} is not supported; use "
