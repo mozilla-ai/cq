@@ -1,0 +1,69 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "DEVELOPMENT.md"
+      - "scripts/prepare_gitbook_site.py"
+      - "scripts/check_docs.py"
+      - ".gitbook.yaml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "DEVELOPMENT.md"
+      - "scripts/prepare_gitbook_site.py"
+      - "scripts/check_docs.py"
+      - ".gitbook.yaml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+jobs:
+  docs:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check documentation links
+        run: python scripts/check_docs.py
+
+      - name: Build GitBook site
+        run: python scripts/prepare_gitbook_site.py
+
+      - name: Deploy to gitbook-docs branch
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          mv site/ /tmp/gitbook-site/
+
+          git fetch origin gitbook-docs || true
+          if git rev-parse --verify origin/gitbook-docs >/dev/null 2>&1; then
+            git checkout gitbook-docs
+          else
+            git checkout --orphan gitbook-docs
+            git rm -rf .
+          fi
+
+          rsync -a --delete --exclude='.git' /tmp/gitbook-site/ .
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: update GitBook documentation from ${{ github.sha }}"
+            git push origin gitbook-docs
+          fi
