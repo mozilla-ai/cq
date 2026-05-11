@@ -23,6 +23,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: check-docs
+        name: check docs links
+        entry: python scripts/check_docs.py
+        language: system
+        pass_filenames: false
+        files: '^docs/|^README\.md$|^CONTRIBUTING\.md$|^DEVELOPMENT\.md$'
+
       - id: ty-check-install
         name: ty (scripts/install)
         entry: bash -c 'cd scripts/install && uvx ty check src/cq_install --python .venv'
