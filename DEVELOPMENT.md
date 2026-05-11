@@ -217,7 +217,7 @@ Data-plane reads remain open:
 
 Exploratory — this is a `0.x.x` project. Expect breaking changes to the database format and SDK interfaces before v1. We'll provide migration scripts where possible so your knowledge units survive upgrades.
 
-See [`docs/`](docs/) for the proposal and PoC design.
+See the [proposal](docs/CQ-Proposal.md) and [architecture overview](docs/architecture.md) for the design.
 
 ### Migrating from earlier releases
 
