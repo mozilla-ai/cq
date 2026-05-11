@@ -88,7 +88,7 @@ Every knowledge unit has a tier: `local` (on-disk SQLite, never leaves the machi
 
 With a remote configured, `cq.propose(...)` sends the unit to the remote and returns it tagged `private`; with no remote, or if the remote is unreachable, it writes the unit locally as `local`.
 
-See the [top-level README](../../README.md#knowledge-tiers) for the full description.
+See the [top-level README](../../README.md) for the full description.
 
 ## Dev Setup
 

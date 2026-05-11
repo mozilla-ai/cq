@@ -135,7 +135,7 @@ Knowledge units live in one of three tiers:
 
 With `CQ_ADDR` set, `cq propose` sends the unit straight to the remote as `private` (falling back to local if the remote is unreachable). With no remote, everything stays local. `cq status` shows the count in each tier.
 
-See the [top-level README](../README.md#knowledge-tiers) for the full description.
+See the [top-level README](../README.md) for the full description.
 
 ## Development
 

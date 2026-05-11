@@ -91,13 +91,13 @@ Every knowledge unit has a tier: `cq.Local` (on-disk SQLite, never leaves the ma
 
 With a remote configured, `Propose` sends the unit to the remote and returns it tagged `cq.Private`; with no remote, or if the remote is unreachable, it writes the unit locally as `cq.Local`.
 
-See the [top-level README](../../README.md#knowledge-tiers) for the full description.
+See the [top-level README](../../README.md) for the full description.
 
 ## Storage Format
 
 Knowledge units are stored as JSON in SQLite. The database schema is shared
 with the [cq Python SDK](../../sdk/python/) — both SDKs read and write the
-same `local.db` file. The [JSON Schema definitions](../../schema/) are the
+same `local.db` file. The [JSON Schema definitions](https://github.com/mozilla-ai/cq/tree/main/schema) are the
 source of truth.
 
 ## Development
