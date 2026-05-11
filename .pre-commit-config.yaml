@@ -28,7 +28,7 @@ repos:
         entry: python scripts/check_docs.py
         language: system
         pass_filenames: false
-        files: '^docs/|^README\.md$|^CONTRIBUTING\.md$|^DEVELOPMENT\.md$'
+        files: '^docs/|^README\.md$|^CONTRIBUTING\.md$|^DEVELOPMENT\.md$|^LICENSE$|^SECURITY\.md$|^CONTRIBUTOR_AGREEMENT\.md$|^cli/|^sdk/|^server/backend/README\.md$'
 
       - id: ty-check-install
         name: ty (scripts/install)

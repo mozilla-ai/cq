@@ -1,7 +1,7 @@
 """Validate checked-in docs before publishing.
 
-Catches broken internal links locally before docs changes reach GitBook.
-External links are intentionally skipped so the checker stays fast and works
+Checks all source files that will be published to the GitBook site for broken
+internal links. External links are skipped so the checker stays fast and works
 offline.
 
 Usage:
@@ -15,25 +15,40 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = REPO_ROOT / "docs"
-LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)\n]+)\)")
+
+# Source files outside docs/ that are published to the site.
+# Must stay in sync with ROOT_FILES in prepare_gitbook_site.py.
+PUBLISHED_ROOT_FILES: tuple[Path, ...] = (
+    REPO_ROOT / "README.md",
+    REPO_ROOT / "CONTRIBUTING.md",
+    REPO_ROOT / "DEVELOPMENT.md",
+    REPO_ROOT / "LICENSE",
+    REPO_ROOT / "SECURITY.md",
+    REPO_ROOT / "CONTRIBUTOR_AGREEMENT.md",
+    REPO_ROOT / "cli" / "README.md",
+    REPO_ROOT / "cli" / "DEVELOPMENT.md",
+    REPO_ROOT / "sdk" / "go" / "README.md",
+    REPO_ROOT / "sdk" / "go" / "DEVELOPMENT.md",
+    REPO_ROOT / "sdk" / "python" / "README.md",
+    REPO_ROOT / "sdk" / "python" / "DEVELOPMENT.md",
+    REPO_ROOT / "server" / "backend" / "README.md",
+)
+
+# SUMMARY.md uses site-relative paths by design (GitBook navigation file).
+# Source-relative resolution would produce false negatives, so skip it.
+SKIP_LINK_CHECK: frozenset[Path] = frozenset({(DOCS_DIR / "SUMMARY.md").resolve()})
+
+LINK_RE = re.compile(r"!\[[^\]]*\]\(([^)\n]+)\)|(?<!!)\[([^\]]*)\]\(([^)\n]+)\)")
 HEADER_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 CODE_FENCE_RE = re.compile(r"^```")
 SKIPPED_PREFIXES = ("http://", "https://", "mailto:", "tel:", "data:")
 
-# Paths (relative to site root) mapped in by prepare_gitbook_site.py ROOT_FILES.
-# Links to these are valid even though the files don't live inside docs/.
-SITE_MAPPED_PATHS = frozenset({
-    "index.md",
-    "CONTRIBUTING.md",
-    "DEVELOPMENT.md",
-    "cli/README.md",
-    "cli/DEVELOPMENT.md",
-    "sdk/go/README.md",
-    "sdk/go/DEVELOPMENT.md",
-    "sdk/python/README.md",
-    "sdk/python/DEVELOPMENT.md",
-    "server/README.md",
-})
+
+def all_published_sources() -> set[Path]:
+    """Return resolved paths of every source file that will appear in the site."""
+    sources = {p.resolve() for p in PUBLISHED_ROOT_FILES if p.exists()}
+    sources.update(p.resolve() for p in DOCS_DIR.rglob("*") if p.is_file())
+    return sources
 
 
 def strip_code_blocks(text: str) -> str:
@@ -75,81 +90,101 @@ def split_target(raw_target: str) -> tuple[str, str]:
     target = raw_target.strip()
     if target.startswith("<") and target.endswith(">"):
         target = target[1:-1]
-
     if " " in target and not target.startswith("#"):
         target = target.split(" ", 1)[0]
-
     if "#" in target:
         path_part, anchor = target.split("#", 1)
         return path_part, anchor
-
     return target, ""
 
 
-def resolve_target(source_path: Path, target_path: str) -> Path:
-    """Resolve a relative docs link target against the source document."""
+def resolve_target(source_path: Path, target_path: str) -> Path | None:
+    """Resolve a relative link target from a source file.
+
+    Returns None for directory targets with no publishable index (source-code
+    directory references) rather than raising an error.
+    """
     base = source_path.parent
     resolved = (base / target_path).resolve()
+
+    if resolved.is_dir():
+        for name in ("README.md", "index.md"):
+            candidate = resolved / name
+            if candidate.exists():
+                return candidate
+        return resolved  # Directory with no index; caller will flag as unpublished
+
     if resolved.exists():
         return resolved
 
     if resolved.suffix == "":
-        markdown_candidate = resolved.with_suffix(".md")
-        if markdown_candidate.exists():
-            return markdown_candidate
+        md = resolved.with_suffix(".md")
+        if md.exists():
+            return md
 
-        index_candidate = resolved / "index.md"
-        if index_candidate.exists():
-            return index_candidate
-
-    return resolved
+    return resolved  # May not exist; caller checks
 
 
 def validate_summary(errors: list[str]) -> None:
     """Ensure docs/SUMMARY.md exists."""
-    summary = DOCS_DIR / "SUMMARY.md"
-    if not summary.exists():
+    if not (DOCS_DIR / "SUMMARY.md").exists():
         errors.append("docs/SUMMARY.md is missing")
+
+
+def iter_link_targets(text: str) -> list[str]:
+    """Extract raw link targets from Markdown text (code blocks already stripped)."""
+    targets: list[str] = []
+    for m in LINK_RE.finditer(text):
+        raw = m.group(1) or m.group(3)
+        if raw:
+            targets.append(raw)
+    return targets
 
 
 def main() -> int:
     """Validate docs links and anchors. Returns a process exit code."""
     errors: list[str] = []
-    anchors_by_file = {
-        path.resolve(): extract_anchors(path) for path in DOCS_DIR.rglob("*.md")
-    }
+    published = all_published_sources()
+
+    anchors_by_file: dict[Path, set[str]] = {}
+    for path in published:
+        if path.suffix == ".md":
+            anchors_by_file[path] = extract_anchors(path)
 
     validate_summary(errors)
 
-    for source_path in sorted(DOCS_DIR.rglob("*.md")):
+    sources_to_check = [
+        p for p in sorted(published)
+        if p.suffix == ".md" and p not in SKIP_LINK_CHECK
+    ]
+
+    for source_path in sources_to_check:
         text = strip_code_blocks(source_path.read_text(encoding="utf-8"))
 
-        for match in LINK_RE.finditer(text):
-            raw_target = match.group(1)
+        for raw_target in iter_link_targets(text):
             if raw_target.startswith(SKIPPED_PREFIXES):
                 continue
 
             target_path, anchor = split_target(raw_target)
 
             if target_path == "":
-                target_file = source_path.resolve()
+                target_file = source_path
             else:
                 target_file = resolve_target(source_path, target_path)
                 if not target_file.exists():
-                    # File may be mapped into the site from outside docs/ by prepare_gitbook_site.py
-                    if target_path in SITE_MAPPED_PATHS:
-                        continue
                     errors.append(
                         f"{source_path.relative_to(REPO_ROOT)} -> missing target `{target_path}`"
                     )
                     continue
-
-            if anchor:
-                target_anchors = anchors_by_file.get(target_file.resolve())
-                if target_anchors is None:
+                if target_file.resolve() not in published:
+                    errors.append(
+                        f"{source_path.relative_to(REPO_ROOT)} -> `{target_path}` exists but is not published to the site"
+                    )
                     continue
 
-                if slugify_heading(anchor) not in target_anchors:
+            if anchor and target_file.suffix == ".md":
+                target_anchors = anchors_by_file.get(target_file.resolve())
+                if target_anchors is not None and slugify_heading(anchor) not in target_anchors:
                     errors.append(
                         f"{source_path.relative_to(REPO_ROOT)} -> missing anchor `#{anchor}` in "
                         f"{target_file.relative_to(REPO_ROOT)}"
@@ -161,7 +196,7 @@ def main() -> int:
             print(f"- {error}")
         return 1
 
-    print(f"Documentation checks passed for {len(anchors_by_file)} markdown files.")
+    print(f"Documentation checks passed ({len(sources_to_check)} files checked).")
     return 0
 
 

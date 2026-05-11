@@ -8,9 +8,16 @@ on:
       - "README.md"
       - "CONTRIBUTING.md"
       - "DEVELOPMENT.md"
+      - "LICENSE"
+      - "SECURITY.md"
+      - "CONTRIBUTOR_AGREEMENT.md"
+      - "cli/**"
+      - "sdk/**"
+      - "server/backend/README.md"
       - "scripts/prepare_gitbook_site.py"
       - "scripts/check_docs.py"
       - ".gitbook.yaml"
+      - ".gitbook-branch-readme.md"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
@@ -18,9 +25,16 @@ on:
       - "README.md"
       - "CONTRIBUTING.md"
       - "DEVELOPMENT.md"
+      - "LICENSE"
+      - "SECURITY.md"
+      - "CONTRIBUTOR_AGREEMENT.md"
+      - "cli/**"
+      - "sdk/**"
+      - "server/backend/README.md"
       - "scripts/prepare_gitbook_site.py"
       - "scripts/check_docs.py"
       - ".gitbook.yaml"
+      - ".gitbook-branch-readme.md"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -46,7 +60,7 @@ jobs:
         run: python scripts/prepare_gitbook_site.py
 
       - name: Deploy to gitbook-docs branch
-        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
