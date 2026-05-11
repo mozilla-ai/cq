@@ -387,7 +387,7 @@ class Client:
         """
         assert self._http is not None
         try:
-            resp = self._http.get("/stats")
+            resp = self._http.get("/api/v1/knowledge/stats")
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPError:
@@ -417,7 +417,7 @@ class Client:
             params["frameworks"] = frameworks
         if pattern:
             params["pattern"] = pattern
-        resp = self._http.get("/query", params=params)
+        resp = self._http.get("/api/v1/knowledge", params=params)
         resp.raise_for_status()
         return [KnowledgeUnit.model_validate(item) for item in resp.json()]
 
@@ -440,7 +440,7 @@ class Client:
             "created_by": unit.created_by,
         }
         try:
-            resp = self._http.post("/propose", json=body)
+            resp = self._http.post("/api/v1/knowledge", json=body)
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RemoteError(
@@ -471,7 +471,7 @@ class Client:
         """
         assert self._http is not None
         try:
-            resp = self._http.post(f"/confirm/{unit_id}")
+            resp = self._http.post(f"/api/v1/knowledge/{unit_id}/confirmations")
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RemoteError(
@@ -503,7 +503,7 @@ class Client:
         assert self._http is not None
         try:
             resp = self._http.post(
-                f"/flag/{unit_id}",
+                f"/api/v1/knowledge/{unit_id}/flags",
                 json={"reason": reason.value},
             )
             resp.raise_for_status()

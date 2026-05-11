@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -67,4 +68,44 @@ func TestNewCLIClientRespectsAPIKey(t *testing.T) {
 	c, err := newCLIClient()
 	require.NoError(t, err)
 	defer func() { _ = c.Close() }()
+}
+
+func TestConfigDir_CQOverrideTakesPriority(t *testing.T) {
+	t.Setenv(envVarConfigDir, "/explicit/override")
+	t.Setenv(envVarXDGConfigHome, "/xdg/path")
+	t.Setenv("HOME", "/home/user")
+
+	got, err := configDir()
+	require.NoError(t, err)
+	require.Equal(t, "/explicit/override", got)
+}
+
+func TestConfigDir_FallsBackToXDGConfigHome(t *testing.T) {
+	t.Setenv(envVarConfigDir, "")
+	t.Setenv(envVarXDGConfigHome, "/xdg/path")
+	t.Setenv("HOME", "/home/user")
+
+	got, err := configDir()
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join("/xdg/path", "cq"), got)
+}
+
+func TestConfigDir_IgnoresRelativeXDGConfigHome(t *testing.T) {
+	t.Setenv(envVarConfigDir, "")
+	t.Setenv(envVarXDGConfigHome, "relative/path")
+	t.Setenv("HOME", "/home/user")
+
+	got, err := configDir()
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join("/home/user", ".config", "cq"), got)
+}
+
+func TestConfigDir_FallsBackToHomeConfig(t *testing.T) {
+	t.Setenv(envVarConfigDir, "")
+	t.Setenv(envVarXDGConfigHome, "")
+	t.Setenv("HOME", "/home/user")
+
+	got, err := configDir()
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join("/home/user", ".config", "cq"), got)
 }

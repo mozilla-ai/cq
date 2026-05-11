@@ -1,13 +1,16 @@
-"""Tests for the SQLite-backed remote knowledge store."""
+"""Tests for the SQLite-backed knowledge store, exercised through the per-entity repositories.
+
+The legacy ``store`` fixture (a ``_RepoBundle`` that re-exposes the
+pre-decomposition ``Store`` surface) is supplied by ``conftest.py``. New
+tests should prefer the typed ``users_repo`` / ``api_keys_repo`` /
+``knowledge_repo`` / ``reviews_repo`` fixtures instead.
+"""
 
 import sqlite3
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import pytest
-import pytest_asyncio
 from cq.models import (
     Context,
     FlagReason,
@@ -18,7 +21,7 @@ from cq.models import (
 )
 from cq.scoring import apply_confirmation, apply_flag
 
-from cq_server.store import SqliteStore
+from .conftest import _RepoBundle
 
 
 def _make_insight(**overrides: Any) -> Insight:
@@ -38,16 +41,18 @@ def _make_unit(**overrides: Any) -> KnowledgeUnit:
     return create_knowledge_unit(**{**defaults, **overrides})
 
 
-@pytest_asyncio.fixture()
-async def store(tmp_path: Path) -> AsyncIterator[SqliteStore]:
-    s = SqliteStore(db_path=tmp_path / "test.db")
-    try:
-        yield s
-    finally:
-        await s.close()
+@pytest.fixture
+def store(repos: _RepoBundle) -> _RepoBundle:
+    """Legacy alias: re-expose the ``repos`` bundle as ``store``.
+
+    Kept so the body of every pre-decomposition test still calls
+    ``store.insert(...)`` etc. The bundle delegates to the new
+    repositories, so the assertions exercise the same code paths.
+    """
+    return repos
 
 
-async def _insert_and_approve(store: SqliteStore, **overrides: Any) -> KnowledgeUnit:
+async def _insert_and_approve(store: _RepoBundle, **overrides: Any) -> KnowledgeUnit:
     """Insert a knowledge unit and approve it for query visibility."""
     unit = _make_unit(**overrides)
     await store.insert(unit)
@@ -56,27 +61,27 @@ async def _insert_and_approve(store: SqliteStore, **overrides: Any) -> Knowledge
 
 
 class TestInsertAndGet:
-    async def test_insert_and_retrieve(self, store: SqliteStore) -> None:
+    async def test_insert_and_retrieve(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)
         retrieved = await store.get_any(unit.id)
         assert retrieved == unit
 
-    async def test_insert_duplicate_raises(self, store: SqliteStore) -> None:
+    async def test_insert_duplicate_raises(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)
         with pytest.raises(sqlite3.IntegrityError):
             await store.insert(unit)
 
-    async def test_returns_none_for_missing_id(self, store: SqliteStore) -> None:
+    async def test_returns_none_for_missing_id(self, store: _RepoBundle) -> None:
         assert await store.get("ku_nonexistent") is None
 
-    async def test_insert_with_empty_domains_raises(self, store: SqliteStore) -> None:
+    async def test_insert_with_empty_domains_raises(self, store: _RepoBundle) -> None:
         unit = _make_unit(domains=["  ", ""])
         with pytest.raises(ValueError, match="At least one non-empty domain"):
             await store.insert(unit)
 
-    async def test_insert_persists_normalized_domains_in_blob(self, store: SqliteStore) -> None:
+    async def test_insert_persists_normalized_domains_in_blob(self, store: _RepoBundle) -> None:
         # The JSON blob's domains must match the normalized rows in
         # knowledge_unit_domains; calculate_relevance reads unit.domains
         # from the blob and would mis-rank if the two diverge.
@@ -88,7 +93,7 @@ class TestInsertAndGet:
 
 
 class TestUpdate:
-    async def test_update_persists_changes(self, store: SqliteStore) -> None:
+    async def test_update_persists_changes(self, store: _RepoBundle) -> None:
         unit = await _insert_and_approve(store)
         confirmed = apply_confirmation(unit)
         await store.update(confirmed)
@@ -96,19 +101,19 @@ class TestUpdate:
         assert retrieved is not None
         assert retrieved.evidence.confirmations == 2
 
-    async def test_update_missing_unit_raises(self, store: SqliteStore) -> None:
+    async def test_update_missing_unit_raises(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         with pytest.raises(KeyError, match="Knowledge unit not found"):
             await store.update(unit)
 
-    async def test_update_with_empty_domains_raises(self, store: SqliteStore) -> None:
+    async def test_update_with_empty_domains_raises(self, store: _RepoBundle) -> None:
         unit = _make_unit(domains=["databases"])
         await store.insert(unit)
         updated = unit.model_copy(update={"domains": ["  "]})
         with pytest.raises(ValueError, match="At least one non-empty domain"):
             await store.update(updated)
 
-    async def test_update_persists_normalized_domains_in_blob(self, store: SqliteStore) -> None:
+    async def test_update_persists_normalized_domains_in_blob(self, store: _RepoBundle) -> None:
         # As with insert: JSON blob's domains must match the normalized rows.
         unit = _make_unit(domains=["databases"])
         await store.insert(unit)
@@ -120,17 +125,17 @@ class TestUpdate:
 
 
 class TestQuery:
-    async def test_returns_matching_units(self, store: SqliteStore) -> None:
+    async def test_returns_matching_units(self, store: _RepoBundle) -> None:
         unit = await _insert_and_approve(store, domains=["databases"])
         results = await store.query(["databases"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
-    async def test_returns_empty_for_no_match(self, store: SqliteStore) -> None:
+    async def test_returns_empty_for_no_match(self, store: _RepoBundle) -> None:
         await _insert_and_approve(store, domains=["databases"])
         assert await store.query(["networking"]) == []
 
-    async def test_language_filter_boosts_matching_units(self, store: SqliteStore) -> None:
+    async def test_language_filter_boosts_matching_units(self, store: _RepoBundle) -> None:
         py = await _insert_and_approve(
             store,
             domains=["web"],
@@ -146,21 +151,21 @@ class TestQuery:
         assert results[0].id == py.id
         assert results[1].id == go.id
 
-    async def test_language_filter_includes_units_without_language(self, store: SqliteStore) -> None:
+    async def test_language_filter_includes_units_without_language(self, store: _RepoBundle) -> None:
         """KUs with no language set should still appear when language filter is used."""
         no_lang = await _insert_and_approve(store, domains=["ci"])
         results = await store.query(["ci"], languages=["python"])
         assert len(results) == 1
         assert results[0].id == no_lang.id
 
-    async def test_framework_filter_includes_units_without_framework(self, store: SqliteStore) -> None:
+    async def test_framework_filter_includes_units_without_framework(self, store: _RepoBundle) -> None:
         """KUs with no framework set should still appear when framework filter is used."""
         no_fw = await _insert_and_approve(store, domains=["web"])
         results = await store.query(["web"], frameworks=["fastapi"])
         assert len(results) == 1
         assert results[0].id == no_fw.id
 
-    async def test_language_filter_ranks_matching_higher(self, store: SqliteStore) -> None:
+    async def test_language_filter_ranks_matching_higher(self, store: _RepoBundle) -> None:
         """KUs with matching language should rank above those without."""
         no_lang = await _insert_and_approve(store, domains=["web"])
         with_lang = await _insert_and_approve(
@@ -173,7 +178,7 @@ class TestQuery:
         assert results[0].id == with_lang.id
         assert results[1].id == no_lang.id
 
-    async def test_multiple_languages_boost_any_match(self, store: SqliteStore) -> None:
+    async def test_multiple_languages_boost_any_match(self, store: _RepoBundle) -> None:
         """Querying with multiple languages boosts units matching any of them."""
         py = await _insert_and_approve(
             store,
@@ -197,7 +202,7 @@ class TestQuery:
         assert matched_ids == {py.id, go.id}
         assert results[2].id == rust.id
 
-    async def test_multiple_frameworks_boost_any_match(self, store: SqliteStore) -> None:
+    async def test_multiple_frameworks_boost_any_match(self, store: _RepoBundle) -> None:
         """Querying with multiple frameworks boosts units matching any of them."""
         fastapi = await _insert_and_approve(
             store,
@@ -220,7 +225,7 @@ class TestQuery:
         assert matched_ids == {fastapi.id, django.id}
         assert results[2].id == flask.id
 
-    async def test_pattern_filter_boosts_matching_unit(self, store: SqliteStore) -> None:
+    async def test_pattern_filter_boosts_matching_unit(self, store: _RepoBundle) -> None:
         """KUs whose context.pattern matches the query pattern should rank above those that do not."""
         matching = await _insert_and_approve(
             store,
@@ -233,11 +238,11 @@ class TestQuery:
         assert results[0].id == matching.id
         assert results[1].id == plain.id
 
-    async def test_rejects_non_positive_limit(self, store: SqliteStore) -> None:
+    async def test_rejects_non_positive_limit(self, store: _RepoBundle) -> None:
         with pytest.raises(ValueError, match="limit must be positive"):
             await store.query(["databases"], limit=0)
 
-    async def test_tie_break_orders_by_id_descending(self, store: SqliteStore) -> None:
+    async def test_tie_break_orders_by_id_descending(self, store: _RepoBundle) -> None:
         # Two units with identical context produce identical scores; the
         # tie-break must order by id descending (preserves the previous
         # RemoteStore semantics).
@@ -250,15 +255,15 @@ class TestQuery:
 
 
 class TestStats:
-    async def test_count_empty_store(self, store: SqliteStore) -> None:
+    async def test_count_empty_store(self, store: _RepoBundle) -> None:
         assert await store.count() == 0
 
-    async def test_count_after_inserts(self, store: SqliteStore) -> None:
+    async def test_count_after_inserts(self, store: _RepoBundle) -> None:
         await store.insert(_make_unit(domains=["a"]))
         await store.insert(_make_unit(domains=["b"]))
         assert await store.count() == 2
 
-    async def test_domain_counts(self, store: SqliteStore) -> None:
+    async def test_domain_counts(self, store: _RepoBundle) -> None:
         u1 = _make_unit(domains=["api", "payments"])
         u2 = _make_unit(domains=["api", "auth"])
         await store.insert(u1)
@@ -272,14 +277,14 @@ class TestStats:
 
 
 class TestTierColumn:
-    async def test_tier_column_exists_after_migration(self, store: SqliteStore) -> None:
+    async def test_tier_column_exists_after_migration(self, store: _RepoBundle) -> None:
         """The tier column should exist on the knowledge_units table."""
         with store._engine.connect() as conn:
             cursor = conn.exec_driver_sql("PRAGMA table_info(knowledge_units)")
             columns = {row[1] for row in cursor.fetchall()}
         assert "tier" in columns
 
-    async def test_tier_column_defaults_to_private_for_migration(self, store: SqliteStore) -> None:
+    async def test_tier_column_defaults_to_private_for_migration(self, store: _RepoBundle) -> None:
         """Pre-existing rows without an explicit tier get 'private' from the column default."""
         with store._engine.begin() as conn:
             conn.exec_driver_sql(
@@ -293,7 +298,7 @@ class TestTierColumn:
             ).fetchone()
         assert row[0] == "private"
 
-    async def test_insert_populates_tier_from_unit(self, store: SqliteStore) -> None:
+    async def test_insert_populates_tier_from_unit(self, store: _RepoBundle) -> None:
         """Insert should write the unit's tier value to the tier column."""
         unit = _make_unit(tier=Tier.PRIVATE)
         await store.insert(unit)
@@ -301,7 +306,7 @@ class TestTierColumn:
             row = conn.exec_driver_sql("SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)).fetchone()
         assert row[0] == "private"
 
-    async def test_update_syncs_tier_column(self, store: SqliteStore) -> None:
+    async def test_update_syncs_tier_column(self, store: _RepoBundle) -> None:
         """Update should keep the tier column in sync with the JSON blob."""
         unit = _make_unit(tier=Tier.PRIVATE)
         await store.insert(unit)
@@ -311,11 +316,11 @@ class TestTierColumn:
             row = conn.exec_driver_sql("SELECT tier FROM knowledge_units WHERE id = ?", (unit.id,)).fetchone()
         assert row[0] == "public"
 
-    async def test_counts_by_tier_empty(self, store: SqliteStore) -> None:
+    async def test_counts_by_tier_empty(self, store: _RepoBundle) -> None:
         """Empty store returns empty dict."""
         assert await store.counts_by_tier() == {}
 
-    async def test_counts_by_tier_approved_only(self, store: SqliteStore) -> None:
+    async def test_counts_by_tier_approved_only(self, store: _RepoBundle) -> None:
         """Only approved units are counted."""
         u1 = _make_unit(domains=["a"], tier=Tier.PRIVATE)
         u2 = _make_unit(domains=["b"], tier=Tier.PRIVATE)
@@ -328,7 +333,7 @@ class TestTierColumn:
         counts = await store.counts_by_tier()
         assert counts == {"private": 2}
 
-    async def test_counts_by_tier_groups_correctly(self, store: SqliteStore) -> None:
+    async def test_counts_by_tier_groups_correctly(self, store: _RepoBundle) -> None:
         """Counts are grouped by tier value."""
         u1 = _make_unit(domains=["a"], tier=Tier.PRIVATE)
         u2 = _make_unit(domains=["b"], tier=Tier.PUBLIC)
@@ -341,7 +346,7 @@ class TestTierColumn:
 
 
 class TestReviewStatus:
-    async def test_inserted_unit_has_pending_status(self, store: SqliteStore) -> None:
+    async def test_inserted_unit_has_pending_status(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)
         status = await store.get_review_status(unit.id)
@@ -352,32 +357,32 @@ class TestReviewStatus:
 
 
 class TestStatusFiltering:
-    async def test_query_excludes_pending_units(self, store: SqliteStore) -> None:
+    async def test_query_excludes_pending_units(self, store: _RepoBundle) -> None:
         unit = _make_unit(domains=["api"])
         await store.insert(unit)
         results = await store.query(["api"])
         assert len(results) == 0
 
-    async def test_query_returns_approved_units(self, store: SqliteStore) -> None:
+    async def test_query_returns_approved_units(self, store: _RepoBundle) -> None:
         unit = _make_unit(domains=["api"])
         await store.insert(unit)
         await store.set_review_status(unit.id, "approved", "reviewer")
         results = await store.query(["api"])
         assert len(results) == 1
 
-    async def test_query_excludes_rejected_units(self, store: SqliteStore) -> None:
+    async def test_query_excludes_rejected_units(self, store: _RepoBundle) -> None:
         unit = _make_unit(domains=["api"])
         await store.insert(unit)
         await store.set_review_status(unit.id, "rejected", "reviewer")
         results = await store.query(["api"])
         assert len(results) == 0
 
-    async def test_get_only_returns_approved_for_agents(self, store: SqliteStore) -> None:
+    async def test_get_only_returns_approved_for_agents(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)
         assert await store.get(unit.id) is None
 
-    async def test_get_returns_approved_unit(self, store: SqliteStore) -> None:
+    async def test_get_returns_approved_unit(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)
         await store.set_review_status(unit.id, "approved", "reviewer")
@@ -385,7 +390,7 @@ class TestStatusFiltering:
 
 
 class TestReviewQueue:
-    async def test_pending_queue_returns_pending_units(self, store: SqliteStore) -> None:
+    async def test_pending_queue_returns_pending_units(self, store: _RepoBundle) -> None:
         u1 = _make_unit(domains=["api"])
         u2 = _make_unit(domains=["db"])
         await store.insert(u1)
@@ -393,14 +398,14 @@ class TestReviewQueue:
         queue = await store.pending_queue(limit=20, offset=0)
         assert len(queue) == 2
 
-    async def test_pending_queue_excludes_reviewed(self, store: SqliteStore) -> None:
+    async def test_pending_queue_excludes_reviewed(self, store: _RepoBundle) -> None:
         unit = _make_unit(domains=["api"])
         await store.insert(unit)
         await store.set_review_status(unit.id, "approved", "reviewer")
         queue = await store.pending_queue(limit=20, offset=0)
         assert len(queue) == 0
 
-    async def test_pending_count(self, store: SqliteStore) -> None:
+    async def test_pending_count(self, store: _RepoBundle) -> None:
         u1 = _make_unit(domains=["a"])
         u2 = _make_unit(domains=["b"])
         await store.insert(u1)
@@ -408,7 +413,7 @@ class TestReviewQueue:
         await store.set_review_status(u1.id, "approved", "reviewer")
         assert await store.pending_count() == 1
 
-    async def test_counts_by_status(self, store: SqliteStore) -> None:
+    async def test_counts_by_status(self, store: _RepoBundle) -> None:
         u1 = _make_unit(domains=["a"])
         u2 = _make_unit(domains=["b"])
         u3 = _make_unit(domains=["c"])
@@ -422,7 +427,7 @@ class TestReviewQueue:
         assert counts["rejected"] == 1
         assert counts["pending"] == 1
 
-    async def test_daily_counts(self, store: SqliteStore) -> None:
+    async def test_daily_counts(self, store: _RepoBundle) -> None:
         await store.insert(_make_unit(domains=["a"]))
         await store.insert(_make_unit(domains=["b"]))
         counts = await store.daily_counts(days=30)
@@ -430,7 +435,7 @@ class TestReviewQueue:
         total = sum(row["proposed"] for row in counts)
         assert total == 2
 
-    async def test_daily_counts_gap_fills_to_today(self, store: SqliteStore) -> None:
+    async def test_daily_counts_gap_fills_to_today(self, store: _RepoBundle) -> None:
         """daily_counts should return contiguous dates from the earliest entry to today."""
         three_days_ago = datetime.now(UTC) - timedelta(days=3)
         unit = _make_unit(domains=["a"])
@@ -454,7 +459,7 @@ class TestReviewQueue:
         for row in counts[1:]:
             assert row["proposed"] == 0
 
-    async def test_daily_counts_includes_approved(self, store: SqliteStore) -> None:
+    async def test_daily_counts_includes_approved(self, store: _RepoBundle) -> None:
         """daily_counts should include approved counts grouped by reviewed_at date."""
         three_days_ago = datetime.now(UTC) - timedelta(days=3)
         one_day_ago = datetime.now(UTC) - timedelta(days=1)
@@ -490,7 +495,7 @@ class TestReviewQueue:
         # No approvals on the proposal date.
         assert by_date[three_days_ago_str]["approved"] == 0
 
-    async def test_daily_counts_includes_rejected(self, store: SqliteStore) -> None:
+    async def test_daily_counts_includes_rejected(self, store: _RepoBundle) -> None:
         """daily_counts should include rejected counts grouped by reviewed_at date."""
         two_days_ago = datetime.now(UTC) - timedelta(days=2)
 
@@ -519,11 +524,11 @@ class TestReviewQueue:
         assert by_date[today_str]["rejected"] == 1
         assert by_date[today_str]["proposed"] == 0
 
-    async def test_daily_counts_rejects_non_positive_days(self, store: SqliteStore) -> None:
+    async def test_daily_counts_rejects_non_positive_days(self, store: _RepoBundle) -> None:
         with pytest.raises(ValueError, match="days must be positive"):
             await store.daily_counts(days=0)
 
-    async def test_pending_queue_pagination(self, store: SqliteStore) -> None:
+    async def test_pending_queue_pagination(self, store: _RepoBundle) -> None:
         for _ in range(3):
             await store.insert(_make_unit(domains=["a"]))
         page1 = await store.pending_queue(limit=2, offset=0)
@@ -533,14 +538,14 @@ class TestReviewQueue:
         ids = {r["knowledge_unit"].id for r in page1} | {r["knowledge_unit"].id for r in page2}
         assert len(ids) == 3
 
-    async def test_counts_by_status_empty(self, store: SqliteStore) -> None:
+    async def test_counts_by_status_empty(self, store: _RepoBundle) -> None:
         counts = await store.counts_by_status()
         assert counts == {}
 
 
 class TestApiKeys:
     @staticmethod
-    async def _seed_user(store: SqliteStore, username: str = "alice") -> int:
+    async def _seed_user(store: _RepoBundle, username: str = "alice") -> int:
         await store.create_user(username, "hash-unused")
         user = await store.get_user(username)
         assert user is not None
@@ -554,7 +559,7 @@ class TestApiKeys:
     def _past(days: int = 1) -> str:
         return (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
-    async def test_create_and_fetch_active_by_id(self, store: SqliteStore) -> None:
+    async def test_create_and_fetch_active_by_id(self, store: _RepoBundle) -> None:
         user_id = await self._seed_user(store)
         row = await store.create_api_key(
             key_id="k1",
@@ -577,10 +582,10 @@ class TestApiKeys:
         assert fetched["name"] == "laptop"
         assert fetched["key_hash"] == "hash-1"
 
-    async def test_get_active_by_id_missing(self, store: SqliteStore) -> None:
+    async def test_get_active_by_id_missing(self, store: _RepoBundle) -> None:
         assert await store.get_active_api_key_by_id("nope") is None
 
-    async def test_get_active_by_id_excludes_revoked(self, store: SqliteStore) -> None:
+    async def test_get_active_by_id_excludes_revoked(self, store: _RepoBundle) -> None:
         user_id = await self._seed_user(store)
         await store.create_api_key(
             key_id="k1",
@@ -595,7 +600,7 @@ class TestApiKeys:
         assert await store.revoke_api_key(user_id=user_id, key_id="k1") is True
         assert await store.get_active_api_key_by_id("k1") is None
 
-    async def test_create_rejects_duplicate_hash(self, store: SqliteStore) -> None:
+    async def test_create_rejects_duplicate_hash(self, store: _RepoBundle) -> None:
         user_id = await self._seed_user(store)
         await store.create_api_key(
             key_id="k1",
@@ -619,7 +624,7 @@ class TestApiKeys:
                 expires_at=self._future(),
             )
 
-    async def test_list_for_user_orders_newest_first(self, store: SqliteStore) -> None:
+    async def test_list_for_user_orders_newest_first(self, store: _RepoBundle) -> None:
         user_id = await self._seed_user(store)
         await store.create_api_key(
             key_id="k1",
@@ -645,7 +650,7 @@ class TestApiKeys:
         assert [r["id"] for r in rows] == ["k2", "k1"]
         assert all("key_hash" not in r for r in rows)
 
-    async def test_list_scoped_by_user(self, store: SqliteStore) -> None:
+    async def test_list_scoped_by_user(self, store: _RepoBundle) -> None:
         alice_id = await self._seed_user(store, "alice")
         bob_id = await self._seed_user(store, "bob")
         await store.create_api_key(
@@ -671,7 +676,7 @@ class TestApiKeys:
         assert [r["id"] for r in await store.list_api_keys_for_user(alice_id)] == ["k-alice"]
         assert [r["id"] for r in await store.list_api_keys_for_user(bob_id)] == ["k-bob"]
 
-    async def test_count_active_excludes_revoked_and_expired(self, store: SqliteStore) -> None:
+    async def test_count_active_excludes_revoked_and_expired(self, store: _RepoBundle) -> None:
         user_id = await self._seed_user(store)
         await store.create_api_key(
             key_id="active",
@@ -707,7 +712,7 @@ class TestApiKeys:
 
         assert await store.count_active_api_keys_for_user(user_id) == 1
 
-    async def test_revoke_scoped_to_owner(self, store: SqliteStore) -> None:
+    async def test_revoke_scoped_to_owner(self, store: _RepoBundle) -> None:
         alice_id = await self._seed_user(store, "alice")
         bob_id = await self._seed_user(store, "bob")
         await store.create_api_key(
@@ -724,11 +729,11 @@ class TestApiKeys:
         assert await store.revoke_api_key(user_id=alice_id, key_id="k") is True
         assert await store.revoke_api_key(user_id=alice_id, key_id="k") is False
 
-    async def test_revoke_missing_key(self, store: SqliteStore) -> None:
+    async def test_revoke_missing_key(self, store: _RepoBundle) -> None:
         user_id = await self._seed_user(store)
         assert await store.revoke_api_key(user_id=user_id, key_id="nope") is False
 
-    async def test_touch_last_used_updates_timestamp(self, store: SqliteStore) -> None:
+    async def test_touch_last_used_updates_timestamp(self, store: _RepoBundle) -> None:
         user_id = await self._seed_user(store)
         await store.create_api_key(
             key_id="k",
@@ -744,10 +749,10 @@ class TestApiKeys:
         await store.touch_api_key_last_used("k")
         assert (await store.get_active_api_key_by_id("k"))["last_used_at"] is not None
 
-    async def test_touch_last_used_missing_key_swallowed(self, store: SqliteStore) -> None:
+    async def test_touch_last_used_missing_key_swallowed(self, store: _RepoBundle) -> None:
         await store.touch_api_key_last_used("nonexistent")  # No raise.
 
-    async def test_get_user_includes_id(self, store: SqliteStore) -> None:
+    async def test_get_user_includes_id(self, store: _RepoBundle) -> None:
         await store.create_user("alice", "hash")
         user = await store.get_user("alice")
         assert user is not None
@@ -755,7 +760,7 @@ class TestApiKeys:
 
 
 class TestEndToEnd:
-    async def test_propose_confirm_flag_lifecycle(self, store: SqliteStore) -> None:
+    async def test_propose_confirm_flag_lifecycle(self, store: _RepoBundle) -> None:
         await _insert_and_approve(
             store,
             domains=["api", "payments"],

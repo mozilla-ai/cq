@@ -318,7 +318,7 @@ class TestRemoteIntegration:
             "tier": "private",
         }
         httpx_mock.add_response(
-            url=httpx.URL("http://test-remote/query", params={"domains": ["api"], "limit": "5"}),
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
             json=[remote_unit],
         )
 
@@ -354,7 +354,7 @@ class TestRemoteIntegration:
         }
         httpx_mock.add_response(
             url=httpx.URL(
-                "http://test-remote/query",
+                "http://test-remote/api/v1/knowledge",
                 params={"domains": ["api"], "limit": "5", "languages": ["python"], "frameworks": ["django"]},
             ),
             json=[remote_unit],
@@ -377,7 +377,7 @@ class TestRemoteIntegration:
         }
         httpx_mock.add_response(
             url=httpx.URL(
-                "http://test-remote/query",
+                "http://test-remote/api/v1/knowledge",
                 params={"domains": ["api"], "limit": "5", "pattern": "api-client"},
             ),
             json=[remote_unit],
@@ -399,7 +399,7 @@ class TestRemoteIntegration:
             "tier": "private",
         }
         httpx_mock.add_response(
-            url=httpx.URL("http://test-remote/query", params={"domains": ["api"], "limit": "5"}),
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
             json=[remote_unit],
         )
 
@@ -566,9 +566,9 @@ class TestRemoteIntegration:
             "tier": "private",
         }
         httpx_mock.add_response(
-            url="http://test-remote/confirm/ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01",
+            url="http://test-remote/api/v1/knowledge/ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01/confirmations",
             json={"knowledge_unit": confirmed_unit},
-            status_code=200,
+            status_code=201,
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
@@ -589,9 +589,9 @@ class TestRemoteIntegration:
             "tier": "private",
         }
         httpx_mock.add_response(
-            url="http://test-remote/flag/ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01",
+            url="http://test-remote/api/v1/knowledge/ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01/flags",
             json={"knowledge_unit": flagged_unit},
-            status_code=200,
+            status_code=201,
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
@@ -654,7 +654,7 @@ class TestRemoteIntegration:
     def test_status_merges_remote_tier_counts(self, tmp_path: Path, httpx_mock):
         """status() merges local and remote tier counts."""
         httpx_mock.add_response(
-            url=httpx.URL("http://test-remote/stats"),
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
             json={"total_units": 3, "tiers": {"private": 3, "public": 0}, "domains": {}},
         )
 
@@ -673,7 +673,7 @@ class TestRemoteIntegration:
     def test_status_merges_remote_domain_counts(self, tmp_path: Path, httpx_mock):
         """status() merges remote domain counts into local domain counts, accumulating overlaps."""
         httpx_mock.add_response(
-            url=httpx.URL("http://test-remote/stats"),
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
             json={
                 "total_units": 5,
                 "tiers": {"private": 5, "public": 0},
@@ -711,7 +711,7 @@ class TestRemoteIntegration:
     def test_status_ignores_local_tier_from_remote(self, tmp_path: Path, httpx_mock):
         """status() ignores 'local' tier in remote response to prevent double-counting."""
         httpx_mock.add_response(
-            url=httpx.URL("http://test-remote/stats"),
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
             json={"total_units": 6, "tiers": {"local": 1, "private": 4, "public": 1}, "domains": {}},
         )
 

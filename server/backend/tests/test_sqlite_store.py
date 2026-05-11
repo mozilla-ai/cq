@@ -1,8 +1,8 @@
-"""Tests for SqliteStore-only behaviour: engine wiring, PRAGMAs, threadpool shim, lifecycle.
+"""Tests for the SQLite-backed ``Database`` + repository wiring.
 
-Functional behaviour (insert/get/query/etc.) is covered by the existing test_store.py
-once it is migrated. This file owns the genuinely-new internal behaviour required by
-the SqliteStore implementation.
+Engine wiring, PRAGMAs, threadpool shim, and post-close lifecycle behaviour
+are exercised here. Functional repository behaviour (insert/get/query/etc.)
+is covered in ``test_store.py`` via the legacy ``store`` fixture.
 """
 
 import sqlite3
@@ -13,12 +13,34 @@ from pathlib import Path
 import pytest
 from cq.models import Context, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 
-from cq_server.store import SqliteStore, Store
+from cq_server.core.config import Settings
+from cq_server.core.db import Database
+
+from .conftest import _RepoBundle
+from .db_helpers import init_test_db
 
 
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
-    return tmp_path / "cq.db"
+    """Path to a fresh, Alembic-initialised SQLite DB."""
+    db = tmp_path / "cq.db"
+    init_test_db(db)
+    return db
+
+
+def _make_store(db_path: Path) -> _RepoBundle:
+    """Build a fresh ``_RepoBundle`` for a single test.
+
+    Equivalent to the historical ``SqliteStore(db_path=...)`` construction;
+    just routed through the decomposed ``Database`` + repository layout.
+    """
+    settings = Settings(  # type: ignore[call-arg]
+        jwt_secret="test-jwt-secret",  # pragma: allowlist secret
+        api_key_pepper="test-pepper",  # pragma: allowlist secret
+        database_url=f"sqlite:///{db_path}",
+        db_path=db_path,
+    )
+    return _RepoBundle(Database(settings))
 
 
 def _make_unit(domain: str = "auth") -> KnowledgeUnit:
@@ -31,22 +53,14 @@ def _make_unit(domain: str = "auth") -> KnowledgeUnit:
     )
 
 
-async def test_sqlite_store_conforms_to_protocol(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
-    try:
-        assert isinstance(store, Store)
-    finally:
-        await store.close()
-
-
 async def test_close_is_idempotent(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     await store.close()
     await store.close()  # no raise
 
 
 async def test_pragmas_applied_on_connect(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         with store._engine.connect() as conn:
             assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
@@ -60,7 +74,7 @@ async def test_pragmas_applied_on_connect(db_path: Path) -> None:
 async def test_threadpool_shim_runs_off_event_loop(db_path: Path) -> None:
     """Sync work delegated to asyncio.to_thread must run in a worker thread,
     not block the event-loop thread."""
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     loop_thread_id = threading.get_ident()
     captured: dict[str, int] = {}
 
@@ -77,8 +91,17 @@ async def test_threadpool_shim_runs_off_event_loop(db_path: Path) -> None:
         await store.close()
 
 
-async def test_schema_present_after_construct(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+async def test_alembic_schema_reachable_from_store_engine(db_path: Path) -> None:
+    """Fast-fail check that the migration runner produced a usable schema.
+
+    Every other test in this file would crash deep inside a store method
+    with ``OperationalError: no such table`` if the migration runner
+    regressed, which buries the actual failure. This test fails crisply
+    at the boundary instead — "the engine the store opens does not see
+    the expected production tables" — and is the cheapest place to
+    notice the dependency on Alembic broke.
+    """
+    store = _make_store(db_path)
     try:
         with store._engine.connect() as conn:
             tables = {row[0] for row in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -88,7 +111,7 @@ async def test_schema_present_after_construct(db_path: Path) -> None:
 
 
 async def test_insert_get_any_roundtrip(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         unit = _make_unit()
         await store.insert(unit)
@@ -101,7 +124,7 @@ async def test_insert_get_any_roundtrip(db_path: Path) -> None:
 
 
 async def test_update_and_review_roundtrip(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         unit = _make_unit()
         await store.insert(unit)
@@ -118,7 +141,7 @@ async def test_update_and_review_roundtrip(db_path: Path) -> None:
 
 
 async def test_query_filters_and_ranks(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         a = _make_unit("auth")
         b = _make_unit("auth")
@@ -133,7 +156,7 @@ async def test_query_filters_and_ranks(db_path: Path) -> None:
 
 
 async def test_count_and_domain_counts(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         u = _make_unit("auth")
         await store.insert(u)
@@ -147,7 +170,7 @@ async def test_count_and_domain_counts(db_path: Path) -> None:
 
 
 async def test_pending_and_list_units(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         u = _make_unit("auth")
         await store.insert(u)
@@ -163,7 +186,7 @@ async def test_pending_and_list_units(db_path: Path) -> None:
 
 
 async def test_distribution_and_activity_and_daily(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         u = _make_unit("auth")
         await store.insert(u)
@@ -189,7 +212,7 @@ async def test_distribution_and_activity_and_daily(db_path: Path) -> None:
 
 
 async def test_create_get_user(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         await store.create_user("alice", "$2b$12$fake")
         user = await store.get_user("alice")
@@ -200,7 +223,7 @@ async def test_create_get_user(db_path: Path) -> None:
         await store.close()
 
 
-async def _seed_user(store: SqliteStore) -> int:
+async def _seed_user(store: _RepoBundle) -> int:
     await store.create_user("alice", "$2b$12$fakehashfakehashfakehashfakehashfake")
     user = await store.get_user("alice")
     assert user is not None
@@ -208,7 +231,7 @@ async def _seed_user(store: SqliteStore) -> int:
 
 
 async def test_create_api_key_returns_row(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         user_id = await _seed_user(store)
         expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
@@ -237,7 +260,7 @@ async def test_create_api_key_returns_row(db_path: Path) -> None:
 
 
 async def test_get_api_key_for_user(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         user_id = await _seed_user(store)
         expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
@@ -267,7 +290,7 @@ async def test_get_api_key_for_user(db_path: Path) -> None:
 
 
 async def test_count_active_api_keys_for_user(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         user_id = await _seed_user(store)
         expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
@@ -315,7 +338,7 @@ async def test_count_active_api_keys_for_user(db_path: Path) -> None:
 
 
 async def test_get_active_api_key_by_id(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         user_id = await _seed_user(store)
         expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
@@ -357,7 +380,7 @@ async def test_get_active_api_key_by_id(db_path: Path) -> None:
 
 
 async def test_list_api_keys_for_user(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         user_id = await _seed_user(store)
         expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
@@ -387,7 +410,7 @@ async def test_list_api_keys_for_user(db_path: Path) -> None:
 
 
 async def test_revoke_api_key(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         user_id = await _seed_user(store)
         expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
@@ -417,7 +440,7 @@ async def test_revoke_api_key(db_path: Path) -> None:
 
 
 async def test_touch_api_key_last_used(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         user_id = await _seed_user(store)
         expires_at = (datetime.now(UTC) + timedelta(days=30)).isoformat()
@@ -447,7 +470,7 @@ async def test_touch_api_key_last_used(db_path: Path) -> None:
 
 
 async def test_insert_duplicate_raises_sqlite3_integrity_error(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         unit = _make_unit()
         await store.insert(unit)
@@ -458,7 +481,7 @@ async def test_insert_duplicate_raises_sqlite3_integrity_error(db_path: Path) ->
 
 
 async def test_insert_with_empty_domains_raises(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         unit = _make_unit()
         unit_no_domains = unit.model_copy(update={"domains": []})
@@ -469,7 +492,7 @@ async def test_insert_with_empty_domains_raises(db_path: Path) -> None:
 
 
 async def test_query_rejects_non_positive_limit(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         with pytest.raises(ValueError, match="limit must be positive"):
             await store.query(["x"], limit=0)
@@ -480,7 +503,7 @@ async def test_query_rejects_non_positive_limit(db_path: Path) -> None:
 
 
 async def test_daily_counts_uses_date_key_and_gap_fills(db_path: Path) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         # Empty store: empty list.
         assert await store.daily_counts(days=30) == []
@@ -501,7 +524,7 @@ async def test_insert_uses_first_observed_for_created_at(db_path: Path) -> None:
     """Verifies created_at falls back to evidence.first_observed when present."""
     from datetime import datetime as _dt
 
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     try:
         unit = _make_unit()
         backdated = _dt(2025, 1, 15, tzinfo=UTC)
@@ -552,7 +575,7 @@ async def test_insert_uses_first_observed_for_created_at(db_path: Path) -> None:
     ],
 )
 async def test_method_raises_on_closed_store(db_path: Path, call_method) -> None:
-    store = SqliteStore(db_path=db_path)
+    store = _make_store(db_path)
     await store.close()
-    with pytest.raises(RuntimeError, match="SqliteStore is closed"):
+    with pytest.raises(RuntimeError, match="Database is closed"):
         await call_method(store)

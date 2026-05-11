@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -20,11 +21,20 @@ const (
 	// envVarAPIKey is the environment variable for the API key.
 	envVarAPIKey = "CQ_API_KEY" // pragma: allowlist secret
 
+	// envVarConfigDir is the environment variable that overrides the
+	// CLI's config and credential directory.
+	envVarConfigDir = "CQ_CONFIG_DIR"
+
 	// envVarDBPath is the environment variable for the local database path.
 	envVarDBPath = "CQ_LOCAL_DB_PATH"
 
 	// envVarTimeout is the environment variable for the CLI operation timeout in seconds.
 	envVarTimeout = "CQ_TIMEOUT"
+
+	// envVarXDGConfigHome is the XDG Base Directory specification's
+	// configuration root. The CLI honours it when absolute, matching
+	// the SDK's handling of XDG_DATA_HOME.
+	envVarXDGConfigHome = "XDG_CONFIG_HOME"
 
 	// defaultCLITimeout is the CLI operation timeout when CQ_TIMEOUT is not set.
 	defaultCLITimeout = 30 * time.Second
@@ -69,6 +79,30 @@ func cliTimeout() time.Duration {
 // cliContext returns a context with the CLI timeout applied.
 func cliContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), cliTimeout())
+}
+
+// configDir resolves the CLI's config and credential directory.
+//
+// Resolution order, highest priority first:
+//  1. CQ_CONFIG_DIR (explicit override)
+//  2. XDG_CONFIG_HOME/cq, only if XDG_CONFIG_HOME is an absolute path
+//     (per the XDG Base Directory specification)
+//  3. $HOME/.config/cq
+func configDir() (string, error) {
+	if dir := os.Getenv(envVarConfigDir); dir != "" {
+		return dir, nil
+	}
+
+	if xdg := os.Getenv(envVarXDGConfigHome); xdg != "" && filepath.IsAbs(xdg) {
+		return filepath.Join(xdg, "cq"), nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+
+	return filepath.Join(home, ".config", "cq"), nil
 }
 
 // newCLIClient creates a new SDK client using the persistent flag values.

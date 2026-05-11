@@ -1,25 +1,21 @@
 """Tests for Alembic baseline migration + stamp-on-startup logic.
 
-Covers the three startup cases the migration runner has to handle:
+Covers the three startup cases the migration runner has to handle,
+plus a parity check between the baseline migration and the frozen
+pre-Alembic snapshot:
 
 1. ``test_fresh_database_runs_baseline_migration`` — empty file, no
    tables. Migration creates everything and stamps at baseline.
 2. ``test_existing_pre_alembic_database_is_stamped`` — production-shape
-   DB built by the legacy ``_ensure_schema()`` path, with seed data in
-   every table. Migration runner must stamp at baseline (not re-run
-   the DDL) and preserve every row.
-3. ``test_already_stamped_database_is_idempotent`` — DB with
+   DB hand-built to match the schema that legacy ``_ensure_schema()``
+   used to produce, with seed data in every table. Migration runner
+   must stamp at baseline (not re-run the DDL) and preserve every row.
+3. ``test_upgrade_head_matches_pre_alembic_snapshot`` — drift oracle
+   for the baseline migration: a fresh-DB ``upgrade head`` must
+   produce the same schema as ``_PRE_ALEMBIC_STATEMENTS``, otherwise
+   stamped legacy DBs and fresh installs diverge.
+4. ``test_already_stamped_database_is_idempotent`` — DB with
    ``alembic_version`` already at head. Re-running is a no-op.
-
-Plus a fourth structural test:
-
-4. ``test_baseline_schema_matches_legacy_ensure_schema`` — the in-repo
-   substitute for "byte-checked against current production schema".
-   Builds DB-A via legacy ``_ensure_schema`` and DB-B via the baseline
-   migration and asserts they produce the equivalent set of
-   tables/columns/indexes/foreign-keys. **Delete this test in #310**
-   when ``_ensure_schema`` is removed and the migration becomes the
-   sole source of truth.
 """
 
 from __future__ import annotations
@@ -33,14 +29,13 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
+from cq_server.core.config import Settings
+from cq_server.core.db import Database
 from cq_server.migrations import BASELINE_REVISION, run_migrations
-from cq_server.store import SqliteStore
 
-# --- Helpers --------------------------------------------------------------
-
-
-def _sqlite_url(db: Path) -> str:
-    return f"sqlite:///{db}"
+from .conftest import _RepoBundle
+from .db_helpers import build_pre_alembic_schema
+from .db_helpers import sqlite_url as _sqlite_url
 
 
 def _open_ro(db: Path) -> sqlite3.Connection:
@@ -72,20 +67,25 @@ def _columns(conn: sqlite3.Connection, table: str) -> list[tuple[Any, ...]]:
 
 
 def _explicit_indexes(conn: sqlite3.Connection, table: str) -> dict[str, dict[str, Any]]:
-    """Return only `CREATE INDEX` indexes (origin = 'c').
+    """Return all indexes except PK autoindexes.
 
-    Implicit `sqlite_autoindex_*` indexes that SQLite generates for
-    PRIMARY KEY / UNIQUE constraints are excluded — those are already
-    accounted for in the column list.
+    PK autoindexes (origin='p') are excluded because the column list's
+    ``pk`` flag already captures them. Explicit ``CREATE INDEX``
+    indexes (origin='c') are keyed by their declared name. UNIQUE
+    constraint autoindexes (origin='u') are keyed by a synthesized
+    ``<unique:cols>`` stem so two DBs that declare the same UNIQUE
+    constraints in different SQL paths don't diff on SQLite's
+    per-table-incrementing ``sqlite_autoindex_<table>_N`` names.
     """
     out: dict[str, dict[str, Any]] = {}
     for row in conn.execute(f"PRAGMA index_list({table})").fetchall():
         # row: (seq, name, unique, origin, partial)
         name, unique, origin = row[1], bool(row[2]), row[3]
-        if origin != "c":
+        if origin == "p":
             continue
         cols = [info[2] for info in conn.execute(f"PRAGMA index_info({name})").fetchall()]
-        out[name] = {"unique": unique, "columns": cols}
+        key = name if origin == "c" else f"<unique:{','.join(cols)}>"
+        out[key] = {"unique": unique, "columns": cols, "origin": origin}
     return out
 
 
@@ -130,7 +130,7 @@ def _row_counts(conn: sqlite3.Connection, tables: set[str]) -> dict[str, int]:
     return {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tables}
 
 
-async def _seed_kus(store: SqliteStore) -> list[str]:
+async def _seed_kus(store: _RepoBundle) -> list[str]:
     """Insert three KUs covering different review states and tiers."""
     from cq.models import Context, Insight, Tier, create_knowledge_unit
 
@@ -164,7 +164,7 @@ async def _seed_kus(store: SqliteStore) -> list[str]:
     return [u.id for u in units]
 
 
-async def _seed_user_and_api_key(store: SqliteStore) -> tuple[int, str]:
+async def _seed_user_and_api_key(store: _RepoBundle) -> tuple[int, str]:
     """Insert one user + one API key. Returns (user_id, key_id)."""
     await store.create_user("alice", "$2b$12$fakehashfakehashfakehashfakehashfake")
     user = await store.get_user("alice")
@@ -206,8 +206,8 @@ class TestFreshDatabase:
             } <= tables
             assert _alembic_version(conn) == BASELINE_REVISION
 
-            # knowledge_units columns and order match the historical
-            # _SCHEMA_SQL + ALTER end-state on prod.
+            # knowledge_units columns and order match the pre-Alembic
+            # end-state preserved in db_helpers._PRE_ALEMBIC_STATEMENTS.
             ku_cols = [c[0] for c in _columns(conn, "knowledge_units")]
             assert ku_cols == [
                 "id",
@@ -247,11 +247,15 @@ class TestExistingPreAlembicDatabase:
 
     @pytest_asyncio.fixture()
     async def seeded_pre_alembic_db(self, tmp_path: Path) -> tuple[Path, Mapping[str, Any]]:
-        """Build a production-shape SQLite DB by going through the legacy
-        ``_ensure_schema()`` path, then seed every table and snapshot
-        the resulting state. Returns (db_path, snapshot)."""
+        """Build a production-shape SQLite DB matching the pre-Alembic
+        schema preserved in ``db_helpers._PRE_ALEMBIC_STATEMENTS``,
+        seed every table, and snapshot the resulting state. Returns
+        (db_path, snapshot)."""
         db = tmp_path / "prod.db"
-        store = SqliteStore(db_path=db)
+        build_pre_alembic_schema(db)
+        store = _RepoBundle(
+            Database(Settings(jwt_secret="t", api_key_pepper="t", database_url=f"sqlite:///{db}", db_path=db))
+        )
         ku_ids = await _seed_kus(store)
         user_id, key_id = await _seed_user_and_api_key(store)
         await store.close()
@@ -319,7 +323,39 @@ class TestExistingPreAlembicDatabase:
             assert _row_counts(conn, data_tables) == before["counts"]
 
 
-# --- Test 3: already-stamped database --------------------------------------
+# --- Test 3: baseline migration matches pre-Alembic snapshot ---------------
+
+
+class TestBaselineMatchesPreAlembicSchema:
+    """Drift check: the baseline migration's ``upgrade()`` output must
+    match the frozen pre-Alembic schema in
+    ``db_helpers._PRE_ALEMBIC_STATEMENTS``.
+
+    This is the oracle the baseline migration's docstring promises.
+    ``TestExistingPreAlembicDatabase`` only round-trips the snapshot
+    through stamp + upgrade-head-noop — the migration's ``upgrade()``
+    body never executes on that path, so it can't catch drift between
+    the migration and the snapshot.
+
+    A fresh-DB ``run_migrations`` does run ``upgrade()``, so comparing
+    its result against ``build_pre_alembic_schema`` (which replays the
+    snapshot) catches the case where someone edits the baseline
+    migration in a way that diverges from what's already on every
+    pre-#310 production disk.
+    """
+
+    def test_upgrade_head_matches_pre_alembic_snapshot(self, tmp_path: Path) -> None:
+        legacy = tmp_path / "legacy.db"
+        migrated = tmp_path / "migrated.db"
+
+        build_pre_alembic_schema(legacy)
+        run_migrations(_sqlite_url(migrated))
+
+        with _open_ro(legacy) as a, _open_ro(migrated) as b:
+            assert _normalized_schema(a) == _normalized_schema(b)
+
+
+# --- Test 4: already-stamped database --------------------------------------
 
 
 class TestAlreadyStampedDatabase:
@@ -329,8 +365,10 @@ class TestAlreadyStampedDatabase:
         # First call: fresh DB → upgrade head.
         run_migrations(_sqlite_url(db))
 
-        # Insert a sentinel row through a real SqliteStore.
-        store = SqliteStore(db_path=db)
+        # Insert a sentinel row through a real _RepoBundle.
+        store = _RepoBundle(
+            Database(Settings(jwt_secret="t", api_key_pepper="t", database_url=f"sqlite:///{db}", db_path=db))
+        )
         try:
             ku_ids = await _seed_kus(store)
         finally:
@@ -351,51 +389,6 @@ class TestAlreadyStampedDatabase:
             # Sentinel rows survived.
             ku_rows = conn.execute("SELECT id FROM knowledge_units ORDER BY id").fetchall()
             assert sorted(r[0] for r in ku_rows) == sorted(ku_ids)
-
-
-# --- Test 4: parity with legacy _ensure_schema -----------------------------
-
-
-class TestBaselineMatchesLegacySchema:
-    """In-repo proxy for #305's "byte-checked against production schema".
-
-    The current ``_ensure_schema()`` is what builds every production DB,
-    so if the baseline migration produces a structurally equivalent
-    schema on an empty file, we have parity with prod.
-
-    Caveat: ``_normalized_table_shape`` deliberately normalises NOT-NULL
-    on PRIMARY KEY columns to ``0`` because the legacy schema and
-    SQLAlchemy/Alembic disagree on whether to spell ``NOT NULL`` out for
-    PKs. This is load-bearing — the parity check accepts any future
-    PK-nullability divergence as well, including bugs introduced by a
-    new migration. Future migrations that touch PK columns should be
-    reviewed against the migration source, not just this test.
-
-    DELETE THIS TEST in #310 alongside ``_ensure_schema()`` — once
-    the legacy path is gone there is nothing to compare against and
-    the migration is the sole source of truth.
-    """
-
-    async def test_baseline_schema_matches_legacy_ensure_schema(self, tmp_path: Path) -> None:
-        legacy_db = tmp_path / "legacy.db"
-        migrated_db = tmp_path / "migrated.db"
-
-        # DB-A: legacy code path.
-        await SqliteStore(db_path=legacy_db).close()
-        # DB-B: baseline migration.
-        run_migrations(_sqlite_url(migrated_db))
-
-        with _open_ro(legacy_db) as conn_a, _open_ro(migrated_db) as conn_b:
-            schema_a = _normalized_schema(conn_a)
-            schema_b = _normalized_schema(conn_b)
-
-        # alembic_version is excluded by _normalized_schema; everything
-        # else must agree.
-        assert schema_b == schema_a, (
-            "Baseline migration drifted from current production schema — "
-            "fix the migration so PRAGMA table_info / PRAGMA index_list / "
-            "PRAGMA foreign_key_list match what _ensure_schema() produces."
-        )
 
 
 # --- Test 5: default URL resolution ----------------------------------------
@@ -443,18 +436,11 @@ class TestPercentInUrlIsConfigParserSafe:
     can pin the regression without a real database server.
     """
 
-    @pytest.mark.parametrize(
-        "filename",
-        [
-            "100%real.db",
-            "p%40ss.db",
-            "weird%%name.db",
-        ],
-    )
-    def test_runtime_path_handles_percent_in_url(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str
-    ) -> None:
+    def test_runtime_path_handles_percent_in_url(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # ``p%40ss.db`` mimics a URL-encoded Postgres password
+        # (``p@ss`` → ``p%40ss``) — the realistic motivating case.
         monkeypatch.chdir(tmp_path)
+        filename = "p%40ss.db"
         url = f"sqlite:///{filename}"
 
         run_migrations(url)

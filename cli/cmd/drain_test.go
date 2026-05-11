@@ -64,7 +64,7 @@ func TestDrainPushesUnits(t *testing.T) {
 
 	var pushCount int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/propose" && r.Method == "POST" {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			pushCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
@@ -102,7 +102,7 @@ func TestDrainJSONFormat(t *testing.T) {
 	testSetup(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/propose" && r.Method == "POST" {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
@@ -163,7 +163,7 @@ func TestDrainAddrFlagOverridesEnv(t *testing.T) {
 
 	var pushCount int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/propose" && r.Method == "POST" {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			pushCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)

@@ -36,7 +36,7 @@ func newRemoteClient(baseURL string, apiKey string, timeout time.Duration) *remo
 // confirm confirms a unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
 func (r *remoteClient) confirm(ctx context.Context, unitID string) (KnowledgeUnit, error) {
-	confirmURL, err := r.url("/confirm/" + url.PathEscape(unitID))
+	confirmURL, err := r.url("/api/v1/knowledge/" + url.PathEscape(unitID) + "/confirmations")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -105,7 +105,7 @@ func (r *remoteClient) flag(ctx context.Context, unitID string, reason FlagReaso
 		body["duplicate_of"] = cfg.duplicateOf
 	}
 
-	flagURL, err := r.url("/flag/" + url.PathEscape(unitID))
+	flagURL, err := r.url("/api/v1/knowledge/" + url.PathEscape(unitID) + "/flags")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -162,7 +162,7 @@ func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (Knowledge
 		"created_by": ku.CreatedBy,
 	}
 
-	proposeURL, err := r.url("/propose")
+	proposeURL, err := r.url("/api/v1/knowledge")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -224,7 +224,7 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) []Knowledg
 		qv.Set("limit", fmt.Sprintf("%d", params.Limit))
 	}
 
-	base, err := r.url("/query")
+	base, err := r.url("/api/v1/knowledge")
 	if err != nil {
 		return nil
 	}
@@ -248,7 +248,7 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) []Knowledg
 	return units
 }
 
-// remoteStatsResponse holds the server's /stats response.
+// remoteStatsResponse holds the server's /api/v1/knowledge/stats response.
 type remoteStatsResponse struct {
 	TotalUnits int          `json:"total_units"`
 	Tiers      map[Tier]int `json:"tiers"`
@@ -258,7 +258,7 @@ type remoteStatsResponse struct {
 // stats fetches store statistics from the remote API.
 // Returns errUnreachable on transport/5xx errors.
 func (r *remoteClient) stats(ctx context.Context) (remoteStatsResponse, error) {
-	statsURL, err := r.url("/stats")
+	statsURL, err := r.url("/api/v1/knowledge/stats")
 	if err != nil {
 		return remoteStatsResponse{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}

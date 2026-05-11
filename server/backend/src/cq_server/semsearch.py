@@ -11,20 +11,21 @@ import os
 import sqlite3
 from typing import Any
 
-import numpy as np
-import numpy.typing as npt
 from cq.models import KnowledgeUnit
 
 logger = logging.getLogger(__name__)
 
 _ENABLED = False
 _DIM = int(os.environ.get("SEMSEARCH_EMBEDDING_DIM", 768))
+_SEM_QUERY_LIMIT = int(os.environ.get("SEMSEARCH_QUERY_LIMIT", 10))
 
 
 _TOKEN_EMBEDDING_URL = os.environ.get("TOKEN_EMBEDDING_URL")
 if _TOKEN_EMBEDDING_URL:
     try:
         import sqlite_vec
+        import numpy as np
+        import numpy.typing as npt
         from httpx import AsyncClient
 
         _ENABLED = True
@@ -80,6 +81,7 @@ _QUERY_VEC_COMBINED_SQL = """
         SELECT DISTINCT unit_id
         FROM knowledge_unit_domains
         WHERE domain IN ({placeholders})
+    ORDER BY distance LIMIT ?
     )
 """
 
@@ -171,7 +173,7 @@ async def combined_query(conn: sqlite3.Connection, domains: list[str], placehold
     vec_emb_search = await _get_embeddings(domains)
     search_embedding = _serialize_embedding(vec_emb_search)
     try:
-        args = [search_embedding] + domains
+        args = [search_embedding] + domains + [_SEM_QUERY_LIMIT]
         vec_rows = conn.execute(_QUERY_VEC_COMBINED_SQL.format(placeholders=placeholders), args).fetchall()
     except sqlite3.OperationalError:
         logger.warning(f"args: {vec_emb_search.shape}")  # ty: ignore[unresolved-attribute]

@@ -15,50 +15,52 @@ make lint-server-backend    # pre-commit (ruff, ty, uv lock check)
 
 ## Database migrations (Alembic)
 
-The server runs Alembic migrations on every start, before opening the
-store. The runner (`cq_server.migrations.run_migrations`) handles
+Alembic owns the schema. The server runs `alembic upgrade head` on
+every start, before opening the store; any schema change must land as
+a new migration in `alembic/versions/`.
+
+The runner (`cq_server.migrations.run_migrations`) is restart-safe in
 three cases:
 
-1. **New database** (no tables) — applies the baseline migration,
-   creating every table from scratch. The `alembic_version` row is
-   written as part of that.
-2. **Existing pre-Alembic database** (data tables present, no
-   `alembic_version`) — *stamps* the baseline revision without
-   re-running its DDL, then runs any later migrations. This is the
-   first-restart-after-upgrade case for a server that's been running
-   on the legacy `_ensure_schema()` path. **No DDL re-runs, no data
-   touched, no downtime** — the change is a single insert into a new
-   table.
+1. **New database** — applies the baseline migration and writes
+   `alembic_version`.
+2. **Database with existing data but no `alembic_version`** — stamps
+   the baseline revision without re-running its DDL, then applies any
+   later migrations. No data touched.
 3. **Already-managed database** — `upgrade head` is a no-op when
-   there are no pending revisions, so restart is idempotent.
+   nothing is pending.
 
-Database URL resolution lives in
-`cq_server.db_url.resolve_database_url` and is the single source of
-truth for both `alembic/env.py`, the migration runner, and the
-runtime store factory (`cq_server.store.create_store`). Precedence:
+### Database URL
 
-1. `CQ_DATABASE_URL` — used verbatim. SQLite URLs
-   (`sqlite:///<path>`) work today; `postgresql+psycopg://...` is
-   reserved for the Postgres backend and currently rejected at
-   startup with a `NotImplementedError` pointing at the Phase 2
-   child issues ([#311][issue-311] / [#312][issue-312]).
+Resolution lives in `cq_server.db_url.resolve_database_url` and is the
+single source of truth for `alembic/env.py`, the migration runner, and
+the runtime store factory (`cq_server.store.create_store`). Precedence:
+
+1. `CQ_DATABASE_URL` — used verbatim. SQLite URLs (`sqlite:///<path>`)
+   work today; `postgresql+psycopg://...` is reserved for the Postgres
+   backend and currently rejected at startup with a
+   `NotImplementedError` pointing at the Phase 2 child issues
+   ([#311][issue-311] / [#312][issue-312]).
 2. `CQ_DB_PATH` — wrapped as `sqlite:///<path>`. The SQLite shortcut
-   for single-instance deployments; stays supported indefinitely
-   alongside `CQ_DATABASE_URL`.
+   for single-instance deployments; supported alongside
+   `CQ_DATABASE_URL`.
 3. Default — `sqlite:////data/cq.db`.
 
-The `SqliteStore` constructor still calls the legacy
-`_ensure_schema()` for safety during the rollout window. Both the
-migration and the legacy DDL are idempotent, so running them in
-sequence is harmless. The legacy path will be removed in
-[issue #310][issue-310] once this PR has deployed everywhere — until
-then, any schema change must be added as a new Alembic migration
-*and* mirrored in `cq_server/tables.py` / `cq_server/store/_sqlite.py`
-to keep the two paths in sync.
+### Rollback
 
-To run Alembic commands against a local dev database (the path is
-resolved relative to wherever `alembic` is invoked from — here,
-`server/backend/`):
+Migrations are forward-only. If a new migration causes a bad deploy,
+redeploy the previous server image; if its head is older than the
+`alembic_version` row on disk, Alembic raises its standard "Can't
+locate revision" error from `command.upgrade` and the server refuses
+to start — the safeguard against silently downgrading data. To
+recover, either redeploy the version that wrote the newer
+`alembic_version`, or hand-write a downgrade migration before
+redeploying the older image.
+
+### Local development
+
+Alembic is invoked from `server/backend/`, so paths resolve relative
+to it:
 
 ```
 cd server/backend
@@ -69,6 +71,5 @@ CQ_DB_PATH=./dev.db uv run alembic upgrade head
 The full environment-variable table for self-hosters lives in
 [DEVELOPMENT.md](../../DEVELOPMENT.md#self-hosted-server).
 
-[issue-310]: https://github.com/mozilla-ai/cq/issues/310
 [issue-311]: https://github.com/mozilla-ai/cq/issues/311
 [issue-312]: https://github.com/mozilla-ai/cq/issues/312

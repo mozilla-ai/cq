@@ -42,6 +42,10 @@ func newRootCmd() *cobra.Command {
 
 	rootCmd.AddGroup(&cobra.Group{ID: "core", Title: "Core Commands:"})
 
+	authCmd := cmd.NewAuthCmd()
+	authCmd.GroupID = "core"
+	rootCmd.AddCommand(authCmd)
+
 	for _, fn := range []func() *cobra.Command{
 		cmd.NewConfirmCmd,
 		cmd.NewDrainCmd,

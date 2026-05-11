@@ -74,7 +74,7 @@ sequenceDiagram
     CC->>MCP: query(domain=["api","payments","stripe"])
     MCP->>Local: Search local store
     Local-->>MCP: 0 results
-    MCP->>Team: GET /query?domain=api,payments,stripe
+    MCP->>Team: GET /api/v1/knowledge?domains=api&domains=payments&domains=stripe
     Team-->>MCP: 1 result (confidence: 0.94)
     MCP-->>CC: "Stripe returns 200 with error body for rate limits"
 
@@ -89,7 +89,7 @@ sequenceDiagram
 
     Note over CC,Team: Graduation to remote requires human approval...
 
-    MCP->>Team: POST /propose (flagged for HITL review)
+    MCP->>Team: POST /api/v1/knowledge (flagged for HITL review)
     Team-->>MCP: Queued for review
 ```
 

@@ -28,7 +28,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from cq_server.db_url import resolve_database_url
+from cq_server.core.config import database_url_from_env
 
 config = context.config
 
@@ -49,7 +49,7 @@ def _resolve_url() -> str:
     pinned = config.get_main_option("sqlalchemy.url")
     if pinned:
         return pinned
-    return resolve_database_url()
+    return database_url_from_env()
 
 
 def run_migrations_offline() -> None:
