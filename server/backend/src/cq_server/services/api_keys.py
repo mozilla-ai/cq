@@ -7,6 +7,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from cq.ttl import TTLError
+from cq.ttl import parse as parse_ttl
 from fastapi import BackgroundTasks, HTTPException
 
 from ..api_keys import decode_token, encode_token, generate_secret, hash_secret, secret_prefix
@@ -17,7 +19,6 @@ from ..models.users import (
     Message,
 )
 from ..repositories import APIKeyRepository, UserRepository
-from ..ttl import parse_ttl
 
 MAX_ACTIVE_API_KEYS_PER_USER = 20
 
@@ -73,7 +74,7 @@ class APIKeyService:
         """
         try:
             canonical_ttl, duration = parse_ttl(ttl)
-        except ValueError as exc:
+        except TTLError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         user_id = await self._require_user_id(username)
         if await self._api_keys.count_active_for_user(user_id) >= MAX_ACTIVE_API_KEYS_PER_USER:
