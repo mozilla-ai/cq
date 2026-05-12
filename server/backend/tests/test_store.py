@@ -6,6 +6,7 @@ tests should prefer the typed ``users_repo`` / ``api_keys_repo`` /
 ``knowledge_repo`` / ``reviews_repo`` fixtures instead.
 """
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -19,8 +20,7 @@ from cq.models import (
     Tier,
     create_knowledge_unit,
 )
-
-from cq_server.scoring import apply_confirmation, apply_flag
+from cq.scoring import apply_confirmation, apply_flag
 
 from .conftest import _RepoBundle
 
@@ -61,6 +61,13 @@ async def _insert_and_approve(store: _RepoBundle, **overrides: Any) -> Knowledge
     return unit
 
 
+def _load_stored_unit_json(store: _RepoBundle, unit_id: str) -> dict[str, Any]:
+    with store._engine.connect() as conn:
+        row = conn.exec_driver_sql("SELECT data FROM knowledge_units WHERE id = ?", (unit_id,)).fetchone()
+    assert row is not None
+    return json.loads(row[0])
+
+
 class TestInsertAndGet:
     async def test_insert_and_retrieve(self, store: _RepoBundle) -> None:
         unit = _make_unit()
@@ -91,6 +98,12 @@ class TestInsertAndGet:
         retrieved = await store.get_any(unit.id)
         assert retrieved is not None
         assert retrieved.domains == ["databases", "performance"]
+
+    async def test_insert_omits_none_fields_in_stored_json(self, store: _RepoBundle) -> None:
+        unit = _make_unit()
+        await store.insert(unit)
+        persisted = _load_stored_unit_json(store, unit.id)
+        assert "superseded_by" not in persisted
 
 
 class TestUpdate:
@@ -123,6 +136,13 @@ class TestUpdate:
         retrieved = await store.get_any(unit.id)
         assert retrieved is not None
         assert retrieved.domains == ["databases", "performance"]
+
+    async def test_update_omits_none_fields_in_stored_json(self, store: _RepoBundle) -> None:
+        unit = _make_unit()
+        await store.insert(unit)
+        await store.update(unit)
+        persisted = _load_stored_unit_json(store, unit.id)
+        assert "superseded_by" not in persisted
 
 
 class TestQuery:
