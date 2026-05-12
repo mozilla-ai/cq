@@ -3,12 +3,21 @@
 from typing import Annotated
 
 from cq.models import KnowledgeUnit
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 
+from ...exceptions import InvalidDomainError, KnowledgeUnitNotFoundError, ServiceError
 from ...models.knowledge import FlagRequest, ProposeRequest, StatsResponse
 from ..deps import APIKeyAuthDep, KnowledgeServiceDep
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+
+def knowledge_exception_mappings() -> dict[type[ServiceError], int]:
+    """Return service-exception to HTTP-status mappings for knowledge routes."""
+    return {
+        InvalidDomainError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        KnowledgeUnitNotFoundError: status.HTTP_404_NOT_FOUND,
+    }
 
 
 @router.get("", response_model_exclude={"__all__": {"created_by"}})

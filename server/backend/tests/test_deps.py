@@ -1,4 +1,4 @@
-"""Tests for ``APIKeyService.authenticate`` (formerly the body of ``require_api_key``)."""
+"""Tests for ``APIKeyService.authenticate`` and API-key usage touch behavior."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from fastapi import BackgroundTasks, HTTPException
 
 from cq_server.api_keys import encode_token, generate_secret, hash_secret
+from cq_server.exceptions import APIKeyInvalidError
 from cq_server.services.api_keys import APIKeyService
 
 PEPPER = "test-pepper"
@@ -71,27 +71,25 @@ def _make_service(repo: _StubAPIKeyRepo, *, pepper: str = PEPPER) -> APIKeyServi
 
 
 class TestAuthenticateHappyPath:
-    async def test_valid_token_returns_username(self) -> None:
+    async def test_valid_token_returns_username_and_key_id(self) -> None:
         key_id = uuid.uuid4()
         secret = generate_secret()
         repo = _StubAPIKeyRepo({key_id.hex: _row(key_id=key_id, secret=secret)})
         token = encode_token(key_id=key_id, secret=secret)
         service = _make_service(repo)
 
-        result = await service.authenticate(token, BackgroundTasks())
+        username, touched_key_id = await service.authenticate(token)
 
-        assert result == "alice"
+        assert username == "alice"
+        assert touched_key_id == key_id.hex
 
-    async def test_valid_token_schedules_touch(self) -> None:
+    async def test_touch_last_used_updates_repository(self) -> None:
         key_id = uuid.uuid4()
         secret = generate_secret()
         repo = _StubAPIKeyRepo({key_id.hex: _row(key_id=key_id, secret=secret)})
-        token = encode_token(key_id=key_id, secret=secret)
         service = _make_service(repo)
-        background = BackgroundTasks()
 
-        await service.authenticate(token, background)
-        await background()  # run scheduled callbacks
+        await service.touch_last_used(key_id.hex)
 
         assert repo.touched == [key_id.hex]
 
@@ -100,22 +98,19 @@ class TestAuthenticateRejections:
     async def test_wrong_namespace(self) -> None:
         service = _make_service(_StubAPIKeyRepo())
         token = f"sk.v1.{uuid.uuid4().hex}.sekret"
-        with pytest.raises(HTTPException) as excinfo:
-            await service.authenticate(token, BackgroundTasks())
-        assert excinfo.value.status_code == 401
+        with pytest.raises(APIKeyInvalidError):
+            await service.authenticate(token)
 
     async def test_malformed_token(self) -> None:
         service = _make_service(_StubAPIKeyRepo())
-        with pytest.raises(HTTPException) as excinfo:
-            await service.authenticate("cqa_legacy", BackgroundTasks())
-        assert excinfo.value.status_code == 401
+        with pytest.raises(APIKeyInvalidError):
+            await service.authenticate("cqa_legacy")
 
     async def test_unknown_key_id(self) -> None:
         service = _make_service(_StubAPIKeyRepo())
         token = encode_token(key_id=uuid.uuid4(), secret=generate_secret())
-        with pytest.raises(HTTPException) as excinfo:
-            await service.authenticate(token, BackgroundTasks())
-        assert excinfo.value.status_code == 401
+        with pytest.raises(APIKeyInvalidError):
+            await service.authenticate(token)
 
     async def test_wrong_secret(self) -> None:
         key_id = uuid.uuid4()
@@ -123,9 +118,8 @@ class TestAuthenticateRejections:
         repo = _StubAPIKeyRepo({key_id.hex: _row(key_id=key_id, secret=stored_secret)})
         presented = encode_token(key_id=key_id, secret=generate_secret())
         service = _make_service(repo)
-        with pytest.raises(HTTPException) as excinfo:
-            await service.authenticate(presented, BackgroundTasks())
-        assert excinfo.value.status_code == 401
+        with pytest.raises(APIKeyInvalidError):
+            await service.authenticate(presented)
 
     async def test_revoked_token(self) -> None:
         key_id = uuid.uuid4()
@@ -133,9 +127,8 @@ class TestAuthenticateRejections:
         repo = _StubAPIKeyRepo({key_id.hex: _row(key_id=key_id, secret=secret, revoked_at=datetime.now(UTC))})
         token = encode_token(key_id=key_id, secret=secret)
         service = _make_service(repo)
-        with pytest.raises(HTTPException) as excinfo:
-            await service.authenticate(token, BackgroundTasks())
-        assert excinfo.value.status_code == 401
+        with pytest.raises(APIKeyInvalidError):
+            await service.authenticate(token)
 
     async def test_expired_token(self) -> None:
         key_id = uuid.uuid4()
@@ -144,6 +137,5 @@ class TestAuthenticateRejections:
         repo = _StubAPIKeyRepo({key_id.hex: row})
         token = encode_token(key_id=key_id, secret=secret)
         service = _make_service(repo)
-        with pytest.raises(HTTPException) as excinfo:
-            await service.authenticate(token, BackgroundTasks())
-        assert excinfo.value.status_code == 401
+        with pytest.raises(APIKeyInvalidError):
+            await service.authenticate(token)

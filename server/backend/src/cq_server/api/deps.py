@@ -18,6 +18,7 @@ from fastapi import BackgroundTasks, Depends, HTTPException, Request
 from ..auth import verify_token
 from ..core.config import Settings
 from ..core.db import Database
+from ..exceptions import APIKeyInvalidError
 from ..repositories import APIKeyRepository, KnowledgeRepository, ReviewRepository, UserRepository
 from ..services import APIKeyService, AuthService, KnowledgeService, ReviewService
 
@@ -150,7 +151,7 @@ async def require_api_key(
 
     The ``Authorization: Bearer <token>`` header must carry a valid,
     unrevoked, unexpired key. ``APIKeyService.authenticate`` performs the
-    HMAC-compare and schedules the ``last_used_at`` background update.
+    HMAC compare. This dependency schedules the ``last_used_at`` update.
 
     Args:
         request: The incoming FastAPI request.
@@ -166,7 +167,12 @@ async def require_api_key(
     header = request.headers.get("Authorization")
     if not header or not header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid API key")
-    return await api_keys.authenticate(header.removeprefix("Bearer "), background_tasks)
+    try:
+        username, key_id = await api_keys.authenticate(header.removeprefix("Bearer "))
+    except APIKeyInvalidError:
+        raise HTTPException(status_code=401, detail="Invalid API key") from None
+    background_tasks.add_task(api_keys.touch_last_used, key_id)
+    return username
 
 
 APIKeyAuthDep = Annotated[str, Depends(require_api_key)]

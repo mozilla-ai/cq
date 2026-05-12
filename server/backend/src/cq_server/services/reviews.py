@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException
-
+from ..exceptions import KnowledgeUnitAlreadyReviewedError, KnowledgeUnitNotFoundError
 from ..models.review import (
     DailyCount,
     ReviewDecisionResponse,
@@ -36,7 +35,7 @@ class ReviewService:
         """Return a single unit + review metadata; raises 404 if unknown."""
         ku = await self._knowledge.get_any(unit_id)
         if ku is None:
-            raise HTTPException(status_code=404, detail="Knowledge unit not found")
+            raise KnowledgeUnitNotFoundError()
         review = await self._reviews.get_status(unit_id)
         assert review is not None  # Unit exists; get_any just returned it.
         return ReviewItem(
@@ -117,9 +116,10 @@ class ReviewService:
         """Apply ``status`` (``"approved"`` / ``"rejected"``) to a pending unit."""
         existing = await self._reviews.get_status(unit_id)
         if existing is None:
-            raise HTTPException(status_code=404, detail="Knowledge unit not found")
-        if existing["status"] != "pending":
-            raise HTTPException(status_code=409, detail=f"Knowledge unit already {existing['status']}")
+            raise KnowledgeUnitNotFoundError()
+        existing_status = existing["status"] or "pending"
+        if existing_status != "pending":
+            raise KnowledgeUnitAlreadyReviewedError(existing_status)
         await self._reviews.set_status(unit_id, status, reviewer)
         updated = await self._reviews.get_status(unit_id)
         assert updated is not None  # Unit exists; we just wrote to it.

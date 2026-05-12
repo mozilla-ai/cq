@@ -1,7 +1,14 @@
 """User-owned resources: the current user record and their API keys."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 
+from ...exceptions import (
+    APIKeyActiveLimitReachedError,
+    APIKeyNotFoundError,
+    APIKeyTTLInvalidError,
+    ServiceError,
+    UserNotFoundError,
+)
 from ...models.users import (
     ApiKeysPublic,
     CreateApiKeyRequest,
@@ -12,6 +19,16 @@ from ...models.users import (
 from ..deps import APIKeyServiceDep, CurrentUserDep, UserRepositoryDep
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def user_exception_mappings() -> dict[type[ServiceError], int]:
+    """Return service-exception to HTTP-status mappings for user routes."""
+    return {
+        APIKeyActiveLimitReachedError: status.HTTP_409_CONFLICT,
+        APIKeyNotFoundError: status.HTTP_404_NOT_FOUND,
+        APIKeyTTLInvalidError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        UserNotFoundError: status.HTTP_404_NOT_FOUND,
+    }
 
 
 @router.get("/me")

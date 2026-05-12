@@ -1,7 +1,8 @@
 """Review queue endpoints for the review API."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
+from ...exceptions import KnowledgeUnitAlreadyReviewedError, KnowledgeUnitNotFoundError, ServiceError
 from ...models.review import (
     ReviewDecisionResponse,
     ReviewItem,
@@ -11,6 +12,14 @@ from ...models.review import (
 from ..deps import CurrentUserDep, ReviewServiceDep
 
 router = APIRouter(prefix="/review", tags=["review"])
+
+
+def review_exception_mappings() -> dict[type[ServiceError], int]:
+    """Return service-exception to HTTP-status mappings for review routes."""
+    return {
+        KnowledgeUnitAlreadyReviewedError: status.HTTP_409_CONFLICT,
+        KnowledgeUnitNotFoundError: status.HTTP_404_NOT_FOUND,
+    }
 
 
 @router.get("/queue")
