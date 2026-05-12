@@ -16,6 +16,7 @@ from .api.routes.auth import router as auth_router
 from .api.routes.knowledge import router as knowledge_router
 from .api.routes.review import router as review_router
 from .api.routes.users import router as users_router
+from .api.routes.users import user_exception_mappings
 from .core.config import Settings
 from .core.db import Database
 from .exceptions import ServiceError
@@ -78,6 +79,7 @@ app = FastAPI(title="cq Server", version="0.1.0", lifespan=lifespan)
 
 _exception_mappings: dict[type[ServiceError], int] = {
     **auth_exception_mappings(),
+    **user_exception_mappings(),
 }
 
 
