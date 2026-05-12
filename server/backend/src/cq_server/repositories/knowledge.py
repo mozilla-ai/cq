@@ -5,10 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from cq.models import KnowledgeUnit
+from cq.scoring import calculate_relevance
 from sqlalchemy.exc import IntegrityError
 
 from ..core.db import Database
-from ..scoring import calculate_relevance
 from ._normalize import normalize_domains
 from ._queries import (
     DELETE_UNIT_DOMAINS,
@@ -119,7 +119,7 @@ class KnowledgeRepository:
                     INSERT_UNIT,
                     {
                         "id": unit.id,
-                        "data": unit.model_dump_json(),
+                        "data": unit.model_dump_json(exclude_none=True),
                         "created_at": created_at,
                         "tier": unit.tier.value,
                     },
@@ -176,7 +176,7 @@ class KnowledgeRepository:
             with self._db.engine.begin() as conn:
                 cursor = conn.execute(
                     UPDATE_UNIT_DATA,
-                    {"id": unit.id, "data": unit.model_dump_json(), "tier": unit.tier.value},
+                    {"id": unit.id, "data": unit.model_dump_json(exclude_none=True), "tier": unit.tier.value},
                 )
                 if cursor.rowcount == 0:
                     raise KeyError(f"Knowledge unit not found: {unit.id}")
