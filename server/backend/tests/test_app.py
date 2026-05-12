@@ -226,6 +226,7 @@ class TestConfirm:
         resp = client.post(f"/api/v1/knowledge/{created['id']}/confirmations")
         assert resp.status_code == 201
         body = resp.json()
+        assert "created_by" not in body
         assert body["evidence"]["confirmations"] == 2
         assert body["evidence"]["confidence"] > 0.5
 
@@ -247,6 +248,7 @@ class TestFlag:
         resp = client.post(f"/api/v1/knowledge/{created['id']}/flags", json={"reason": "stale"})
         assert resp.status_code == 201
         body = resp.json()
+        assert "created_by" not in body
         assert body["evidence"]["confidence"] < 0.5
         assert len(body["flags"]) == 1
 
@@ -511,6 +513,23 @@ class TestApiKeyEnforcement:
     def test_query_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
         resp = enforced_client.get("/api/v1/knowledge", params={"domains": ["anything"]})
         assert resp.status_code == 200
+
+    def test_query_omits_created_by_from_response(self, enforced_client: TestClient) -> None:
+        jwt_token = _seed_user_and_login(enforced_client, username="alice")
+        api_token = _create_api_key_plaintext(enforced_client, jwt_token)
+        propose = enforced_client.post(
+            "/api/v1/knowledge",
+            json=_propose_payload(domains=["privacy"]),
+            headers={"Authorization": f"Bearer {api_token}"},
+        )
+        assert propose.status_code == 201
+        _approve_unit(enforced_client, propose.json()["id"])
+
+        query = enforced_client.get("/api/v1/knowledge", params={"domains": ["privacy"]})
+        assert query.status_code == 200
+        body = query.json()
+        assert len(body) == 1
+        assert "created_by" not in body[0]
 
     def test_stats_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
         resp = enforced_client.get("/api/v1/knowledge/stats")
