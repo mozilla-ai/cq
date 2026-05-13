@@ -246,21 +246,11 @@ lint-cli:
 
 .PHONY: lint-install
 lint-install:
-	git -C scripts/install ls-files -z --cached --others --exclude-standard -- \
-		'*.py' \
-		'pyproject.toml' \
-		'uv.lock' | \
-		xargs -0 -I{} printf 'scripts/install/%s\0' "{}" | \
-		xargs -0 uv run --project scripts/install --locked pre-commit run --files
+	bash scripts/lint-python-component.sh scripts/install
 
 .PHONY: lint-plugin
 lint-plugin:
-	git -C plugins/cq ls-files -z --cached --others --exclude-standard -- \
-		'*.py' \
-		'pyproject.toml' \
-		'uv.lock' | \
-		xargs -0 -I{} printf 'plugins/cq/%s\0' "{}" | \
-		xargs -0 uv run --project plugins/cq --locked pre-commit run --files
+	bash scripts/lint-python-component.sh plugins/cq
 
 .PHONY: lint-schema-go
 lint-schema-go:
@@ -268,12 +258,7 @@ lint-schema-go:
 
 .PHONY: lint-schema-python
 lint-schema-python: sync-schema
-	git -C schema/python ls-files -z --cached --others --exclude-standard -- \
-		'*.py' \
-		'pyproject.toml' \
-		'uv.lock' | \
-		xargs -0 -I{} printf 'schema/python/%s\0' "{}" | \
-		xargs -0 uv run --project schema/python --locked pre-commit run --files
+	bash scripts/lint-python-component.sh schema/python
 
 .PHONY: lint-schema
 lint-schema: lint-schema-go lint-schema-python
@@ -284,21 +269,11 @@ lint-sdk-go: check-prompts-sync-sdk-go
 
 .PHONY: lint-sdk-python
 lint-sdk-python: check-prompts-sync-sdk-python sync-schema
-	git -C sdk/python ls-files -z --cached --others --exclude-standard -- \
-		'*.py' \
-		'pyproject.toml' \
-		'uv.lock' | \
-		xargs -0 -I{} printf 'sdk/python/%s\0' "{}" | \
-		xargs -0 uv run --project sdk/python --locked pre-commit run --files
+	bash scripts/lint-python-component.sh sdk/python
 
 .PHONY: lint-server-backend
 lint-server-backend:
-	git -C server/backend ls-files -z --cached --others --exclude-standard -- \
-		'*.py' \
-		'pyproject.toml' \
-		'uv.lock' | \
-		xargs -0 -I{} printf 'server/backend/%s\0' "{}" | \
-		xargs -0 uv run --project server/backend --locked pre-commit run --files
+	bash scripts/lint-python-component.sh server/backend
 
 .PHONY: lint-server-frontend
 lint-server-frontend:
