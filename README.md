@@ -138,7 +138,9 @@ See [docs/architecture.md](docs/architecture.md) for detailed diagrams covering 
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, [DEVELOPMENT.md](DEVELOPMENT.md) for building from source and dev environment setup, and [SECURITY.md](SECURITY.md) for our security policy.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for project contribution guidelines,
+[DEVELOPMENT.md](DEVELOPMENT.md) for project structure, setup, and building from source;
+[SECURITY.md](SECURITY.md) for the security policy and vulnerability reporting guidance.
 
 ## License
 
