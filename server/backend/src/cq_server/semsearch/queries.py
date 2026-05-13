@@ -16,6 +16,7 @@ from cq.scoring import calculate_relevance
 from ..repositories._normalize import normalize_domains
 from . import is_enabled as semsearch_enabled, _TOKEN_EMBEDDING_URL, _DIM, _VEC_DELETE_SQL, _VEC_INSERT_SQL, _VEC_SEARCH_SQL, _QUERY_VEC_COMBINED_SQL
 from sqlalchemy.sql.expression import text as text_clause, bindparam
+from sqlalchemy.engine.base import Connection
 
 logger = logging.getLogger(__name__)
 
@@ -97,15 +98,14 @@ async def query(conn,
     normalized = normalize_domains(domains)
     if not normalized:
         return []
-    vec_emb_search = await _get_embeddings(normalized)
-    search_embedding = _serialize_embedding(vec_emb_search)
     try:
+        vec_emb_search = await _get_embeddings(normalized)
+        search_embedding = _serialize_embedding(vec_emb_search)
         vec_rows = conn.execute(text_clause(_VEC_SEARCH_SQL), {"query_embedding": search_embedding, "limit": limit}).fetchall()
         print(f"Vector search returned {len(vec_rows)} rows for domains {normalized} with limit {limit}")
         logger.info(f"Vector search returned {len(vec_rows)} rows for domains {normalized} with limit {limit}")
-    except sqlite3.OperationalError:
-        logger.warning(f"args: {{'query_embedding': <embedding of shape {vec_emb_search.shape}>, 'limit': {limit}}}")
-        vec_rows = []
+    except sqlite3.OperationalError as e:
+        raise RuntimeError("Database error when performing base query") from e
     units= [KnowledgeUnit.model_validate_json(row[0]) for row in vec_rows]
     scored = [
         (
@@ -127,7 +127,7 @@ async def query(conn,
     return [u for _, _, u in scored[:limit]]
 
 
-async def combined_query(conn: sqlite3.Connection,
+async def combined_query(conn: Connection,
                 domains: list[str],
                 languages: list[str] | None,
                 frameworks: list[str] | None,
@@ -152,14 +152,12 @@ async def combined_query(conn: sqlite3.Connection,
         args = {"query_embedding": search_embedding, "limit": limit, "domains": normalized}
         clause = text_clause(_QUERY_VEC_COMBINED_SQL).bindparams(bindparam("domains", expanding=True))
         vec_rows = conn.execute(clause, args).fetchall()
-    except sqlite3.OperationalError:
-        logger.warning(f"args: {args}")  # ty: ignore[unresolved-attribute]
-        logger.warning(f"query: {_QUERY_VEC_COMBINED_SQL}")
-        logger.warning("Combined query failed, falling back to domain-only search", exc_info=True)
-        raise RuntimeError("Combined query failed, falling back to domain-only search") from None
+    except sqlite3.OperationalError as e:
+        logger.warning("Database error when performing combined query", exc_info=True)
+        raise RuntimeError("Database error when performing combined query") from e
     except Exception as e:
-        logger.warning("Combined query failed, falling back to domain-only search", exc_info=True)
-        raise RuntimeError("Combined query failed, falling back to domain-only search") from e
+        logger.warning("General error when performing combined query", exc_info=True)
+        raise RuntimeError("General error when performing combined query") from e
     units = [(KnowledgeUnit.model_validate_json(row), distance) for row, distance in vec_rows]
     total_distance = sum(distance for _, distance in units)
     def combine(relevance, distance) -> float:

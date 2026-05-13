@@ -6,16 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from cq.models import (
-    Context,
-    FlagReason,
-    Insight,
-    KnowledgeUnit,
-    Tier,
-    create_knowledge_unit,
-)
-from cq.scoring import apply_confirmation, apply_flag
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
