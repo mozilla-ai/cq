@@ -246,18 +246,21 @@ lint-cli:
 
 .PHONY: lint-install
 lint-install:
-	uv run --project scripts/install --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
-		'scripts/install/pyproject.toml' \
-		'scripts/install/src/**/*.py' \
-		'scripts/install/tests/*.py' \
-		'scripts/install/uv.lock')
+	git -C scripts/install ls-files -z --cached --others --exclude-standard -- \
+		'*.py' \
+		'pyproject.toml' \
+		'uv.lock' | \
+		xargs -0 -I{} printf 'scripts/install/%s\0' "{}" | \
+		xargs -0 uv run --project scripts/install --locked pre-commit run --files
 
 .PHONY: lint-plugin
 lint-plugin:
-	uv run --project plugins/cq --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
-		'plugins/cq/pyproject.toml' \
-		'plugins/cq/scripts/*.py' \
-		'plugins/cq/uv.lock')
+	git -C plugins/cq ls-files -z --cached --others --exclude-standard -- \
+		'*.py' \
+		'pyproject.toml' \
+		'uv.lock' | \
+		xargs -0 -I{} printf 'plugins/cq/%s\0' "{}" | \
+		xargs -0 uv run --project plugins/cq --locked pre-commit run --files
 
 .PHONY: lint-schema-go
 lint-schema-go:
@@ -265,10 +268,12 @@ lint-schema-go:
 
 .PHONY: lint-schema-python
 lint-schema-python: sync-schema
-	uv run --project schema/python --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
-		'schema/python/pyproject.toml' \
-		'schema/python/src/**/*.py' \
-		'schema/python/uv.lock')
+	git -C schema/python ls-files -z --cached --others --exclude-standard -- \
+		'*.py' \
+		'pyproject.toml' \
+		'uv.lock' | \
+		xargs -0 -I{} printf 'schema/python/%s\0' "{}" | \
+		xargs -0 uv run --project schema/python --locked pre-commit run --files
 
 .PHONY: lint-schema
 lint-schema: lint-schema-go lint-schema-python
@@ -279,17 +284,21 @@ lint-sdk-go: check-prompts-sync-sdk-go
 
 .PHONY: lint-sdk-python
 lint-sdk-python: check-prompts-sync-sdk-python sync-schema
-	uv run --project sdk/python --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
-		'sdk/python/pyproject.toml' \
-		'sdk/python/src/**/*.py' \
-		'sdk/python/uv.lock')
+	git -C sdk/python ls-files -z --cached --others --exclude-standard -- \
+		'*.py' \
+		'pyproject.toml' \
+		'uv.lock' | \
+		xargs -0 -I{} printf 'sdk/python/%s\0' "{}" | \
+		xargs -0 uv run --project sdk/python --locked pre-commit run --files
 
 .PHONY: lint-server-backend
 lint-server-backend:
-	uv run --project server/backend --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
-		'server/backend/pyproject.toml' \
-		'server/backend/src/**/*.py' \
-		'server/backend/uv.lock')
+	git -C server/backend ls-files -z --cached --others --exclude-standard -- \
+		'*.py' \
+		'pyproject.toml' \
+		'uv.lock' | \
+		xargs -0 -I{} printf 'server/backend/%s\0' "{}" | \
+		xargs -0 uv run --project server/backend --locked pre-commit run --files
 
 .PHONY: lint-server-frontend
 lint-server-frontend:
