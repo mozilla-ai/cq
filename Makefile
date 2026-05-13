@@ -246,11 +246,18 @@ lint-cli:
 
 .PHONY: lint-install
 lint-install:
-	cd scripts/install && uv run --locked pre-commit run --files src/**/*.py tests/*.py pyproject.toml uv.lock
+	uv run --project scripts/install --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
+		'scripts/install/pyproject.toml' \
+		'scripts/install/src/**/*.py' \
+		'scripts/install/tests/*.py' \
+		'scripts/install/uv.lock')
 
 .PHONY: lint-plugin
 lint-plugin:
-	cd plugins/cq && uv run --locked pre-commit run --files scripts/*.py pyproject.toml uv.lock
+	uv run --project plugins/cq --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
+		'plugins/cq/pyproject.toml' \
+		'plugins/cq/scripts/*.py' \
+		'plugins/cq/uv.lock')
 
 .PHONY: lint-schema-go
 lint-schema-go:
@@ -258,7 +265,10 @@ lint-schema-go:
 
 .PHONY: lint-schema-python
 lint-schema-python: sync-schema
-	cd schema/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
+	uv run --project schema/python --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
+		'schema/python/pyproject.toml' \
+		'schema/python/src/**/*.py' \
+		'schema/python/uv.lock')
 
 .PHONY: lint-schema
 lint-schema: lint-schema-go lint-schema-python
@@ -269,11 +279,17 @@ lint-sdk-go: check-prompts-sync-sdk-go
 
 .PHONY: lint-sdk-python
 lint-sdk-python: check-prompts-sync-sdk-python sync-schema
-	cd sdk/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
+	uv run --project sdk/python --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
+		'sdk/python/pyproject.toml' \
+		'sdk/python/src/**/*.py' \
+		'sdk/python/uv.lock')
 
 .PHONY: lint-server-backend
 lint-server-backend:
-	cd server/backend && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
+	uv run --project server/backend --locked pre-commit run --files $$(git ls-files --cached --others --exclude-standard -- \
+		'server/backend/pyproject.toml' \
+		'server/backend/src/**/*.py' \
+		'server/backend/uv.lock')
 
 .PHONY: lint-server-frontend
 lint-server-frontend:

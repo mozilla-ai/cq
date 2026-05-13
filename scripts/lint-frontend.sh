@@ -5,7 +5,6 @@
 # `git diff --exit-code` check so unformatted commits cannot land.
 
 set -euo pipefail
-set -x
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." &>/dev/null && pwd)"
