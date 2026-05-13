@@ -38,6 +38,7 @@ logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)
 logging.getLogger("sqlalchemy.orm").setLevel(logging.DEBUG)
 logging.getLogger("sqlalchemy.dialects").setLevel(logging.DEBUG)
 logging.getLogger("cq_server.semsearch").setLevel(logging.DEBUG)
+logging.getLogger("cq_server.semsearch.queries").setLevel(logging.DEBUG)
 logging.getLogger("cq_server.repositories").setLevel(logging.DEBUG)
 
 def _build_settings(db_path: Path) -> Settings:

@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+import logging
 from cq.models import Context, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 
 from cq_server import semsearch
@@ -196,3 +197,70 @@ class TestSemsearchQueryPath:
 
         assert len(results) == 1
         assert results[0].id == unit.id
+
+    @pytest.mark.skipif(not semsearch.is_enabled(), reason="Requires sqlite-vec extension and embedding dependencies")
+    async def test_semsearch_e2e_returns_two_most_relevant_units(
+        self,
+        db_path: Path,
+    ) -> None:
+        """E2E semsearch query returns top-2 relevant astronomy units, excluding unrelated content."""
+        try:
+            await semsearch_queries._get_embeddings(["connectivity check"])
+        except Exception as exc:
+            pytest.skip(f"embedding server unavailable: {exc}")
+
+        u_near = create_knowledge_unit(
+            domains=["astronomy"],
+            insight=Insight(
+                summary="Detect exoplanets from transit dips",
+                detail="Transit photometry reveals periodic light-curve dips from orbiting planets.",
+                action="Implement a FastAPI service to score transit candidates and rank follow-up targets.",
+            ),
+            context=Context(languages=["python"], frameworks=["fastapi"], pattern="transit-detection"),
+            tier=Tier.PRIVATE,
+            created_by="tester",
+        )
+        u_far = create_knowledge_unit(
+            domains=["astronomy"],
+            insight=Insight(
+                summary="Map heavy-element enrichment in HII regions",
+                detail="Emission-line analysis estimates oxygen and nitrogen abundance in ionized gas clouds.",
+                action="Track metallicity gradients to compare star-formation environments.",
+            ),
+            context=Context(),
+            tier=Tier.PRIVATE,
+            created_by="tester",
+        )
+        u_unrelated = create_knowledge_unit(
+            domains=["cybersecurity"],
+            insight=Insight(
+                summary="Rotate API credentials after incident response",
+                detail="Short-lived credentials limit persistence after compromise.",
+                action="Automate revocation and rotation workflows every 30 days.",
+            ),
+            context=Context(languages=["go"], frameworks=["gin"], pattern="credential-rotation"),
+            tier=Tier.PRIVATE,
+            created_by="tester",
+        )
+
+        store = _make_store(db_path)
+        # Due to alembic env.py, logging is messed up
+        logging.getLogger("cq_server.semsearch").disabled = False
+        logging.getLogger("cq_server.semsearch.queries").disabled = False
+
+        for unit in [u_near, u_far, u_unrelated]:
+            await store.insert(unit)
+            await store.set_review_status(unit.id, "approved", "reviewer")
+
+        results = await store.query(
+            ["astronomy"],
+            languages=["python"],
+            frameworks=["fastapi"],
+            pattern="transit-detection",
+            limit=2,
+        )
+
+        assert len(results) == 2
+        assert results[0].id == u_near.id
+        assert {result.id for result in results} == {u_near.id, u_far.id}
+        assert all("astronomy" in result.domains for result in results)

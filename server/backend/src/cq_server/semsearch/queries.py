@@ -146,9 +146,9 @@ async def combined_query(conn: sqlite3.Connection,
     normalized = normalize_domains(domains)
     if not normalized:
         return []
-    vec_emb_search = await _get_embeddings(domains)
-    search_embedding = _serialize_embedding(vec_emb_search)
     try:
+        vec_emb_search = await _get_embeddings(domains)
+        search_embedding = _serialize_embedding(vec_emb_search)
         args = {"query_embedding": search_embedding, "limit": limit, "domains": normalized}
         clause = text_clause(_QUERY_VEC_COMBINED_SQL).bindparams(bindparam("domains", expanding=True))
         vec_rows = conn.execute(clause, args).fetchall()
@@ -157,28 +157,41 @@ async def combined_query(conn: sqlite3.Connection,
         logger.warning(f"query: {_QUERY_VEC_COMBINED_SQL}")
         logger.warning("Combined query failed, falling back to domain-only search", exc_info=True)
         raise RuntimeError("Combined query failed, falling back to domain-only search") from None
-    units= [KnowledgeUnit.model_validate_json(row[0]) for row in vec_rows]
+    except Exception as e:
+        logger.warning("Combined query failed, falling back to domain-only search", exc_info=True)
+        raise RuntimeError("Combined query failed, falling back to domain-only search") from e
+    units = [(KnowledgeUnit.model_validate_json(row), distance) for row, distance in vec_rows]
+    total_distance = sum(distance for _, distance in units)
+    def combine(relevance, distance) -> float:
+        """Combine relevance and distance into a single score."""
+        # Simple example: partially weighted over normalized distance
+        relevance_weight = 0.8
+        distance_weight = 0.2
+        normalized_distance = distance / total_distance if total_distance > 0 else 0
+        result = relevance * relevance_weight + normalized_distance * distance_weight
+        return result
+
     # Re arrange rows according to distance
     scored = [
         (
-            calculate_relevance(
+            combine(calculate_relevance(
                 u,
                 normalized,
                 query_languages=languages,
                 query_frameworks=frameworks,
                 query_pattern=pattern,
-            )
+            ), distance)
             * u.evidence.confidence,
             u.id,
             u,
         )
-        for u in units
+        for u, distance in units
     ]
     # Match RemoteStore tie-break: score desc, id desc on tie.
     # Re arrange rows according to distance
-    logging.info(f"Combined query returned {len(vec_rows)} rows for domains {normalized} with limit {limit}")
     scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return [u for _, _, u in scored[:limit]]
+
 
 
 def build_field_logits(
