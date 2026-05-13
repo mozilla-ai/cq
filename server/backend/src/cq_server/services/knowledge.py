@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from cq.models import Context, FlagReason, Insight, KnowledgeUnit, Tier, create_knowledge_unit
-from fastapi import HTTPException
+from cq.scoring import apply_confirmation, apply_flag
 
+from ..exceptions import InvalidDomainError, KnowledgeUnitNotFoundError
 from ..models.knowledge import StatsResponse
 from ..repositories import KnowledgeRepository, normalize_domains
 from cq.scoring import apply_confirmation, apply_flag
@@ -21,11 +22,11 @@ class KnowledgeService:
         """Apply a confirmation to ``unit_id``, persist, and return it.
 
         Raises:
-            HTTPException: 404 if the unit is unknown or not yet approved.
+            KnowledgeUnitNotFoundError: If the unit is unknown or not approved.
         """
         unit = await self._knowledge.get(unit_id)
         if unit is None:
-            raise HTTPException(status_code=404, detail="Knowledge unit not found")
+            raise KnowledgeUnitNotFoundError()
         confirmed = apply_confirmation(unit)
         await self._knowledge.update(confirmed)
         return confirmed
@@ -34,11 +35,11 @@ class KnowledgeService:
         """Apply a flag to ``unit_id``, persist, and return the updated unit.
 
         Raises:
-            HTTPException: 404 if the unit is unknown or not yet approved.
+            KnowledgeUnitNotFoundError: If the unit is unknown or not approved.
         """
         unit = await self._knowledge.get(unit_id)
         if unit is None:
-            raise HTTPException(status_code=404, detail="Knowledge unit not found")
+            raise KnowledgeUnitNotFoundError()
         flagged = apply_flag(unit, reason)
         await self._knowledge.update(flagged)
         return flagged
@@ -57,11 +58,11 @@ class KnowledgeService:
         authoritative username from the credential, never client input.
 
         Raises:
-            HTTPException: 422 if all supplied domains are empty/whitespace.
+            InvalidDomainError: If all supplied domains are empty/whitespace.
         """
         normalized = normalize_domains(domains)
         if not normalized:
-            raise HTTPException(status_code=422, detail="At least one non-empty domain is required")
+            raise InvalidDomainError()
         unit = create_knowledge_unit(
             domains=normalized,
             insight=insight,

@@ -200,10 +200,10 @@ backup-db:
 .PHONY: seed-users
 seed-users:
 ifndef USER
-	$(error USER is required. Usage: make seed-users USER=peter PASS=changeme)
+	$(error USER is required. Usage: make seed-users USER=demouser PASS=changeme)
 endif
 ifndef PASS
-	$(error PASS is required. Usage: make seed-users USER=peter PASS=changeme)
+	$(error PASS is required. Usage: make seed-users USER=demouser PASS=changeme)
 endif
 	docker compose exec cq-server /app/.venv/bin/python /app/scripts/seed-users.py --username "$(USER)" --password "$(PASS)"
 

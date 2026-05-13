@@ -29,9 +29,14 @@ We follow a coordinated disclosure approach. We ask that you do not disclose the
 
 ## Scope
 
-This policy applies to all cq components:
+This policy applies to all cq project components, including:
 
-- MCP server plugin
-- server
+- CLI (including the embedded MCP server)
+- Go SDK
+- Python SDK
+- Plugin
+- Schema definitions
+- Server
+- Supporting monorepo assets (for example, scripts, documentation, and tooling)
 
 Thank you for helping us keep cq secure.

@@ -7,9 +7,17 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import BackgroundTasks, HTTPException
+from cq.ttl import TTLError
+from cq.ttl import parse as parse_ttl
 
 from ..api_keys import decode_token, encode_token, generate_secret, hash_secret, secret_prefix
+from ..exceptions import (
+    APIKeyActiveLimitReachedError,
+    APIKeyInvalidError,
+    APIKeyNotFoundError,
+    APIKeyTTLInvalidError,
+    UserNotFoundError,
+)
 from ..models.users import (
     ApiKeyPublic,
     ApiKeysPublic,
@@ -17,7 +25,6 @@ from ..models.users import (
     Message,
 )
 from ..repositories import APIKeyRepository, UserRepository
-from ..ttl import parse_ttl
 
 MAX_ACTIVE_API_KEYS_PER_USER = 20
 
@@ -37,25 +44,26 @@ class APIKeyService:
         self._users = users
         self._pepper = pepper
 
-    async def authenticate(self, token: str, background_tasks: BackgroundTasks) -> str:
-        """Validate ``token`` and return the owner username; touches last_used.
+    async def authenticate(self, token: str) -> tuple[str, str]:
+        """Validate ``token`` and return ``(username, key_id)``.
 
         Raises:
-            HTTPException: 401 on any decode/lookup/HMAC failure. The error
-                detail is uniform — it never reveals which step failed —
-                so callers cannot use it as an enumeration oracle.
+            APIKeyInvalidError: On any decode/lookup/HMAC failure.
         """
         try:
             key_id, secret = decode_token(token)
         except ValueError as exc:
-            raise HTTPException(status_code=401, detail="Invalid API key") from exc
+            raise APIKeyInvalidError() from exc
         row = await self._api_keys.get_active_by_id(key_id.hex)
         if row is None:
-            raise HTTPException(status_code=401, detail="Invalid API key")
+            raise APIKeyInvalidError()
         if not hmac.compare_digest(row["key_hash"], hash_secret(secret, pepper=self._pepper)):
-            raise HTTPException(status_code=401, detail="Invalid API key")
-        background_tasks.add_task(self._api_keys.touch_last_used, row["id"])
-        return row["username"]
+            raise APIKeyInvalidError()
+        return row["username"], row["id"]
+
+    async def touch_last_used(self, key_id: str) -> None:
+        """Record that API key ``key_id`` was used."""
+        await self._api_keys.touch_last_used(key_id)
 
     async def create(
         self,
@@ -68,19 +76,16 @@ class APIKeyService:
         """Issue a new API key for ``username`` and return it with plaintext.
 
         Raises:
-            HTTPException: 422 on a malformed TTL, 409 when the user is at the
-                active-key cap.
+            APIKeyTTLInvalidError: If the TTL is malformed.
+            APIKeyActiveLimitReachedError: If the user is already at the active-key cap.
         """
         try:
             canonical_ttl, duration = parse_ttl(ttl)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except TTLError as exc:
+            raise APIKeyTTLInvalidError(str(exc)) from exc
         user_id = await self._require_user_id(username)
         if await self._api_keys.count_active_for_user(user_id) >= MAX_ACTIVE_API_KEYS_PER_USER:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Maximum of {MAX_ACTIVE_API_KEYS_PER_USER} active API keys per user",
-            )
+            raise APIKeyActiveLimitReachedError(MAX_ACTIVE_API_KEYS_PER_USER)
         key_id = uuid.uuid4()
         secret = generate_secret()
         plaintext = encode_token(key_id=key_id, secret=secret)
@@ -115,14 +120,14 @@ class APIKeyService:
         """
         user_id = await self._require_user_id(username)
         if await self._api_keys.get_for_user(user_id=user_id, key_id=key_id) is None:
-            raise HTTPException(status_code=404, detail="API key not found")
+            raise APIKeyNotFoundError()
         await self._api_keys.revoke(user_id=user_id, key_id=key_id)
         return Message(message="API key revoked.")
 
     async def _require_user_id(self, username: str) -> int:
         user = await self._users.get(username)
         if user is None:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise UserNotFoundError()
         return int(user["id"])
 
 

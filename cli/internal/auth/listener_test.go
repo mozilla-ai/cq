@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +26,26 @@ func TestListener_URL_BindsLocalhostOnly(t *testing.T) {
 	ip := net.ParseIP(host)
 	require.NotNil(t, ip, "expected an IP address, got %s", host)
 	require.True(t, ip.IsLoopback(), "expected loopback address, got %s", ip)
-	require.Equal(t, "/cb", u.Path)
+	require.Regexp(t, callbackPathPattern, u.Path,
+		"callback path must match %s", callbackPathPattern)
+}
+
+func TestListener_URL_PathDiffersAcrossInvocations(t *testing.T) {
+	first, err := startListener()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = first.Close() })
+
+	second, err := startListener()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = second.Close() })
+
+	firstURL, err := url.Parse(first.URL())
+	require.NoError(t, err)
+	secondURL, err := url.Parse(second.URL())
+	require.NoError(t, err)
+
+	require.NotEqual(t, firstURL.Path, secondURL.Path,
+		"each listener must bind a fresh random callback token")
 }
 
 func TestListener_Wait_ReturnsExchangeCodeOnCallback(t *testing.T) {
@@ -95,12 +113,25 @@ func TestListener_NonCallbackPathReturns404(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = l.Close() })
 
-	base := strings.TrimSuffix(l.URL(), "/cb")
-	resp, err := http.Get(base + "/somewhere-else")
+	u, err := url.Parse(l.URL())
 	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
 
-	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+	// Any request that doesn't hit the listener's exact tokenised path
+	// must fall through to the mux's default 404. /cb on its own (the
+	// pre-hardening contract) and /cb/<wrong-token> are the cases an
+	// attacker would try; both must miss.
+	bases := []string{"/somewhere-else", "/cb", "/cb/", "/cb/not-the-real-token"}
+	for _, path := range bases {
+		probe := *u
+		probe.Path = path
+
+		resp, err := http.Get(probe.String())
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		require.Equalf(t, http.StatusNotFound, resp.StatusCode,
+			"path %s must return 404", path)
+	}
 }
 
 func TestListener_Wait_IgnoresSubsequentCallbacks(t *testing.T) {

@@ -16,6 +16,7 @@
 | `sdk/go`          | Go SDK                                 | Go                                 |
 | `sdk/python`      | Python SDK                             | Python                             |
 | `plugins/cq`      | Agent plugin (skills, commands, hooks) | Markdown, Python                   |
+| `schema`          | JSON Schema definitions                | JSON Schema, Python                |
 | `scripts/install` | Multi-host installer                   | Python (stdlib only at runtime)    |
 | `server`          | Remote knowledge server                | Python, FastAPI, TypeScript, React |
 
