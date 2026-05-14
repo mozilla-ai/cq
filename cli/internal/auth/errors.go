@@ -19,6 +19,10 @@ var ErrInvalidGrant = errors.New("auth: invalid grant")
 // "run cq auth providers" hint.
 var ErrProviderRequired = errors.New("auth: provider required")
 
+// ErrLogoutUnsupported is returned by Logout when the configured
+// platform does not expose the logout endpoint.
+var ErrLogoutUnsupported = errors.New("auth: server-side logout unsupported")
+
 // ErrSessionExpired is returned by JWT-bearing methods when the
 // platform refuses the supplied token (HTTP 401). The CLI surfaces this
 // to users as a hint to re-run cq auth login. The error deliberately

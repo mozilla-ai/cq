@@ -24,6 +24,7 @@ type stubAuthClient struct {
 	claimUsername       func(ctx context.Context, jwt, username string) (User, error)
 	createAPIKey        func(ctx context.Context, jwt string, req CreateAPIKeyRequest) (CreatedAPIKey, error)
 	listAPIKeys         func(ctx context.Context, jwt string) ([]APIKey, error)
+	logout              func(ctx context.Context, jwt string, allDevices bool) error
 	revokeAPIKey        func(ctx context.Context, jwt string, keyID string) error
 }
 
@@ -81,6 +82,14 @@ func (s *stubAuthClient) ListAPIKeys(ctx context.Context, jwt string) ([]APIKey,
 	}
 
 	return s.listAPIKeys(ctx, jwt)
+}
+
+func (s *stubAuthClient) Logout(ctx context.Context, jwt string, allDevices bool) error {
+	if s.logout == nil {
+		panic("Logout not stubbed")
+	}
+
+	return s.logout(ctx, jwt, allDevices)
 }
 
 func (s *stubAuthClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {

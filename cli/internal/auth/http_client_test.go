@@ -20,6 +20,7 @@ type captured struct {
 	sync.Mutex
 	method string
 	path   string
+	query  string
 	auth   string
 	body   []byte
 }
@@ -38,6 +39,7 @@ func (c *captured) recordRequest(r *http.Request) {
 
 	c.method = r.Method
 	c.path = r.URL.Path
+	c.query = r.URL.RawQuery
 	c.auth = r.Header.Get("Authorization")
 	c.body = body
 }
@@ -48,7 +50,7 @@ func (c *captured) snapshot() captured {
 	c.Lock()
 	defer c.Unlock()
 
-	return captured{method: c.method, path: c.path, auth: c.auth, body: c.body}
+	return captured{method: c.method, path: c.path, query: c.query, auth: c.auth, body: c.body}
 }
 
 func TestClient_OAuthProviders_ReturnsEnabledProviders(t *testing.T) {
@@ -361,4 +363,65 @@ func TestClient_ClaimUsername_OtherErrorReturnsGenericError(t *testing.T) {
 
 	var unavail *UsernameUnavailableError
 	require.False(t, errors.As(err, &unavail))
+}
+
+func TestClient_Logout_PostsToAuthLogout(t *testing.T) {
+	cap := newCapture()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cap.recordRequest(r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", false)
+	require.NoError(t, err)
+
+	c := cap.snapshot()
+	require.Equal(t, http.MethodPost, c.method)
+	require.Equal(t, "/api/v1/auth/logout", c.path)
+	require.Equal(t, "Bearer jwt-token", c.auth)
+}
+
+func TestClient_Logout_AllDevicesAddsQueryParam(t *testing.T) {
+	cap := newCapture()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cap.recordRequest(r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", true)
+	require.NoError(t, err)
+
+	c := cap.snapshot()
+	require.Equal(t, "/api/v1/auth/logout", c.path)
+	require.Equal(t, "all_devices=true", c.query)
+}
+
+func TestClient_Logout_UnsupportedEndpointReturnsTypedError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"detail":"Not Found"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", false)
+	require.ErrorIs(t, err, ErrLogoutUnsupported)
+}
+
+func TestClient_Logout_ExpiredSessionReturnsErrSessionExpired(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"detail":"Invalid or expired token"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", false)
+	require.ErrorIs(t, err, ErrSessionExpired)
 }
