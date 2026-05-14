@@ -172,6 +172,34 @@ func (c *httpClient) OAuthProviders(ctx context.Context) ([]Provider, error) {
 	return resp.Providers, nil
 }
 
+// Logout implements Client.
+func (c *httpClient) Logout(ctx context.Context, jwt string, allDevices bool) error {
+	path := apiVersionPrefix + "/auth/logout"
+	if allDevices {
+		path += "?all_devices=true"
+	}
+
+	req, err := c.newRequest(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+jwt)
+
+	if err := c.send(req, nil); err != nil {
+		if status, ok := errors.AsType[*PlatformStatusError](err); ok {
+			switch status.StatusCode {
+			case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
+				return ErrLogoutUnsupported
+			}
+		}
+
+		return err
+	}
+
+	return nil
+}
+
 // RevokeAPIKey implements Client.
 func (c *httpClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {
 	path := apiVersionPrefix + "/users/me/api-keys/" + url.PathEscape(keyID) + "/revoke"
@@ -189,8 +217,7 @@ func (c *httpClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string)
 		// the caller because the same code can mean "user record gone"
 		// on list/create; here, with a key ID in hand, we know exactly
 		// what to surface.
-		var status *PlatformStatusError
-		if errors.As(err, &status) && status.StatusCode == http.StatusNotFound {
+		if status, ok := errors.AsType[*PlatformStatusError](err); ok && status.StatusCode == http.StatusNotFound {
 			return &APIKeyNotFoundError{KeyID: keyID}
 		}
 

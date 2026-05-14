@@ -55,6 +55,13 @@ type Client interface {
 	// OAuthProviders returns the providers configured on the platform.
 	OAuthProviders(ctx context.Context) ([]Provider, error)
 
+	// Logout asks the platform to invalidate the current session.
+	// allDevices requests invalidation across every device/session
+	// associated with the account when supported by the platform.
+	// Returns ErrSessionExpired (401) when the JWT is invalid, or
+	// ErrLogoutUnsupported when the platform does not expose logout.
+	Logout(ctx context.Context, jwt string, allDevices bool) error
+
 	// RevokeAPIKey marks the named key revoked. The operation is
 	// idempotent: revoking an already-revoked key still returns nil.
 	// Returns ErrSessionExpired (401) or *APIKeyNotFoundError (404) on

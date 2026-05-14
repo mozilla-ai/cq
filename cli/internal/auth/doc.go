@@ -1,6 +1,7 @@
 // Package auth implements the interactive sign-in flow used by
 // "cq auth login", the local-state inspection used by "cq auth status",
-// and the local-credential cleanup used by "cq auth logout".
+// and logout, which can clear local credentials only or also request
+// server-side revocation when the platform supports it.
 //
 // The package wires together five concerns:
 //
