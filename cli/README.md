@@ -93,7 +93,7 @@ cq auth logout --revoke --all-devices
 
 `cq auth logout` behavior:
 - default: local-only credential cleanup
-- `--revoke`: call `/auth/logout` before local cleanup
+- `--revoke`: request server-side logout before local cleanup
 - `--revoke --all-devices`: request logout across all devices
 
 If server revocation fails (other than an already-invalid session), local credentials are kept so you can retry.

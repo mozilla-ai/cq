@@ -56,10 +56,6 @@ func Logout(ctx context.Context, p LogoutConfig) error {
 		return clearAndReport("Signed out (local credentials cleared).")
 	}
 
-	if p.Client == nil {
-		return errors.New("auth: Logout with Revoke requires Client")
-	}
-
 	creds, err := p.Store.Load()
 	if err != nil {
 		if errors.Is(err, credstore.ErrNotFound) {
@@ -73,6 +69,10 @@ func Logout(ctx context.Context, p LogoutConfig) error {
 
 	if creds.SessionJWT == "" {
 		return clearAndReport("Signed out (local credentials cleared).")
+	}
+
+	if p.Client == nil {
+		return errors.New("auth: Logout with Revoke requires Client")
 	}
 
 	err = p.Client.Logout(ctx, creds.SessionJWT, p.AllDevices)

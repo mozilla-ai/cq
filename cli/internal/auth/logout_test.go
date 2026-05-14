@@ -32,6 +32,14 @@ func TestLogout_NotSignedInIsIdempotent(t *testing.T) {
 	require.Contains(t, out.String(), "Signed out")
 }
 
+func TestLogout_RevokeNotSignedIn_DoesNotRequireClient(t *testing.T) {
+	store := newMemStore()
+	out := &bytes.Buffer{}
+
+	require.NoError(t, Logout(context.Background(), LogoutConfig{Store: store, Revoke: true, Out: out}))
+	require.Contains(t, out.String(), "already absent")
+}
+
 func TestLogout_RevokeSuccess_ClearsCredentials(t *testing.T) {
 	store := newMemStore()
 	require.NoError(t, store.Save(credstore.Credentials{SessionJWT: "j", Username: "alice"}))
