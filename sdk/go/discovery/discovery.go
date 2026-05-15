@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -46,13 +47,19 @@ type Resolver struct {
 // New constructs a Resolver that persists its cache under cacheDir.
 // httpc may be nil, in which case a default http.Client with a short
 // timeout is used.
+// An empty cacheDir disables the on-disk cache; resolution still
+// memoizes in-process for the lifetime of the Resolver.
 // NOTE: cacheDir is created lazily on first successful write.
 func New(cacheDir string, httpc *http.Client) *Resolver {
 	if httpc == nil {
 		httpc = &http.Client{Timeout: 5 * time.Second}
 	}
+	var fc *cache
+	if cacheDir != "" {
+		fc = newCache(cacheDir, DefaultCacheTTL)
+	}
 	return &Resolver{
-		fileCache: newCache(cacheDir, DefaultCacheTTL),
+		fileCache: fc,
 		httpc:     httpc,
 		memCache:  map[string]NodeInfo{},
 	}
@@ -70,9 +77,11 @@ func (r *Resolver) Resolve(ctx context.Context, addr string) (NodeInfo, error) {
 	}
 	r.mu.Unlock()
 
-	if info, ok := r.fileCache.get(addr); ok {
-		r.cacheInMemory(addr, info)
-		return info, nil
+	if r.fileCache != nil {
+		if info, ok := r.fileCache.get(addr); ok {
+			r.cacheInMemory(addr, info)
+			return info, nil
+		}
 	}
 
 	info, err := r.probe(ctx, addr)
@@ -80,10 +89,12 @@ func (r *Resolver) Resolve(ctx context.Context, addr string) (NodeInfo, error) {
 		return NodeInfo{}, err
 	}
 
-	if err := r.fileCache.put(addr, info); err != nil {
-		// Disk cache failure is non-fatal: the resolution itself is
-		// valid for the lifetime of this process.
-		_ = err
+	if r.fileCache != nil {
+		if err := r.fileCache.put(addr, info); err != nil {
+			// Disk cache failure is non-fatal: the resolution itself
+			// is valid for the lifetime of this process.
+			_ = err
+		}
 	}
 	r.cacheInMemory(addr, info)
 	return info, nil
@@ -165,9 +176,9 @@ func (r *Resolver) probe(ctx context.Context, addr string) (NodeInfo, error) {
 		return NodeInfo{}, fmt.Errorf("discovery: read body: %w", err)
 	}
 
-	var info NodeInfo
-	if err := json.Unmarshal(body, &info); err != nil {
-		return NodeInfo{}, fmt.Errorf("discovery: parse body: %w", err)
+	info, err := decodeNodeInfo(body)
+	if err != nil {
+		return NodeInfo{}, fmt.Errorf("discovery: %w", err)
 	}
 
 	if err := validate(info); err != nil {
@@ -176,22 +187,42 @@ func (r *Resolver) probe(ctx context.Context, addr string) (NodeInfo, error) {
 	return info, nil
 }
 
+// decodeNodeInfo parses a discovery document body into a NodeInfo.
+// Unknown fields are rejected so a future schema addition cannot be
+// silently parsed with this client's narrower assumptions; the JSON
+// schema declares additionalProperties:false and this matches.
+func decodeNodeInfo(body []byte) (NodeInfo, error) {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	var info NodeInfo
+	if err := dec.Decode(&info); err != nil {
+		return NodeInfo{}, fmt.Errorf("parse body: %w", err)
+	}
+	return info, nil
+}
+
 // defaultsFor returns the NodeInfo applied when a node does not publish
 // a discovery document: DefaultAPIPath appended to addr, with
-// DefaultAPIVersion as the protocol version.
+// DefaultAPIVersion as the protocol version and SupportedDiscoveryVersion
+// as the document schema version.
 func defaultsFor(addr string) NodeInfo {
 	return NodeInfo{
+		Version:    SupportedDiscoveryVersion,
 		APIBaseURL: addr + DefaultAPIPath,
 		APIVersion: DefaultAPIVersion,
 	}
 }
 
 // validate checks that a parsed NodeInfo describes a node speaking a
-// protocol this client can talk to: a non-empty http(s) api_base_url
-// and an api_version equal to SupportedAPIVersion.
+// protocol this client can talk to: a supported document schema
+// version, a non-empty http(s) api_base_url, and an api_version equal
+// to SupportedAPIVersion.
 // Mismatches are reported in domain terms so users see actionable
 // messages rather than raw comparison failures.
 func validate(info NodeInfo) error {
+	if info.Version != SupportedDiscoveryVersion {
+		return fmt.Errorf("discovery document declares version %d but this client supports %d — upgrade the client", info.Version, SupportedDiscoveryVersion)
+	}
 	if info.APIBaseURL == "" {
 		return errors.New("api_base_url is required")
 	}

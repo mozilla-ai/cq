@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func TestCacheReturnsHitWithinTTL(t *testing.T) {
 	t.Parallel()
 
 	c := newCache(t.TempDir(), time.Hour)
-	info := NodeInfo{APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
+	info := NodeInfo{Version: 1, APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
 	require.NoError(t, c.put("https://example.com", info))
 
 	got, ok := c.get("https://example.com")
@@ -32,7 +33,7 @@ func TestCacheReturnsMissAfterTTL(t *testing.T) {
 	t.Parallel()
 
 	c := newCache(t.TempDir(), time.Millisecond)
-	info := NodeInfo{APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
+	info := NodeInfo{Version: 1, APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
 	require.NoError(t, c.put("https://example.com", info))
 
 	time.Sleep(5 * time.Millisecond)
@@ -45,7 +46,7 @@ func TestCacheInvalidateRemovesEntry(t *testing.T) {
 	t.Parallel()
 
 	c := newCache(t.TempDir(), time.Hour)
-	info := NodeInfo{APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
+	info := NodeInfo{Version: 1, APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
 	require.NoError(t, c.put("https://example.com", info))
 	require.NoError(t, c.invalidate("https://example.com"))
 
@@ -66,10 +67,43 @@ func TestCachePutLeavesNoTempFiles(t *testing.T) {
 	dir := t.TempDir()
 	c := newCache(dir, time.Hour)
 
-	info := NodeInfo{APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
+	info := NodeInfo{Version: 1, APIBaseURL: "https://api.example.com/api/v1", APIVersion: "v1"}
 	require.NoError(t, c.put("https://example.com", info))
 
 	files, err := filepath.Glob(filepath.Join(dir, "tmp-*"))
 	require.NoError(t, err)
 	require.Empty(t, files)
+}
+
+func TestCacheTreatsSchemaInvalidEntryAsMiss(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	c := newCache(dir, time.Hour)
+
+	// Write a payload that decodes cleanly but does not satisfy the
+	// current schema (missing version, bad api_version). Simulates a
+	// manually-edited or stale-format cache file.
+	p := c.pathFor("https://example.com")
+	require.NoError(t, os.WriteFile(p, []byte(`{"api_base_url":"https://api.example.com","api_version":"v9"}`), 0o600))
+
+	_, ok := c.get("https://example.com")
+	require.False(t, ok)
+
+	// Invalid entries are removed so the next lookup is a clean miss.
+	_, err := os.Stat(p)
+	require.True(t, os.IsNotExist(err))
+}
+
+func TestCacheTreatsUnknownFieldEntryAsMiss(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	c := newCache(dir, time.Hour)
+
+	p := c.pathFor("https://example.com")
+	require.NoError(t, os.WriteFile(p, []byte(`{"version":1,"api_base_url":"https://api.example.com/api/v1","api_version":"v1","mystery":"x"}`), 0o600))
+
+	_, ok := c.get("https://example.com")
+	require.False(t, ok)
 }

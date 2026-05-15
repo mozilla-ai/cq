@@ -34,25 +34,32 @@ func newCache(dir string, ttl time.Duration) *cache {
 	return &cache{dir: dir, ttl: ttl}
 }
 
-// get returns the cached NodeInfo for addr and true when a fresh
-// entry exists, or the zero NodeInfo and false otherwise.
+// get returns the cached NodeInfo for addr and true when a fresh,
+// valid entry exists, or the zero NodeInfo and false otherwise.
 // An entry is fresh when its file mtime is within the configured TTL.
-// Unreadable, corrupt, or expired entries are reported as a miss.
+// Unreadable, expired, or schema-invalid entries are reported as a
+// miss; invalid entries are also removed from disk so the next read
+// is a clean miss rather than a repeated rejection.
 func (c *cache) get(addr string) (NodeInfo, bool) {
 	p := c.pathFor(addr)
-	info, err := os.Stat(p)
+	stat, err := os.Stat(p)
 	if err != nil {
 		return NodeInfo{}, false
 	}
-	if time.Since(info.ModTime()) > c.ttl {
+	if time.Since(stat.ModTime()) > c.ttl {
 		return NodeInfo{}, false
 	}
 	raw, err := os.ReadFile(p)
 	if err != nil {
 		return NodeInfo{}, false
 	}
-	var ni NodeInfo
-	if err := json.Unmarshal(raw, &ni); err != nil {
+	ni, err := decodeNodeInfo(raw)
+	if err != nil {
+		_ = os.Remove(p)
+		return NodeInfo{}, false
+	}
+	if err := validate(ni); err != nil {
+		_ = os.Remove(p)
 		return NodeInfo{}, false
 	}
 	return ni, true

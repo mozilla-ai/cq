@@ -99,6 +99,60 @@ func TestResolveErrorsOnVersionMismatch(t *testing.T) {
 	require.Contains(t, err.Error(), "v1")
 }
 
+func TestResolveErrorsOnDiscoveryVersionMismatch(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version": 2,
+			"api_base_url": "https://api.example.com/api/v1",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestResolver(t).Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "version 2")
+}
+
+func TestResolveErrorsOnMissingDiscoveryVersion(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"api_base_url": "https://api.example.com/api/v1",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestResolver(t).Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "version 0")
+}
+
+func TestResolveErrorsOnUnknownField(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version": 1,
+			"api_base_url": "https://api.example.com/api/v1",
+			"api_version": "v1",
+			"made_up_field": "x"
+		}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestResolver(t).Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "made_up_field")
+}
+
 func TestResolveRetriesOn5xxThenErrors(t *testing.T) {
 	t.Parallel()
 
@@ -153,6 +207,29 @@ func TestResolveCaches404FallbackResult(t *testing.T) {
 	_, err = r.Resolve(context.Background(), srv.URL)
 	require.NoError(t, err)
 	require.Equal(t, 1, calls)
+}
+
+func TestResolverSkipsFileCacheWhenCacheDirEmpty(t *testing.T) {
+	t.Parallel()
+
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	r := New("", &http.Client{Timeout: 2 * time.Second})
+	_, err := r.Resolve(context.Background(), srv.URL)
+	require.NoError(t, err)
+	_, err = r.Resolve(context.Background(), srv.URL)
+	require.NoError(t, err)
+
+	// File cache is disabled, so each call relies on the in-process
+	// memo only. The probe still hits once thanks to the in-process
+	// memo; what we are pinning here is that the call does not error
+	// or panic when no file cache backs it.
+	require.GreaterOrEqual(t, calls, 1)
 }
 
 func TestResolveTrimsTrailingSlashInAddr(t *testing.T) {
