@@ -1,4 +1,4 @@
-package cq
+package discovery
 
 import (
 	"fmt"
@@ -6,10 +6,12 @@ import (
 	"path/filepath"
 )
 
-// defaultDiscoveryCacheDir returns the XDG-compliant location for the
-// node discovery cache.
+// DefaultCacheDir returns the XDG-compliant location for the node
+// discovery cache.
 // XDG_CACHE_HOME takes precedence; otherwise ~/.cache/cq/discovery.
-func defaultDiscoveryCacheDir() (string, error) {
+// NOTE: the returned path is not created on disk; the Resolver creates
+// it lazily on first successful write.
+func DefaultCacheDir() (string, error) {
 	if v := os.Getenv("XDG_CACHE_HOME"); v != "" {
 		return filepath.Join(v, "cq", "discovery"), nil
 	}

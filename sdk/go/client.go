@@ -56,7 +56,7 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 
 	c := &Client{store: s, timeout: cfg.timeout}
 	if cfg.addr != "" {
-		cacheDir, err := defaultDiscoveryCacheDir()
+		cacheDir, err := discovery.DefaultCacheDir()
 		if err != nil {
 			return nil, fmt.Errorf("init discovery cache dir: %w", err)
 		}

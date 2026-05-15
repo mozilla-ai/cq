@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
 
 // httpDefaultTimeout caps a single platform HTTP call. Individual
@@ -20,8 +22,8 @@ const httpDefaultTimeout = 30 * time.Second
 //
 // The interface holds the methods that make up the auth control plane:
 // OAuth sign-in, identity, and per-user API key management. They live
-// behind one type because every call site uses the same baseURL and
-// transport; splitting them into separate interfaces would force a
+// behind one type because every call site uses the same node address
+// and transport; splitting them into separate interfaces would force a
 // matching split at every consumer without reducing coupling.
 type Client interface {
 	// ClaimUsername sets the user's username. Returns
@@ -69,12 +71,19 @@ type Client interface {
 	RevokeAPIKey(ctx context.Context, jwt string, keyID string) error
 }
 
-// NewClient returns a Client that talks to the platform at baseURL.
-// baseURL must not include a trailing /api/v1 path; the client appends
-// the version prefix itself.
-func NewClient(baseURL string) Client {
+// NewClient returns a Client that talks to the cq node at addr.
+// addr is the user-facing node address; the concrete API base URL is
+// resolved from the node's discovery document, falling back to
+// {addr}/api/v1 when the node does not publish one.
+//
+// NOTE: cache directory discovery is best-effort; on failure the
+// resolver receives an empty path and falls back to in-process
+// behavior without persisting cached results.
+func NewClient(addr string) Client {
+	cacheDir, _ := discovery.DefaultCacheDir()
 	return &httpClient{
-		baseURL: baseURL,
-		http:    &http.Client{Timeout: httpDefaultTimeout},
+		addr:     addr,
+		http:     &http.Client{Timeout: httpDefaultTimeout},
+		resolver: discovery.New(cacheDir, nil),
 	}
 }

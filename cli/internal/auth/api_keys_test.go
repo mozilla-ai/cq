@@ -37,7 +37,7 @@ func TestClient_CreateAPIKey_SuccessReturnsTokenAndMetadata(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	got, err := client.CreateAPIKey(context.Background(), "test-jwt", CreateAPIKeyRequest{
 		Name:   "claude-cursor",
 		TTL:    "30d",
@@ -71,7 +71,7 @@ func TestClient_CreateAPIKey_SessionExpired_ReturnsSentinel(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.CreateAPIKey(context.Background(), "stale", CreateAPIKeyRequest{Name: "x", TTL: "30d"})
 	require.ErrorIs(t, err, ErrSessionExpired)
 }
@@ -84,7 +84,7 @@ func TestClient_CreateAPIKey_LimitReached_ReturnsTypedError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.CreateAPIKey(context.Background(), "jwt", CreateAPIKeyRequest{Name: "x", TTL: "30d"})
 
 	var capReached *APIKeyLimitReachedError
@@ -100,7 +100,7 @@ func TestClient_CreateAPIKey_InvalidTTL_ReturnsValidationError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.CreateAPIKey(context.Background(), "jwt", CreateAPIKeyRequest{Name: "x", TTL: "1w"})
 
 	var validation *APIKeyValidationError
@@ -149,7 +149,7 @@ func TestClient_ListAPIKeys_DecodesEnvelope(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	got, err := client.ListAPIKeys(context.Background(), "jwt")
 	require.NoError(t, err)
 	require.Len(t, got, 2)
@@ -173,7 +173,7 @@ func TestClient_ListAPIKeys_SessionExpired_ReturnsSentinel(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.ListAPIKeys(context.Background(), "stale")
 	require.ErrorIs(t, err, ErrSessionExpired)
 }
@@ -189,7 +189,7 @@ func TestClient_RevokeAPIKey_SuccessReturnsNoError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	require.NoError(t, client.RevokeAPIKey(context.Background(), "jwt", "key-123"))
 
 	c := cap.snapshot()
@@ -212,7 +212,7 @@ func TestClient_RevokeAPIKey_PathEscapesKeyID(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	// A pathological keyID with characters the URL grammar reserves;
 	// the client must escape it rather than splice it raw into the URL.
 	require.NoError(t, client.RevokeAPIKey(context.Background(), "jwt", "weird/key id"))
@@ -230,7 +230,7 @@ func TestClient_RevokeAPIKey_NotFoundReturnsTypedErrorWithKeyID(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	err := client.RevokeAPIKey(context.Background(), "jwt", "missing-id")
 
 	var notFound *APIKeyNotFoundError
@@ -246,6 +246,6 @@ func TestClient_RevokeAPIKey_SessionExpired_ReturnsSentinel(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	require.ErrorIs(t, client.RevokeAPIKey(context.Background(), "stale", "any"), ErrSessionExpired)
 }

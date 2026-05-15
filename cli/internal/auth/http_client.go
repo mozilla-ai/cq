@@ -12,30 +12,33 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
 
-const (
-	// apiVersionPrefix is prepended to every platform path. The constant
-	// keeps version routing in one place; if the platform later adds /v2,
-	// the change lives here rather than scattered across method bodies.
-	apiVersionPrefix = "/api/v1"
-
-	// errorBodyByteLimit caps how much of an error response body mapError
-	// will read. Defense-in-depth: a misbehaving or compromised platform
-	// could otherwise stream gigabytes into our process when reporting an
-	// error. 64 KiB is two orders of magnitude beyond any legitimate
-	// error payload the platform produces.
-	errorBodyByteLimit = 64 << 10
-)
+// errorBodyByteLimit caps how much of an error response body mapError
+// will read. Defense-in-depth: a misbehaving or compromised platform
+// could otherwise stream gigabytes into our process when reporting an
+// error. 64 KiB is two orders of magnitude beyond any legitimate
+// error payload the platform produces.
+const errorBodyByteLimit = 64 << 10
 
 // Compile-time assertion that httpClient satisfies Client.
 var _ Client = (*httpClient)(nil)
 
+// apiResolver is the slice of the discovery package used by httpClient.
+// It is an interface so tests can inject a static resolver without
+// touching the disk or the network.
+type apiResolver interface {
+	Resolve(ctx context.Context, addr string) (discovery.NodeInfo, error)
+}
+
 // httpClient is the HTTP-backed Client used in production. Tests
 // substitute their own implementation of the Client interface.
 type httpClient struct {
-	baseURL string
-	http    *http.Client
+	addr     string
+	http     *http.Client
+	resolver apiResolver
 }
 
 // ClaimUsername implements Client.
@@ -44,7 +47,7 @@ func (c *httpClient) ClaimUsername(ctx context.Context, jwt, username string) (U
 		Username string `json:"username"`
 	}{Username: username}
 
-	req, err := c.newRequest(ctx, http.MethodPost, apiVersionPrefix+"/users/me/username", body)
+	req, err := c.newRequest(ctx, http.MethodPost, "/users/me/username", body)
 	if err != nil {
 		return User{}, err
 	}
@@ -61,7 +64,7 @@ func (c *httpClient) ClaimUsername(ctx context.Context, jwt, username string) (U
 
 // CreateAPIKey implements Client.
 func (c *httpClient) CreateAPIKey(ctx context.Context, jwt string, in CreateAPIKeyRequest) (CreatedAPIKey, error) {
-	req, err := c.newRequest(ctx, http.MethodPost, apiVersionPrefix+"/users/me/api-keys", in)
+	req, err := c.newRequest(ctx, http.MethodPost, "/users/me/api-keys", in)
 	if err != nil {
 		return CreatedAPIKey{}, err
 	}
@@ -78,7 +81,7 @@ func (c *httpClient) CreateAPIKey(ctx context.Context, jwt string, in CreateAPIK
 
 // ListAPIKeys implements Client.
 func (c *httpClient) ListAPIKeys(ctx context.Context, jwt string) ([]APIKey, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, apiVersionPrefix+"/users/me/api-keys", nil)
+	req, err := c.newRequest(ctx, http.MethodGet, "/users/me/api-keys", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -96,85 +99,9 @@ func (c *httpClient) ListAPIKeys(ctx context.Context, jwt string) ([]APIKey, err
 	return resp.Data, nil
 }
 
-// Me implements Client.
-func (c *httpClient) Me(ctx context.Context, jwt string) (User, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, apiVersionPrefix+"/users/me", nil)
-	if err != nil {
-		return User{}, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+jwt)
-
-	var resp User
-	if err := c.send(req, &resp); err != nil {
-		return User{}, err
-	}
-
-	return resp, nil
-}
-
-// OAuthNativeExchange implements Client.
-func (c *httpClient) OAuthNativeExchange(ctx context.Context, params NativeExchangeRequest) (string, error) {
-	req, err := c.newRequest(ctx, http.MethodPost, apiVersionPrefix+"/oauth/native/exchange", params)
-	if err != nil {
-		return "", err
-	}
-
-	var resp struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := c.send(req, &resp); err != nil {
-		return "", err
-	}
-
-	return resp.AccessToken, nil
-}
-
-// OAuthNativeStart implements Client.
-func (c *httpClient) OAuthNativeStart(ctx context.Context, params NativeStartRequest) (string, error) {
-	req, err := c.newRequest(ctx, http.MethodPost, apiVersionPrefix+"/oauth/native/start", params)
-	if err != nil {
-		return "", err
-	}
-
-	var resp struct {
-		AuthorizationURL string `json:"authorization_url"`
-	}
-	if err := c.send(req, &resp); err != nil {
-		return "", err
-	}
-
-	return resp.AuthorizationURL, nil
-}
-
-// OAuthProviders implements Client.
-func (c *httpClient) OAuthProviders(ctx context.Context) ([]Provider, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, apiVersionPrefix+"/oauth/providers", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp struct {
-		Providers []Provider `json:"providers"`
-	}
-	if err := c.send(req, &resp); err != nil {
-		return nil, err
-	}
-
-	// Normalise machine-readable Name on the way out so consumers can
-	// rely on a canonical form for matching, regardless of how the
-	// platform happens to capitalise or pad its responses. DisplayName
-	// is left untouched because it's user-facing.
-	for i := range resp.Providers {
-		resp.Providers[i].Name = strings.ToLower(strings.TrimSpace(resp.Providers[i].Name))
-	}
-
-	return resp.Providers, nil
-}
-
 // Logout implements Client.
 func (c *httpClient) Logout(ctx context.Context, jwt string, allDevices bool) error {
-	path := apiVersionPrefix + "/auth/logout"
+	path := "/auth/logout"
 	if allDevices {
 		path += "?all_devices=true"
 	}
@@ -200,9 +127,85 @@ func (c *httpClient) Logout(ctx context.Context, jwt string, allDevices bool) er
 	return nil
 }
 
+// Me implements Client.
+func (c *httpClient) Me(ctx context.Context, jwt string) (User, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/users/me", nil)
+	if err != nil {
+		return User{}, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+jwt)
+
+	var resp User
+	if err := c.send(req, &resp); err != nil {
+		return User{}, err
+	}
+
+	return resp, nil
+}
+
+// OAuthNativeExchange implements Client.
+func (c *httpClient) OAuthNativeExchange(ctx context.Context, params NativeExchangeRequest) (string, error) {
+	req, err := c.newRequest(ctx, http.MethodPost, "/oauth/native/exchange", params)
+	if err != nil {
+		return "", err
+	}
+
+	var resp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := c.send(req, &resp); err != nil {
+		return "", err
+	}
+
+	return resp.AccessToken, nil
+}
+
+// OAuthNativeStart implements Client.
+func (c *httpClient) OAuthNativeStart(ctx context.Context, params NativeStartRequest) (string, error) {
+	req, err := c.newRequest(ctx, http.MethodPost, "/oauth/native/start", params)
+	if err != nil {
+		return "", err
+	}
+
+	var resp struct {
+		AuthorizationURL string `json:"authorization_url"`
+	}
+	if err := c.send(req, &resp); err != nil {
+		return "", err
+	}
+
+	return resp.AuthorizationURL, nil
+}
+
+// OAuthProviders implements Client.
+func (c *httpClient) OAuthProviders(ctx context.Context) ([]Provider, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/oauth/providers", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp struct {
+		Providers []Provider `json:"providers"`
+	}
+	if err := c.send(req, &resp); err != nil {
+		return nil, err
+	}
+
+	// Normalise machine-readable Name on the way out so consumers can
+	// rely on a canonical form for matching, regardless of how the
+	// platform happens to capitalise or pad its responses. DisplayName
+	// is left untouched because it's user-facing.
+	for i := range resp.Providers {
+		resp.Providers[i].Name = strings.ToLower(strings.TrimSpace(resp.Providers[i].Name))
+	}
+
+	return resp.Providers, nil
+}
+
 // RevokeAPIKey implements Client.
 func (c *httpClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {
-	path := apiVersionPrefix + "/users/me/api-keys/" + url.PathEscape(keyID) + "/revoke"
+	path := "/users/me/api-keys/" + url.PathEscape(keyID) + "/revoke"
 
 	req, err := c.newRequest(ctx, http.MethodPost, path, nil)
 	if err != nil {
@@ -227,11 +230,37 @@ func (c *httpClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string)
 	return nil
 }
 
-// newRequest builds a JSON request rooted at httpClient.baseURL. body
-// is JSON-marshalled and the appropriate Content-Type header is set
-// when non-nil. Authorization headers are not set here; callers add
-// them on the returned request when the route requires authentication.
+// newRequest builds a JSON request rooted at the node's resolved API
+// base URL.
+// path is the version-less resource path; any pre-escaped segments
+// (for example url.PathEscape output) are preserved verbatim, and a
+// trailing "?query=..." is split off so url.JoinPath does not
+// percent-encode the separator into the path.
+// body is JSON-marshalled and the appropriate Content-Type header is
+// set when non-nil.
+// Authorization headers are not set here; callers add them on the
+// returned request when the route requires authentication.
 func (c *httpClient) newRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {
+	info, err := c.resolver.Resolve(ctx, c.addr)
+	if err != nil {
+		return nil, fmt.Errorf("resolving API base URL: %w", err)
+	}
+
+	pathOnly, rawQuery, hasQuery := strings.Cut(path, "?")
+
+	joined, err := url.JoinPath(info.APIBaseURL, pathOnly)
+	if err != nil {
+		return nil, fmt.Errorf("building request URL: %w", err)
+	}
+
+	fullURL, err := url.Parse(joined)
+	if err != nil {
+		return nil, fmt.Errorf("parsing joined URL: %w", err)
+	}
+	if hasQuery {
+		fullURL.RawQuery = rawQuery
+	}
+
 	var bodyReader io.Reader
 
 	if body != nil {
@@ -243,7 +272,7 @@ func (c *httpClient) newRequest(ctx context.Context, method, path string, body a
 		bodyReader = bytes.NewReader(raw)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, fullURL.String(), bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
