@@ -15,6 +15,7 @@ func TestSchemaAccessorsReturnNonEmptyJSON(t *testing.T) {
 		"flag":           FlagSchema(),
 		"health":         HealthSchema(),
 		"knowledge_unit": KnowledgeUnitSchema(),
+		"node_discovery": NodeDiscoverySchema(),
 		"propose":        ProposeSchema(),
 		"query":          QuerySchema(),
 		"review":         ReviewSchema(),

@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "api_base_url": "https://example.com/api/v1",
+  "api_version": "v1"
+}

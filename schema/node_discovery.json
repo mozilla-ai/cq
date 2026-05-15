@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mozilla-ai.github.io/cq/schema/node_discovery.json",
+  "title": "NodeDiscovery",
+  "description": "Discovery document published at /.well-known/cq-node.json by a cq node. Declares where the API lives and what protocol version it speaks. Absence of this document means the client should fall back to defaults: api_base_url={addr}/api/v1, api_version=v1.",
+  "type": "object",
+  "required": ["version", "api_base_url", "api_version"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Discovery document schema version. Currently 1.",
+      "const": 1
+    },
+    "api_base_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Complete URL the client uses for API requests, verbatim. The client appends only the resource path (e.g. /knowledge, /oauth/start). Any version prefix or path mounting lives inside this URL.",
+      "pattern": "^https?://"
+    },
+    "api_version": {
+      "type": "string",
+      "description": "Protocol version spoken at api_base_url. Used by clients for compatibility checks, not URL construction.",
+      "pattern": "^v[0-9]+$"
+    },
+    "node_name": {
+      "type": "string",
+      "description": "Human-readable display name for this node. Optional.",
+      "maxLength": 200
+    }
+  },
+  "additionalProperties": false
+}
