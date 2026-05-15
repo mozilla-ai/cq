@@ -319,7 +319,7 @@ class TestRemoteIntegration:
         }
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         # Insert a local unit directly (propose with remote skips local store).
@@ -357,7 +357,7 @@ class TestRemoteIntegration:
                 "http://test-remote/api/v1/knowledge",
                 params={"domains": ["api"], "limit": "5", "languages": ["python"], "frameworks": ["django"]},
             ),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
@@ -380,7 +380,7 @@ class TestRemoteIntegration:
                 "http://test-remote/api/v1/knowledge",
                 params={"domains": ["api"], "limit": "5", "pattern": "api-client"},
             ),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
@@ -400,13 +400,40 @@ class TestRemoteIntegration:
         }
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
         result = c.query(["api"])
         assert result.source == "remote"
         assert len(result.units) == 1
+        c.close()
+
+    def test_remote_query_warns_on_bare_array_response(self, tmp_path: Path, httpx_mock):
+        """A server returning a bare JSON array (pre-envelope shape) must surface as a warning,
+        not silently degrade to empty results."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
+            json=[{"id": "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa99"}],
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        result = c.query(["api"])
+        assert result.units == []
+        assert any("envelope" in w or "data" in w for w in result.warnings)
+        c.close()
+
+    def test_remote_query_warns_on_missing_data_key(self, tmp_path: Path, httpx_mock):
+        """A server returning a JSON object without a ``data`` key must surface as a warning."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
+            json={"results": []},
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        result = c.query(["api"])
+        assert result.units == []
+        assert result.warnings, "missing data key should produce a warning"
         c.close()
 
     def test_propose_returns_server_response_when_remote_accepts(self, tmp_path: Path, httpx_mock):
