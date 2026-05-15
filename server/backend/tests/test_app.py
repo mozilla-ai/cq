@@ -88,6 +88,13 @@ class TestHealth:
         assert resp.json() == {"status": "ok"}
 
 
+class TestNodeDiscovery:
+    def test_well_known_returns_404(self, client: TestClient) -> None:
+        resp = client.get("/.well-known/cq-node.json")
+        assert resp.status_code == 404
+        assert resp.headers["content-type"].startswith("application/json")
+
+
 class TestPropose:
     def test_propose_creates_unit(self, client: TestClient) -> None:
         resp = client.post("/api/v1/knowledge", json=_propose_payload())
