@@ -226,8 +226,15 @@ func validate(info NodeInfo) error {
 	if info.APIBaseURL == "" {
 		return errors.New("api_base_url is required")
 	}
-	if !strings.HasPrefix(info.APIBaseURL, "http://") && !strings.HasPrefix(info.APIBaseURL, "https://") {
-		return fmt.Errorf("api_base_url %q must be an http(s) URL", info.APIBaseURL)
+	parsed, err := url.Parse(info.APIBaseURL)
+	if err != nil {
+		return fmt.Errorf("api_base_url %q is not a valid URL: %w", info.APIBaseURL, err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("api_base_url %q must use http or https scheme", info.APIBaseURL)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("api_base_url %q is missing a host", info.APIBaseURL)
 	}
 	if info.APIVersion == "" {
 		return errors.New("api_version is required")

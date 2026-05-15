@@ -56,10 +56,11 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 
 	c := &Client{store: s, timeout: cfg.timeout}
 	if cfg.addr != "" {
-		cacheDir, err := discovery.DefaultCacheDir()
-		if err != nil {
-			return nil, fmt.Errorf("init discovery cache dir: %w", err)
-		}
+		// Cache-dir lookup is best-effort: an empty cacheDir disables
+		// the on-disk cache and the resolver falls back to in-process
+		// memoization only, so a restricted or container environment
+		// without HOME / XDG_CACHE_HOME can still construct a Client.
+		cacheDir, _ := discovery.DefaultCacheDir()
 		c.remote = newRemoteClient(cfg.addr, cfg.apiKey, cfg.timeout, discovery.New(cacheDir, nil))
 	}
 

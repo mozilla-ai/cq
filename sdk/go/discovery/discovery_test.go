@@ -134,6 +134,42 @@ func TestResolveErrorsOnMissingDiscoveryVersion(t *testing.T) {
 	require.Contains(t, err.Error(), "version 0")
 }
 
+func TestResolveErrorsOnHostlessAPIBaseURL(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version": 1,
+			"api_base_url": "https://",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestResolver(t).Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "host")
+}
+
+func TestResolveErrorsOnNonHTTPAPIBaseURL(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version": 1,
+			"api_base_url": "ftp://example.com/api/v1",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestResolver(t).Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "scheme")
+}
+
 func TestResolveErrorsOnUnknownField(t *testing.T) {
 	t.Parallel()
 
