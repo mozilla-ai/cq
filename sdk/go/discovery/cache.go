@@ -34,19 +34,10 @@ func newCache(dir string, ttl time.Duration) *cache {
 	return &cache{dir: dir, ttl: ttl}
 }
 
-// pathFor returns the on-disk path of the cache entry for addr.
-// The filename is the lowercase hex SHA-256 of the address so that
-// arbitrary URL characters never appear on disk.
-func (c *cache) pathFor(addr string) string {
-	hash := sha256.Sum256([]byte(addr))
-	return filepath.Join(c.dir, fmt.Sprintf("%x.json", hash))
-}
-
 // get returns the cached NodeInfo for addr and true when a fresh
 // entry exists, or the zero NodeInfo and false otherwise.
 // An entry is fresh when its file mtime is within the configured TTL.
-// Unreadable, corrupt, or expired entries are reported as a miss so
-// callers can fall back to re-probing without special-casing errors.
+// Unreadable, corrupt, or expired entries are reported as a miss.
 func (c *cache) get(addr string) (NodeInfo, bool) {
 	p := c.pathFor(addr)
 	info, err := os.Stat(p)
@@ -65,6 +56,24 @@ func (c *cache) get(addr string) (NodeInfo, bool) {
 		return NodeInfo{}, false
 	}
 	return ni, true
+}
+
+// invalidate removes the cache entry for addr if one exists.
+// A missing entry is not an error.
+func (c *cache) invalidate(addr string) error {
+	err := os.Remove(c.pathFor(addr))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("invalidate cache entry: %w", err)
+	}
+	return nil
+}
+
+// pathFor returns the on-disk path of the cache entry for addr.
+// The filename is the lowercase hex SHA-256 of the address so that
+// arbitrary URL characters never appear on disk.
+func (c *cache) pathFor(addr string) string {
+	hash := sha256.Sum256([]byte(addr))
+	return filepath.Join(c.dir, fmt.Sprintf("%x.json", hash))
 }
 
 // put writes info to disk as the cache entry for addr.
@@ -92,17 +101,6 @@ func (c *cache) put(addr string, info NodeInfo) error {
 	}
 	if err := os.Rename(tmpPath, c.pathFor(addr)); err != nil {
 		return fmt.Errorf("install cache entry: %w", err)
-	}
-	return nil
-}
-
-// invalidate removes the cache entry for addr if one exists.
-// A missing entry is not an error; callers can invalidate without
-// first checking whether anything is cached.
-func (c *cache) invalidate(addr string) error {
-	err := os.Remove(c.pathFor(addr))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("invalidate cache entry: %w", err)
 	}
 	return nil
 }
