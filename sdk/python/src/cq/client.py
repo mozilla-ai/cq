@@ -419,7 +419,10 @@ class Client:
             params["pattern"] = pattern
         resp = self._http.get("/api/v1/knowledge", params=params)
         resp.raise_for_status()
-        return [KnowledgeUnit.model_validate(item) for item in resp.json()]
+        body = resp.json()
+        if not isinstance(body, dict) or "data" not in body:
+            raise ValueError("expected {data: [...]} envelope from /api/v1/knowledge")
+        return [KnowledgeUnit.model_validate(item) for item in body["data"]]
 
     def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit:
         """Push a unit to the remote API.

@@ -42,7 +42,7 @@ def test_e2e_propose_via_store_query_via_api(tmp_path: Path, monkeypatch: pytest
 
         resp = client.get("/api/v1/knowledge", params={"domains": "smoke"})
         assert resp.status_code == 200
-        ids = [r["id"] for r in resp.json()]
+        ids = [r["id"] for r in resp.json()["data"]]
         assert unit.id in ids
 
     assert db.exists()

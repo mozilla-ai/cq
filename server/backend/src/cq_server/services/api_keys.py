@@ -19,8 +19,8 @@ from ..exceptions import (
     UserNotFoundError,
 )
 from ..models.users import (
+    ApiKeyList,
     ApiKeyPublic,
-    ApiKeysPublic,
     CreateApiKeyResponse,
     Message,
 )
@@ -106,11 +106,11 @@ class APIKeyService:
         public = _to_public(row)
         return CreateApiKeyResponse(**public.model_dump(), token=plaintext)
 
-    async def list_for_user(self, username: str) -> ApiKeysPublic:
+    async def list_for_user(self, username: str) -> ApiKeyList:
         """Return every API key owned by ``username`` (including revoked rows)."""
         user_id = await self._require_user_id(username)
         data = [_to_public(row) for row in await self._api_keys.list_for_user(user_id)]
-        return ApiKeysPublic(data=data, count=len(data))
+        return ApiKeyList(data=data)
 
     async def revoke(self, *, username: str, key_id: str) -> Message:
         """Revoke ``key_id`` if it belongs to ``username``. Idempotent.

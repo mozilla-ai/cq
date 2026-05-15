@@ -137,7 +137,7 @@ class TestQuery:
         self._insert_unit(client, domains=["databases"])
         resp = client.get("/api/v1/knowledge", params={"domains": ["databases"]})
         assert resp.status_code == 200
-        results = resp.json()
+        results = resp.json()["data"]
         assert len(results) == 1
         assert results[0]["domains"] == ["databases"]
 
@@ -145,7 +145,15 @@ class TestQuery:
         self._insert_unit(client, domains=["databases"])
         resp = client.get("/api/v1/knowledge", params={"domains": ["networking"]})
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.json() == {"data": []}
+
+    def test_query_response_uses_envelope_shape(self, client: TestClient) -> None:
+        self._insert_unit(client, domains=["envelope-shape"])
+        resp = client.get("/api/v1/knowledge", params={"domains": ["envelope-shape"]})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert set(body.keys()) == {"data"}
+        assert isinstance(body["data"], list)
 
     def test_query_boosts_matching_language(self, client: TestClient) -> None:
         self._insert_unit(
@@ -160,7 +168,7 @@ class TestQuery:
         )
         resp = client.get("/api/v1/knowledge", params={"domains": ["web"], "languages": ["python"]})
         assert resp.status_code == 200
-        results = resp.json()
+        results = resp.json()["data"]
         assert len(results) == 2
         assert "python" in results[0]["context"]["languages"]
 
@@ -185,7 +193,7 @@ class TestQuery:
             params={"domains": ["web"], "languages": ["python", "go"]},
         )
         assert resp.status_code == 200
-        results = resp.json()
+        results = resp.json()["data"]
         assert len(results) == 3
         top_langs = {results[0]["context"]["languages"][0], results[1]["context"]["languages"][0]}
         assert top_langs == {"python", "go"}
@@ -195,7 +203,7 @@ class TestQuery:
             self._insert_unit(client, domains=["api"])
         resp = client.get("/api/v1/knowledge", params={"domains": ["api"], "limit": 2})
         assert resp.status_code == 200
-        assert len(resp.json()) == 2
+        assert len(resp.json()["data"]) == 2
 
     def test_query_rejects_zero_limit(self, client: TestClient) -> None:
         resp = client.get("/api/v1/knowledge", params={"domains": ["api"], "limit": 0})
@@ -214,7 +222,7 @@ class TestQuery:
         )
         resp = client.get("/api/v1/knowledge", params={"domains": ["api"], "pattern": "api-client"})
         assert resp.status_code == 200
-        results = resp.json()
+        results = resp.json()["data"]
         assert len(results) == 2
         assert results[0]["context"]["pattern"] == "api-client"
 
@@ -323,7 +331,7 @@ class TestReviewLifecycleEndToEnd:
 
         # KU is not queryable yet (pending).
         query_resp = client.get("/api/v1/knowledge", params={"domains": ["e2e-test"]})
-        assert len(query_resp.json()) == 0
+        assert len(query_resp.json()["data"]) == 0
 
         # KU appears in review queue.
         queue_resp = client.get("/api/v1/review/queue", headers=headers)
@@ -336,7 +344,7 @@ class TestReviewLifecycleEndToEnd:
 
         # KU is now queryable.
         query_resp = client.get("/api/v1/knowledge", params={"domains": ["e2e-test"]})
-        assert len(query_resp.json()) == 1
+        assert len(query_resp.json()["data"]) == 1
 
         # Queue is empty.
         queue_resp = client.get("/api/v1/review/queue", headers=headers)
@@ -374,22 +382,22 @@ class TestEndToEnd:
             "/api/v1/knowledge",
             params={"domains": ["api", "payments"], "languages": ["python"]},
         )
-        assert len(resp.json()) == 1
-        assert resp.json()[0]["evidence"]["confidence"] == 0.5
+        assert len(resp.json()["data"]) == 1
+        assert resp.json()["data"][0]["evidence"]["confidence"] == 0.5
 
         # Confirm boosts confidence.
         resp = client.post(f"/api/v1/knowledge/{unit_id}/confirmations")
         assert resp.status_code == 201
 
         resp = client.get("/api/v1/knowledge", params={"domains": ["api", "payments"]})
-        assert resp.json()[0]["evidence"]["confidence"] == pytest.approx(0.6)
+        assert resp.json()["data"][0]["evidence"]["confidence"] == pytest.approx(0.6)
 
         # Flag reduces confidence.
         resp = client.post(f"/api/v1/knowledge/{unit_id}/flags", json={"reason": "stale"})
         assert resp.status_code == 201
 
         resp = client.get("/api/v1/knowledge", params={"domains": ["api", "payments"]})
-        result = resp.json()[0]
+        result = resp.json()["data"][0]
         assert result["evidence"]["confidence"] == pytest.approx(0.45)
         assert len(result["flags"]) == 1
 
@@ -527,9 +535,9 @@ class TestApiKeyEnforcement:
 
         query = enforced_client.get("/api/v1/knowledge", params={"domains": ["privacy"]})
         assert query.status_code == 200
-        body = query.json()
-        assert len(body) == 1
-        assert "created_by" not in body[0]
+        results = query.json()["data"]
+        assert len(results) == 1
+        assert "created_by" not in results[0]
 
     def test_stats_stays_open_under_enforcement(self, enforced_client: TestClient) -> None:
         resp = enforced_client.get("/api/v1/knowledge/stats")

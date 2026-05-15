@@ -432,7 +432,9 @@ func TestQueryMergesLocalAndRemote(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000003")})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000003")},
+		})
 	}))
 	ctx := context.Background()
 
@@ -470,7 +472,9 @@ func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
 
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000005")})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000005")},
+		})
 	}))
 
 	qr, err := c.Query(context.Background(), QueryParams{Domains: []string{"api"}})
@@ -489,6 +493,22 @@ func TestQuerySourceRemoteWhenRemoteFails(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, qr.Units)
 	require.Equal(t, SourceRemote, qr.Source)
+	require.NotEmpty(t, qr.Warnings, "remote failure should surface as a warning")
+}
+
+func TestQueryWarnsOnRemoteDecodeFailure(t *testing.T) {
+
+	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Bare array; the SDK now expects the {data: [...]} envelope.
+		_, _ = w.Write([]byte(`[{"id":"ku_00000000000000000000000000000099"}]`))
+	}))
+
+	qr, err := c.Query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.NoError(t, err)
+	require.Empty(t, qr.Units)
+	require.NotEmpty(t, qr.Warnings)
+	require.Contains(t, qr.Warnings[0].Error(), "decoding")
 }
 
 func TestConfirmLocalUnit(t *testing.T) {

@@ -20,12 +20,15 @@ func TestRemoteQuery(t *testing.T) {
 		require.Equal(t, []string{"api", "testing"}, r.URL.Query()["domains"])
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000002")})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000002")},
+		})
 	}))
 	defer srv.Close()
 
 	rc := newRemoteClient(srv.URL, "", 5*time.Second)
-	units := rc.query(context.Background(), QueryParams{Domains: []string{"api", "testing"}})
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api", "testing"}})
+	require.NoError(t, err)
 	require.Len(t, units, 1)
 	require.Equal(t, "ku_00000000000000000000000000000002", units[0].ID)
 	require.Equal(t, "S", units[0].Insight.Summary)
@@ -36,12 +39,13 @@ func TestRemoteQueryWithAuth(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{})
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{}})
 	}))
 	defer srv.Close()
 
 	rc := newRemoteClient(srv.URL, "test-token", 5*time.Second)
-	units := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.NoError(t, err)
 	require.Empty(t, units)
 }
 
@@ -53,8 +57,76 @@ func TestRemoteQueryServerError(t *testing.T) {
 	defer srv.Close()
 
 	rc := newRemoteClient(srv.URL, "", 5*time.Second)
-	units := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.Nil(t, units)
+	require.ErrorIs(t, err, errUnreachable)
+}
+
+func TestRemoteQueryRejectsBareArrayResponse(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000002")})
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.Nil(t, units)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "decoding")
+}
+
+func TestRemoteQueryRejectsMissingDataKey(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results": []}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.Nil(t, units)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "data")
+}
+
+func TestRemoteQueryRejectsNullDataField(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": null}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.Nil(t, units)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "data")
+}
+
+func TestRemoteQueryRejectsMalformedBody(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.Nil(t, units)
+	require.Error(t, err)
+}
+
+func TestRemoteQueryTransportError(t *testing.T) {
+	t.Parallel()
+	rc := newRemoteClient("http://127.0.0.1:1", "", 1*time.Second)
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.Nil(t, units)
+	require.ErrorIs(t, err, errUnreachable)
 }
 
 func TestRemotePropose(t *testing.T) {
@@ -185,12 +257,12 @@ func TestRemoteQuerySendsPluralParamNames(t *testing.T) {
 			require.Equal(t, []string{"grpc"}, r.URL.Query()["frameworks"])
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]map[string]any{})
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{}})
 		}))
 		defer srv.Close()
 
 		rc := newRemoteClient(srv.URL, "", 5*time.Second)
-		rc.query(context.Background(), QueryParams{
+		_, _ = rc.query(context.Background(), QueryParams{
 			Domains:    []string{"api"},
 			Languages:  []string{"go"},
 			Frameworks: []string{"grpc"},
@@ -205,12 +277,12 @@ func TestRemoteQuerySendsPluralParamNames(t *testing.T) {
 			require.Equal(t, []string{"grpc", "http"}, r.URL.Query()["frameworks"])
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]map[string]any{})
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{}})
 		}))
 		defer srv.Close()
 
 		rc := newRemoteClient(srv.URL, "", 5*time.Second)
-		rc.query(context.Background(), QueryParams{
+		_, _ = rc.query(context.Background(), QueryParams{
 			Domains:    []string{"api", "testing"},
 			Languages:  []string{"python", "go"},
 			Frameworks: []string{"grpc", "http"},
@@ -271,12 +343,12 @@ func TestRemoteQueryAddsPatternToURL(t *testing.T) {
 		capturedURL = r.URL.String()
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`{"data":[]}`))
 	}))
 	t.Cleanup(srv.Close)
 
 	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second)
-	rc.query(context.Background(), QueryParams{
+	_, _ = rc.query(context.Background(), QueryParams{
 		Domains: []string{"api"},
 		Pattern: "api-client",
 	})
@@ -298,12 +370,12 @@ func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
 		capturedURL = r.URL.String()
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`{"data":[]}`))
 	}))
 	t.Cleanup(srv.Close)
 
 	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second)
-	rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	_, _ = rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 
 	mu.Lock()
 	defer mu.Unlock()
