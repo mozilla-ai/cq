@@ -458,3 +458,51 @@ The ecosystem convergence on MCP and Agent Skills means cq does not need to conv
 Non-Claude-Code hosts (Cursor, Windsurf, OpenCode) are installed via a host-agnostic Python installer at `scripts/install/`. It is a stdlib-only uv-managed project whose CLI (`python -m cq_install install --target <host>`) resolves a per-host target directory, writes the host-specific MCP config, and installs the shared skill commons to `~/.agents/skills/cq/` (or a project-scoped equivalent). Adding a new host is a single file under `scripts/install/src/cq_install/hosts/`: the primitive library in `common.py` (merge-not-replace JSON, hook entry, manifest-tracked file copies, markdown blocks) handles the shared mechanics. Claude Code remains on its own native marketplace via a thin wrapper host that shells out to `claude plugin marketplace`.
 
 > **Domain scope:** The initial implementation targets coding agents — the domain where agent tooling is most mature and adoption is fastest. The underlying mechanism (structured knowledge sharing via MCP with tiered trust) generalizes to arbitrary domains: DevOps, security, data engineering, and beyond.
+
+---
+
+## 6. HTTP API Conventions
+
+Reference for endpoint authors and SDK implementers. The HTTP surface follows two response-shape conventions for list-returning endpoints and a small set of cross-cutting rules.
+
+### List vs Page
+
+Every list-returning endpoint emits one of two shapes. The model name suffix tells the caller which one to expect.
+
+**`FooList`** — unpaginated. The response is the whole set or a server-clamped top-N. Callers treat it as "what you got, full stop."
+
+```json
+{
+  "data": [Foo, Foo, ...]
+}
+```
+
+**`FooPage`** — cursor-paginated. The response is a slice of an ordered stream, with an opaque token to fetch the next slice.
+
+```json
+{
+  "data": [Foo, Foo, ...],
+  "next_cursor": "opaque-token-or-null"
+}
+```
+
+Callers paginate by passing `next_cursor` back as a query parameter on the next request. `next_cursor: null` (or omitted) means end of stream. The cursor is server-encoded and opaque to clients; clients must not parse or construct it.
+
+### Why cursor over offset
+
+Cursor (a.k.a. keyset) pagination anchors to a position in the sort order rather than a numeric offset. Concurrent inserts or deletes in the filtered set do not cause skips or duplicates between page fetches. This matters most for mutable filtered streams like review queues or recent-activity feeds; for stable browse sets either shape works, but `Page` is the more honest contract once a list is large enough that any client might want to paginate it. Offset pagination is not used.
+
+### Rules
+
+- **`data` is always the root key for the items**, in both `List` and `Page`. Consumers always start with the same first level of JSON regardless of which shape they hit. There is no third shape.
+- **Suffix discipline.** A model name ending in `List` means unpaginated; ending in `Page` means cursor-paginated. The suffix is the contract; do not invent new ones.
+- **No `count`, no `total`, no `offset` in either envelope.** A `count` field that equals `len(data)` carries no information and pre-commits the field name to a meaning that conflicts with a future "total-matches-before-limit" value. If a caller genuinely needs the total count of matches, expose it as a separate endpoint or a dedicated `/count` sub-resource rather than smuggling it into the list response.
+- **JSON wire fields stay snake_case** in every language. Class and type names follow each language's native idiom; the wire shape does not.
+- **Class naming across languages.** Python (Pydantic models) and TypeScript use `ApiKeyList`, `KnowledgeUnitList`, etc., with camelCase initialisms — this keeps wire-facing types symmetric across the two languages. Go uses `APIKeyList`, `KnowledgeUnitList` with all-caps initialisms per standard Go convention. All three names serialize to and from the same JSON.
+
+### Today
+
+- `GET /api/v1/knowledge` returns `KnowledgeUnitList`.
+- `GET /api/v1/users/me/api-keys` returns `ApiKeyList`.
+
+No cursor-paginated endpoints exist yet; the first one to land will follow the `FooPage` shape above.
