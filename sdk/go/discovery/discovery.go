@@ -14,27 +14,27 @@ import (
 )
 
 // Resolver maps a user-supplied cq node address to a NodeInfo by probing
-// the node's discovery document at WellKnownPath. Results are memoized
-// in-process for the lifetime of the Resolver, and persisted to disk so
-// short-lived processes can share resolutions across invocations.
+// the node's discovery document at WellKnownPath.
+// Successful resolutions are memoized in-process for the lifetime of the
+// Resolver and persisted to disk so short-lived processes share results
+// across invocations.
 //
 // Behavior:
 //
-//   - 404 from the discovery endpoint: returns defaults
+//   - 404 from the discovery endpoint: returns documented defaults
 //     (addr + DefaultAPIPath, DefaultAPIVersion). Cached.
 //   - 200 with a valid document whose api_version matches
 //     SupportedAPIVersion: parsed NodeInfo. Cached.
-//   - 200 with text/html: error (the address likely points at a SPA,
-//     not a cq node). Not cached.
+//   - 200 with text/html: error in domain terms (the address looks like
+//     a SPA, not a cq node). Not cached.
 //   - 200 with malformed JSON: error. Not cached.
-//   - 200 with valid JSON but api_version mismatch: error with both
-//     versions named so the user can act on the mismatch.
+//   - 200 with valid JSON but api_version mismatch: error naming both
+//     versions. Not cached.
 //   - 5xx, network error, timeout: retried once with a short backoff,
 //     then error. Not cached.
 //
-// NOTE: callers should not share a Resolver across goroutines they
-// don't control — the in-process memo is guarded by a mutex but
-// concurrent callers will still race on the underlying HTTP probe.
+// NOTE: a Resolver is safe for concurrent use; the in-process memo is
+// guarded by a mutex.
 type Resolver struct {
 	fileCache *cache
 	httpc     *http.Client
@@ -44,9 +44,9 @@ type Resolver struct {
 }
 
 // New constructs a Resolver that persists its cache under cacheDir.
-// httpc may be nil, in which case a default with a short timeout is used.
-// NOTE: cacheDir is created on first successful write; callers do not
-// need to MkdirAll ahead of time.
+// httpc may be nil, in which case a default http.Client with a short
+// timeout is used.
+// NOTE: cacheDir is created lazily on first successful write.
 func New(cacheDir string, httpc *http.Client) *Resolver {
 	if httpc == nil {
 		httpc = &http.Client{Timeout: 5 * time.Second}
@@ -58,9 +58,8 @@ func New(cacheDir string, httpc *http.Client) *Resolver {
 	}
 }
 
-// Resolve returns the NodeInfo for addr. addr should be the user-facing
-// origin; trailing slashes are normalized away. See Resolver for the
-// full behavior contract.
+// Resolve returns the NodeInfo for addr.
+// Trailing slashes in addr are normalized away before lookup.
 func (r *Resolver) Resolve(ctx context.Context, addr string) (NodeInfo, error) {
 	addr = strings.TrimRight(addr, "/")
 
@@ -90,21 +89,53 @@ func (r *Resolver) Resolve(ctx context.Context, addr string) (NodeInfo, error) {
 	return info, nil
 }
 
-// cacheInMemory records the resolution for addr in the in-process memo
-// so subsequent Resolve calls within this process skip the disk read and
-// the HTTP probe entirely.
+// cacheInMemory records a resolved NodeInfo for addr in the in-process memo.
 func (r *Resolver) cacheInMemory(addr string, info NodeInfo) {
 	r.mu.Lock()
 	r.memCache[addr] = info
 	r.mu.Unlock()
 }
 
-// probe fetches the discovery document for addr and turns it into a
-// NodeInfo. A 404 yields the documented defaults so a node that has not
-// published a discovery document still resolves cleanly. Any other
-// non-2xx status, an HTML body, malformed JSON, or a version mismatch
-// becomes an error so the caller can surface the underlying problem
-// instead of silently falling back.
+// fetchWithRetry issues a GET to u and retries up to attempts times on
+// transport errors and 5xx responses, with a short linear backoff
+// between attempts.
+// A 4xx response is returned without retry so that 404 (a documented
+// success case) is distinguishable from genuine transient failure.
+// NOTE: on success the returned response body must be closed.
+func (r *Resolver) fetchWithRetry(ctx context.Context, u string, attempts int) (*http.Response, error) {
+	var lastErr error
+	for i := range attempts {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(i) * 200 * time.Millisecond):
+			}
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", "application/json")
+		resp, err := r.httpc.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if resp.StatusCode >= 500 {
+			_ = resp.Body.Close()
+			lastErr = fmt.Errorf("status %d", resp.StatusCode)
+			continue
+		}
+		return resp, nil
+	}
+	return nil, fmt.Errorf("discovery: probe failed after %d attempts: %w", attempts, lastErr)
+}
+
+// probe fetches the discovery document for addr and turns it into a NodeInfo.
+// A 404 yields the documented defaults; any other non-2xx status, an
+// HTML body, malformed JSON, or a version mismatch becomes an error
+// rather than a silent fallback.
 func (r *Resolver) probe(ctx context.Context, addr string) (NodeInfo, error) {
 	u, err := url.JoinPath(addr, WellKnownPath)
 	if err != nil {
@@ -145,44 +176,8 @@ func (r *Resolver) probe(ctx context.Context, addr string) (NodeInfo, error) {
 	return info, nil
 }
 
-// fetchWithRetry issues a GET to u and retries up to attempts times on
-// transport errors and 5xx responses, with a short linear backoff
-// between attempts. A 4xx response is returned to the caller without
-// retry so probe can distinguish 404 (a documented success case) from
-// genuine transient failures.
-// NOTE: callers must close the returned response body.
-func (r *Resolver) fetchWithRetry(ctx context.Context, u string, attempts int) (*http.Response, error) {
-	var lastErr error
-	for i := 0; i < attempts; i++ {
-		if i > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(time.Duration(i) * 200 * time.Millisecond):
-			}
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Accept", "application/json")
-		resp, err := r.httpc.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if resp.StatusCode >= 500 {
-			_ = resp.Body.Close()
-			lastErr = fmt.Errorf("status %d", resp.StatusCode)
-			continue
-		}
-		return resp, nil
-	}
-	return nil, fmt.Errorf("discovery: probe failed after %d attempts: %w", attempts, lastErr)
-}
-
-// defaultsFor returns the NodeInfo a client should use when a node does
-// not publish a discovery document, applying DefaultAPIPath to addr and
+// defaultsFor returns the NodeInfo applied when a node does not publish
+// a discovery document: DefaultAPIPath appended to addr, with
 // DefaultAPIVersion as the protocol version.
 func defaultsFor(addr string) NodeInfo {
 	return NodeInfo{
@@ -191,11 +186,11 @@ func defaultsFor(addr string) NodeInfo {
 	}
 }
 
-// validate checks that a parsed NodeInfo describes a node this client
-// can talk to: a non-empty http(s) api_base_url and an api_version that
-// matches SupportedAPIVersion. A mismatch is reported in domain terms
-// ("upgrade the client") so the user sees an actionable message rather
-// than a raw comparison failure.
+// validate checks that a parsed NodeInfo describes a node speaking a
+// protocol this client can talk to: a non-empty http(s) api_base_url
+// and an api_version equal to SupportedAPIVersion.
+// Mismatches are reported in domain terms so users see actionable
+// messages rather than raw comparison failures.
 func validate(info NodeInfo) error {
 	if info.APIBaseURL == "" {
 		return errors.New("api_base_url is required")
