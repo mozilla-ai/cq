@@ -9,8 +9,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 	"github.com/stretchr/testify/require"
 )
+
+// staticResolver is a test double for apiResolver that returns a fixed
+// NodeInfo without touching the disk or network.
+// An empty apiBaseURL produces the same default behavior the real
+// resolver applies for a node without a discovery document.
+type staticResolver struct {
+	apiBaseURL string
+}
+
+func (s staticResolver) Resolve(_ context.Context, addr string) (discovery.NodeInfo, error) {
+	base := s.apiBaseURL
+	if base == "" {
+		base = addr + discovery.DefaultAPIPath
+	}
+	return discovery.NodeInfo{APIBaseURL: base, APIVersion: discovery.DefaultAPIVersion}, nil
+}
 
 func TestRemoteQuery(t *testing.T) {
 	t.Parallel()
@@ -26,7 +43,7 @@ func TestRemoteQuery(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api", "testing"}})
 	require.NoError(t, err)
 	require.Len(t, units, 1)
@@ -43,7 +60,7 @@ func TestRemoteQueryWithAuth(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "test-token", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "test-token", 5*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.NoError(t, err)
 	require.Empty(t, units)
@@ -56,7 +73,7 @@ func TestRemoteQueryServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.Nil(t, units)
 	require.ErrorIs(t, err, errUnreachable)
@@ -70,7 +87,7 @@ func TestRemoteQueryRejectsBareArrayResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.Nil(t, units)
 	require.Error(t, err)
@@ -85,7 +102,7 @@ func TestRemoteQueryRejectsMissingDataKey(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.Nil(t, units)
 	require.Error(t, err)
@@ -100,7 +117,7 @@ func TestRemoteQueryRejectsNullDataField(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.Nil(t, units)
 	require.Error(t, err)
@@ -115,7 +132,7 @@ func TestRemoteQueryRejectsMalformedBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.Nil(t, units)
 	require.Error(t, err)
@@ -123,7 +140,7 @@ func TestRemoteQueryRejectsMalformedBody(t *testing.T) {
 
 func TestRemoteQueryTransportError(t *testing.T) {
 	t.Parallel()
-	rc := newRemoteClient("http://127.0.0.1:1", "", 1*time.Second)
+	rc := newRemoteClient("http://127.0.0.1:1", "", 1*time.Second, staticResolver{})
 	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 	require.Nil(t, units)
 	require.ErrorIs(t, err, errUnreachable)
@@ -143,7 +160,7 @@ func TestRemotePropose(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	ku := KnowledgeUnit{
 		Domains: []string{"api"},
 		Insight: Insight{Summary: "S", Detail: "D", Action: "A"},
@@ -162,7 +179,7 @@ func TestRemoteProposeRejected(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	ku := KnowledgeUnit{Domains: []string{"api"}, Insight: Insight{Summary: "S", Detail: "D", Action: "A"}}
 	_, err := rc.propose(context.Background(), ku)
 	require.Error(t, err)
@@ -170,6 +187,27 @@ func TestRemoteProposeRejected(t *testing.T) {
 	var remoteErr *RemoteError
 	require.ErrorAs(t, err, &remoteErr)
 	require.Equal(t, 422, remoteErr.StatusCode)
+}
+
+func TestRemoteClientResolvesAPIBaseURLViaDiscovery(t *testing.T) {
+	t.Parallel()
+	var capturedPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == discovery.WellKnownPath {
+			http.NotFound(w, r)
+			return
+		}
+		capturedPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": []}`))
+	}))
+	defer srv.Close()
+
+	resolver := discovery.New(t.TempDir(), nil)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, resolver)
+	_, _ = rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+
+	require.Equal(t, "/api/v1/knowledge", capturedPath)
 }
 
 func TestRemoteConfirm(t *testing.T) {
@@ -182,7 +220,7 @@ func TestRemoteConfirm(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	ku, err := rc.confirm(context.Background(), "ku_00000000000000000000000000000005")
 	require.NoError(t, err)
 	require.Equal(t, "ku_00000000000000000000000000000005", ku.ID)
@@ -199,7 +237,7 @@ func TestRemoteFlag(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	ku, err := rc.flag(context.Background(), "ku_00000000000000000000000000000005", Stale, flagConfig{})
 	require.NoError(t, err)
 	require.NotNil(t, ku)
@@ -216,7 +254,7 @@ func TestRemoteFlagWithDetailAndDuplicate(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	cfg := flagConfig{detail: "it is old", duplicateOf: "ku_00000000000000000000000000000002"}
 	_, err := rc.flag(context.Background(), "ku_00000000000000000000000000000005", Duplicate, cfg)
 	require.NoError(t, err)
@@ -235,7 +273,7 @@ func TestRemoteFlagOmitsEmptyFields(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	_, err := rc.flag(context.Background(), "ku_00000000000000000000000000000005", Stale, flagConfig{})
 	require.NoError(t, err)
 	_, hasDetail := received["detail"]
@@ -261,7 +299,7 @@ func TestRemoteQuerySendsPluralParamNames(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		rc := newRemoteClient(srv.URL, "", 5*time.Second)
+		rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 		_, _ = rc.query(context.Background(), QueryParams{
 			Domains:    []string{"api"},
 			Languages:  []string{"go"},
@@ -281,7 +319,7 @@ func TestRemoteQuerySendsPluralParamNames(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		rc := newRemoteClient(srv.URL, "", 5*time.Second)
+		rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 		_, _ = rc.query(context.Background(), QueryParams{
 			Domains:    []string{"api", "testing"},
 			Languages:  []string{"python", "go"},
@@ -304,7 +342,7 @@ func TestRemoteStats(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	rs, err := rc.stats(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 5, rs.TotalUnits)
@@ -319,14 +357,14 @@ func TestRemoteStatsServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	_, err := rc.stats(context.Background())
 	require.ErrorIs(t, err, errUnreachable)
 }
 
 func TestRemoteStatsTransportError(t *testing.T) {
 	t.Parallel()
-	rc := newRemoteClient("http://127.0.0.1:1", "", 1*time.Second)
+	rc := newRemoteClient("http://127.0.0.1:1", "", 1*time.Second, staticResolver{})
 	_, err := rc.stats(context.Background())
 	require.ErrorIs(t, err, errUnreachable)
 }
@@ -347,7 +385,7 @@ func TestRemoteQueryAddsPatternToURL(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second, staticResolver{})
 	_, _ = rc.query(context.Background(), QueryParams{
 		Domains: []string{"api"},
 		Pattern: "api-client",
@@ -374,7 +412,7 @@ func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second)
+	rc := newRemoteClient(srv.URL, "test-key", 5*time.Second, staticResolver{})
 	_, _ = rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 
 	mu.Lock()

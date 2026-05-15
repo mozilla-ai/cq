@@ -65,13 +65,27 @@ func newTestClient(t *testing.T) *Client {
 func newTestClientWithRemote(t *testing.T, handler http.Handler) *Client {
 	t.Helper()
 	testClearEnv(t)
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(withDiscoveryNotFound(handler))
 	t.Cleanup(srv.Close)
 	dbPath := filepath.Join(t.TempDir(), "test.db")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
+}
+
+// withDiscoveryNotFound wraps handler so the discovery probe sees a 404
+// at the well-known path and the SDK falls back to addr + /api/v1.
+// Other paths flow through to handler unchanged.
+func withDiscoveryNotFound(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/cq-node.json" {
+			http.NotFound(w, r)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	})
 }
 
 func testRemoteKUJSON(id string) map[string]any {
@@ -580,7 +594,7 @@ func TestDrain(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 	})
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(withDiscoveryNotFound(handler))
 	defer srv.Close()
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
@@ -595,6 +609,7 @@ func TestDrain(t *testing.T) {
 	_ = localOnly.Close()
 
 	// Create client with remote and drain.
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	defer func() { _ = c.Close() }()

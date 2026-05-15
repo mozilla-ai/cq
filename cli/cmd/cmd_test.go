@@ -38,7 +38,21 @@ func setFlag(t *testing.T, target *string, value string) {
 func withFakeRemote(t *testing.T, handler http.Handler) {
 	t.Helper()
 
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(withDiscoveryNotFound(handler))
 	t.Cleanup(srv.Close)
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	setFlag(t, &flagAddr, srv.URL)
+}
+
+// withDiscoveryNotFound wraps handler so the discovery probe sees a 404
+// at the well-known path and the SDK falls back to addr + /api/v1.
+// Other paths flow through to handler unchanged.
+func withDiscoveryNotFound(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/cq-node.json" {
+			http.NotFound(w, r)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	})
 }

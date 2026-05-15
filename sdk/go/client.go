@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
 
 // Client-level defaults and bounds for query parameters and new knowledge units.
@@ -54,7 +56,11 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 
 	c := &Client{store: s, timeout: cfg.timeout}
 	if cfg.addr != "" {
-		c.remote = newRemoteClient(cfg.addr, cfg.apiKey, cfg.timeout)
+		cacheDir, err := defaultDiscoveryCacheDir()
+		if err != nil {
+			return nil, fmt.Errorf("init discovery cache dir: %w", err)
+		}
+		c.remote = newRemoteClient(cfg.addr, cfg.apiKey, cfg.timeout, discovery.New(cacheDir, nil))
 	}
 
 	return c, nil

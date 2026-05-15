@@ -10,33 +10,47 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
 
 // errUnreachable indicates the remote API was not reachable (transport error or 5xx).
 var errUnreachable = errors.New("remote API unreachable")
 
-// remoteClient handles HTTP communication with the remote cq API.
-type remoteClient struct {
-	baseURL    string
-	apiKey     string
-	httpClient *http.Client
+// apiResolver is the slice of the discovery package used by remoteClient.
+// It is an interface so tests can inject a static resolver without
+// touching the disk or the network.
+type apiResolver interface {
+	Resolve(ctx context.Context, addr string) (discovery.NodeInfo, error)
 }
 
-// newRemoteClient creates a remote API client with the given base URL, API key, and timeout.
-func newRemoteClient(baseURL string, apiKey string, timeout time.Duration) *remoteClient {
+// remoteClient handles HTTP communication with the remote cq API.
+type remoteClient struct {
+	addr       string
+	apiKey     string
+	httpClient *http.Client
+	resolver   apiResolver
+}
+
+// newRemoteClient creates a remote API client.
+// addr is the user-facing node address (no trailing slash, no version
+// prefix); resolver determines the concrete API base URL via the node
+// discovery protocol.
+func newRemoteClient(addr string, apiKey string, timeout time.Duration, resolver apiResolver) *remoteClient {
 	return &remoteClient{
-		baseURL: baseURL,
-		apiKey:  apiKey,
+		addr:   addr,
+		apiKey: apiKey,
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
+		resolver: resolver,
 	}
 }
 
 // confirm confirms a unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
 func (r *remoteClient) confirm(ctx context.Context, unitID string) (KnowledgeUnit, error) {
-	confirmURL, err := r.url("/api/v1/knowledge/" + url.PathEscape(unitID) + "/confirmations")
+	confirmURL, err := r.url(ctx, "/knowledge/"+url.PathEscape(unitID)+"/confirmations")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -105,7 +119,7 @@ func (r *remoteClient) flag(ctx context.Context, unitID string, reason FlagReaso
 		body["duplicate_of"] = cfg.duplicateOf
 	}
 
-	flagURL, err := r.url("/api/v1/knowledge/" + url.PathEscape(unitID) + "/flags")
+	flagURL, err := r.url(ctx, "/knowledge/"+url.PathEscape(unitID)+"/flags")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -162,7 +176,7 @@ func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (Knowledge
 		"created_by": ku.CreatedBy,
 	}
 
-	proposeURL, err := r.url("/api/v1/knowledge")
+	proposeURL, err := r.url(ctx, "/knowledge")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -224,7 +238,7 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) ([]Knowled
 		qv.Set("limit", fmt.Sprintf("%d", params.Limit))
 	}
 
-	base, err := r.url("/api/v1/knowledge")
+	base, err := r.url(ctx, "/knowledge")
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -255,7 +269,7 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) ([]Knowled
 	return *env.Data, nil
 }
 
-// remoteStatsResponse holds the server's /api/v1/knowledge/stats response.
+// remoteStatsResponse holds the server's knowledge stats response.
 type remoteStatsResponse struct {
 	TotalUnits int            `json:"total_units"`
 	Tiers      map[Tier]int   `json:"tiers"`
@@ -265,7 +279,7 @@ type remoteStatsResponse struct {
 // stats fetches store statistics from the remote API.
 // Returns errUnreachable on transport/5xx errors.
 func (r *remoteClient) stats(ctx context.Context) (remoteStatsResponse, error) {
-	statsURL, err := r.url("/api/v1/knowledge/stats")
+	statsURL, err := r.url(ctx, "/knowledge/stats")
 	if err != nil {
 		return remoteStatsResponse{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -293,7 +307,15 @@ func (r *remoteClient) stats(ctx context.Context) (remoteStatsResponse, error) {
 	return result, nil
 }
 
-// url builds a full URL from the base URL and a path segment.
-func (r *remoteClient) url(path string) (string, error) {
-	return url.JoinPath(r.baseURL, path)
+// url returns the absolute URL for the given resource path on the
+// configured node.
+// path is the version-less API path (e.g. /knowledge or
+// /knowledge/{id}/confirmations); the version prefix lives inside the
+// node's advertised api_base_url.
+func (r *remoteClient) url(ctx context.Context, path string) (string, error) {
+	info, err := r.resolver.Resolve(ctx, r.addr)
+	if err != nil {
+		return "", err
+	}
+	return url.JoinPath(info.APIBaseURL, path)
 }
