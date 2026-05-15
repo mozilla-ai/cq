@@ -11,10 +11,10 @@ class FlagRequest(BaseModel):
 
 
 class KnowledgeUnitList(BaseModel):
-    """Collection envelope for knowledge unit listings.
+    """Unpaginated collection envelope for knowledge unit listings.
 
-    The envelope shape leaves room for pagination metadata (e.g. a
-    ``next_cursor`` field) without breaking existing clients.
+    NOTE: List is the unpaginated shape (``{data: [...]}``); cursor-paginated
+    endpoints use a separate ``Page`` model. See docs/architecture.md §6.
     """
 
     data: list[KnowledgeUnit]

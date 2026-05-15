@@ -20,10 +20,10 @@ class ApiKeyPublic(BaseModel):
 
 
 class ApiKeyList(BaseModel):
-    """Collection envelope for API key listings.
+    """Unpaginated collection envelope for API key listings.
 
-    The envelope shape leaves room for pagination metadata (e.g. a
-    ``next_cursor`` field) without breaking existing clients.
+    NOTE: List is the unpaginated shape (``{data: [...]}``); cursor-paginated
+    endpoints use a separate ``Page`` model. See docs/architecture.md §6.
     """
 
     data: list[ApiKeyPublic]
