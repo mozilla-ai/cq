@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -62,21 +61,6 @@ func TestDrainDryRunJSONFormat(t *testing.T) {
 func TestDrainPushesUnits(t *testing.T) {
 	testSetup(t)
 
-	var pushCount int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
-			pushCount++
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
-
-			return
-		}
-
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	defer srv.Close()
-
 	// Propose locally first (no remote configured).
 	propose := NewProposeCmd()
 	propose.SetArgs([]string{
@@ -88,7 +72,19 @@ func TestDrainPushesUnits(t *testing.T) {
 	require.NoError(t, propose.Execute())
 
 	// Point at remote, then drain.
-	setFlag(t, &flagAddr, srv.URL)
+	var pushCount int
+	withFakeRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
+			pushCount++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
 
 	drain := NewDrainCmd()
 	var buf bytes.Buffer
@@ -101,19 +97,6 @@ func TestDrainPushesUnits(t *testing.T) {
 func TestDrainJSONFormat(t *testing.T) {
 	testSetup(t)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
-
-			return
-		}
-
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	defer srv.Close()
-
 	// Propose locally first (no remote configured).
 	propose := NewProposeCmd()
 	propose.SetArgs([]string{
@@ -125,7 +108,17 @@ func TestDrainJSONFormat(t *testing.T) {
 	require.NoError(t, propose.Execute())
 
 	// Point at remote, then drain.
-	setFlag(t, &flagAddr, srv.URL)
+	withFakeRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
 
 	drain := NewDrainCmd()
 	var buf bytes.Buffer
@@ -161,21 +154,6 @@ func TestDrainAddrFromEnv(t *testing.T) {
 func TestDrainAddrFlagOverridesEnv(t *testing.T) {
 	testSetup(t)
 
-	var pushCount int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
-			pushCount++
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
-
-			return
-		}
-
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	defer srv.Close()
-
 	// Propose locally first (no remote configured).
 	propose := NewProposeCmd()
 	propose.SetArgs([]string{
@@ -188,7 +166,19 @@ func TestDrainAddrFlagOverridesEnv(t *testing.T) {
 
 	// Env says one thing, but the flag (simulating --addr) says another.
 	t.Setenv(envVarAddr, "http://env-addr:8742")
-	setFlag(t, &flagAddr, srv.URL)
+	var pushCount int
+	withFakeRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
+			pushCount++
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
 
 	drain := NewDrainCmd()
 	var buf bytes.Buffer

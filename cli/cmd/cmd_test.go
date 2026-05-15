@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 )
@@ -28,4 +30,15 @@ func setFlag(t *testing.T, target *string, value string) {
 	*target = value
 
 	t.Cleanup(func() { *target = prev })
+}
+
+// withFakeRemote starts a fake remote API on a test server, points the
+// CLI's --addr flag at it, and registers cleanup. Callers that need an
+// API key on the wire should setFlag(&flagAPIKey, ...) separately.
+func withFakeRemote(t *testing.T, handler http.Handler) {
+	t.Helper()
+
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	setFlag(t, &flagAddr, srv.URL)
 }

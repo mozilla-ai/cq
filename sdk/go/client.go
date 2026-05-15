@@ -378,12 +378,17 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 
 	normalised := params
 	normalised.Limit = limit
-	remoteResults := c.remote.query(ctx, normalised)
+	remoteResults, remoteErr := c.remote.query(ctx, normalised)
+
+	warnings := storeResult.Warnings
+	if remoteErr != nil {
+		warnings = append(warnings, remoteErr)
+	}
 
 	return QueryResult{
 		Units:    mergeResults(localResults, remoteResults, limit),
 		Source:   SourceRemote,
-		Warnings: storeResult.Warnings,
+		Warnings: warnings,
 	}, nil
 }
 

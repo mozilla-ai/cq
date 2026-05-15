@@ -200,9 +200,9 @@ func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (Knowledge
 	return result, nil
 }
 
-// query fetches knowledge units from the remote API.
-// Returns nil on transport or HTTP errors for graceful degradation.
-func (r *remoteClient) query(ctx context.Context, params QueryParams) []KnowledgeUnit {
+// query fetches knowledge units from the remote API matching params.
+// Returns errUnreachable on transport/non-200 HTTP failure.
+func (r *remoteClient) query(ctx context.Context, params QueryParams) ([]KnowledgeUnit, error) {
 	qv := url.Values{}
 	for _, d := range params.Domains {
 		qv.Add("domains", d)
@@ -226,32 +226,33 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) []Knowledg
 
 	base, err := r.url("/api/v1/knowledge")
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
 
 	resp, err := r.do(ctx, http.MethodGet, base+"?"+qv.Encode(), nil)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil
+		return nil, fmt.Errorf("%w: HTTP %d", errUnreachable, resp.StatusCode)
 	}
 
-	var units []KnowledgeUnit
-	if err := json.NewDecoder(resp.Body).Decode(&units); err != nil {
-		// Query degrades gracefully; log-worthy but not a hard error.
-		return nil
+	var env struct {
+		Data []KnowledgeUnit `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return nil, fmt.Errorf("decoding remote knowledge response: %w", err)
 	}
 
-	return units
+	return env.Data, nil
 }
 
 // remoteStatsResponse holds the server's /api/v1/knowledge/stats response.
 type remoteStatsResponse struct {
-	TotalUnits int          `json:"total_units"`
-	Tiers      map[Tier]int `json:"tiers"`
+	TotalUnits int            `json:"total_units"`
+	Tiers      map[Tier]int   `json:"tiers"`
 	Domains    map[string]int `json:"domains"`
 }
 
