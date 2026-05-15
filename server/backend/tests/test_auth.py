@@ -217,10 +217,24 @@ class TestApiKeyList:
         resp = api_key_client.get("/api/v1/users/me/api-keys", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         body = resp.json()
-        assert body["count"] == 1
         assert len(body["data"]) == 1
         assert "token" not in body["data"][0]
         assert body["data"][0]["name"] == "laptop"
+
+    def test_list_response_uses_envelope_shape(self, api_key_client: TestClient) -> None:
+        token = _login(api_key_client)
+        api_key_client.post(
+            "/api/v1/users/me/api-keys",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "shape", "ttl": "30d"},
+        )
+        resp = api_key_client.get(
+            "/api/v1/users/me/api-keys",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        body = resp.json()
+        assert set(body.keys()) == {"data"}
+        assert isinstance(body["data"], list)
 
     def test_list_requires_jwt(self, api_key_client: TestClient) -> None:
         resp = api_key_client.get("/api/v1/users/me/api-keys")
@@ -241,7 +255,6 @@ class TestApiKeyList:
         )
         resp = api_key_client.get("/api/v1/users/me/api-keys", headers={"Authorization": f"Bearer {token_a}"})
         body = resp.json()
-        assert body["count"] == 1
         assert [k["name"] for k in body["data"]] == ["alice-key"]
 
 

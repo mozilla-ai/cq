@@ -6,7 +6,7 @@ from cq.models import KnowledgeUnit
 from fastapi import APIRouter, Query, status
 
 from ...exceptions import InvalidDomainError, KnowledgeUnitNotFoundError, ServiceError
-from ...models.knowledge import FlagRequest, ProposeRequest, StatsResponse
+from ...models.knowledge import FlagRequest, KnowledgeUnitList, ProposeRequest, StatsResponse
 from ..deps import APIKeyAuthDep, KnowledgeServiceDep
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -20,7 +20,7 @@ def knowledge_exception_mappings() -> dict[type[ServiceError], int]:
     }
 
 
-@router.get("", response_model_exclude={"__all__": {"created_by"}})
+@router.get("", response_model_exclude={"data": {"__all__": {"created_by"}}})
 async def query_units(
     domains: Annotated[list[str], Query()],
     knowledge: KnowledgeServiceDep,
@@ -28,20 +28,21 @@ async def query_units(
     frameworks: Annotated[list[str] | None, Query()] = None,
     pattern: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(gt=0)] = 5,
-) -> list[KnowledgeUnit]:
+) -> KnowledgeUnitList:
     """Search knowledge units by domain tags with relevance ranking.
 
     ``created_by`` is excluded from query responses to avoid leaking personal
     identifiers through the public read path until user-level attribution
     opt-in semantics are implemented.
     """
-    return await knowledge.query(
+    units = await knowledge.query(
         domains=domains,
         languages=languages,
         frameworks=frameworks,
         pattern=pattern or "",
         limit=limit,
     )
+    return KnowledgeUnitList(data=units)
 
 
 @router.post("", status_code=201)

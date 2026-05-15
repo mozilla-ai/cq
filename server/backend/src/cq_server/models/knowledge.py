@@ -1,6 +1,6 @@
 """Pydantic schemas for /knowledge routes."""
 
-from cq.models import Context, FlagReason, Insight
+from cq.models import Context, FlagReason, Insight, KnowledgeUnit
 from pydantic import BaseModel, Field
 
 
@@ -8,6 +8,16 @@ class FlagRequest(BaseModel):
     """Request body for flagging a knowledge unit."""
 
     reason: FlagReason
+
+
+class KnowledgeUnitList(BaseModel):
+    """Collection envelope for knowledge unit listings.
+
+    The envelope shape leaves room for pagination metadata (e.g. a
+    ``next_cursor`` field) without breaking existing clients.
+    """
+
+    data: list[KnowledgeUnit]
 
 
 class ProposeRequest(BaseModel):

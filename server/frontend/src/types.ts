@@ -103,7 +103,6 @@ export interface CreatedApiKey extends ApiKeyPublic {
 
 export interface ApiKeyList {
   data: ApiKeyPublic[]
-  count: number
 }
 
 export interface MessageResponse {

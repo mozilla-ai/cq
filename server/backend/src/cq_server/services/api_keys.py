@@ -110,7 +110,7 @@ class APIKeyService:
         """Return every API key owned by ``username`` (including revoked rows)."""
         user_id = await self._require_user_id(username)
         data = [_to_public(row) for row in await self._api_keys.list_for_user(user_id)]
-        return ApiKeyList(data=data, count=len(data))
+        return ApiKeyList(data=data)
 
     async def revoke(self, *, username: str, key_id: str) -> Message:
         """Revoke ``key_id`` if it belongs to ``username``. Idempotent.

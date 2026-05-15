@@ -27,7 +27,6 @@ class ApiKeyList(BaseModel):
     """
 
     data: list[ApiKeyPublic]
-    count: int
 
 
 class CreateApiKeyRequest(BaseModel):
