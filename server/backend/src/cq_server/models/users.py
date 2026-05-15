@@ -19,8 +19,8 @@ class ApiKeyPublic(BaseModel):
     is_active: bool
 
 
-class ApiKeysPublic(BaseModel):
-    """Collection wrapper for API key listings.
+class ApiKeyList(BaseModel):
+    """Collection envelope for API key listings.
 
     The envelope shape leaves room for pagination metadata (e.g. a
     ``next_cursor`` field) without breaking existing clients.
