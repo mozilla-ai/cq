@@ -77,6 +77,36 @@ func TestRemoteQueryRejectsBareArrayResponse(t *testing.T) {
 	require.Contains(t, err.Error(), "decoding")
 }
 
+func TestRemoteQueryRejectsMissingDataKey(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results": []}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.Nil(t, units)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "data")
+}
+
+func TestRemoteQueryRejectsNullDataField(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": null}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second)
+	units, err := rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.Nil(t, units)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "data")
+}
+
 func TestRemoteQueryRejectsMalformedBody(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

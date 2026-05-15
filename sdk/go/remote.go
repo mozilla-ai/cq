@@ -239,14 +239,20 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) ([]Knowled
 		return nil, fmt.Errorf("%w: HTTP %d", errUnreachable, resp.StatusCode)
 	}
 
+	// Pointer field distinguishes an absent or null "data" key (env.Data == nil)
+	// from an empty array (env.Data != nil, *env.Data == []).
 	var env struct {
-		Data []KnowledgeUnit `json:"data"`
+		Data *[]KnowledgeUnit `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		return nil, fmt.Errorf("decoding remote knowledge response: %w", err)
 	}
 
-	return env.Data, nil
+	if env.Data == nil {
+		return nil, fmt.Errorf("decoding remote knowledge response: missing or null data field")
+	}
+
+	return *env.Data, nil
 }
 
 // remoteStatsResponse holds the server's /api/v1/knowledge/stats response.
