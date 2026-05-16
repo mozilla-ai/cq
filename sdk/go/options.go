@@ -2,6 +2,7 @@ package cq
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ type clientConfig struct {
 	apiKey      string
 	localDBPath string
 	timeout     time.Duration
+	logger      *slog.Logger
 }
 
 // ClientOption configures a Client.
@@ -92,6 +94,24 @@ func WithTimeout(d time.Duration) ClientOption {
 		}
 
 		c.timeout = d
+		return nil
+	}
+}
+
+// WithLogger installs a structured logger for SDK diagnostics.
+// The library defaults to slog.DiscardHandler so it writes nothing to
+// stdout or stderr without explicit caller wiring; this matters
+// especially for MCP usage where stdout carries JSONRPC and stray
+// writes would corrupt the channel.
+// Pass any *slog.Logger the host application has configured; the SDK
+// emits structured fields and does not assume any particular handler.
+func WithLogger(l *slog.Logger) ClientOption {
+	return func(c *clientConfig) error {
+		if l == nil {
+			return fmt.Errorf("logger cannot be nil")
+		}
+
+		c.logger = l
 		return nil
 	}
 }

@@ -203,7 +203,8 @@ func TestRemoteClientResolvesAPIBaseURLViaDiscovery(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	resolver := discovery.New(t.TempDir(), nil)
+	resolver, err := discovery.New(discovery.WithCacheDir(t.TempDir()))
+	require.NoError(t, err)
 	rc := newRemoteClient(srv.URL, "", 5*time.Second, resolver)
 	_, _ = rc.query(context.Background(), QueryParams{Domains: []string{"api"}})
 

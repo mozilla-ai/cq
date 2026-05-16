@@ -77,13 +77,16 @@ type Client interface {
 // {addr}/api/v1 when the node does not publish one.
 //
 // NOTE: cache directory discovery is best-effort; on failure the
-// resolver receives an empty path and falls back to in-process
-// behavior without persisting cached results.
+// resolver runs with in-process memoization only.
 func NewClient(addr string) Client {
-	cacheDir, _ := discovery.DefaultCacheDir()
+	var resolverOpts []discovery.Option
+	if cacheDir, err := discovery.DefaultCacheDir(); err == nil {
+		resolverOpts = append(resolverOpts, discovery.WithCacheDir(cacheDir))
+	}
+	resolver, _ := discovery.New(resolverOpts...)
 	return &httpClient{
 		addr:     addr,
 		http:     &http.Client{Timeout: httpDefaultTimeout},
-		resolver: discovery.New(cacheDir, nil),
+		resolver: resolver,
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -39,30 +40,38 @@ import (
 type Resolver struct {
 	fileCache *cache
 	httpc     *http.Client
+	logger    *slog.Logger
 
 	mu       sync.Mutex
 	memCache map[string]NodeInfo
 }
 
-// New constructs a Resolver that persists its cache under cacheDir.
-// httpc may be nil, in which case a default http.Client with a short
-// timeout is used.
-// An empty cacheDir disables the on-disk cache; resolution still
-// memoizes in-process for the lifetime of the Resolver.
-// NOTE: cacheDir is created lazily on first successful write.
-func New(cacheDir string, httpc *http.Client) *Resolver {
-	if httpc == nil {
-		httpc = &http.Client{Timeout: 5 * time.Second}
+// New constructs a Resolver from functional options.
+// All configuration is optional; see defaultOptions for the values
+// applied when an option is omitted, and WithCacheDir, WithHTTPClient,
+// and WithLogger for the available overrides.
+// NOTE: when the on-disk cache is enabled, its directory is created
+// lazily on first successful write.
+func New(opts ...Option) (*Resolver, error) {
+	o := defaultOptions()
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		if err := opt(&o); err != nil {
+			return nil, fmt.Errorf("applying option: %w", err)
+		}
 	}
 	var fc *cache
-	if cacheDir != "" {
-		fc = newCache(cacheDir, DefaultCacheTTL)
+	if o.cacheDir != "" {
+		fc = newCache(o.cacheDir, DefaultCacheTTL)
 	}
 	return &Resolver{
 		fileCache: fc,
-		httpc:     httpc,
+		httpc:     o.httpClient,
+		logger:    o.logger,
 		memCache:  map[string]NodeInfo{},
-	}
+	}, nil
 }
 
 // Resolve returns the NodeInfo for addr.
@@ -90,10 +99,12 @@ func (r *Resolver) Resolve(ctx context.Context, addr string) (NodeInfo, error) {
 	}
 
 	if r.fileCache != nil {
+		// Disk cache failure is non-fatal: the resolution itself is
+		// valid for the lifetime of this process.
+		// The warning surfaces persistent cache-dir permission issues
+		// to anyone who has wired a logger; default callers stay silent.
 		if err := r.fileCache.put(addr, info); err != nil {
-			// Disk cache failure is non-fatal: the resolution itself
-			// is valid for the lifetime of this process.
-			_ = err
+			r.logger.Warn("discovery: cache write failed", "addr", addr, "err", err)
 		}
 	}
 	r.cacheInMemory(addr, info)

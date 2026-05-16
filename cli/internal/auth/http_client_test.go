@@ -64,9 +64,11 @@ func TestHTTPClientResolvesAPIBaseURLViaDiscovery(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := NewClient(server.URL).(*httpClient)
-	client.resolver = discovery.New(t.TempDir(), nil)
+	resolver, err := discovery.New(discovery.WithCacheDir(t.TempDir()))
+	require.NoError(t, err)
+	client.resolver = resolver
 
-	_, err := client.OAuthProviders(context.Background())
+	_, err = client.OAuthProviders(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, "/api/v1/oauth/providers", capturedPath)
 }

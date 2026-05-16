@@ -1,9 +1,13 @@
 package discovery
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +17,12 @@ import (
 
 func newTestResolver(t *testing.T) *Resolver {
 	t.Helper()
-	return New(t.TempDir(), &http.Client{Timeout: 2 * time.Second})
+	r, err := New(
+		WithCacheDir(t.TempDir()),
+		WithHTTPClient(&http.Client{Timeout: 2 * time.Second}),
+	)
+	require.NoError(t, err)
+	return r
 }
 
 func TestResolveFallsBackToDefaultsOn404(t *testing.T) {
@@ -245,6 +254,65 @@ func TestResolveCaches404FallbackResult(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
+func TestResolverIsSilentByDefault(t *testing.T) {
+	t.Parallel()
+
+	// A nil logger to New() means slog.DiscardHandler. Even when the
+	// disk cache write fails (cache dir occupied by a regular file so
+	// MkdirAll cannot create the directory), no record reaches the
+	// default handler. This pins the MCP/STDIO invariant: the SDK
+	// writes nothing without explicit caller wiring.
+	tmp := t.TempDir()
+	blocked := filepath.Join(tmp, "blocked")
+	require.NoError(t, os.WriteFile(blocked, []byte("x"), 0o600))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	r, err := New(
+		WithCacheDir(blocked),
+		WithHTTPClient(&http.Client{Timeout: 2 * time.Second}),
+	)
+	require.NoError(t, err)
+	_, err = r.Resolve(context.Background(), srv.URL)
+	require.NoError(t, err)
+}
+
+func TestResolverLogsCachePutFailure(t *testing.T) {
+	t.Parallel()
+
+	// When a logger IS wired in, a cache-write failure surfaces as a
+	// warning record with the addr and error attached. This is the
+	// observability the silent default trades away by design.
+	tmp := t.TempDir()
+	blocked := filepath.Join(tmp, "blocked")
+	require.NoError(t, os.WriteFile(blocked, []byte("x"), 0o600))
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	r, err := New(
+		WithCacheDir(blocked),
+		WithHTTPClient(&http.Client{Timeout: 2 * time.Second}),
+		WithLogger(logger),
+	)
+	require.NoError(t, err)
+	_, err = r.Resolve(context.Background(), srv.URL)
+	require.NoError(t, err)
+
+	got := buf.String()
+	require.Contains(t, got, "cache write failed")
+	require.Contains(t, got, srv.URL)
+	require.Contains(t, got, `"level":"WARN"`)
+}
+
 func TestResolverSkipsFileCacheWhenCacheDirEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -255,8 +323,9 @@ func TestResolverSkipsFileCacheWhenCacheDirEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	r := New("", &http.Client{Timeout: 2 * time.Second})
-	_, err := r.Resolve(context.Background(), srv.URL)
+	r, err := New(WithHTTPClient(&http.Client{Timeout: 2 * time.Second}))
+	require.NoError(t, err)
+	_, err = r.Resolve(context.Background(), srv.URL)
 	require.NoError(t, err)
 	_, err = r.Resolve(context.Background(), srv.URL)
 	require.NoError(t, err)
