@@ -202,12 +202,19 @@ func (r *Resolver) probe(ctx context.Context, addr string) (NodeInfo, error) {
 // Unknown fields are rejected so a future schema addition cannot be
 // silently parsed with this client's narrower assumptions; the JSON
 // schema declares additionalProperties:false and this matches.
+// Trailing content after the first JSON value is rejected too, so a
+// body like `{"version":1,...} garbage` or two concatenated objects
+// cannot smuggle past the strict-parsing contract via json.Decoder's
+// default single-value semantics.
 func decodeNodeInfo(body []byte) (NodeInfo, error) {
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	var info NodeInfo
 	if err := dec.Decode(&info); err != nil {
 		return NodeInfo{}, fmt.Errorf("parse body: %w", err)
+	}
+	if dec.More() {
+		return NodeInfo{}, errors.New("parse body: unexpected trailing content")
 	}
 	return info, nil
 }
