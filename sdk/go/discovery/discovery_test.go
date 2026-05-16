@@ -257,11 +257,12 @@ func TestResolveCaches404FallbackResult(t *testing.T) {
 func TestResolverIsSilentByDefault(t *testing.T) {
 	t.Parallel()
 
-	// A nil logger to New() means slog.DiscardHandler. Even when the
-	// disk cache write fails (cache dir occupied by a regular file so
-	// MkdirAll cannot create the directory), no record reaches the
-	// default handler. This pins the MCP/STDIO invariant: the SDK
-	// writes nothing without explicit caller wiring.
+	// Without WithLogger, New uses the slog.DiscardHandler default
+	// from defaultOptions. Even when the disk cache write fails
+	// (cache dir occupied by a regular file so MkdirAll cannot
+	// create the directory), no record escapes the handler. This
+	// pins the MCP/STDIO invariant: the SDK writes nothing without
+	// explicit caller wiring.
 	tmp := t.TempDir()
 	blocked := filepath.Join(tmp, "blocked")
 	require.NoError(t, os.WriteFile(blocked, []byte("x"), 0o600))
