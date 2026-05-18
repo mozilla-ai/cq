@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -298,6 +299,15 @@ func validate(info NodeInfo) error {
 	}
 	if parsed.Host == "" {
 		return fmt.Errorf("api_base_url %q is missing a host", info.APIBaseURL)
+	}
+	// url.Parse accepts non-numeric port segments without complaint, so
+	// the failure surfaces later as an opaque transport error rather
+	// than a discovery-domain message.
+	// Reject anything that does not parse as a uint16 here.
+	if port := parsed.Port(); port != "" {
+		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+			return fmt.Errorf("api_base_url %q has an invalid port %q", info.APIBaseURL, port)
+		}
 	}
 	if info.APIVersion == "" {
 		return errors.New("api_version is required")

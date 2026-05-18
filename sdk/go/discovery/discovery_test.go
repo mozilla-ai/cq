@@ -370,6 +370,38 @@ func TestResolveTrimsTrailingSlashInAddr(t *testing.T) {
 	require.Equal(t, srv.URL+DefaultAPIPath, info.APIBaseURL)
 }
 
+func TestResolveErrorsOnNonNumericPortInAPIBaseURL(t *testing.T) {
+	t.Parallel()
+
+	// url.Parse accepts a non-numeric port without complaint, so without
+	// explicit validation the failure surfaces later as a transport
+	// error.
+	// Pin that the discovery layer rejects it up front with a
+	// domain-y message that names the offending field.
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version": 1,
+			"api_base_url": "https://example.com:bad/api/v1",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	r := newTestResolver(t)
+	_, err := r.Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "port")
+
+	// A failed validation is not memoized, so a second call probes
+	// the network again rather than returning a cached error.
+	_, err = r.Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Equal(t, 2, calls)
+}
+
 // waitForInflightWaiter blocks until at least n goroutines have registered as
 // waiters on the in-flight Resolve for addr.
 // The elected prober does not count toward n.
