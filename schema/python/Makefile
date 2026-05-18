@@ -7,6 +7,7 @@ SCHEMA_FILES := \
 	flag.json \
 	health.json \
 	knowledge_unit.json \
+	node_discovery.json \
 	propose.json \
 	query.json \
 	review.json \
