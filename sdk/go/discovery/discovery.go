@@ -130,8 +130,11 @@ func (r *Resolver) Resolve(ctx context.Context, addr string) (NodeInfo, error) {
 		r.memCache[addr] = info
 	}
 	delete(r.inflight, addr)
-	r.mu.Unlock()
+	// Close before releasing the lock so a new caller arriving on the
+	// same addr cannot register a fresh probe while existing waiters
+	// are still blocked on this call's done channel.
 	close(call.done)
+	r.mu.Unlock()
 
 	return info, err
 }
@@ -300,10 +303,11 @@ func validate(info NodeInfo) error {
 	if parsed.Host == "" {
 		return fmt.Errorf("api_base_url %q is missing a host", info.APIBaseURL)
 	}
-	// url.Parse accepts non-numeric port segments without complaint, so
-	// the failure surfaces later as an opaque transport error rather
-	// than a discovery-domain message.
-	// Reject anything that does not parse as a uint16 here.
+	// url.Parse already rejects non-numeric port segments, but it
+	// accepts numeric ports outside the uint16 range (e.g.
+	// "https://host:99999/").
+	// Reject those here so the failure surfaces as a discovery-domain
+	// message rather than an opaque transport error.
 	if port := parsed.Port(); port != "" {
 		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
 			return fmt.Errorf("api_base_url %q has an invalid port %q", info.APIBaseURL, port)

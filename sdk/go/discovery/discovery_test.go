@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -402,6 +403,29 @@ func TestResolveErrorsOnNonNumericPortInAPIBaseURL(t *testing.T) {
 	require.Equal(t, 2, calls)
 }
 
+func TestResolveErrorsOnOutOfRangePortInAPIBaseURL(t *testing.T) {
+	t.Parallel()
+
+	// url.Parse accepts numeric ports outside the uint16 range, so
+	// without the strconv.ParseUint check in validate() the failure
+	// would surface later as an opaque transport error.
+	// Pin that an out-of-range numeric port is rejected at validation
+	// time with a domain-y message naming the offending field.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version": 1,
+			"api_base_url": "https://example.com:99999/api/v1",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestResolver(t).Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "port")
+}
+
 // waitForInflightWaiter blocks until at least n goroutines have registered as
 // waiters on the in-flight Resolve for addr.
 // The elected prober does not count toward n.
@@ -438,6 +462,11 @@ func TestResolverCoalescesConcurrentResolvesForSameAddr(t *testing.T) {
 	// each caller.
 	var calls int32
 	gate := make(chan struct{})
+	var gateOnce sync.Once
+	releaseGate := func() { gateOnce.Do(func() { close(gate) }) }
+	// Register cleanup so an assertion failure inside the test cannot
+	// leave the handler blocked on gate and hang srv.Close().
+	t.Cleanup(releaseGate)
 	arrived := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt32(&calls, 1)
@@ -473,7 +502,7 @@ func TestResolverCoalescesConcurrentResolvesForSameAddr(t *testing.T) {
 		out <- result{info, err}
 	}()
 	r.waitForInflightWaiter(t, srv.URL, 1)
-	close(gate)
+	releaseGate()
 
 	r1 := <-out
 	r2 := <-out
@@ -549,6 +578,11 @@ func TestResolverPropagatesProbeFailureToAllWaiters(t *testing.T) {
 	// to every concurrent waiter, with exactly one HTTP call charged.
 	var calls int32
 	gate := make(chan struct{})
+	var gateOnce sync.Once
+	releaseGate := func() { gateOnce.Do(func() { close(gate) }) }
+	// Register cleanup so an assertion failure inside the test cannot
+	// leave the handler blocked on gate and hang srv.Close().
+	t.Cleanup(releaseGate)
 	arrived := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt32(&calls, 1)
@@ -575,7 +609,7 @@ func TestResolverPropagatesProbeFailureToAllWaiters(t *testing.T) {
 		errs <- err
 	}()
 	r.waitForInflightWaiter(t, srv.URL, 1)
-	close(gate)
+	releaseGate()
 
 	e1 := <-errs
 	e2 := <-errs
