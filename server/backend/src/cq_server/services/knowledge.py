@@ -8,6 +8,7 @@ from cq.scoring import apply_confirmation, apply_flag
 from ..exceptions import InvalidDomainError, KnowledgeUnitNotFoundError
 from ..models.knowledge import StatsResponse
 from ..repositories import KnowledgeRepository, normalize_domains
+from cq.scoring import apply_confirmation, apply_flag
 
 
 class KnowledgeService:

@@ -17,6 +17,8 @@ from sqlalchemy.engine import Engine
 
 from .config import Settings
 
+from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED, load as semsearch_load
+
 
 def _apply_sqlite_pragmas(dbapi_connection, _connection_record) -> None:  # noqa: ANN001 (sqlalchemy event signature)
     """Issue cq's required SQLite PRAGMAs on every new connection.
@@ -59,6 +61,9 @@ class Database:
                 future=True,
             )
             event.listen(self._engine, "connect", _apply_sqlite_pragmas)
+            # Evolve into a proper plugin module system later on
+            if _SEMSEARCH_ENABLED:
+                event.listen(self._engine, "connect", semsearch_load)
         else:
             # PostgreSQL backend is gated by #311/#312; lifespan resolves
             # the URL up-front so this branch should be unreachable in

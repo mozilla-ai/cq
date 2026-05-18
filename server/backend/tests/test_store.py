@@ -22,7 +22,7 @@ from cq.models import (
 )
 from cq.scoring import apply_confirmation, apply_flag
 
-from .conftest import _RepoBundle
+from .db_helpers import _RepoBundle
 
 
 def _make_insight(**overrides: Any) -> Insight:

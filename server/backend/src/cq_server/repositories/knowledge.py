@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from email.mime import text
+import logging
 
 from cq.models import KnowledgeUnit
 from cq.scoring import calculate_relevance
@@ -23,6 +25,12 @@ from ._queries import (
     UPDATE_UNIT_DATA,
 )
 
+from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
+from ..semsearch.queries import combined_query as sem_query, insert_unit as sem_insert_unit
+
+from sqlalchemy.sql.expression import text as text_clause
+
+logger = logging.getLogger(__name__)
 
 class KnowledgeRepository:
     """Read/write access to knowledge units."""
@@ -53,7 +61,15 @@ class KnowledgeRepository:
 
     async def insert(self, unit: KnowledgeUnit) -> None:
         """Persist a new unit. Domains are normalised; raises on integrity failure."""
+        logger.info(f"Inserting unit {unit.id} with domains {unit.domains} and tier {unit.tier}")
+        # FIXME plugins should run in the same transaction as the main
+        # db operations. Provindg sync and async interfaces simultaneously makes this
+        # compplicated. So the current setup just runs the plugin in a separate transaction
+        # after the main insert.
         await self._db.run_sync(self._insert_sync, unit)
+        if _SEMSEARCH_ENABLED:
+            with self._db.engine.begin() as conn:
+                await sem_insert_unit(conn, unit)
 
     async def query(
         self,
@@ -65,6 +81,16 @@ class KnowledgeRepository:
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
         """Return approved units matching ``domains``, ranked by relevance × confidence."""
+        if _SEMSEARCH_ENABLED:
+            with self._db.engine.connect() as conn:
+                return await sem_query(
+                    conn,
+                    domains,
+                    languages=languages,
+                    frameworks=frameworks,
+                    pattern=pattern,
+                    limit=limit
+                )
         return await self._db.run_sync(
             self._query_sync,
             domains,

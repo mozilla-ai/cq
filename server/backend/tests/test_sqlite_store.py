@@ -13,34 +13,8 @@ from pathlib import Path
 import pytest
 from cq.models import Context, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 
-from cq_server.core.config import Settings
-from cq_server.core.db import Database
-
 from .conftest import _RepoBundle
-from .db_helpers import init_test_db
-
-
-@pytest.fixture
-def db_path(tmp_path: Path) -> Path:
-    """Path to a fresh, Alembic-initialised SQLite DB."""
-    db = tmp_path / "cq.db"
-    init_test_db(db)
-    return db
-
-
-def _make_store(db_path: Path) -> _RepoBundle:
-    """Build a fresh ``_RepoBundle`` for a single test.
-
-    Equivalent to the historical ``SqliteStore(db_path=...)`` construction;
-    just routed through the decomposed ``Database`` + repository layout.
-    """
-    settings = Settings(  # type: ignore[call-arg]
-        jwt_secret="test-jwt-secret",  # pragma: allowlist secret
-        api_key_pepper="test-pepper",  # pragma: allowlist secret
-        database_url=f"sqlite:///{db_path}",
-        db_path=db_path,
-    )
-    return _RepoBundle(Database(settings))
+from .db_helpers import _make_store
 
 
 def _make_unit(domain: str = "auth") -> KnowledgeUnit:

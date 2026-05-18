@@ -19,6 +19,12 @@ dependencies = [
     "alembic>=1.18.4,<2",
 ]
 
+[project.optional-dependencies]
+semsearch = [
+    "sqlite_vec~=0.1.9",
+    "numpy==2.*",
+]
+
 [project.scripts]
 cq-server = "cq_server.app:main"
 
@@ -38,6 +44,7 @@ tests = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "httpx",
+    "jsonschema>=4.23.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -54,3 +61,6 @@ namespaces = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+log_cli = true
+log_cli_level = "DEBUG"
+log_level = "DEBUG"
