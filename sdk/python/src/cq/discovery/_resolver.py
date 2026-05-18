@@ -270,7 +270,7 @@ def _join_well_known(addr: str) -> str:
     """Append WELL_KNOWN_PATH to addr's existing path rather than replacing it.
 
     Addresses like `https://node.example.com/cq` keep their `/cq` prefix
-    so the probe lands at `/cq/.well-known/cq-node`.
+    so the probe lands at `/cq/.well-known/cq-node.json`.
     """
     parsed = urlparse(addr)
     base_path = parsed.path.rstrip("/")

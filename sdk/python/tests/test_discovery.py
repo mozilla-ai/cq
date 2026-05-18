@@ -205,6 +205,24 @@ class TestResolveRejectsHostlessApiBaseUrl:
         assert recorder.calls == 2
 
 
+class TestResolveRejectsInvalidPortApiBaseUrl:
+    def test_non_numeric_port_raises(self, tmp_path: Path) -> None:
+        payload = {
+            "version": 1,
+            "api_base_url": "https://example.com:bad/api/v1",
+            "api_version": "v1",
+        }
+        recorder = _Recorder(lambda _c, _r: _json_response(payload))
+        resolver = _resolver(tmp_path, recorder)
+        with pytest.raises(DiscoveryError) as exc:
+            resolver.resolve(_addr())
+        assert "port" in str(exc.value).lower()
+
+        with pytest.raises(DiscoveryError):
+            resolver.resolve(_addr())
+        assert recorder.calls == 2
+
+
 class TestResolveRejectsHtml:
     def test_text_html_mentions_spa(self, tmp_path: Path) -> None:
         recorder = _Recorder(

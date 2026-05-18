@@ -151,8 +151,10 @@ class Client:
             )
 
     def close(self) -> None:
-        """Close the local store and HTTP client."""
+        """Close the local store, the Resolver, and the HTTP client."""
         self._store.close()
+        if self._resolver is not None:
+            self._resolver.close()
         if self._http is not None:
             self._http.close()
 
@@ -411,11 +413,14 @@ class Client:
     def _api_base_url(self) -> str:
         """Return the resolved API base URL for the configured node.
 
+        Any trailing slash in the resolved value is stripped so each call
+        site can append a leading-slash resource path (e.g. `/knowledge`)
+        without producing `//` in the request URL.
         Memoization lives in the Resolver; this helper keeps each call site
         a single statement so request URLs read uniformly across `_remote_*`.
         """
         assert self._addr is not None and self._resolver is not None
-        return self._resolver.resolve(self._addr).api_base_url
+        return self._resolver.resolve(self._addr).api_base_url.rstrip("/")
 
     def _remote_stats(self) -> dict | None:
         """Fetch store statistics from the remote API.

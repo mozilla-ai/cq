@@ -804,6 +804,9 @@ class TestClientApiBaseUrl:
                     api_version="v1",
                 )
 
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
         captured: list[httpx.URL] = []
 
         def capturing_send(self, request, **kwargs):
@@ -819,6 +822,43 @@ class TestClientApiBaseUrl:
                 addr="https://node.example.com",
                 local_db_path=tmp_path / "test.db",
                 _resolver=_StaticResolver(),  # type: ignore[arg-type]
+            )
+            c.status()
+            c.close()
+
+        assert len(captured) == 1
+        assert str(captured[0]) == "https://api.example.com/v2/knowledge/stats"
+
+    def test_trailing_slash_in_api_base_url_is_normalized(self, tmp_path: Path):
+        """A trailing slash in the resolved api_base_url must not produce // in the request URL."""
+        from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo
+
+        class _TrailingSlashResolver:
+            def resolve(self, addr: str) -> NodeInfo:
+                return NodeInfo(
+                    version=SUPPORTED_DISCOVERY_VERSION,
+                    api_base_url="https://api.example.com/v2/",
+                    api_version="v1",
+                )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
+        captured: list[httpx.URL] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request.url)
+            return httpx.Response(
+                status_code=200,
+                json={"total_units": 0, "tiers": {}, "domains": {}},
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "test.db",
+                _resolver=_TrailingSlashResolver(),  # type: ignore[arg-type]
             )
             c.status()
             c.close()
@@ -842,6 +882,9 @@ class TestClientDiscoveryErrorPropagation:
             from cq.discovery import DiscoveryError
 
             raise DiscoveryError("test discovery failure")
+
+        def close(self) -> None:
+            """No-op; the test double owns no resources."""
 
     def test_query_propagates_discovery_error(self, tmp_path: Path):
         from cq.discovery import DiscoveryError
@@ -933,6 +976,9 @@ class TestClientDiscoveryErrorPropagation:
                     api_base_url="https://api.example.com/v1",
                     api_version="v1",
                 )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
 
         def transport_failing_send(self, request, **kwargs):
             raise httpx.ConnectError("simulated network failure")

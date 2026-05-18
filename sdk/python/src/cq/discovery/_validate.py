@@ -32,6 +32,12 @@ def validate(info: NodeInfo) -> None:
         raise ValueError(f"api_base_url {info.api_base_url!r} must use http or https scheme")
     if not parsed.hostname:
         raise ValueError(f"api_base_url {info.api_base_url!r} is missing a host")
+    try:
+        # Accessing .port forces validation of the port segment; urlparse itself is lenient
+        # and would accept a non-numeric value that later fails inside the HTTP client.
+        _ = parsed.port
+    except ValueError as err:
+        raise ValueError(f"api_base_url {info.api_base_url!r} has an invalid port") from err
     if not info.api_version:
         raise ValueError("api_version is required")
     if info.api_version != SUPPORTED_API_VERSION:

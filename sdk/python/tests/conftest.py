@@ -29,6 +29,9 @@ class StaticResolver:
             api_version="v1",
         )
 
+    def close(self) -> None:
+        """No-op; the test double owns no resources."""
+
 
 @pytest.fixture()
 def static_resolver() -> StaticResolver:
