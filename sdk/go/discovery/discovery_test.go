@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -367,4 +368,207 @@ func TestResolveTrimsTrailingSlashInAddr(t *testing.T) {
 	info, err := newTestResolver(t).Resolve(context.Background(), srv.URL+"/")
 	require.NoError(t, err)
 	require.Equal(t, srv.URL+DefaultAPIPath, info.APIBaseURL)
+}
+
+// waitForInflightWaiter blocks until at least n goroutines have registered as
+// waiters on the in-flight Resolve for addr.
+// The elected prober does not count toward n.
+// Used only by single-flight tests to remove the "did the second
+// caller register yet" race without exposing internal state to
+// production callers.
+func (r *Resolver) waitForInflightWaiter(t *testing.T, addr string, n int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		r.mu.Lock()
+		call, ok := r.inflight[addr]
+		waiters := 0
+		if ok {
+			waiters = call.waiters
+		}
+		r.mu.Unlock()
+		if waiters >= n {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %d in-flight waiter(s) on %s (have %d, registered=%v)", n, addr, waiters, ok)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestResolverCoalescesConcurrentResolvesForSameAddr(t *testing.T) {
+	t.Parallel()
+
+	// Block the elected prober inside the handler until both callers
+	// have registered. Single-flight should collapse the two Resolve
+	// calls into a single HTTP probe and deliver the same NodeInfo to
+	// each caller.
+	var calls int32
+	gate := make(chan struct{})
+	arrived := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		select {
+		case arrived <- struct{}{}:
+		default:
+		}
+		<-gate
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"version": 1,
+			"api_base_url": "https://api.example.com/api/v1",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	r := newTestResolver(t)
+
+	type result struct {
+		info NodeInfo
+		err  error
+	}
+	out := make(chan result, 2)
+
+	go func() {
+		info, err := r.Resolve(context.Background(), srv.URL)
+		out <- result{info, err}
+	}()
+	<-arrived
+	go func() {
+		info, err := r.Resolve(context.Background(), srv.URL)
+		out <- result{info, err}
+	}()
+	r.waitForInflightWaiter(t, srv.URL, 1)
+	close(gate)
+
+	r1 := <-out
+	r2 := <-out
+	require.NoError(t, r1.err)
+	require.NoError(t, r2.err)
+	require.Equal(t, r1.info, r2.info)
+	require.Equal(t, int32(1), atomic.LoadInt32(&calls))
+}
+
+func TestResolverProbesIndependentAddrsConcurrently(t *testing.T) {
+	t.Parallel()
+
+	// Two different addresses must not coalesce; each gets its own
+	// probe.
+	// httptest binds a single host, so we differentiate the two
+	// "addresses" by the addr argument's trailing path segment.
+	// The single-flight key is the full normalized addr, so this is
+	// enough to keep them distinct in-process.
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(req.URL.Path, "/one") {
+			_, _ = w.Write([]byte(`{
+				"version": 1,
+				"api_base_url": "https://api-one.example.com/api/v1",
+				"api_version": "v1"
+			}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{
+			"version": 1,
+			"api_base_url": "https://api-two.example.com/api/v1",
+			"api_version": "v1"
+		}`))
+	}))
+	defer srv.Close()
+
+	addrOne := srv.URL + "/one"
+	addrTwo := srv.URL + "/two"
+
+	r := newTestResolver(t)
+
+	type result struct {
+		info NodeInfo
+		err  error
+	}
+	out := make(chan result, 2)
+	go func() {
+		info, err := r.Resolve(context.Background(), addrOne)
+		out <- result{info, err}
+	}()
+	go func() {
+		info, err := r.Resolve(context.Background(), addrTwo)
+		out <- result{info, err}
+	}()
+
+	got := map[string]NodeInfo{}
+	for range 2 {
+		res := <-out
+		require.NoError(t, res.err)
+		got[res.info.APIBaseURL] = res.info
+	}
+	require.Equal(t, int32(2), atomic.LoadInt32(&calls))
+	require.Contains(t, got, "https://api-one.example.com/api/v1")
+	require.Contains(t, got, "https://api-two.example.com/api/v1")
+}
+
+func TestResolverPropagatesProbeFailureToAllWaiters(t *testing.T) {
+	t.Parallel()
+
+	// An elected probe that errors out must propagate the same error
+	// to every concurrent waiter, with exactly one HTTP call charged.
+	var calls int32
+	gate := make(chan struct{})
+	arrived := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		select {
+		case arrived <- struct{}{}:
+		default:
+		}
+		<-gate
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!doctype html><html>...</html>`))
+	}))
+	defer srv.Close()
+
+	r := newTestResolver(t)
+	errs := make(chan error, 2)
+
+	go func() {
+		_, err := r.Resolve(context.Background(), srv.URL)
+		errs <- err
+	}()
+	<-arrived
+	go func() {
+		_, err := r.Resolve(context.Background(), srv.URL)
+		errs <- err
+	}()
+	r.waitForInflightWaiter(t, srv.URL, 1)
+	close(gate)
+
+	e1 := <-errs
+	e2 := <-errs
+	require.Error(t, e1)
+	require.Error(t, e2)
+	require.Equal(t, int32(1), atomic.LoadInt32(&calls))
+}
+
+func TestResolverDoesNotMemoizeFailedProbes(t *testing.T) {
+	t.Parallel()
+
+	// A failed probe must not memoize; the next caller must retry the
+	// network. Two sequential failing calls means two HTTP probes.
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!doctype html><html>...</html>`))
+	}))
+	defer srv.Close()
+
+	r := newTestResolver(t)
+	_, err := r.Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	_, err = r.Resolve(context.Background(), srv.URL)
+	require.Error(t, err)
+	require.Equal(t, int32(2), atomic.LoadInt32(&calls))
 }
