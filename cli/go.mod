@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/mark3labs/mcp-go v0.46.0
-	github.com/mozilla-ai/cq/sdk/go v0.7.0
+	github.com/mozilla-ai/cq/sdk/go v0.8.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	github.com/stretchr/testify v1.11.1
@@ -36,4 +36,4 @@ require (
 
 // Monorepo: the SDK is consumed locally. Re-pin to a published version
 // when the SDK is released alongside the CLI.
-replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
+//replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
