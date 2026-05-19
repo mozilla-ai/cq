@@ -67,14 +67,23 @@ Choose domain tags that capture the technology, layer, and integration point. Be
 
 Both `query` and `propose` use the same plural-array keys for `domains`, `languages`, and `frameworks`, plus an optional singular `pattern` string. Each is a flat top-level argument; there is no `context` wrapper.
 
+Each piece of information belongs in one field — do not repeat the same term across multiple fields:
+
+| Field | What it captures | Examples |
+|-------|-----------------|---------|
+| `domains` | Subject area — what the insight is *about* (tools, protocols, concepts, layers). Avoid terms that describe the insight *type* (`"gotchas"`, `"tips"`, `"pitfalls"`) rather than its subject. | `"find"`, `"ci"`, `"http"`, `"connection-pooling"` |
+| `languages` | Programming languages the insight applies to or was observed in. Do not repeat in `domains`. | `"python"`, `"rust"`, `"go"` |
+| `frameworks` | Libraries or frameworks involved. Do not repeat in `domains`. | `"fastapi"`, `"react"`, `"pydantic"` |
+| `pattern` | A reusable cross-cutting concern, useful as a search axis independent of specific technology. Omit if it just rephrases the summary. | `"revocation-semantics"`, `"shell-quoting"` |
+
 | Scenario | `domains` | other call args |
 |----------|-----------|------------------|
 | Stripe payment integration | `["api", "payments", "stripe"]` | `languages: ["python"]` |
 | Webpack build configuration | `["bundler", "webpack", "configuration"]` | `frameworks: ["react"]` |
-| GitHub Actions CI for Rust | `["ci", "github-actions", "rust"]` | `pattern: "ci-pipeline"` |
+| GitHub Actions CI for Rust | `["ci", "github-actions"]` | `languages: ["rust"], pattern: "ci-pipeline"` |
 | PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `languages: ["go"]` |
 
-A `pattern` names a cross-cutting concern an agent might search for independently of specific technology — `"revocation-semantics"`, `"shell-quoting"`, `"plugin-lifecycle"`. If the pattern just rephrases the summary, omit it.
+When an insight applies across a family of tools or runtimes (e.g. all POSIX shells), include both a generic tag (`"shell"`, `"posix"`) and the specific one where it was observed (`"bash"`, `"zsh"`). Do not drop either.
 
 Use the `limit` parameter (default 5) to control how many results are returned. For broad exploratory queries, increase the limit.
 
