@@ -48,6 +48,7 @@ Do **not** include:
 - Standard usage of a well-documented API.
 - Project-specific business logic or implementation details that cannot be generalized.
 - Insights already surfaced and confirmed during the session (i.e. knowledge units you retrieved via `query` and subsequently called `confirm` on to record that they proved correct).
+- Insights you already proposed via `propose` during this session.
 
 For each candidate, assign:
 
@@ -55,17 +56,15 @@ For each candidate, assign:
 - **detail** — two to four sentences explaining the context and why this behavior exists or matters.
 - **action** — a concrete instruction on what to do (start with an imperative verb).
 - **domains** — two to five lowercase domain tags (e.g. `["api", "stripe", "rate-limiting"]`).
-- **estimated_relevance** — a float between 0.0 and 1.0:
-  - 0.8–1.0: broadly applicable across many languages, frameworks, or teams.
-  - 0.5–0.8: applicable to a specific ecosystem or toolchain.
-  - 0.2–0.5: applicable only under narrow conditions.
 - Optionally: **languages**, **frameworks**, **pattern** if relevant.
+
+For each candidate that resolved an error that occurred earlier in this session (i.e. a tool call or action failed before the successful resolution was found), mark it with ⏱ in the Step 3 presentation. Record the count of ⏱ candidates in the Step 6 summary — these represent missed mid-task propose calls and make the protocol gap visible to the user.
 
 If the session contained no events meeting the above criteria, skip Steps 3–5 and follow the "no candidates" instruction in Step 6.
 
 ### Step 2.5 — Run the VIBE√ safety check on each candidate
 
-Apply the VIBE√ safety check as defined in the cq skill against every candidate from Step 2. Classify each finding as clean, soft-concern, or hard-finding. For hard findings, generate the sanitized rewrite covering every `propose` field that could carry the violating content (`summary`, `detail`, `action`, `domains`, `languages`, `frameworks`, `pattern`). Record the classification per candidate — Steps 3 and 6 use these results for presentation and the final summary.
+Apply the VIBE√ safety check (V — Vulnerabilities, I — Impact, B — Biases, E — Edge cases; defined in full in the cq skill) against every candidate from Step 2. Classify each finding as clean, soft-concern, or hard-finding. For hard findings, generate the sanitized rewrite covering every `propose` field that could carry the violating content (`summary`, `detail`, `action`, `domains`, `languages`, `frameworks`, `pattern`). Record the classification per candidate — Steps 3 and 6 use these results for presentation and the final summary.
 
 If a hard finding cannot be coherently sanitized, the candidate fails Step 2's generalizable criterion — drop it from the candidate list and record the exclusion in Step 6's summary. Do not present it. `/cq:reflect` never silently drops *presented* candidates; the user owns the final decision on every candidate that reaches Step 3.
 
@@ -91,7 +90,6 @@ Present each candidate as a numbered entry. Use one of three templates depending
 {N}. {summary}
 
    Domains: {domain tags}
-   Relevance: {estimated_relevance}
    ---
    {detail}
    Action: {action}
@@ -104,7 +102,6 @@ Present each candidate as a numbered entry. Use one of three templates depending
 
    ⚠️ {one-line concern}
    Domains: {domain tags}
-   Relevance: {estimated_relevance}
    ---
    {detail}
    Action: {action}
@@ -117,7 +114,6 @@ Present each candidate as a numbered entry. Use one of three templates depending
 
    ⚠️ Hard concern: {one-line concern}
    Domains: {sanitized domain tags}
-   Relevance: {estimated_relevance}
    ---
    Original:
      Summary: {original summary}
@@ -149,7 +145,7 @@ If the user requests an edit, show the current field values and ask which field 
 
 ### Step 5 — Propose approved candidates
 
-For each approved candidate, call `propose`:
+For each approved candidate, first run a quick `query` with the candidate's domains to check for close existing KUs. If a close match exists, consider `confirm` (same insight) or `flag` (contradicts it) instead of a new proposal. If no close match, call `propose`:
 
 ```
 propose(
