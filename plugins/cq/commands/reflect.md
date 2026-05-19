@@ -58,6 +58,8 @@ For each candidate, assign:
 - **domains** — two to five lowercase domain tags (e.g. `["api", "stripe", "rate-limiting"]`).
 - Optionally: **languages**, **frameworks**, **pattern** if relevant.
 
+For each candidate that resolved an error that occurred earlier in this session (i.e. a tool call or action failed before the successful resolution was found), mark it with ⏱ in the Step 3 presentation. Record the count of ⏱ candidates in the Step 6 summary — these represent missed mid-task propose calls and make the protocol gap visible to the user.
+
 If the session contained no events meeting the above criteria, skip Steps 3–5 and follow the "no candidates" instruction in Step 6.
 
 ### Step 2.5 — Run the VIBE√ safety check on each candidate

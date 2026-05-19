@@ -1,11 +1,15 @@
 ---
 name: cq
-description: >-
-  Query the knowledge commons before starting ANY task or addressing an error;
-  cq catches blind spots your training data missed, especially stale versions
-  and subtle integration gotchas. Propose discoveries IMMEDIATELY after
-  resolving non-obvious issues — mid-task, not at end-of-task. Confirm or
-  flag retrieved guidance before completing work.
+description: |
+  INVOKE WHEN:
+  - Starting any task — query first (cq catches blind spots your training data missed: stale versions, integration gotchas, undocumented quirks)
+  - You just resolved a non-obvious error, confusing error message, or surprising tool behavior — present a draft KU to the user and call `propose` if they approve
+  - Retrieved guidance proved correct or wrong — confirm or flag it
+
+  SKIP WHEN:
+  - You already queried cq for this exact topic earlier in this session
+
+  Propose with user approval mid-task the moment an insight stabilises — never batch to end-of-session via /cq:reflect.
 ---
 
 # cq Skill
