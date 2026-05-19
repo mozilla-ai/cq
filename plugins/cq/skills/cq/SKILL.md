@@ -74,6 +74,8 @@ Both `query` and `propose` use the same plural-array keys for `domains`, `langua
 | GitHub Actions CI for Rust | `["ci", "github-actions", "rust"]` | `pattern: "ci-pipeline"` |
 | PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `languages: ["go"]` |
 
+A `pattern` names a cross-cutting concern an agent might search for independently of specific technology — `"revocation-semantics"`, `"shell-quoting"`, `"plugin-lifecycle"`. If the pattern just rephrases the summary, omit it.
+
 Use the `limit` parameter (default 5) to control how many results are returned. For broad exploratory queries, increase the limit.
 
 If `query` returns no results, proceed normally. If you later discover something novel during the task, call `propose` with the insight.
@@ -111,6 +113,8 @@ Propose a new knowledge unit when you discover something that would save another
 
 **Rationalization check.** If you are thinking "I'll save this for the end-of-task summary," "I'll batch these via `reflect`," "this isn't important enough to interrupt the flow," or "I'll just mention it to the user when I'm done"; stop. Propose now. The cost of an extra `propose` call mid-task is trivial; the cost of forgetting the precise symptom and remediation by end-of-task is high. If the user notices an insight you mentioned in a wrap-up that should have been a `propose` call, that is the protocol failing — propose first, summarize second.
 
+**Near-duplicate check.** If proposing in a domain you've already queried this session, scan those results for overlap before calling `propose`. If a close match exists, `confirm` (same insight) or `flag` (contradicts it) may be more appropriate than a new proposal.
+
 #### Writing Good Proposals
 
 Strip all organization-specific details before proposing. The insight must be generalizable.
@@ -129,7 +133,7 @@ Before proposing, ask: will this insight still be correct in six months? Prefer 
 
 - **Principle over prescription.** `"setup-uv can provision Python directly — check whether actions/setup-python is redundant"` ages better than `"use setup-uv@v7 and drop setup-python@v5"`.
 - **Include a verification method.** Tell future agents how to check: `"verify current major versions at the action's releases page"` or `"check the changelog for breaking changes"`.
-- **Timestamp your evidence.** Include when you verified and where, e.g. `"Verified against releases as of 2026-03"`. This lets future agents judge freshness.
+- **Timestamp your evidence.** Include when you verified and where, e.g. `"Verified against releases as of 2026-03"`. This lets future agents judge freshness. Do not include project or codebase names in verification notes: `"Verified 2026-05 in Python 3.13"` not `"Verified 2026-05 while working on project-x"`.
 - **Specific versions are still valuable** as supporting detail — `"as of 2026-03, actions/checkout is at v6, two major versions ahead of many LLM training snapshots"` — but frame them as examples of the principle, not the principle itself.
 
 #### Proposal Fields
@@ -137,7 +141,7 @@ Before proposing, ask: will this insight still be correct in six months? Prefer 
 Provide all three insight fields:
 - **summary** — One-line description of what you discovered.
 - **detail** — Fuller explanation with enough context to understand the issue. Include a timestamp and source where possible.
-- **action** — Concrete instruction on what to do about it. Prefer principle + verification method over exact values.
+- **action** — Concrete instruction on what to do about it. Start with an imperative verb (e.g. `Use`, `Set`, `Replace`, `When X, do Y`). Prefer principle + verification method over exact values.
 
 #### VIBE√ safety check
 
