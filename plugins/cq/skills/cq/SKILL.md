@@ -9,7 +9,7 @@ description: |
   SKIP WHEN:
   - You already queried cq for this exact topic earlier in this session
 
-  Propose with user approval mid-task the moment an insight stabilises — never batch to end-of-session via /cq:reflect.
+  Propose with user approval mid-task the moment an insight stabilizes — never batch to end-of-session via /cq:reflect.
 ---
 
 # cq Skill

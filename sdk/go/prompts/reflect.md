@@ -84,6 +84,8 @@ Omit any count line whose value is zero.
 
 Present each candidate as a numbered entry. Use one of three templates depending on what Step 2.5 produced. Every template has a blank line after the `{N}. {summary}` header so the metadata block is visually distinct.
 
+For any candidate marked with ⏱ in Step 2, prepend the line `⏱ Resolved an earlier-session error (missed mid-task propose).` as the first line of the metadata block. When both `⏱` and `⚠️` apply, `⏱` comes first.
+
 **Clean candidate:**
 
 ```
@@ -175,6 +177,7 @@ Stored: {id} — "{summary}"
 {total} candidates identified.
 {excluded} dropped by VIBE√ (not generalizable; not presented).
 {approved} proposed to cq. {skipped} skipped by user.
+{n_stopwatch} resolved an earlier-session error ⏱ — missed mid-task propose calls.
 
 VIBE√ findings this session:
 - Hard concerns (candidates {numbers}): {one-line concern per candidate}
@@ -186,7 +189,7 @@ IDs stored this session:
 - ...
 ```
 
-Always show the `{total} candidates identified.` line. Omit the `{excluded} dropped by VIBE√ ...` sentence when `{excluded}` is zero. Omit any VIBE√ findings bullet whose category has no entries.
+Always show the `{total} candidates identified.` line. Omit the `{excluded} dropped by VIBE√ ...` sentence when `{excluded}` is zero. Omit the `{n_stopwatch} resolved an earlier-session error ⏱ ...` line when `{n_stopwatch}` is zero. Omit any VIBE√ findings bullet whose category has no entries.
 
 The bracketed annotation on each stored ID records the VIBE√ provenance of what was stored:
 
