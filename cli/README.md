@@ -8,6 +8,9 @@ frameworks.
 ## Installation
 
 ```bash
+# Homebrew.
+brew install --cask mozilla-ai/tap/cq
+
 # Go install.
 go install github.com/mozilla-ai/cq/cli@latest
 
