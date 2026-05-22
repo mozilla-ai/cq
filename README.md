@@ -124,11 +124,11 @@ If your agent discovers something that would save another agent time, for exampl
 
 Then it will `propose` that learning as a knowledge unit.
 
-### Session reflection workflow
+### Session reflection (optional)
 
-Run `/cq:reflect` at the end of a session. cq reviews what happened, identifies learnings worth sharing
-(debugging breakthroughs, undocumented API behaviour, workarounds), and proposes them for you.
-It checks the store first to avoid duplicates.
+`/cq:reflect` is a catch-all for the end of a session, useful if you suspect the agent missed proposing something in-flow.
+It scans the session for learnings worth sharing (debugging breakthroughs, undocumented API behavior, workarounds), presents
+them for approval, and queries the store before submitting each one to avoid duplicates.
 
 The five MCP tools underneath:
 
@@ -140,28 +140,38 @@ The five MCP tools underneath:
 | `flag`    | Mark a KU as wrong or stale                |
 | `status`  | Show store statistics                      |
 
-## Team sharing
+## Remote storage
 
-By default, knowledge stays local on your machine.
+With no remote configured, knowledge stays local on the machine running the plugin. If you want your KUs available across multiple machines, to read from a shared knowledge pool, or to run a shared store for a team, you have two options.
 
-To share knowledge units across remote agents, machines, or a team, run the `server` component which uses values from the `.env` file:
+### Option 1: Use the hosted service
+
+Mozilla.ai runs a hosted cq service at **[cq.exchange](https://cq.exchange)**. Sign in with GitHub or Google, and you get:
+
+- A **private namespace**: your KUs stored centrally, accessible from any machine via a time-limited API key.
+- Read access to the **Global Commons**: a shared public pool of KUs, currently seeded by Mozilla.ai.
+
+Community-nominated KUs and org namespaces for teams are on the roadmap; see the [launch announcement](https://blog.mozilla.ai/cq-exchange-agents-without-borders) for more.
+
+### Option 2: Run your own server
+
+Deploy the `server` component yourself: on a VM, in a container in your cloud, on Kubernetes, or anywhere else you can run the published image (`ghcr.io/mozilla-ai/cq/server` or `mzdotai/cq-server`). You control auth, tenancy, and access, so you can run a shared store for a team or organization.
+
+For a quick local setup using docker compose:
 
 ```bash
 make compose-up
-```
-
-Create a user:
-
-```bash
 make seed-users USER=demo PASS=demo123
 ```
 
-Then configure the required environment variables for the AI coding assistant:
+### Configure your agent
 
-| Variable     | Description                                                                                                                                                                          |
-|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CQ_ADDR`    | Remote API URL (e.g., `http://localhost:3000`)                                                                                                                                       |
-| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `stats`). This can be generated in the remote server's UI dashboard. |
+Whichever option you use, set these environment variables for your AI coding assistant:
+
+| Variable     | Description                                                                                                                                                       |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CQ_ADDR`    | Remote API URL. Use `https://cq.exchange` for the hosted service, or your server's URL if self-hosting.                                                           |
+| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `stats`). Generated in the server's UI dashboard. |
 
 Knowledge proposed locally will be automatically drained to the remote store when the plugin starts, and available to agents once graduated via human review.
 
