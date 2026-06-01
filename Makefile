@@ -24,6 +24,12 @@ help:
 	@echo "  make install-windsurf                        Install globally (~/.codeium/windsurf/)"
 	@echo "  make uninstall-windsurf                      Remove global Windsurf install"
 	@echo ""
+	@echo "Pi:"
+	@echo "  make install-pi                              Install globally (~/.pi/agent/)"
+	@echo "  make install-pi PROJECT=/path/to/app         Install into a specific project"
+	@echo "  make uninstall-pi                            Remove global Pi install"
+	@echo "  make uninstall-pi PROJECT=/path/to/app       Remove from a specific project"
+	@echo ""
 	@echo "All hosts at once:"
 	@echo "  make install-all                             Install every host globally"
 	@echo "  make install-all PROJECT=/path/to/app        Install every project-capable host into a project"
@@ -167,14 +173,30 @@ ifdef PROJECT
 endif
 	cd scripts/install && uv run python -m cq_install uninstall --target windsurf --global
 
+.PHONY: install-pi
+install-pi:
+ifdef PROJECT
+	cd scripts/install && uv run python -m cq_install install --target pi --project "$(PROJECT)"
+else
+	cd scripts/install && uv run python -m cq_install install --target pi --global
+endif
+
+.PHONY: uninstall-pi
+uninstall-pi:
+ifdef PROJECT
+	cd scripts/install && uv run python -m cq_install uninstall --target pi --project "$(PROJECT)"
+else
+	cd scripts/install && uv run python -m cq_install uninstall --target pi --global
+endif
+
 .PHONY: install-all
 install-all:
 ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target claude --project "$(PROJECT)"
+	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target claude --target pi --project "$(PROJECT)"
 	@echo "Note: Windsurf has no per-project MCP config; installing it globally."
 	cd scripts/install && uv run python -m cq_install install --target windsurf --global
 else
-	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --global
+	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --target pi --global
 endif
 
 .PHONY: compose-up

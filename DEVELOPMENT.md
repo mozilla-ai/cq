@@ -92,6 +92,30 @@ To uninstall:
 make uninstall-windsurf
 ```
 
+### Pi
+
+Pi has no native MCP. cq installs via its CLI instead: the cq skill, a cq block in Pi's `AGENTS.md` that maps each cq action to a `cq` CLI call, and `/cq-status` / `/cq-reflect` prompt templates.
+
+```bash
+make install-pi
+```
+
+Or for a specific project:
+
+```bash
+make install-pi PROJECT=/path/to/your/project
+```
+
+To uninstall:
+
+```bash
+make uninstall-pi
+# or for a specific project:
+make uninstall-pi PROJECT=/path/to/your/project
+```
+
+To verify, run `/cq-status` in a Pi session (note: `/cq-status`, not `/cq:status`, and there is no MCP approval prompt — cq runs as a CLI). The agent runs `cq status --format json` and renders the summary.
+
 ### Go SDK
 
 ```bash

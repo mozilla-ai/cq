@@ -49,6 +49,7 @@ Run `make setup-plugin` before running the relevant `Makefile` target:
 | OpenCode | `make install-opencode` |
 | Cursor   | `make install-cursor`   |
 | Windsurf | `make install-windsurf` |
+| Pi       | `make install-pi`       |
 
 For Windows, project-specific installs, and uninstall instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
