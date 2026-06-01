@@ -164,8 +164,9 @@ def _agents_block(binary_path: Path) -> str:
 Before starting any implementation task, load the `cq` skill and follow its Core Protocol.
 
 This runtime has no cq MCP server. The cq skill and `/cq-*` commands describe the protocol using
-MCP-tool wording; in this runtime, perform every cq action by running the cq CLI through your shell
-and parsing `--format json` output. The cq binary is: `{cq}`. Map each action:
+MCP-tool wording; in this runtime, perform every cq action by running the cq CLI through your shell.
+Parse `--format json` output for the commands that support it (query, propose, status); confirm and
+flag return plain text. The cq binary is: `{cq}`. Map each action:
 
 {mapping}
 

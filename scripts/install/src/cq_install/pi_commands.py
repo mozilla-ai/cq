@@ -12,7 +12,9 @@ from __future__ import annotations
 def transform_command(source: str) -> str:
     """Return the Pi-flavored version of a Claude Code command file.
 
-    Drops the `name:` line from the YAML frontmatter. Returns the source
+    Drops the `name:` line from the YAML frontmatter and rewrites `/cq:`
+    slash-command references to `/cq-` so the body matches Pi's
+    filename-derived command names (e.g. `/cq-status`). Returns the source
     unchanged when there is no frontmatter or the frontmatter is unclosed.
     """
     lines = source.splitlines(keepends=True)
@@ -34,4 +36,4 @@ def transform_command(source: str) -> str:
 
     if not closed:
         return source
-    return "".join(out)
+    return "".join(out).replace("/cq:", "/cq-")
