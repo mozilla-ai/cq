@@ -13,14 +13,14 @@ what they've learned and listening for what others already know.
 
 If you are looking for a specific cq component in a package registry, marketplace, or tagged GitHub release, use the names below.
 
-| Component            | Where to get it           | Published name                                         | Release tag prefix |
-|----------------------|---------------------------|--------------------------------------------------------|--------------------|
-| Plugin (Claude Code) | Claude plugin marketplace | `mozilla-ai/cq` (install as `cq`)                      | N/A                |
-| CLI                  | Homebrew/GitHub Releases  | `github.com/mozilla-ai/cq/cli`                         | `cli/vX.Y.Z`       |
-| Go SDK               | Go modules                | `github.com/mozilla-ai/cq/sdk/go`                      | `sdk/go/vX.Y.Z`    |
-| Python SDK           | PyPI                      | `cq-sdk`                                               | `sdk/python/X.Y.Z` |
-| Schema               | PyPI and Go modules       | `cq-schema` and `github.com/mozilla-ai/cq/schema`      | `schema/vX.Y.Z`    |
-| Server image         | GHCR and Docker Hub       | `ghcr.io/mozilla-ai/cq/server` and `mzdotai/cq-server` | `server/vX.Y.Z`    |
+| Component | Where to get it | Published name | Release tag prefix |
+|---|---|---|---|
+| Plugin (Claude Code) | Claude plugin marketplace | `mozilla-ai/cq` (install as `cq`) | N/A |
+| CLI | Homebrew/Scoop/GitHub Releases | `github.com/mozilla-ai/cq/cli` | `cli/vX.Y.Z` |
+| Go SDK | Go modules | `github.com/mozilla-ai/cq/sdk/go` | `sdk/go/vX.Y.Z` |
+| Python SDK | PyPI | `cq-sdk` | `sdk/python/X.Y.Z` |
+| Schema | PyPI and Go modules | `cq-schema` and `github.com/mozilla-ai/cq/schema` | `schema/vX.Y.Z` |
+| Server image | GHCR and Docker Hub | `ghcr.io/mozilla-ai/cq/server` and `mzdotai/cq-server` | `server/vX.Y.Z` |
 
 ## Plugin Installation
 

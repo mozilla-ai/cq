@@ -11,6 +11,9 @@ frameworks.
 # Homebrew.
 brew install --cask mozilla-ai/tap/cq
 
+# Scoop.
+scoop install cq
+
 # Go install.
 go install github.com/mozilla-ai/cq/cli@latest
 
