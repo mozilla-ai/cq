@@ -104,6 +104,9 @@ jobs:
         run: |
           OS="$(echo "$GOOS" | sed 's/./\U&/')"
 
+          # NOTE: the Windows archive names are a public contract for Scoop
+          # autoupdate; see the "Scoop autoupdate contract" check in
+          # validate-cli-release.yaml before renaming them.
           if [[ "$GOOS" == "windows" ]]; then
             ARCHIVE="cq_${OS}_${ARCHIVE_ARCH}.zip"
             zip -j "$ARCHIVE" cq.exe NOTICE README.md ../LICENSE
@@ -149,6 +152,21 @@ jobs:
       - name: Combine checksums
         working-directory: dist
         run: cat *.sha256 > checksums.txt && rm -f *.sha256
+
+      # Scoop autoupdate reads these exact artifacts from each release; see the
+      # "Scoop autoupdate contract" check in validate-cli-release.yaml for why.
+      # Fail loudly here against the real artifacts before they reach the release.
+      - name: Verify Scoop autoupdate artifacts
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          for asset in cq_Windows_x86_64.zip cq_Windows_arm64.zip checksums.txt; do
+            if [[ ! -f "$asset" ]]; then
+              echo "::error::Missing $asset; Scoop autoupdate would stall. See validate-cli-release.yaml."
+              exit 1
+            fi
+          done
+          echo "Scoop autoupdate artifacts present"
 
       - name: Upload to release
         env:
