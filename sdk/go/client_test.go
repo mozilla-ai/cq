@@ -704,9 +704,9 @@ func TestStatusWithRemoteMergesTierCounts(t *testing.T) {
 		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_units": 3,
-				"tiers":       map[string]int{"private": 3, "public": 0},
-				"domains":     map[string]int{"api": 2},
+				"total_count":   3,
+				"tier_counts":   map[string]int{"private": 3, "public": 0},
+				"domain_counts": map[string]int{"api": 2},
 			})
 			return
 		}
@@ -735,9 +735,9 @@ func TestStatusWithRemoteMergesDomainCounts(t *testing.T) {
 		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_units": 5,
-				"tiers":       map[string]int{"private": 5, "public": 0},
-				"domains":     map[string]int{"api": 3, "db": 2},
+				"total_count":   5,
+				"tier_counts":   map[string]int{"private": 5, "public": 0},
+				"domain_counts": map[string]int{"api": 3, "db": 2},
 			})
 			return
 		}
@@ -786,9 +786,9 @@ func TestStatusIgnoresLocalTierFromRemote(t *testing.T) {
 		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_units": 6,
-				"tiers":       map[string]int{"local": 1, "private": 4, "public": 1},
-				"domains":     map[string]int{},
+				"total_count":   6,
+				"tier_counts":   map[string]int{"local": 1, "private": 4, "public": 1},
+				"domain_counts": map[string]int{},
 			})
 			return
 		}

@@ -10,6 +10,7 @@ import pytest
 
 from cq.client import Client, FallbackError, RemoteError
 from cq.models import FlagReason, Tier
+from cq.store import StoreStats
 
 
 @pytest.fixture()
@@ -704,7 +705,7 @@ class TestRemoteIntegration:
         """status() merges local and remote tier counts."""
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
-            json={"total_units": 3, "tiers": {"private": 3, "public": 0}, "domains": {}},
+            json={"total_count": 3, "tier_counts": {"private": 3, "public": 0}, "domain_counts": {}},
         )
 
         local_client = Client(local_db_path=tmp_path / "test.db")
@@ -724,9 +725,9 @@ class TestRemoteIntegration:
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
             json={
-                "total_units": 5,
-                "tiers": {"private": 5, "public": 0},
-                "domains": {"api": 3, "db": 2},
+                "total_count": 5,
+                "tier_counts": {"private": 5, "public": 0},
+                "domain_counts": {"api": 3, "db": 2},
             },
         )
 
@@ -761,7 +762,7 @@ class TestRemoteIntegration:
         """status() ignores 'local' tier in remote response to prevent double-counting."""
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
-            json={"total_units": 6, "tiers": {"local": 1, "private": 4, "public": 1}, "domains": {}},
+            json={"total_count": 6, "tier_counts": {"local": 1, "private": 4, "public": 1}, "domain_counts": {}},
         )
 
         local_client = Client(local_db_path=tmp_path / "test.db")
@@ -774,6 +775,35 @@ class TestRemoteIntegration:
         assert stats.tier_counts["private"] == 4
         assert stats.tier_counts["public"] == 1
         assert stats.total_count == 6
+        c.close()
+
+    def test_status_decodes_store_stats_wire_shape(self, tmp_path: Path, httpx_mock) -> None:
+        """status() decodes a remote body marshalled from the public StoreStats model.
+
+        Pins the wire contract to the StoreStats vocabulary so the remote
+        decoder and the public stats type cannot drift apart.
+        """
+        remote = StoreStats(
+            total_count=7,
+            domain_counts={"api": 4, "ci": 3},
+            tier_counts={"private": 6, "public": 1},
+        )
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
+            json=remote.model_dump(mode="json"),
+        )
+
+        local_client = Client(local_db_path=tmp_path / "test.db")
+        local_client.propose(summary="S", detail="D", action="A", domains=["api"])
+        local_client.close()
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        assert stats.tier_counts == {"local": 1, "private": 6, "public": 1}
+        assert stats.total_count == 8
+        # "api" appears locally (1) and remotely (4); counts must accumulate.
+        assert stats.domain_counts["api"] == 5
+        assert stats.domain_counts["ci"] == 3
         c.close()
 
     def test_flag_local_ignores_remote_rejection(self, tmp_path: Path, httpx_mock):
@@ -813,7 +843,7 @@ class TestClientApiBaseUrl:
             captured.append(request.url)
             return httpx.Response(
                 status_code=200,
-                json={"total_units": 0, "tiers": {}, "domains": {}},
+                json={"total_count": 0, "tier_counts": {}, "domain_counts": {}},
                 request=request,
             )
 
@@ -850,7 +880,7 @@ class TestClientApiBaseUrl:
             captured.append(request.url)
             return httpx.Response(
                 status_code=200,
-                json={"total_units": 0, "tiers": {}, "domains": {}},
+                json={"total_count": 0, "tier_counts": {}, "domain_counts": {}},
                 request=request,
             )
 

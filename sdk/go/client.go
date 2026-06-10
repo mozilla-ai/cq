@@ -443,7 +443,7 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	if c.remote != nil {
 		remote, err := c.remote.stats(ctx)
 		if err == nil {
-			for tier, count := range remote.Tiers {
+			for tier, count := range remote.TierCounts {
 				// The remote store should never report a "local" tier, but guard
 				// against it to prevent overwriting the local count we already set.
 				if tier == Local {
@@ -452,7 +452,7 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 				stats.TierCounts[tier] = count
 				stats.TotalCount += count
 			}
-			for domain, count := range remote.Domains {
+			for domain, count := range remote.DomainCounts {
 				stats.DomainCounts[domain] += count
 			}
 		}

@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from cq.store import StoreStats
 from fastapi.testclient import TestClient
 
 from cq_server.api.deps import require_api_key
 from cq_server.app import app
+from cq_server.repositories import ReviewRepository
 
 TEST_USERNAME = "test-user"
 
@@ -75,8 +77,6 @@ def _propose_payload(**overrides: Any) -> dict[str, Any]:
 
 def _approve_unit(client: TestClient, unit_id: str) -> None:
     """Approve a unit by writing the review row directly, bypassing the auth flow."""
-    from cq_server.repositories import ReviewRepository
-
     reviews = ReviewRepository(client.app.state.database)
     asyncio.run(reviews.set_status(unit_id, "approved", "test-reviewer"))
 
@@ -287,13 +287,11 @@ class TestStats:
         resp = client.get("/api/v1/knowledge/stats")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["total_units"] == 0
-        assert body["tiers"] == {}
-        assert body["domains"] == {}
+        assert body["total_count"] == 0
+        assert body["tier_counts"] == {}
+        assert body["domain_counts"] == {}
 
     def test_stats_after_inserts(self, client: TestClient) -> None:
-        from cq_server.repositories import ReviewRepository
-
         r1 = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api", "auth"]))
         r2 = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api", "payments"]))
         reviews = ReviewRepository(client.app.state.database)
@@ -302,11 +300,25 @@ class TestStats:
         resp = client.get("/api/v1/knowledge/stats")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["total_units"] == 2
-        assert body["tiers"] == {"private": 2}
-        assert body["domains"]["api"] == 2
-        assert body["domains"]["auth"] == 1
-        assert body["domains"]["payments"] == 1
+        assert body["total_count"] == 2
+        assert body["tier_counts"] == {"private": 2}
+        assert body["domain_counts"]["api"] == 2
+        assert body["domain_counts"]["auth"] == 1
+        assert body["domain_counts"]["payments"] == 1
+
+    def test_stats_body_decodes_as_store_stats(self, client: TestClient) -> None:
+        """The stats body validates against the SDK's public StoreStats model.
+
+        Pins the wire contract to the canonical StoreStats vocabulary so the
+        server response and the SDK decoders cannot drift apart.
+        """
+        created = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api"]))
+        _approve_unit(client, created.json()["id"])
+        resp = client.get("/api/v1/knowledge/stats")
+        stats = StoreStats.model_validate(resp.json())
+        assert stats.total_count == 1
+        assert stats.tier_counts == {"private": 1}
+        assert stats.domain_counts == {"api": 1}
 
 
 class TestReviewLifecycleEndToEnd:
@@ -410,7 +422,7 @@ class TestEndToEnd:
 
         # Stats reflect the unit.
         resp = client.get("/api/v1/knowledge/stats")
-        assert resp.json()["total_units"] == 1
+        assert resp.json()["total_count"] == 1
 
 
 class TestDatabaseUrlBoot:
