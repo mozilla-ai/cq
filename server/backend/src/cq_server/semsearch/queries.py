@@ -102,7 +102,6 @@ async def query(conn,
         vec_emb_search = await _get_embeddings(normalized)
         search_embedding = _serialize_embedding(vec_emb_search)
         vec_rows = conn.execute(text_clause(_VEC_SEARCH_SQL), {"query_embedding": search_embedding, "limit": limit}).fetchall()
-        print(f"Vector search returned {len(vec_rows)} rows for domains {normalized} with limit {limit}")
         logger.info(f"Vector search returned {len(vec_rows)} rows for domains {normalized} with limit {limit}")
     except sqlite3.OperationalError as e:
         raise RuntimeError("Database error when performing base query") from e

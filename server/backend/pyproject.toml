@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 semsearch = [
+    "httpx",
     "sqlite_vec~=0.1.9",
     "numpy==2.*",
 ]

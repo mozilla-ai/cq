@@ -61,7 +61,6 @@ class Database:
                 future=True,
             )
             event.listen(self._engine, "connect", _apply_sqlite_pragmas)
-            # Evolve into a proper plugin module system later on
             if _SEMSEARCH_ENABLED:
                 event.listen(self._engine, "connect", semsearch_load)
         else:
