@@ -18,7 +18,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from ._util import _as_list
-from .models import KnowledgeUnit
+from .models import KnowledgeUnit, Tier
 from .scoring import calculate_relevance
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,9 @@ class StoreStats(BaseModel):
     domain_counts: dict[str, int] = Field(default_factory=dict)
     recent: list[KnowledgeUnit] = Field(default_factory=list)
     confidence_distribution: dict[str, int] = Field(default_factory=dict)
-    tier_counts: dict[str, int] = Field(default_factory=dict)
+    # Keyed by Tier rather than str: the tiers are a closed set, and typing
+    # the keys keeps producers and consumers from drifting into bare strings.
+    tier_counts: dict[Tier, int] = Field(default_factory=dict)
 
     # Non-fatal issues encountered while aggregating stats, such as a
     # remote API being unreachable. When present, the reported counts

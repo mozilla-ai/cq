@@ -364,6 +364,10 @@ class Client:
         only local counts are returned, the failure is logged at warn level,
         and a non-fatal entry is added to ``StoreStats.warnings`` so callers
         can distinguish an unreachable remote from a genuinely empty store.
+
+        Remote tier keys are coerced to ``Tier``; a tier this SDK does not
+        recognize is skipped and logged at warn level, so its count is dropped
+        from the totals rather than carried as a bare string.
         """
         stats = self._store.stats()
         stats.tier_counts = {Tier.LOCAL: stats.total_count}
@@ -379,7 +383,15 @@ class Client:
                 self._logger.warning("Remote stats unavailable: %s", exc)
                 stats.warnings.append(f"Remote stats unavailable: {exc}")
             else:
-                for tier, count in remote.get("tier_counts", {}).items():
+                for tier_key, count in remote.get("tier_counts", {}).items():
+                    try:
+                        tier = Tier(tier_key)
+                    except ValueError:
+                        # A tier this SDK's enum does not know (e.g. a newer
+                        # server). Skip it rather than carry a bare string, and
+                        # log so the dropped count is visible, not silent.
+                        self._logger.warning("Ignoring unknown tier %r in remote stats", tier_key)
+                        continue
                     # The remote store should never report a "local" tier, but guard
                     # against it to prevent overwriting the local count we already set.
                     if tier == Tier.LOCAL:

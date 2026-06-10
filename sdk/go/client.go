@@ -423,6 +423,9 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 // only local counts are returned, the failure is logged at warn level,
 // and a non-fatal entry is added to StoreStats.Warnings so callers can
 // distinguish an unreachable remote from a genuinely empty store.
+// A remote tier this SDK does not recognize is skipped and logged at
+// warn level, so its count is dropped from the totals rather than
+// carried as an unknown key.
 func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
@@ -453,6 +456,14 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 			stats.Warnings = append(stats.Warnings, fmt.Errorf("remote stats unavailable: %w", err))
 		} else {
 			for tier, count := range remote.TierCounts {
+				if !tier.Valid() {
+					// A tier this SDK does not recognize (e.g. a newer server).
+					// Skip it rather than carry an unknown key, and log so the
+					// dropped count is visible, not silent.
+					c.logger.Warn("status: ignoring unknown tier in remote stats", "tier", tier)
+
+					continue
+				}
 				// The remote store should never report a "local" tier, but guard
 				// against it to prevent overwriting the local count we already set.
 				if tier == Local {

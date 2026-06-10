@@ -812,6 +812,25 @@ class TestRemoteIntegration:
         assert stats.total_count == 6
         c.close()
 
+    def test_status_skips_and_logs_unknown_remote_tier(
+        self, tmp_path: Path, httpx_mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A remote tier this SDK's enum does not know is skipped and logged,
+        not carried as a bare-string key nor summed into the total."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
+            json={"total_count": 13, "tier_counts": {"private": 4, "team": 9}, "domain_counts": {}},
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        with caplog.at_level(logging.WARNING, logger="cq.client"):
+            stats = c.status()
+        assert stats.tier_counts == {Tier.LOCAL: 0, Tier.PRIVATE: 4}
+        assert all(isinstance(key, Tier) for key in stats.tier_counts)
+        assert stats.total_count == 4  # local 0 + private 4; unknown 'team' dropped
+        assert any("team" in record.message for record in caplog.records)
+        c.close()
+
     def test_status_decodes_store_stats_wire_shape(self, tmp_path: Path, httpx_mock) -> None:
         """status() decodes a remote body marshalled from the public StoreStats model.
 
