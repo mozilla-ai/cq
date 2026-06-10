@@ -35,7 +35,7 @@ async def _get_embeddings(wordlist: list[str]) -> "npt.ArrayLike":
         raise RuntimeError(
             "Semantic search is not enabled. Set TOKEN_EMBEDDING_URL and install required packages to enable."
         )
-    async with AsyncClient(base_url=_TOKEN_EMBEDDING_URL) as client:  # ty: ignore[invalid-argument-type]
+    async with AsyncClient(base_url=_TOKEN_EMBEDDING_URL, timeout=30.0) as client:  # ty: ignore[invalid-argument-type]
         request_data = {"inputs": wordlist}
         response = await client.post("/predict", json=request_data)
         response.raise_for_status()
@@ -53,8 +53,7 @@ def _serialize_embedding(vec: "npt.ArrayLike") -> bytes:
     return arr.tobytes()
 
 
-# check type of sqlalchemy conns
-async def upsert_unit(conn, unit: KnowledgeUnit) -> None:
+async def upsert_unit(conn: Connection, unit: KnowledgeUnit) -> None:
     """Update a knowledge unit embedding row."""
     if not semsearch_enabled():
         return
@@ -67,10 +66,10 @@ async def upsert_unit(conn, unit: KnowledgeUnit) -> None:
     conn.execute(text_clause(_VEC_INSERT_SQL), {"unit_id": unit.id, "embedding": serialized})
 
 
-async def insert_unit(conn, unit: KnowledgeUnit) -> None:
+async def insert_unit(conn: Connection, unit: KnowledgeUnit) -> None:
     """Insert a knowledge unit embedding row."""
     if not semsearch_enabled():
-        logging.warning("Attempted to insert embedding while semantic search is disabled; skipping embedding insert")
+        logger.warning("Attempted to insert embedding while semantic search is disabled; skipping embedding insert")
         return
     text = " ".join([unit.insight.summary, unit.insight.detail, unit.insight.action]).strip()
     if not text:
@@ -82,7 +81,7 @@ async def insert_unit(conn, unit: KnowledgeUnit) -> None:
 
 # check type of sqlalchemy conns
 async def query(
-    conn,
+    conn: Connection,
     domains: list[str],
     languages: list[str] | None,
     frameworks: list[str] | None,

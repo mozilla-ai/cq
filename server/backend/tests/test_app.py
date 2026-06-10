@@ -267,15 +267,16 @@ class TestQuery:
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 1
-        assert results[0]["domains"] == ["astronomy"]
-        assert "exoplanets" in results[0]["insight"]["summary"].lower()
+        result = results['data'][0]
+        assert result["domains"] == ["astronomy"]
+        assert "exoplanets" in result["insight"]["summary"].lower()
 
     def test_query_returns_best_result_with_domain_overlap(self, client: TestClient) -> None:
         if not semsearch.is_enabled():
             pytest.skip("semantic dependencies are not enabled")
         try:
             asyncio.run(semsearch.queries._get_embeddings(["connectivity check"]))
-        except Exception as exc:
+        except (ConnectionError, TimeoutError, RuntimeError) as exc:
             pytest.skip(f"embedding server unavailable: {exc}")
 
         ku1 = self._insert_unit(
@@ -311,10 +312,11 @@ class TestQuery:
         resp = client.get("/api/v1/knowledge", params={"domains": ["astronomy"]})
         assert resp.status_code == 200
         results = resp.json()
-        result_confidences = {result["id"]: result["evidence"]["confidence"] for result in results}
-        assert len(results) >= 1
+        result_confidences = {result["id"]: result["evidence"]["confidence"] for result in results['data']}
+        assert len(results['data']) >= 1
+        result = results['data'][0]
         assert ku1["id"] in result_confidences and ku2["id"] in result_confidences
-        assert results[0]["domains"] == ["astronomy"]
+        assert result["domains"] == ["astronomy"]
         assert result_confidences[ku1["id"]] >= result_confidences[ku2["id"]]
 
 
