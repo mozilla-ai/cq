@@ -8,6 +8,12 @@ frameworks.
 ## Installation
 
 ```bash
+# Homebrew.
+brew install --cask mozilla-ai/tap/cq
+
+# Scoop.
+scoop install cq
+
 # Go install.
 go install github.com/mozilla-ai/cq/cli@latest
 
@@ -81,9 +87,22 @@ cq auth status
 
 # Clear locally-stored credentials.
 cq auth logout
+
+# Revoke server session first, then clear local credentials.
+cq auth logout --revoke
+
+# Revoke all server sessions/devices, then clear local credentials.
+cq auth logout --revoke --all-devices
 ```
 
-`cq auth` requires `CQ_ADDR` (or `--addr`) to point at a cq-compatible platform. `logout` is local-only; server-side session revocation is tracked separately and will land under a future `--revoke` flag once the platform exposes the necessary endpoint.
+`cq auth` requires `CQ_ADDR` (or `--addr`) for networked commands.
+
+`cq auth logout` behavior:
+- default: local-only credential cleanup
+- `--revoke`: request server-side logout before local cleanup
+- `--revoke --all-devices`: request logout across all devices
+
+If server revocation fails (other than an already-invalid session), local credentials are kept so you can retry.
 
 ### Authentication vs API keys
 

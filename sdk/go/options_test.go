@@ -1,6 +1,8 @@
 package cq
 
 import (
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -101,6 +103,21 @@ func TestWithLocalDBPathRejectsEmpty(t *testing.T) {
 	_, err := resolveConfig(WithLocalDBPath(""))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "local DB path cannot be empty")
+}
+
+func TestWithLoggerRejectsNil(t *testing.T) {
+	t.Parallel()
+	_, err := resolveConfig(WithLogger(nil))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "logger cannot be nil")
+}
+
+func TestWithLoggerStoresOnConfig(t *testing.T) {
+	t.Parallel()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg, err := resolveConfig(WithLogger(logger))
+	require.NoError(t, err)
+	require.Same(t, logger, cfg.logger)
 }
 
 // -- expandHome tests --

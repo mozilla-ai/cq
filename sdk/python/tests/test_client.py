@@ -1,5 +1,6 @@
 """Tests for Client."""
 
+import logging
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +17,27 @@ def client(tmp_path: Path) -> Iterator[Client]:
     c = Client(local_db_path=tmp_path / "test.db")
     yield c
     c.close()
+
+
+class TestClientLogger:
+    def test_silent_by_default(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.DEBUG):
+            c = Client(local_db_path=tmp_path / "test.db")
+            c.close()
+        assert caplog.records == []
+        cq_logger = logging.getLogger("cq")
+        assert any(isinstance(h, logging.NullHandler) for h in cq_logger.handlers)
+
+    def test_accepts_caller_supplied_logger(self, tmp_path: Path):
+        supplied = logging.getLogger("test.cq.caller")
+        c = Client(local_db_path=tmp_path / "test.db", logger=supplied)
+        assert c._logger is supplied
+        c.close()
+
+    def test_default_logger_is_cq_client(self, tmp_path: Path):
+        c = Client(local_db_path=tmp_path / "test.db")
+        assert c._logger.name == "cq.client"
+        c.close()
 
 
 class TestLocalOnlyMode:
@@ -319,7 +341,7 @@ class TestRemoteIntegration:
         }
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         # Insert a local unit directly (propose with remote skips local store).
@@ -357,7 +379,7 @@ class TestRemoteIntegration:
                 "http://test-remote/api/v1/knowledge",
                 params={"domains": ["api"], "limit": "5", "languages": ["python"], "frameworks": ["django"]},
             ),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
@@ -380,7 +402,7 @@ class TestRemoteIntegration:
                 "http://test-remote/api/v1/knowledge",
                 params={"domains": ["api"], "limit": "5", "pattern": "api-client"},
             ),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
@@ -400,13 +422,40 @@ class TestRemoteIntegration:
         }
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
-            json=[remote_unit],
+            json={"data": [remote_unit]},
         )
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
         result = c.query(["api"])
         assert result.source == "remote"
         assert len(result.units) == 1
+        c.close()
+
+    def test_remote_query_warns_on_bare_array_response(self, tmp_path: Path, httpx_mock):
+        """A server returning a bare JSON array (pre-envelope shape) must surface as a warning,
+        not silently degrade to empty results."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
+            json=[{"id": "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa99"}],
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        result = c.query(["api"])
+        assert result.units == []
+        assert any("envelope" in w or "data" in w for w in result.warnings)
+        c.close()
+
+    def test_remote_query_warns_on_missing_data_key(self, tmp_path: Path, httpx_mock):
+        """A server returning a JSON object without a ``data`` key must surface as a warning."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
+            json={"results": []},
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        result = c.query(["api"])
+        assert result.units == []
+        assert result.warnings, "missing data key should produce a warning"
         c.close()
 
     def test_propose_returns_server_response_when_remote_accepts(self, tmp_path: Path, httpx_mock):
@@ -742,6 +791,308 @@ class TestRemoteIntegration:
         c.close()
 
 
+class TestClientApiBaseUrl:
+    def test_remote_calls_use_resolved_api_base_url(self, tmp_path: Path):
+        """`_remote_*` calls should be routed through the Resolver's api_base_url, not addr + /api/v1."""
+        from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo
+
+        class _StaticResolver:
+            def resolve(self, addr: str) -> NodeInfo:
+                return NodeInfo(
+                    version=SUPPORTED_DISCOVERY_VERSION,
+                    api_base_url="https://api.example.com/v2",
+                    api_version="v1",
+                )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
+        captured: list[httpx.URL] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request.url)
+            return httpx.Response(
+                status_code=200,
+                json={"total_units": 0, "tiers": {}, "domains": {}},
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "test.db",
+                _resolver=_StaticResolver(),  # type: ignore[arg-type]
+            )
+            c.status()
+            c.close()
+
+        assert len(captured) == 1
+        assert str(captured[0]) == "https://api.example.com/v2/knowledge/stats"
+
+    def test_trailing_slash_in_api_base_url_is_normalized(self, tmp_path: Path):
+        """A trailing slash in the resolved api_base_url must not produce // in the request URL."""
+        from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo
+
+        class _TrailingSlashResolver:
+            def resolve(self, addr: str) -> NodeInfo:
+                return NodeInfo(
+                    version=SUPPORTED_DISCOVERY_VERSION,
+                    api_base_url="https://api.example.com/v2/",
+                    api_version="v1",
+                )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
+        captured: list[httpx.URL] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request.url)
+            return httpx.Response(
+                status_code=200,
+                json={"total_units": 0, "tiers": {}, "domains": {}},
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "test.db",
+                _resolver=_TrailingSlashResolver(),  # type: ignore[arg-type]
+            )
+            c.status()
+            c.close()
+
+        assert len(captured) == 1
+        assert str(captured[0]) == "https://api.example.com/v2/knowledge/stats"
+
+
+class TestClientDiscoveryErrorPropagation:
+    """DiscoveryError from the Resolver surfaces terminally to the caller.
+
+    The Client's fallback paths catch httpx.HTTPError and RemoteError (for
+    transport and server-side faults), but DiscoveryError signals operator
+    or client misconfiguration that local-storage fallback cannot repair.
+    These tests pin that contract for every public method that touches the
+    remote.
+    """
+
+    class _RaisingResolver:
+        def resolve(self, addr: str):
+            from cq.discovery import DiscoveryError
+
+            raise DiscoveryError("test discovery failure")
+
+        def close(self) -> None:
+            """No-op; the test double owns no resources."""
+
+    def test_query_propagates_discovery_error(self, tmp_path: Path):
+        from cq.discovery import DiscoveryError
+
+        c = Client(
+            addr="https://node.example.com",
+            local_db_path=tmp_path / "test.db",
+            _resolver=self._RaisingResolver(),  # type: ignore[arg-type]
+        )
+        with pytest.raises(DiscoveryError):
+            c.query(["python"])
+        c.close()
+
+    def test_propose_propagates_discovery_error(self, tmp_path: Path):
+        from cq.discovery import DiscoveryError
+
+        c = Client(
+            addr="https://node.example.com",
+            local_db_path=tmp_path / "test.db",
+            _resolver=self._RaisingResolver(),  # type: ignore[arg-type]
+        )
+        with pytest.raises(DiscoveryError):
+            c.propose(
+                summary="Use connection pooling",
+                detail="Connections are expensive.",
+                action="Pool them.",
+                domains=["python"],
+            )
+        c.close()
+
+    def test_confirm_propagates_discovery_error(self, tmp_path: Path):
+        from cq.discovery import DiscoveryError
+
+        c = Client(
+            addr="https://node.example.com",
+            local_db_path=tmp_path / "test.db",
+            _resolver=self._RaisingResolver(),  # type: ignore[arg-type]
+        )
+        with pytest.raises(DiscoveryError):
+            c.confirm("nonexistent-id", tier=Tier.PRIVATE)
+        c.close()
+
+    def test_flag_propagates_discovery_error(self, tmp_path: Path):
+        from cq.discovery import DiscoveryError
+
+        c = Client(
+            addr="https://node.example.com",
+            local_db_path=tmp_path / "test.db",
+            _resolver=self._RaisingResolver(),  # type: ignore[arg-type]
+        )
+        with pytest.raises(DiscoveryError):
+            c.flag("nonexistent-id", FlagReason.INCORRECT, tier=Tier.PRIVATE)
+        c.close()
+
+    def test_drain_propagates_discovery_error(self, tmp_path: Path):
+        from cq.discovery import DiscoveryError
+
+        c = Client(
+            addr="https://node.example.com",
+            local_db_path=tmp_path / "test.db",
+            _resolver=self._RaisingResolver(),  # type: ignore[arg-type]
+        )
+        # Seed one local unit so drain has work to do; without it the
+        # for-loop body never runs and the resolver is never invoked.
+        from cq.models import Context, Insight, create_knowledge_unit
+
+        unit = create_knowledge_unit(
+            domains=["python"],
+            insight=Insight(summary="s", detail="d", action="a"),
+            context=Context(languages=[], frameworks=[], pattern=""),
+            created_by="",
+        )
+        c._store.insert(unit)
+        with pytest.raises(DiscoveryError):
+            c.drain()
+        c.close()
+
+    def test_transport_failure_still_falls_back_on_propose(self, tmp_path: Path):
+        """A resolver that succeeds combined with an HTTP transport failure should
+        still produce the historical FallbackError so the local-store fallback
+        path is unaffected by Resolver wiring.
+        """
+        from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo
+
+        class _StaticResolver:
+            def resolve(self, addr: str) -> NodeInfo:
+                return NodeInfo(
+                    version=SUPPORTED_DISCOVERY_VERSION,
+                    api_base_url="https://api.example.com/v1",
+                    api_version="v1",
+                )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
+        def transport_failing_send(self, request, **kwargs):
+            raise httpx.ConnectError("simulated network failure")
+
+        with patch.object(httpx.Client, "send", transport_failing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "test.db",
+                _resolver=_StaticResolver(),  # type: ignore[arg-type]
+            )
+            with pytest.raises(FallbackError):
+                c.propose(
+                    summary="Use connection pooling",
+                    detail="Connections are expensive.",
+                    action="Pool them.",
+                    domains=["python"],
+                )
+            c.close()
+
+
+class TestRealResolver404Fallback:
+    """Pin the 404-fallback URL contract end-to-end through a real Resolver.
+
+    When the node does not publish a discovery document, the Resolver synthesizes
+    `addr + DEFAULT_API_PATH` and the Client routes subsequent API calls there.
+    This test exercises the real Resolver (no `_resolver=` injection) so the
+    `/api/v1/<resource>` contract stays pinned against future drift in either
+    the Resolver or the Client.
+    """
+
+    def test_well_known_404_routes_api_calls_to_default_api_path(self, tmp_path: Path):
+        captured: list[httpx.URL] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request.url)
+            if request.url.path == "/.well-known/cq-node.json":
+                return httpx.Response(status_code=404, request=request)
+            if request.url.path == "/api/v1/knowledge":
+                return httpx.Response(
+                    status_code=200,
+                    json={"data": []},
+                    request=request,
+                )
+            raise AssertionError(f"unexpected request {request.url}")
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "test.db",
+            )
+            c.query(["api"], limit=1)
+            c.close()
+
+        assert len(captured) == 2
+        assert captured[0].path == "/.well-known/cq-node.json"
+        assert captured[0].host == "node.example.com"
+        assert captured[1].path == "/api/v1/knowledge"
+        assert captured[1].host == "node.example.com"
+
+
+class TestStaticResolverFixture:
+    """Smoke tests that exercise the shared ``static_resolver`` conftest fixture.
+
+    The fixture synthesizes the same ``addr + /api/v1`` suffix the default
+    discovery fallback produces, so assertions against ``/api/v1/...`` paths
+    hold for clients wired through the fixture without an HTTP probe.
+    """
+
+    def test_query_routes_through_static_resolver(self, tmp_path: Path, httpx_mock, static_resolver):
+        remote_unit = {
+            "id": "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01",
+            "domains": ["api"],
+            "insight": {"summary": "S", "detail": "D", "action": "A"},
+            "tier": "private",
+        }
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
+            json={"data": [remote_unit]},
+        )
+
+        c = Client(
+            addr="http://test-remote",
+            local_db_path=tmp_path / "test.db",
+            _resolver=static_resolver,
+        )
+        result = c.query(["api"])
+        assert result.source == "remote"
+        assert len(result.units) == 1
+        assert result.units[0].id == "ku_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa01"
+        c.close()
+
+    def test_propose_routes_through_static_resolver(self, tmp_path: Path, httpx_mock, static_resolver):
+        server_unit = {
+            "id": "ku_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb01",
+            "domains": ["api"],
+            "insight": {"summary": "Remote only", "detail": "D", "action": "A"},
+            "tier": "private",
+        }
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge"),
+            json={"knowledge_unit": server_unit},
+            status_code=200,
+        )
+
+        c = Client(
+            addr="http://test-remote",
+            local_db_path=tmp_path / "test.db",
+            _resolver=static_resolver,
+        )
+        result = c.propose(summary="Remote only", detail="D", action="A", domains=["api"])
+        assert result.id == "ku_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb01"
+        c.close()
+
+
 @pytest.fixture()
 def httpx_mock():
     """Minimal httpx mock for testing remote API calls."""
@@ -758,6 +1109,11 @@ def httpx_mock():
     mock = _Mock()
 
     def patched_send(self, request, **kwargs):
+        # Treat the discovery probe as unconfigured so the resolver falls back
+        # to its `addr + /api/v1` defaults; the queued responses in these tests
+        # describe the API call under test, not the probe.
+        if request.url.path.endswith("/.well-known/cq-node.json"):
+            return httpx.Response(status_code=404, request=request)
         if exceptions:
             raise exceptions.pop(0)
         for idx, resp_config in enumerate(responses):

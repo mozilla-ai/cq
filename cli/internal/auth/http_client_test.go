@@ -12,7 +12,66 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
+
+// staticResolver is a test double for apiResolver that returns a fixed
+// NodeInfo without touching the disk or network.
+// An empty apiBaseURL produces the same default behavior the real
+// resolver applies for a node without a discovery document.
+type staticResolver struct {
+	apiBaseURL string
+}
+
+func (s staticResolver) Resolve(_ context.Context, addr string) (discovery.NodeInfo, error) {
+	base := s.apiBaseURL
+	if base == "" {
+		base = addr + discovery.DefaultAPIPath
+	}
+	return discovery.NodeInfo{APIBaseURL: base, APIVersion: discovery.DefaultAPIVersion}, nil
+}
+
+// newTestClient returns an httpClient pointed at serverURL with a
+// staticResolver, bypassing real discovery so existing /api/v1/...
+// path assertions hold without touching disk or network.
+func newTestClient(serverURL string) Client {
+	return &httpClient{
+		addr:     serverURL,
+		http:     &http.Client{Timeout: httpDefaultTimeout},
+		resolver: staticResolver{},
+	}
+}
+
+// TestHTTPClientResolvesAPIBaseURLViaDiscovery pins the default-on-404
+// contract: when a node has no discovery document, the client must
+// still hit {addr}/api/v1/<resource>. It exercises the real Resolver to
+// catch regressions in the wiring between NewClient and the discovery
+// package.
+func TestHTTPClientResolvesAPIBaseURLViaDiscovery(t *testing.T) {
+	var capturedPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == discovery.WellKnownPath {
+			http.NotFound(w, r)
+			return
+		}
+		capturedPath = r.URL.Path
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"providers": []}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(server.URL).(*httpClient)
+	resolver, err := discovery.New(discovery.WithCacheDir(t.TempDir()))
+	require.NoError(t, err)
+	client.resolver = resolver
+
+	_, err = client.OAuthProviders(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "/api/v1/oauth/providers", capturedPath)
+}
 
 // captured holds request data captured by a test server. Both ends are
 // guarded by the embedded mutex; tests must Lock when reading.
@@ -20,6 +79,7 @@ type captured struct {
 	sync.Mutex
 	method string
 	path   string
+	query  string
 	auth   string
 	body   []byte
 }
@@ -38,6 +98,7 @@ func (c *captured) recordRequest(r *http.Request) {
 
 	c.method = r.Method
 	c.path = r.URL.Path
+	c.query = r.URL.RawQuery
 	c.auth = r.Header.Get("Authorization")
 	c.body = body
 }
@@ -48,7 +109,7 @@ func (c *captured) snapshot() captured {
 	c.Lock()
 	defer c.Unlock()
 
-	return captured{method: c.method, path: c.path, auth: c.auth, body: c.body}
+	return captured{method: c.method, path: c.path, query: c.query, auth: c.auth, body: c.body}
 }
 
 func TestClient_OAuthProviders_ReturnsEnabledProviders(t *testing.T) {
@@ -62,7 +123,7 @@ func TestClient_OAuthProviders_ReturnsEnabledProviders(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 
 	got, err := client.OAuthProviders(context.Background())
 	require.NoError(t, err)
@@ -82,7 +143,7 @@ func TestClient_OAuthProviders_PropagatesHTTPError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 
 	_, err := client.OAuthProviders(context.Background())
 	require.Error(t, err)
@@ -97,7 +158,7 @@ func TestClient_OAuthProviders_NormalisesNameOnTheWayOut(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 
 	got, err := client.OAuthProviders(context.Background())
 	require.NoError(t, err)
@@ -117,7 +178,7 @@ func TestClient_OAuthNativeStart_PostsCorrectBodyAndReturnsAuthorizationURL(t *t
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	got, err := client.OAuthNativeStart(context.Background(), NativeStartRequest{
 		Provider:      "github",
 		CodeChallenge: "challenge-43-chars-abcdefghijklmnopqrstuv",
@@ -144,7 +205,7 @@ func TestClient_OAuthNativeStart_RateLimitedReturnsTypedErrorWithRetryAfter(t *t
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.OAuthNativeStart(context.Background(), NativeStartRequest{
 		Provider:      "github",
 		CodeChallenge: "any",
@@ -167,7 +228,7 @@ func TestClient_OAuthNativeExchange_PostsCorrectBodyAndReturnsAccessToken(t *tes
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	got, err := client.OAuthNativeExchange(context.Background(), NativeExchangeRequest{
 		ExchangeCode: "exchange-code-43-chars-aaaaaaaaaaaaaaaaaaaa",
 		CodeVerifier: "verifier-value-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -193,7 +254,7 @@ func TestClient_OAuthNativeExchange_InvalidGrantReturnsTypedError(t *testing.T) 
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.OAuthNativeExchange(context.Background(), NativeExchangeRequest{ExchangeCode: "x", CodeVerifier: "y"})
 	require.ErrorIs(t, err, ErrInvalidGrant)
 }
@@ -215,7 +276,7 @@ func TestClient_Me_SendsBearerAndParsesUser(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	got, err := client.Me(context.Background(), "test-jwt")
 	require.NoError(t, err)
 	require.Equal(t, User{
@@ -245,7 +306,7 @@ func TestClient_Me_HandlesNullableUsernameAndProvider(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	got, err := client.Me(context.Background(), "jwt")
 	require.NoError(t, err)
 	require.Empty(t, got.Username)
@@ -269,7 +330,7 @@ func TestClient_ClaimUsername_SuccessReturnsUser(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	got, err := client.ClaimUsername(context.Background(), "jwt", "alice")
 	require.NoError(t, err)
 	require.Equal(t, "alice", got.Username)
@@ -292,7 +353,7 @@ func TestClient_ClaimUsername_UnavailableReturnsTypedErrorWithSuggestions(t *tes
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.ClaimUsername(context.Background(), "jwt", "alice")
 
 	var unavail *UsernameUnavailableError
@@ -308,7 +369,7 @@ func TestClient_ClaimUsername_AlreadySetReturnsSentinel(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.ClaimUsername(context.Background(), "jwt", "alice")
 	require.ErrorIs(t, err, ErrUsernameAlreadySet)
 }
@@ -321,7 +382,7 @@ func TestClient_ClaimUsername_InvalidFormatReturnsTypedErrorWithDetail(t *testin
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.ClaimUsername(context.Background(), "jwt", "1bad")
 
 	var formatErr *UsernameFormatError
@@ -338,7 +399,7 @@ func TestClient_ClaimUsername_RateLimitedReturnsTypedErrorWithRetryAfter(t *test
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.ClaimUsername(context.Background(), "jwt", "alice")
 
 	var rateErr *RateLimitedError
@@ -352,7 +413,7 @@ func TestClient_ClaimUsername_OtherErrorReturnsGenericError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := NewClient(server.URL)
+	client := newTestClient(server.URL)
 	_, err := client.ClaimUsername(context.Background(), "jwt", "alice")
 	require.Error(t, err)
 
@@ -361,4 +422,65 @@ func TestClient_ClaimUsername_OtherErrorReturnsGenericError(t *testing.T) {
 
 	var unavail *UsernameUnavailableError
 	require.False(t, errors.As(err, &unavail))
+}
+
+func TestClient_Logout_PostsToAuthLogout(t *testing.T) {
+	cap := newCapture()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cap.recordRequest(r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", false)
+	require.NoError(t, err)
+
+	c := cap.snapshot()
+	require.Equal(t, http.MethodPost, c.method)
+	require.Equal(t, "/api/v1/auth/logout", c.path)
+	require.Equal(t, "Bearer jwt-token", c.auth)
+}
+
+func TestClient_Logout_AllDevicesAddsQueryParam(t *testing.T) {
+	cap := newCapture()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cap.recordRequest(r)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", true)
+	require.NoError(t, err)
+
+	c := cap.snapshot()
+	require.Equal(t, "/api/v1/auth/logout", c.path)
+	require.Equal(t, "all_devices=true", c.query)
+}
+
+func TestClient_Logout_UnsupportedEndpointReturnsTypedError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"detail":"Not Found"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", false)
+	require.ErrorIs(t, err, ErrLogoutUnsupported)
+}
+
+func TestClient_Logout_ExpiredSessionReturnsErrSessionExpired(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"detail":"Invalid or expired token"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(server.URL)
+	err := client.Logout(context.Background(), "jwt-token", false)
+	require.ErrorIs(t, err, ErrSessionExpired)
 }

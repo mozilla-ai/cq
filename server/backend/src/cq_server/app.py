@@ -99,6 +99,22 @@ async def service_error_handler(_request: Request, exc: ServiceError) -> JSONRes
 # the same prefix.
 app.include_router(api_router, prefix="/api/v1")
 
+
+@app.get("/.well-known/cq-node.json", include_in_schema=False)
+def well_known_cq_node() -> None:
+    """Decline to publish a node discovery document.
+
+    A 404 here tells cq clients to use defaults (api_base_url at
+    {addr}/api/v1, api_version=v1). Registered explicitly at the app
+    level so the SPA catch-all does not intercept the well-known path
+    and return text/html when the combined frontend image is in use.
+    Operators who want to advertise a custom api_base_url should serve
+    /.well-known/cq-node.json from a reverse proxy in front of this
+    server instead of generating it from inside the application.
+    """
+    raise HTTPException(status_code=404, detail="Not Found")
+
+
 # Serve the frontend static build when present (combined Docker image).
 if _STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=_STATIC_DIR / "assets"), name="assets")

@@ -1,11 +1,15 @@
 ---
 name: cq
-description: >-
-  Query the knowledge commons before starting ANY task or addressing an error;
-  cq catches blind spots your training data missed, especially stale versions
-  and subtle integration gotchas. Propose discoveries IMMEDIATELY after
-  resolving non-obvious issues — mid-task, not at end-of-task. Confirm or
-  flag retrieved guidance before completing work.
+description: |
+  INVOKE WHEN:
+  - Starting any task — query first (cq catches blind spots your training data missed: stale versions, integration gotchas, undocumented quirks)
+  - You just resolved a non-obvious error, confusing error message, or surprising tool behavior — present a draft KU to the user and call `propose` if they approve
+  - Retrieved guidance proved correct or wrong — confirm or flag it
+
+  SKIP WHEN:
+  - You already queried cq for this exact topic earlier in this session
+
+  Propose with user approval mid-task the moment an insight stabilizes — never batch to end-of-session via /cq:reflect.
 ---
 
 # cq Skill
@@ -67,12 +71,23 @@ Choose domain tags that capture the technology, layer, and integration point. Be
 
 Both `query` and `propose` use the same plural-array keys for `domains`, `languages`, and `frameworks`, plus an optional singular `pattern` string. Each is a flat top-level argument; there is no `context` wrapper.
 
+Each piece of information belongs in one field — do not repeat the same term across multiple fields:
+
+| Field | What it captures | Examples |
+|-------|-----------------|---------|
+| `domains` | Subject area — what the insight is *about* (tools, protocols, concepts, layers). Avoid terms that describe the insight *type* (`"gotchas"`, `"tips"`, `"pitfalls"`) rather than its subject. | `"find"`, `"ci"`, `"http"`, `"connection-pooling"` |
+| `languages` | Programming languages the insight applies to or was observed in. Do not repeat in `domains`. | `"python"`, `"rust"`, `"go"` |
+| `frameworks` | Libraries or frameworks involved. Do not repeat in `domains`. | `"fastapi"`, `"react"`, `"pydantic"` |
+| `pattern` | A reusable cross-cutting concern, useful as a search axis independent of specific technology. Omit if it just rephrases the summary. | `"revocation-semantics"`, `"shell-quoting"` |
+
 | Scenario | `domains` | other call args |
 |----------|-----------|------------------|
 | Stripe payment integration | `["api", "payments", "stripe"]` | `languages: ["python"]` |
 | Webpack build configuration | `["bundler", "webpack", "configuration"]` | `frameworks: ["react"]` |
-| GitHub Actions CI for Rust | `["ci", "github-actions", "rust"]` | `pattern: "ci-pipeline"` |
+| GitHub Actions CI for Rust | `["ci", "github-actions"]` | `languages: ["rust"], pattern: "ci-pipeline"` |
 | PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `languages: ["go"]` |
+
+When an insight applies across a family of tools or runtimes (e.g. all POSIX shells), include both a generic tag (`"shell"`, `"posix"`) and the specific one where it was observed (`"bash"`, `"zsh"`). Do not drop either.
 
 Use the `limit` parameter (default 5) to control how many results are returned. For broad exploratory queries, increase the limit.
 
@@ -111,6 +126,8 @@ Propose a new knowledge unit when you discover something that would save another
 
 **Rationalization check.** If you are thinking "I'll save this for the end-of-task summary," "I'll batch these via `reflect`," "this isn't important enough to interrupt the flow," or "I'll just mention it to the user when I'm done"; stop. Propose now. The cost of an extra `propose` call mid-task is trivial; the cost of forgetting the precise symptom and remediation by end-of-task is high. If the user notices an insight you mentioned in a wrap-up that should have been a `propose` call, that is the protocol failing — propose first, summarize second.
 
+**Near-duplicate check.** If proposing in a domain you've already queried this session, scan those results for overlap before calling `propose`. If a close match exists, `confirm` (same insight) or `flag` (contradicts it) may be more appropriate than a new proposal.
+
 #### Writing Good Proposals
 
 Strip all organization-specific details before proposing. The insight must be generalizable.
@@ -129,7 +146,7 @@ Before proposing, ask: will this insight still be correct in six months? Prefer 
 
 - **Principle over prescription.** `"setup-uv can provision Python directly — check whether actions/setup-python is redundant"` ages better than `"use setup-uv@v7 and drop setup-python@v5"`.
 - **Include a verification method.** Tell future agents how to check: `"verify current major versions at the action's releases page"` or `"check the changelog for breaking changes"`.
-- **Timestamp your evidence.** Include when you verified and where, e.g. `"Verified against releases as of 2026-03"`. This lets future agents judge freshness.
+- **Timestamp your evidence.** Include when you verified and where, e.g. `"Verified against releases as of 2026-03"`. This lets future agents judge freshness. Do not include project or codebase names in verification notes: `"Verified 2026-05 in Python 3.13"` not `"Verified 2026-05 while working on project-x"`.
 - **Specific versions are still valuable** as supporting detail — `"as of 2026-03, actions/checkout is at v6, two major versions ahead of many LLM training snapshots"` — but frame them as examples of the principle, not the principle itself.
 
 #### Proposal Fields
@@ -137,7 +154,7 @@ Before proposing, ask: will this insight still be correct in six months? Prefer 
 Provide all three insight fields:
 - **summary** — One-line description of what you discovered.
 - **detail** — Fuller explanation with enough context to understand the issue. Include a timestamp and source where possible.
-- **action** — Concrete instruction on what to do about it. Prefer principle + verification method over exact values.
+- **action** — Concrete instruction on what to do about it. Start with an imperative verb (e.g. `Use`, `Set`, `Replace`, `When X, do Y`). Prefer principle + verification method over exact values.
 
 #### VIBE√ safety check
 

@@ -36,10 +36,14 @@ Notes:
 // authLogoutLongDoc is the help text shown for "cq auth logout".
 var authLogoutLongDoc = `Clear locally-stored sign-in credentials.
 
-logout is currently local-only: it removes the session JWT and cached
-identity from the credential store but does not invalidate the session
-on the server side. Server-side revocation will land under a future
---revoke flag once the platform exposes the necessary endpoint.`
+By default, this command is local-only: it removes the session JWT and
+cached identity from the credential store.
+
+When configured, logout can also request server-side session revocation
+before local credentials are cleared.
+
+If server revocation fails for reasons other than an already-invalid
+session, local credentials are left intact so you can retry.`
 
 // authLongDoc is the help text shown for the "cq auth" parent command.
 var authLongDoc = fmt.Sprintf(`Manage interactive sign-in for the cq platform.
@@ -176,23 +180,60 @@ func newAuthLoginCmd(cfg authOptions) *cobra.Command {
 
 // newAuthLogoutCmd returns the "cq auth logout" subcommand.
 func newAuthLogoutCmd(cfg authOptions) *cobra.Command {
-	return &cobra.Command{
-		Use:   "logout",
+	var (
+		revoke     bool
+		allDevices bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "logout [--revoke] [--all-devices]",
 		Short: "Clear locally-stored sign-in credentials.",
 		Long:  authLogoutLongDoc,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if allDevices && !revoke {
+				return errors.New("--all-devices requires --revoke")
+			}
+
+			var client auth.Client
+			if revoke {
+				addr, err := requireAuthAddr()
+				if err != nil {
+					return err
+				}
+
+				client = cfg.newClient(addr)
+			}
+
 			store, err := cfg.newStore()
 			if err != nil {
 				return fmt.Errorf("opening credential store: %w", err)
 			}
 
 			return auth.Logout(cmd.Context(), auth.LogoutConfig{
-				Store: store,
-				Out:   cmd.OutOrStdout(),
+				Store:      store,
+				Client:     client,
+				Revoke:     revoke,
+				AllDevices: allDevices,
+				Out:        cmd.OutOrStdout(),
 			})
 		},
 	}
+
+	cmd.Flags().BoolVar(
+		&revoke,
+		"revoke",
+		false,
+		"Request server-side session revocation before local cleanup.",
+	)
+	cmd.Flags().BoolVar(
+		&allDevices,
+		"all-devices",
+		false,
+		"Request server-side revocation across all devices/sessions (requires --revoke).",
+	)
+
+	return cmd
 }
 
 // newAuthProvidersCmd returns the "cq auth providers" subcommand: a
@@ -267,8 +308,8 @@ func newAuthStatusCmd(cfg authOptions) *cobra.Command {
 }
 
 // requireAuthAddr returns the effective platform address from --addr
-// or the environment, erroring if neither is configured. Login and
-// providers need a real URL; logout is purely local and skips this.
+// or the environment, erroring if neither is configured.
+// Subcommands: login, providers, and logout --revoke need a real URL.
 func requireAuthAddr() (string, error) {
 	if flagAddr == "" {
 		return "", fmt.Errorf("no platform address configured. Set %s or pass --addr", envVarAddr)

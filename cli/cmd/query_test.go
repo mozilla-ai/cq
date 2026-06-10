@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -125,6 +126,32 @@ func TestQueryUnsupportedFormat(t *testing.T) {
 	query := NewQueryCmd()
 	query.SetArgs([]string{"--domain", "api", "--format", "xml"})
 	require.Error(t, query.Execute())
+}
+
+func TestQueryPrintsRemoteWarningsToStderr(t *testing.T) {
+	testSetup(t)
+
+	// Fake remote that returns a bare JSON array instead of the {data: [...]}
+	// envelope. The SDK should fail to decode and surface a warning, which
+	// the CLI must print to stderr.
+	withFakeRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+
+	query := NewQueryCmd()
+	var out, errBuf bytes.Buffer
+	query.SetOut(&out)
+	query.SetErr(&errBuf)
+	query.SetArgs([]string{"--domain", "api"})
+	require.NoError(t, query.Execute())
+
+	// The warning must be specifically about the decode failure; a generic
+	// "warning:" line could come from any future warning source and would
+	// mask a regression where the decode error stops surfacing.
+	stderr := errBuf.String()
+	require.Contains(t, stderr, "warning:")
+	require.Contains(t, stderr, "decoding")
 }
 
 func TestQueryPatternFlag(t *testing.T) {

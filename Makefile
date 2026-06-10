@@ -24,6 +24,12 @@ help:
 	@echo "  make install-windsurf                        Install globally (~/.codeium/windsurf/)"
 	@echo "  make uninstall-windsurf                      Remove global Windsurf install"
 	@echo ""
+	@echo "Pi:"
+	@echo "  make install-pi                              Install globally (~/.pi/agent/)"
+	@echo "  make install-pi PROJECT=/path/to/app         Install into a specific project"
+	@echo "  make uninstall-pi                            Remove global Pi install"
+	@echo "  make uninstall-pi PROJECT=/path/to/app       Remove from a specific project"
+	@echo ""
 	@echo "All hosts at once:"
 	@echo "  make install-all                             Install every host globally"
 	@echo "  make install-all PROJECT=/path/to/app        Install every project-capable host into a project"
@@ -167,14 +173,30 @@ ifdef PROJECT
 endif
 	cd scripts/install && uv run python -m cq_install uninstall --target windsurf --global
 
+.PHONY: install-pi
+install-pi:
+ifdef PROJECT
+	cd scripts/install && uv run python -m cq_install install --target pi --project "$(PROJECT)"
+else
+	cd scripts/install && uv run python -m cq_install install --target pi --global
+endif
+
+.PHONY: uninstall-pi
+uninstall-pi:
+ifdef PROJECT
+	cd scripts/install && uv run python -m cq_install uninstall --target pi --project "$(PROJECT)"
+else
+	cd scripts/install && uv run python -m cq_install uninstall --target pi --global
+endif
+
 .PHONY: install-all
 install-all:
 ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target claude --project "$(PROJECT)"
+	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target claude --target pi --project "$(PROJECT)"
 	@echo "Note: Windsurf has no per-project MCP config; installing it globally."
 	cd scripts/install && uv run python -m cq_install install --target windsurf --global
 else
-	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --global
+	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --target pi --global
 endif
 
 .PHONY: compose-up
@@ -246,11 +268,11 @@ lint-cli:
 
 .PHONY: lint-install
 lint-install:
-	cd scripts/install && uv run --locked pre-commit run --files src/**/*.py tests/*.py pyproject.toml uv.lock
+	bash scripts/lint-python-component.sh scripts/install
 
 .PHONY: lint-plugin
 lint-plugin:
-	cd plugins/cq && uv run --locked pre-commit run --files scripts/*.py pyproject.toml uv.lock
+	bash scripts/lint-python-component.sh plugins/cq
 
 .PHONY: lint-schema-go
 lint-schema-go:
@@ -258,7 +280,7 @@ lint-schema-go:
 
 .PHONY: lint-schema-python
 lint-schema-python: sync-schema
-	cd schema/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
+	bash scripts/lint-python-component.sh schema/python
 
 .PHONY: lint-schema
 lint-schema: lint-schema-go lint-schema-python
@@ -269,11 +291,11 @@ lint-sdk-go: check-prompts-sync-sdk-go
 
 .PHONY: lint-sdk-python
 lint-sdk-python: check-prompts-sync-sdk-python sync-schema
-	cd sdk/python && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
+	bash scripts/lint-python-component.sh sdk/python
 
 .PHONY: lint-server-backend
 lint-server-backend:
-	cd server/backend && uv run --locked pre-commit run --files src/**/*.py pyproject.toml uv.lock
+	bash scripts/lint-python-component.sh server/backend
 
 .PHONY: lint-server-frontend
 lint-server-frontend:

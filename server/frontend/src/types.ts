@@ -101,9 +101,8 @@ export interface CreatedApiKey extends ApiKeyPublic {
   token: string
 }
 
-export interface ApiKeysList {
+export interface ApiKeyList {
   data: ApiKeyPublic[]
-  count: number
 }
 
 export interface MessageResponse {

@@ -71,3 +71,54 @@ jobs:
             -output /dev/null
 
           echo "Brew template validated successfully"
+
+      # Scoop autoupdate contract.
+      #
+      # The CLI is distributed on Windows via Scoop's community "Main" bucket:
+      #   manifest:  https://github.com/ScoopInstaller/Main/blob/master/bucket/cq.json
+      #
+      # Unlike Homebrew (we own mozilla-ai/homebrew-tap and push cq.rb on every
+      # release), the Scoop manifest lives in a repo we do not own and updates
+      # itself: ScoopInstaller's Excavator workflow runs every ~4h, reads the
+      # manifest's checkver/autoupdate fields, and commits new versions directly.
+      #   excavator: https://github.com/ScoopInstaller/Main/blob/master/.github/workflows/excavator.yml
+      #
+      # That automation depends on three things release-cli.yaml must keep stable.
+      # If any drift, Scoop silently stops updating (the manifest just stalls)
+      # while Homebrew keeps working; an easy divergence to miss. This check
+      # fails the PR early if the release workflow stops honoring the contract:
+      #
+      #   1. tag scheme cli/vX.Y.Z      -> checkver regex "cli/v([\d.]+)"
+      #   2. asset names cq_Windows_*   -> autoupdate.architecture.*.url
+      #   3. a checksums.txt artifact   -> autoupdate.hash.url
+      #
+      # To change a Windows asset name or the checksums file, update cq.json in
+      # ScoopInstaller/Main in the same change, or Scoop autoupdate will break.
+      - name: Validate Scoop autoupdate contract
+        run: |
+          set -euo pipefail
+
+          workflow=.github/workflows/release-cli.yaml
+          missing=0
+
+          require() {
+            if ! grep -qF "$2" "$workflow"; then
+              echo "::error file=${workflow}::Scoop autoupdate contract broken: expected $1 ($2) not found. Update ScoopInstaller/Main bucket/cq.json to match, or Scoop autoupdate will silently stall."
+              missing=1
+            fi
+          }
+
+          # Match the specific enforcement points, not incidental mentions:
+          # the single Windows archive template (covers both arches via the
+          # matrix), the checksums.txt generation, and the tag-validation regex
+          # (anchored ^cli/v, distinct from the cli/v examples in input
+          # descriptions and error strings).
+          require "Windows archive name template" "cq_\${OS}_\${ARCHIVE_ARCH}.zip"
+          require "checksums.txt generation" "> checksums.txt"
+          require "cli/vX.Y.Z tag-validation regex" "^cli/v"
+
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+          echo "Scoop autoupdate contract validated successfully"

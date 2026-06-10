@@ -50,6 +50,10 @@ func NewQueryCmd() *cobra.Command {
 				return err
 			}
 
+			for _, w := range qr.Warnings {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", w)
+			}
+
 			if format == "json" {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", jsonIndent)

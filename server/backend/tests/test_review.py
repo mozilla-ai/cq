@@ -104,7 +104,7 @@ class TestApprove:
         unit = _propose(client, domains=["searchable"])
         client.post(f"/api/v1/review/{unit['id']}/approve", headers=_auth_header(token))
         resp = client.get("/api/v1/knowledge", params={"domains": ["searchable"]})
-        assert len(resp.json()) == 1
+        assert len(resp.json()["data"]) == 1
 
 
 class TestReject:
@@ -121,7 +121,7 @@ class TestReject:
         unit = _propose(client, domains=["hidden"])
         client.post(f"/api/v1/review/{unit['id']}/reject", headers=_auth_header(token))
         resp = client.get("/api/v1/knowledge", params={"domains": ["hidden"]})
-        assert len(resp.json()) == 0
+        assert len(resp.json()["data"]) == 0
 
 
 class TestListUnits:

@@ -10,7 +10,7 @@ from ...exceptions import (
     UserNotFoundError,
 )
 from ...models.users import (
-    ApiKeysPublic,
+    ApiKeyList,
     CreateApiKeyRequest,
     CreateApiKeyResponse,
     MeResponse,
@@ -73,7 +73,7 @@ async def create_api_key_route(
 async def list_api_keys_route(
     username: CurrentUserDep,
     api_keys: APIKeyServiceDep,
-) -> ApiKeysPublic:
+) -> ApiKeyList:
     """Return the authenticated user's API keys. Never returns plaintext.
 
     Revoked keys are included with ``is_active: false`` so users can audit

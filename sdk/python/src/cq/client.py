@@ -5,6 +5,7 @@ Handles remote mode (HTTP calls to a cq API) and local mode
 """
 
 import contextlib
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,6 +14,7 @@ import httpx
 from pydantic import ValidationError
 
 from ._util import _as_list
+from .discovery import Resolver, default_cache_dir
 from .models import (
     Context,
     FlagReason,
@@ -25,6 +27,14 @@ from .scoring import apply_confirmation, apply_flag
 from .store import LocalStore, StoreStats
 
 _DEFAULT_TIMEOUT = 5.0
+
+# Attach a NullHandler to the package-level "cq" logger so the SDK is silent
+# unless the caller wires a handler.
+# This is load-bearing for MCP-over-stdio transports where any stray write to
+# stderr or stdout corrupts the JSONRPC stream.
+# The NullHandler is installed on the parent "cq" logger so it covers every
+# sub-logger in the SDK (cq.client, cq.discovery, cq.store, etc.).
+logging.getLogger("cq").addHandler(logging.NullHandler())
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +108,8 @@ class Client:
         addr: str | None = None,
         local_db_path: Path | None = None,
         timeout: float = _DEFAULT_TIMEOUT,
+        logger: logging.Logger | None = None,
+        _resolver: Resolver | None = None,
     ) -> None:
         """Initialize the client.
 
@@ -107,23 +119,42 @@ class Client:
             local_db_path: Local SQLite path. Reads from CQ_LOCAL_DB_PATH
                 env var if not provided. Defaults to $XDG_DATA_HOME/cq/local.db.
             timeout: HTTP request timeout in seconds. Defaults to 5.0.
+            logger: Logger for SDK diagnostics.
+                Defaults to ``logging.getLogger("cq.client")``.
+                The library installs a NullHandler on the parent ``cq`` logger at import time,
+                so the SDK is silent unless the caller wires a handler.
+            _resolver: Private test seam for injecting a pre-built Resolver.
+                Not part of the public API; the leading underscore signals that
+                callers outside the SDK's own tests should leave this unset.
         """
         self._addr = addr or os.environ.get("CQ_ADDR")
         db_path = local_db_path or _db_path_from_env()
         self._store = LocalStore(db_path=db_path)
+        self._logger = logger if logger is not None else logging.getLogger("cq.client")
         self._http: httpx.Client | None = None
+        self._resolver: Resolver | None = None
         if self._addr:
             api_key = os.environ.get("CQ_API_KEY", "")
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
             self._http = httpx.Client(
-                base_url=self._addr,
                 timeout=timeout,
                 headers=headers,
             )
+            self._resolver = (
+                _resolver
+                if _resolver is not None
+                else Resolver(
+                    cache_dir=default_cache_dir(),
+                    http_client=self._http,
+                    logger=self._logger,
+                )
+            )
 
     def close(self) -> None:
-        """Close the local store and HTTP client."""
+        """Close the local store, the Resolver, and the HTTP client."""
         self._store.close()
+        if self._resolver is not None:
+            self._resolver.close()
         if self._http is not None:
             self._http.close()
 
@@ -379,6 +410,18 @@ class Client:
 
     # -- Remote HTTP helpers (graceful degradation) --
 
+    def _api_base_url(self) -> str:
+        """Return the resolved API base URL for the configured node.
+
+        Any trailing slash in the resolved value is stripped so each call
+        site can append a leading-slash resource path (e.g. `/knowledge`)
+        without producing `//` in the request URL.
+        Memoization lives in the Resolver; this helper keeps each call site
+        a single statement so request URLs read uniformly across `_remote_*`.
+        """
+        assert self._addr is not None and self._resolver is not None
+        return self._resolver.resolve(self._addr).api_base_url.rstrip("/")
+
     def _remote_stats(self) -> dict | None:
         """Fetch store statistics from the remote API.
 
@@ -387,7 +430,7 @@ class Client:
         """
         assert self._http is not None
         try:
-            resp = self._http.get("/api/v1/knowledge/stats")
+            resp = self._http.get(f"{self._api_base_url()}/knowledge/stats")
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPError:
@@ -417,9 +460,12 @@ class Client:
             params["frameworks"] = frameworks
         if pattern:
             params["pattern"] = pattern
-        resp = self._http.get("/api/v1/knowledge", params=params)
+        resp = self._http.get(f"{self._api_base_url()}/knowledge", params=params)
         resp.raise_for_status()
-        return [KnowledgeUnit.model_validate(item) for item in resp.json()]
+        body = resp.json()
+        if not isinstance(body, dict) or "data" not in body:
+            raise ValueError("expected {data: [...]} envelope from knowledge list endpoint")
+        return [KnowledgeUnit.model_validate(item) for item in body["data"]]
 
     def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit:
         """Push a unit to the remote API.
@@ -440,7 +486,7 @@ class Client:
             "created_by": unit.created_by,
         }
         try:
-            resp = self._http.post("/api/v1/knowledge", json=body)
+            resp = self._http.post(f"{self._api_base_url()}/knowledge", json=body)
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RemoteError(
@@ -471,7 +517,7 @@ class Client:
         """
         assert self._http is not None
         try:
-            resp = self._http.post(f"/api/v1/knowledge/{unit_id}/confirmations")
+            resp = self._http.post(f"{self._api_base_url()}/knowledge/{unit_id}/confirmations")
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RemoteError(
@@ -503,7 +549,7 @@ class Client:
         assert self._http is not None
         try:
             resp = self._http.post(
-                f"/api/v1/knowledge/{unit_id}/flags",
+                f"{self._api_base_url()}/knowledge/{unit_id}/flags",
                 json={"reason": reason.value},
             )
             resp.raise_for_status()

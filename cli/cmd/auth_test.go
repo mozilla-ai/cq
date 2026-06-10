@@ -58,6 +58,7 @@ type stubAuthClient struct {
 	oauthProviders func(ctx context.Context) ([]auth.Provider, error)
 	createAPIKey   func(ctx context.Context, jwt string, req auth.CreateAPIKeyRequest) (auth.CreatedAPIKey, error)
 	listAPIKeys    func(ctx context.Context, jwt string) ([]auth.APIKey, error)
+	logout         func(ctx context.Context, jwt string, allDevices bool) error
 	revokeAPIKey   func(ctx context.Context, jwt string, keyID string) error
 }
 
@@ -99,6 +100,14 @@ func (s *stubAuthClient) ListAPIKeys(ctx context.Context, jwt string) ([]auth.AP
 	}
 
 	return s.listAPIKeys(ctx, jwt)
+}
+
+func (s *stubAuthClient) Logout(ctx context.Context, jwt string, allDevices bool) error {
+	if s.logout == nil {
+		panic("Logout not stubbed")
+	}
+
+	return s.logout(ctx, jwt, allDevices)
 }
 
 func (s *stubAuthClient) RevokeAPIKey(ctx context.Context, jwt string, keyID string) error {
@@ -163,6 +172,64 @@ func TestAuthLogout_ClearsStoredCredentials(t *testing.T) {
 
 	require.NoError(t, cmd.ExecuteContext(context.Background()))
 	require.Contains(t, out.String(), "Signed out")
+
+	_, err := store.Load()
+	require.ErrorIs(t, err, credstore.ErrNotFound)
+}
+
+func TestAuthLogout_AllDevicesRequiresRevoke(t *testing.T) {
+	testSetup(t)
+
+	cmd := NewAuthCmd(stubStore(&memStore{}))
+	cmd.SetArgs([]string{"logout", "--all-devices"})
+
+	err := cmd.ExecuteContext(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "--all-devices requires --revoke")
+}
+
+func TestAuthLogout_RevokeRequiresAddr(t *testing.T) {
+	testSetup(t)
+
+	cmd := NewAuthCmd(stubStore(&memStore{}), stubClient(&stubAuthClient{
+		logout: func(context.Context, string, bool) error {
+			return nil
+		},
+	}))
+	cmd.SetArgs([]string{"logout", "--revoke"})
+
+	err := cmd.ExecuteContext(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), envVarAddr)
+}
+
+func TestAuthLogout_RevokeAllDevices_RevokesThenClearsStoredCredentials(t *testing.T) {
+	testSetup(t)
+	setFlag(t, &flagAddr, "https://platform.example.com")
+
+	store := &memStore{}
+	require.NoError(t, store.Save(credstore.Credentials{SessionJWT: "j", Username: "alice"}))
+
+	called := false
+	client := &stubAuthClient{
+		logout: func(_ context.Context, jwt string, allDevices bool) error {
+			called = true
+			require.Equal(t, "j", jwt)
+			require.True(t, allDevices)
+
+			return nil
+		},
+	}
+
+	cmd := NewAuthCmd(stubStore(store), stubClient(client))
+	cmd.SetArgs([]string{"logout", "--revoke", "--all-devices"})
+
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+
+	require.NoError(t, cmd.ExecuteContext(context.Background()))
+	require.True(t, called)
+	require.Contains(t, out.String(), "all devices")
 
 	_, err := store.Load()
 	require.ErrorIs(t, err, credstore.ErrNotFound)

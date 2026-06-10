@@ -65,13 +65,27 @@ func newTestClient(t *testing.T) *Client {
 func newTestClientWithRemote(t *testing.T, handler http.Handler) *Client {
 	t.Helper()
 	testClearEnv(t)
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(withDiscoveryNotFound(handler))
 	t.Cleanup(srv.Close)
 	dbPath := filepath.Join(t.TempDir(), "test.db")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
+}
+
+// withDiscoveryNotFound wraps handler so the discovery probe sees a 404
+// at the well-known path and the SDK falls back to addr + /api/v1.
+// Other paths flow through to handler unchanged.
+func withDiscoveryNotFound(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/cq-node.json" {
+			http.NotFound(w, r)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	})
 }
 
 func testRemoteKUJSON(id string) map[string]any {
@@ -432,7 +446,9 @@ func TestQueryMergesLocalAndRemote(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000003")})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000003")},
+		})
 	}))
 	ctx := context.Background()
 
@@ -470,7 +486,9 @@ func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
 
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000005")})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{testRemoteKUJSON("ku_00000000000000000000000000000005")},
+		})
 	}))
 
 	qr, err := c.Query(context.Background(), QueryParams{Domains: []string{"api"}})
@@ -489,6 +507,22 @@ func TestQuerySourceRemoteWhenRemoteFails(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, qr.Units)
 	require.Equal(t, SourceRemote, qr.Source)
+	require.NotEmpty(t, qr.Warnings, "remote failure should surface as a warning")
+}
+
+func TestQueryWarnsOnRemoteDecodeFailure(t *testing.T) {
+
+	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Bare array; the SDK now expects the {data: [...]} envelope.
+		_, _ = w.Write([]byte(`[{"id":"ku_00000000000000000000000000000099"}]`))
+	}))
+
+	qr, err := c.Query(context.Background(), QueryParams{Domains: []string{"api"}})
+	require.NoError(t, err)
+	require.Empty(t, qr.Units)
+	require.NotEmpty(t, qr.Warnings)
+	require.Contains(t, qr.Warnings[0].Error(), "decoding")
 }
 
 func TestConfirmLocalUnit(t *testing.T) {
@@ -560,7 +594,7 @@ func TestDrain(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 	})
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(withDiscoveryNotFound(handler))
 	defer srv.Close()
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
@@ -575,6 +609,7 @@ func TestDrain(t *testing.T) {
 	_ = localOnly.Close()
 
 	// Create client with remote and drain.
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath))
 	require.NoError(t, err)
 	defer func() { _ = c.Close() }()

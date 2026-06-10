@@ -29,6 +29,9 @@ var reviewSchema []byte
 //go:embed health.json
 var healthSchema []byte
 
+//go:embed node_discovery.json
+var nodeDiscoverySchema []byte
+
 //go:embed stats.json
 var statsSchema []byte
 
@@ -46,6 +49,9 @@ func HealthSchema() []byte { return bytes.Clone(healthSchema) }
 
 // KnowledgeUnitSchema returns the raw bytes of knowledge_unit.json.
 func KnowledgeUnitSchema() []byte { return bytes.Clone(knowledgeUnitSchema) }
+
+// NodeDiscoverySchema returns the raw bytes of node_discovery.json.
+func NodeDiscoverySchema() []byte { return bytes.Clone(nodeDiscoverySchema) }
 
 // ProposeSchema returns the raw bytes of propose.json.
 func ProposeSchema() []byte { return bytes.Clone(proposeSchema) }

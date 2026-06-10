@@ -47,6 +47,10 @@ validate-fixtures:
 		fixtures/minimal-unit.json \
 		fixtures/flagged-unit.json \
 		fixtures/duplicate-flag.json
+	uvx check-jsonschema \
+		--schemafile node_discovery.json \
+		fixtures/node_discovery_minimal.json \
+		fixtures/node_discovery_split.json
 
 .PHONY: validate-values
 validate-values:

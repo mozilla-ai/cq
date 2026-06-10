@@ -7,8 +7,14 @@ import pytest
 from cq_install.hosts import REGISTRY, HostDef, get_host
 
 
-def test_registry_lists_all_four_hosts():
-    assert set(REGISTRY) == {"cursor", "windsurf", "opencode", "claude"}
+def test_registry_lists_all_hosts():
+    assert set(REGISTRY) == {"cursor", "windsurf", "opencode", "claude", "pi"}
+
+
+def test_registry_includes_pi():
+    from cq_install.hosts.pi import PiHost
+
+    assert isinstance(get_host("pi"), PiHost)
 
 
 def test_get_host_returns_host_def():

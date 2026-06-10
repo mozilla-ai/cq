@@ -19,15 +19,14 @@ class ApiKeyPublic(BaseModel):
     is_active: bool
 
 
-class ApiKeysPublic(BaseModel):
-    """Collection wrapper for API key listings.
+class ApiKeyList(BaseModel):
+    """Unpaginated collection envelope for API key listings.
 
-    The envelope shape leaves room for pagination metadata (e.g. a
-    ``next_cursor`` field) without breaking existing clients.
+    NOTE: List is the unpaginated shape (``{data: [...]}``); cursor-paginated
+    endpoints use a separate ``Page`` model. See docs/architecture.md §6.
     """
 
     data: list[ApiKeyPublic]
-    count: int
 
 
 class CreateApiKeyRequest(BaseModel):
