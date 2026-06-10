@@ -2,6 +2,7 @@ package cqschema
 
 import (
 	"bytes"
+
 	_ "embed"
 )
 
