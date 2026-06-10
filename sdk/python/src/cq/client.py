@@ -369,14 +369,14 @@ class Client:
         if self._http is not None:
             remote = self._remote_stats()
             if remote is not None:
-                for tier, count in remote.get("tiers", {}).items():
+                for tier, count in remote.get("tier_counts", {}).items():
                     # The remote store should never report a "local" tier, but guard
                     # against it to prevent overwriting the local count we already set.
                     if tier == Tier.LOCAL:
                         continue
                     stats.tier_counts[tier] = count
                     stats.total_count += count
-                for domain, count in remote.get("domains", {}).items():
+                for domain, count in remote.get("domain_counts", {}).items():
                     stats.domain_counts[domain] = stats.domain_counts.get(domain, 0) + count
 
         return stats

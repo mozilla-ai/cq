@@ -26,7 +26,13 @@ func TestSchemaAccessorsReturnNonEmptyJSON(t *testing.T) {
 		require.NotEmpty(t, raw, "schema %s should be embedded", name)
 		var doc map[string]any
 		require.NoError(t, json.Unmarshal(raw, &doc), "schema %s should be valid JSON", name)
-		require.Equal(t, "https://json-schema.org/draft/2020-12/schema", doc["$schema"], "schema %s should declare draft 2020-12", name)
+		require.Equal(
+			t,
+			"https://json-schema.org/draft/2020-12/schema",
+			doc["$schema"],
+			"schema %s should declare draft 2020-12",
+			name,
+		)
 	}
 }
 
