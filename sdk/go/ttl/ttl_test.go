@@ -30,7 +30,12 @@ func TestParse(t *testing.T) {
 		{name: "lower-case seconds", input: "60s", want: "60s", wantDur: 60 * time.Second},
 		{name: "upper-case days canonicalised", input: "3D", want: "3d", wantDur: 3 * 24 * time.Hour},
 		{name: "upper-case hours canonicalised", input: "2H", want: "2h", wantDur: 2 * time.Hour},
-		{name: "mixed-case rejected by grammar is impossible after normalisation", input: "3D", want: "3d", wantDur: 3 * 24 * time.Hour},
+		{
+			name:    "mixed-case rejected by grammar is impossible after normalisation",
+			input:   "3D",
+			want:    "3d",
+			wantDur: 3 * 24 * time.Hour,
+		},
 		{name: "leading and trailing whitespace trimmed", input: "  90d  ", want: "90d", wantDur: 90 * 24 * time.Hour},
 		{name: "leading zero accepted", input: "007d", want: "007d", wantDur: 7 * 24 * time.Hour},
 		{name: "max boundary 365d accepted", input: "365d", want: "365d", wantDur: ttl.Max},
@@ -61,7 +66,11 @@ func TestParse(t *testing.T) {
 		{name: "zero seconds rejected", input: "0s", wantErr: ttl.ErrTooSmall},
 		{name: "zero with leading zeros rejected", input: "000h", wantErr: ttl.ErrTooSmall},
 
-		{name: "canonical length cap rejects padded leading zeros", input: "00000000000000001d", wantErr: ttl.ErrTooLarge},
+		{
+			name:    "canonical length cap rejects padded leading zeros",
+			input:   "00000000000000001d",
+			wantErr: ttl.ErrTooLarge,
+		},
 		{name: "canonical length cap rejects 17-char digit run", input: "11111111111111111s", wantErr: ttl.ErrTooLarge},
 	}
 

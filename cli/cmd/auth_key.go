@@ -10,9 +10,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/mozilla-ai/cq/sdk/go/ttl"
+
 	"github.com/mozilla-ai/cq/cli/internal/auth"
 	"github.com/mozilla-ai/cq/cli/internal/credstore"
-	"github.com/mozilla-ai/cq/sdk/go/ttl"
 )
 
 // authKeyCreateLongDoc is the help text shown for cq auth key create.
@@ -122,8 +123,10 @@ func newAuthKeyCreateCmd(cfg authOptions) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "Display name for the key (required).")
-	cmd.Flags().StringVar(&ttlInput, "ttl", "", "Lifetime in the format <integer><s|m|h|d>, e.g. 30d, 12h. Max 365d. Required.")
-	cmd.Flags().StringSliceVar(&labels, "labels", nil, "Optional labels (repeat --labels or supply a comma-separated list).")
+	cmd.Flags().
+		StringVar(&ttlInput, "ttl", "", "Lifetime in the format <integer><s|m|h|d>, e.g. 30d, 12h. Max 365d. Required.")
+	cmd.Flags().
+		StringSliceVar(&labels, "labels", nil, "Optional labels (repeat --labels or supply a comma-separated list).")
 
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("ttl")

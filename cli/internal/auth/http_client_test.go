@@ -119,7 +119,11 @@ func TestClient_OAuthProviders_ReturnsEnabledProviders(t *testing.T) {
 		cap.recordRequest(r)
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"providers":[{"name":"github","display_name":"GitHub","enabled":true},{"name":"google","display_name":"Google","enabled":false}]}`))
+		_, _ = w.Write(
+			[]byte(
+				`{"providers":[{"name":"github","display_name":"GitHub","enabled":true},{"name":"google","display_name":"Google","enabled":false}]}`,
+			),
+		)
 	}))
 	t.Cleanup(server.Close)
 
@@ -255,7 +259,10 @@ func TestClient_OAuthNativeExchange_InvalidGrantReturnsTypedError(t *testing.T) 
 	t.Cleanup(server.Close)
 
 	client := newTestClient(server.URL)
-	_, err := client.OAuthNativeExchange(context.Background(), NativeExchangeRequest{ExchangeCode: "x", CodeVerifier: "y"})
+	_, err := client.OAuthNativeExchange(
+		context.Background(),
+		NativeExchangeRequest{ExchangeCode: "x", CodeVerifier: "y"},
+	)
 	require.ErrorIs(t, err, ErrInvalidGrant)
 }
 

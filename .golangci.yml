@@ -1,0 +1,56 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - tagliatelle
+    - tagalign
+  settings:
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
+          toml: snake
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines
+  settings:
+    gci:
+      sections:
+      - standard
+      - default
+      - prefix(github.com/mozilla-ai/cq)
+      - blank
+      - dot
+      - localmodule
+    golines:
+      max-len: 120
+
+issues:
+  fix: true
+
+output:
+  formats:
+    text:
+      path: stderr
+  sort-order:
+    - severity
+    - file
+    - linter
+
+run:
+  timeout: 5m
+  relative-path-mode: gomod
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+  allow-serial-runners: true

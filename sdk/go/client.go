@@ -209,7 +209,12 @@ func (c *Client) DrainableCount(ctx context.Context) (int, error) {
 // Flag marks a knowledge unit as problematic and reduces its confidence.
 // Routes to local store or remote API based on the unit's tier.
 // When reason is Duplicate, WithDuplicateOf must be provided.
-func (c *Client) Flag(ctx context.Context, ku KnowledgeUnit, reason FlagReason, opts ...FlagOption) (KnowledgeUnit, error) {
+func (c *Client) Flag(
+	ctx context.Context,
+	ku KnowledgeUnit,
+	reason FlagReason,
+	opts ...FlagOption,
+) (KnowledgeUnit, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
@@ -330,7 +335,10 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	if err := c.store.insert(ku); err != nil {
 		insertErr := fmt.Errorf("inserting knowledge unit: %w", err)
 		if remoteErr != nil {
-			return KnowledgeUnit{}, fmt.Errorf("fallback insert after remote failure: %w", errors.Join(remoteErr, insertErr))
+			return KnowledgeUnit{}, fmt.Errorf(
+				"fallback insert after remote failure: %w",
+				errors.Join(remoteErr, insertErr),
+			)
 		}
 		return KnowledgeUnit{}, insertErr
 	}

@@ -173,7 +173,13 @@ func Login(ctx context.Context, c LoginConfig) error {
 // candidate to ClaimUsername, re-prompting on platform-side validation
 // errors (409 unavailable, 422 invalid format) and propagating
 // rate-limit and unrecoverable errors to the caller.
-func claimUsernameInteractively(ctx context.Context, scanner *bufio.Scanner, out io.Writer, client Client, jwt string) (User, error) {
+func claimUsernameInteractively(
+	ctx context.Context,
+	scanner *bufio.Scanner,
+	out io.Writer,
+	client Client,
+	jwt string,
+) (User, error) {
 	for {
 		username, err := readUsername(scanner, out)
 		if err != nil {
@@ -210,7 +216,12 @@ func claimUsernameInteractively(ctx context.Context, scanner *bufio.Scanner, out
 // user to press Enter before launching the browser. If the launch
 // fails, the URL is repeated so the user can paste it manually. EOF
 // before Enter is treated as a cancelled sign-in.
-func promptToOpenBrowser(scanner *bufio.Scanner, out io.Writer, authorizationURL string, openBrowserFn func(string) error) error {
+func promptToOpenBrowser(
+	scanner *bufio.Scanner,
+	out io.Writer,
+	authorizationURL string,
+	openBrowserFn func(string) error,
+) error {
 	_, _ = fmt.Fprintf(out, "Sign in at: %s\n", authorizationURL)
 	_, _ = fmt.Fprintln(out, "Press Enter to open this URL in your browser, or open it yourself.")
 

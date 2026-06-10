@@ -64,7 +64,6 @@ func InitFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&flagDBPath, "db-path", os.Getenv(envVarDBPath), "Local database path (env: "+envVarDBPath+")")
 }
 
-
 // cliTimeout returns the CLI operation timeout from CQ_TIMEOUT env var or the default.
 func cliTimeout() time.Duration {
 	if v := os.Getenv(envVarTimeout); v != "" {

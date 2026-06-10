@@ -78,7 +78,11 @@ func TestDrainPushesUnits(t *testing.T) {
 			pushCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
+			_, _ = w.Write(
+				[]byte(
+					`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`,
+				),
+			)
 
 			return
 		}
@@ -112,7 +116,11 @@ func TestDrainJSONFormat(t *testing.T) {
 		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
+			_, _ = w.Write(
+				[]byte(
+					`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`,
+				),
+			)
 
 			return
 		}
@@ -172,7 +180,11 @@ func TestDrainAddrFlagOverridesEnv(t *testing.T) {
 			pushCount++
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`))
+			_, _ = w.Write(
+				[]byte(
+					`{"id":"ku_00000000000000000000000000000001","version":1,"domains":["test"],"insight":{"summary":"s","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"local","flags":[]}`,
+				),
+			)
 
 			return
 		}
