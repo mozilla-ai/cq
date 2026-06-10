@@ -57,6 +57,11 @@ class StoreStats(BaseModel):
     confidence_distribution: dict[str, int] = Field(default_factory=dict)
     tier_counts: dict[str, int] = Field(default_factory=dict)
 
+    # Non-fatal issues encountered while aggregating stats, such as a
+    # remote API being unreachable. When present, the reported counts
+    # reflect the local store only.
+    warnings: list[str] = Field(default_factory=list)
+
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS knowledge_units (

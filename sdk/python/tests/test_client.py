@@ -744,8 +744,9 @@ class TestRemoteIntegration:
         assert stats.domain_counts["db"] == 2
         c.close()
 
-    def test_status_remote_unreachable_returns_local_only(self, tmp_path: Path, httpx_mock):
-        """status() returns local-only tier counts when remote is unreachable."""
+    def test_status_remote_unreachable_surfaces_warning(self, tmp_path: Path, httpx_mock, caplog):
+        """A remote stats failure surfaces a warning + log, not a silent local-only result
+        indistinguishable from a genuinely empty store."""
         httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
 
         local_client = Client(local_db_path=tmp_path / "test.db")
@@ -753,9 +754,29 @@ class TestRemoteIntegration:
         local_client.close()
 
         c = Client(addr="http://unreachable", local_db_path=tmp_path / "test.db")
-        stats = c.status()
+        with caplog.at_level(logging.WARNING, logger="cq.client"):
+            stats = c.status()
         assert stats.total_count == 1
         assert stats.tier_counts == {"local": 1}
+        assert stats.warnings, "remote failure should surface as a warning"
+        assert any("unavailable" in w.lower() for w in stats.warnings)
+        assert any("Remote stats unavailable" in r.message for r in caplog.records)
+        c.close()
+
+    def test_status_remote_http_error_surfaces_warning(self, tmp_path: Path, httpx_mock):
+        """A remote stats HTTP error (e.g. 401 from a misconfigured key) surfaces as a warning
+        rather than a silent local-only result."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
+            json={"detail": "Invalid API key"},
+            status_code=401,
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        assert stats.tier_counts == {"local": 0}
+        assert stats.warnings, "remote HTTP error should surface as a warning"
+        assert any("unavailable" in w.lower() for w in stats.warnings)
         c.close()
 
     def test_status_ignores_local_tier_from_remote(self, tmp_path: Path, httpx_mock):

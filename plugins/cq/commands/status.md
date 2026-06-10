@@ -22,7 +22,7 @@ Present the results using this structure:
 ### Tier Counts
 local: {count} | private: {count} | public: {count}
 
-*local* = on this machine only; *private* = shared with everyone who can reach the same `CQ_ADDR`; *public* = open commons (not yet available).
+*local* = on this machine only; *private* = shared with everyone who can reach the same `CQ_ADDR`; *public* = the open commons, shared across every node that participates in it (available when your configured remote serves it).
 
 ### Domains
 {domain}: {count} | {domain}: {count} | ...
@@ -42,15 +42,14 @@ The `tier_counts` field contains the tier breakdown. Display all tiers present i
 
 The `recent` field reflects the local store only. When a remote is configured and reachable, units proposed via `Client.Propose` go directly to the remote and do not appear here. If `recent` is empty, render the section as `(no recent local additions)` so users understand the scope.
 
-If the response includes `promoted_to_remote`, add this line after the total count:
+If the `warnings` field is non-empty, surface each entry prominently above the summary so the counts are not mistaken for the full picture. A warning means stats aggregation degraded; for example, an unreachable or misconfigured remote, in which case the counts reflect the local store only:
 
 ```
-Promoted {promoted_to_remote} knowledge units to the remote store at startup.
+> ⚠️ {warning}
 ```
 
 ## Empty Store
 
-When all tier counts are 0 (or `tier_counts` is absent):
+When all tier counts are 0 (or `tier_counts` is absent), display only:
 
-- **With `promoted_to_remote`:** Show the header, tier counts line, and promotion line. Omit Domains, Recent Local Additions, and Confidence sections (there is no data to display).
-- **Without `promoted_to_remote`:** Display only: "The cq store is empty. Knowledge units are added via `propose` or the `/cq:reflect` command."
+"The cq store is empty. Knowledge units are added via `propose` or the `/cq:reflect` command."

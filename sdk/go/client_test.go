@@ -1,9 +1,11 @@
 package cq
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -268,6 +270,51 @@ func TestStatus(t *testing.T) {
 	stats, err = c.Status(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, stats.TotalCount)
+}
+
+func TestStatusAggregatesRemote(t *testing.T) {
+	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_count":   3,
+			"tier_counts":   map[string]int{"private": 2, "public": 1},
+			"domain_counts": map[string]int{"api": 3},
+		})
+	}))
+
+	stats, err := c.Status(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, stats.Warnings)
+	require.Equal(t, 3, stats.TotalCount)
+	require.Equal(t, 2, stats.TierCounts[Private])
+	require.Equal(t, 1, stats.TierCounts[Public])
+	require.Equal(t, 3, stats.DomainCounts["api"])
+}
+
+func TestStatusWarnsOnRemoteFailure(t *testing.T) {
+	testClearEnv(t)
+	srv := httptest.NewServer(withDiscoveryNotFound(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})))
+	t.Cleanup(srv.Close)
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath), WithLogger(logger))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
+
+	// A failing remote must surface as a warning + log, not a silent
+	// local-only result indistinguishable from a genuinely empty store.
+	stats, err := c.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 0, stats.TotalCount)
+	require.NotEmpty(t, stats.Warnings, "remote failure should surface as a warning")
+	require.Contains(t, stats.Warnings[0].Error(), "remote stats unavailable")
+	require.Contains(t, logBuf.String(), "remote stats unavailable")
 }
 
 func TestLifecycle(t *testing.T) {

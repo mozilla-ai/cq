@@ -36,4 +36,4 @@ require (
 
 // Monorepo: the SDK is consumed locally. Re-pin to a published version
 // when the SDK is released alongside the CLI.
-//replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go
+replace github.com/mozilla-ai/cq/sdk/go => ../sdk/go

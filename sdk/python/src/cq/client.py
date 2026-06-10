@@ -360,15 +360,25 @@ class Client:
         """Return knowledge store statistics with tier counts.
 
         When a remote API is configured and reachable, tier counts include
-        both local and remote breakdowns. If the remote is unreachable,
-        only local counts are returned.
+        both local and remote breakdowns. If the remote stats request fails,
+        only local counts are returned, the failure is logged at warn level,
+        and a non-fatal entry is added to ``StoreStats.warnings`` so callers
+        can distinguish an unreachable remote from a genuinely empty store.
         """
         stats = self._store.stats()
         stats.tier_counts = {Tier.LOCAL: stats.total_count}
 
         if self._http is not None:
-            remote = self._remote_stats()
-            if remote is not None:
+            try:
+                remote = self._remote_stats()
+            except (httpx.HTTPError, ValueError) as exc:
+                # Surface the failure rather than silently reporting local-only
+                # counts that look identical to a genuinely empty store. Log via
+                # the SDK logger (NullHandler by default, so MCP-over-stdio stays
+                # clean) and carry a warning to the caller.
+                self._logger.warning("Remote stats unavailable: %s", exc)
+                stats.warnings.append(f"Remote stats unavailable: {exc}")
+            else:
                 for tier, count in remote.get("tier_counts", {}).items():
                     # The remote store should never report a "local" tier, but guard
                     # against it to prevent overwriting the local count we already set.
@@ -422,19 +432,20 @@ class Client:
         assert self._addr is not None and self._resolver is not None
         return self._resolver.resolve(self._addr).api_base_url.rstrip("/")
 
-    def _remote_stats(self) -> dict | None:
+    def _remote_stats(self) -> dict:
         """Fetch store statistics from the remote API.
 
         Returns:
-            The stats dict on success, None on transport error.
+            The decoded stats dict on success.
+
+        Raises:
+            httpx.HTTPError: For transport-layer or HTTP status failures.
+            ValueError: If the response body is not valid JSON.
         """
         assert self._http is not None
-        try:
-            resp = self._http.get(f"{self._api_base_url()}/knowledge/stats")
-            resp.raise_for_status()
-            return resp.json()
-        except httpx.HTTPError:
-            return None
+        resp = self._http.get(f"{self._api_base_url()}/knowledge/stats")
+        resp.raise_for_status()
+        return resp.json()
 
     def _remote_query(
         self,

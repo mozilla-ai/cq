@@ -419,8 +419,10 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 
 // Status returns aggregated statistics about the knowledge store.
 // When a remote API is configured and reachable, tier counts include
-// both local and remote breakdowns. If the remote is unreachable,
-// only local counts are returned.
+// both local and remote breakdowns. If the remote stats request fails,
+// only local counts are returned, the failure is logged at warn level,
+// and a non-fatal entry is added to StoreStats.Warnings so callers can
+// distinguish an unreachable remote from a genuinely empty store.
 func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
@@ -442,7 +444,14 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 
 	if c.remote != nil {
 		remote, err := c.remote.stats(ctx)
-		if err == nil {
+		if err != nil {
+			// Surface the failure rather than silently reporting local-only
+			// counts that look identical to a genuinely empty store. Log to
+			// the client's logger (stderr, safe for the MCP stdout channel)
+			// and carry a warning to the caller.
+			c.logger.Warn("status: remote stats unavailable", "err", err)
+			stats.Warnings = append(stats.Warnings, fmt.Errorf("remote stats unavailable: %w", err))
+		} else {
 			for tier, count := range remote.TierCounts {
 				// The remote store should never report a "local" tier, but guard
 				// against it to prevent overwriting the local count we already set.
