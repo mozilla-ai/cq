@@ -7,24 +7,27 @@ embedding dependencies are installed.
 
 import logging
 import math
-from pydoc import text
 import sqlite3
 from typing import Any
 
 from cq.models import KnowledgeUnit
 from cq.scoring import calculate_relevance
-from ..repositories._normalize import normalize_domains
-from . import is_enabled as semsearch_enabled, _TOKEN_EMBEDDING_URL, _DIM, _VEC_DELETE_SQL, _VEC_INSERT_SQL, _VEC_SEARCH_SQL, _QUERY_VEC_COMBINED_SQL
-from sqlalchemy.sql.expression import text as text_clause, bindparam
 from sqlalchemy.engine.base import Connection
+from sqlalchemy.sql.expression import bindparam
+from sqlalchemy.sql.expression import text as text_clause
+
+from ..repositories._normalize import normalize_domains
+from . import _QUERY_VEC_COMBINED_SQL, _TOKEN_EMBEDDING_URL, _VEC_DELETE_SQL, _VEC_INSERT_SQL, _VEC_SEARCH_SQL
+from . import is_enabled as semsearch_enabled
 
 logger = logging.getLogger(__name__)
 
 if semsearch_enabled():
-    import sqlite_vec
     import numpy as np
     import numpy.typing as npt
+    import sqlite_vec
     from httpx import AsyncClient
+
 
 async def _get_embeddings(wordlist: list[str]) -> "npt.ArrayLike":
     """Get embeddings for a list of words using the embedding API."""
@@ -74,18 +77,19 @@ async def insert_unit(conn, unit: KnowledgeUnit) -> None:
         raise ValueError("Cannot insert embedding for unit with empty insight text")
     embedding = await _get_embeddings([text])
     serialized = _serialize_embedding(embedding)
-    res = conn.execute(text_clause(_VEC_INSERT_SQL), {"unit_id": unit.id, "embedding": serialized})
+    conn.execute(text_clause(_VEC_INSERT_SQL), {"unit_id": unit.id, "embedding": serialized})
 
 
 # check type of sqlalchemy conns
-async def query(conn,
-                domains: list[str],
-                languages: list[str] | None,
-                frameworks: list[str] | None,
-                pattern: str,
-                *,
-                limit: int = 5,
-            ) -> list[KnowledgeUnit]:
+async def query(
+    conn,
+    domains: list[str],
+    languages: list[str] | None,
+    frameworks: list[str] | None,
+    pattern: str,
+    *,
+    limit: int = 5,
+) -> list[KnowledgeUnit]:
     """Semantic search implementation."""
     if not semsearch_enabled():
         raise RuntimeError(
@@ -101,11 +105,13 @@ async def query(conn,
     try:
         vec_emb_search = await _get_embeddings(normalized)
         search_embedding = _serialize_embedding(vec_emb_search)
-        vec_rows = conn.execute(text_clause(_VEC_SEARCH_SQL), {"query_embedding": search_embedding, "limit": limit}).fetchall()
+        vec_rows = conn.execute(
+            text_clause(_VEC_SEARCH_SQL), {"query_embedding": search_embedding, "limit": limit}
+        ).fetchall()
         logger.info(f"Vector search returned {len(vec_rows)} rows for domains {normalized} with limit {limit}")
     except sqlite3.OperationalError as e:
         raise RuntimeError("Database error when performing base query") from e
-    units= [KnowledgeUnit.model_validate_json(row[0]) for row in vec_rows]
+    units = [KnowledgeUnit.model_validate_json(row[0]) for row in vec_rows]
     scored = [
         (
             calculate_relevance(
@@ -126,13 +132,15 @@ async def query(conn,
     return [u for _, _, u in scored[:limit]]
 
 
-async def combined_query(conn: Connection,
-                domains: list[str],
-                languages: list[str] | None,
-                frameworks: list[str] | None,
-                pattern: str,
-                *,
-                limit: int = 5,) -> list[Any]:
+async def combined_query(
+    conn: Connection,
+    domains: list[str],
+    languages: list[str] | None,
+    frameworks: list[str] | None,
+    pattern: str,
+    *,
+    limit: int = 5,
+) -> list[Any]:
     """Generate SQL for a combined domain filter + vector search query."""
     if not semsearch_enabled():
         raise RuntimeError(
@@ -159,6 +167,7 @@ async def combined_query(conn: Connection,
         raise RuntimeError("General error when performing combined query") from e
     units = [(KnowledgeUnit.model_validate_json(row), distance) for row, distance in vec_rows]
     total_distance = sum(distance for _, distance in units)
+
     def combine(relevance, distance) -> float:
         """Combine relevance and distance into a single score."""
         # Simple example: partially weighted over normalized distance
@@ -171,13 +180,16 @@ async def combined_query(conn: Connection,
     # Re arrange rows according to distance
     scored = [
         (
-            combine(calculate_relevance(
-                u,
-                normalized,
-                query_languages=languages,
-                query_frameworks=frameworks,
-                query_pattern=pattern,
-            ), distance)
+            combine(
+                calculate_relevance(
+                    u,
+                    normalized,
+                    query_languages=languages,
+                    query_frameworks=frameworks,
+                    query_pattern=pattern,
+                ),
+                distance,
+            )
             * u.evidence.confidence,
             u.id,
             u,
@@ -188,7 +200,6 @@ async def combined_query(conn: Connection,
     # Re arrange rows according to distance
     scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return [u for _, _, u in scored[:limit]]
-
 
 
 def build_field_logits(

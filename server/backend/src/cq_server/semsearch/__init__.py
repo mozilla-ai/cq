@@ -8,6 +8,7 @@ embedding dependencies are installed.
 import logging
 import os
 import sqlite3
+
 from sqlalchemy.sql.expression import TextClause, text
 
 logger = logging.getLogger(__name__)
@@ -19,8 +20,8 @@ _DIM = int(os.environ.get("SEMSEARCH_EMBEDDING_DIM", 768))
 _TOKEN_EMBEDDING_URL = os.environ.get("TOKEN_EMBEDDING_URL")
 if _TOKEN_EMBEDDING_URL:
     try:
-        import sqlite_vec
         import numpy as np
+        import sqlite_vec
         from httpx import AsyncClient
 
         _ENABLED = True

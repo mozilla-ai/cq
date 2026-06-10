@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from email.mime import text
 import logging
+from datetime import UTC, datetime
 
 from cq.models import KnowledgeUnit
 from cq.scoring import calculate_relevance
 from sqlalchemy.exc import IntegrityError
 
 from ..core.db import Database
+from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
+from ..semsearch.queries import combined_query as sem_query
+from ..semsearch.queries import insert_unit as sem_insert_unit
 from ._normalize import normalize_domains
 from ._queries import (
     DELETE_UNIT_DOMAINS,
@@ -25,12 +27,8 @@ from ._queries import (
     UPDATE_UNIT_DATA,
 )
 
-from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
-from ..semsearch.queries import combined_query as sem_query, insert_unit as sem_insert_unit
-
-from sqlalchemy.sql.expression import text as text_clause
-
 logger = logging.getLogger(__name__)
+
 
 class KnowledgeRepository:
     """Read/write access to knowledge units."""
@@ -84,12 +82,7 @@ class KnowledgeRepository:
         if _SEMSEARCH_ENABLED:
             with self._db.engine.connect() as conn:
                 return await sem_query(
-                    conn,
-                    domains,
-                    languages=languages,
-                    frameworks=frameworks,
-                    pattern=pattern,
-                    limit=limit
+                    conn, domains, languages=languages, frameworks=frameworks, pattern=pattern, limit=limit
                 )
         return await self._db.run_sync(
             self._query_sync,

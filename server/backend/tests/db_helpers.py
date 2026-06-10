@@ -13,18 +13,18 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-import pytest_asyncio
 
-from cq_server.migrations import run_migrations
+from cq.models import KnowledgeUnit
+
 from cq_server.core.config import Settings
 from cq_server.core.db import Database
+from cq_server.migrations import run_migrations
 from cq_server.repositories import (
     APIKeyRepository,
     KnowledgeRepository,
     ReviewRepository,
     UserRepository,
 )
-
 
 
 class _RepoBundle:

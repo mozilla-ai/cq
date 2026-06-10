@@ -15,9 +15,8 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest_asyncio
 import pytest
-from cq.models import KnowledgeUnit
+import pytest_asyncio
 
 from cq_server.core.config import Settings
 from cq_server.core.db import Database
@@ -28,7 +27,7 @@ from cq_server.repositories import (
     UserRepository,
 )
 
-from .db_helpers import init_test_db, _RepoBundle
+from .db_helpers import _RepoBundle, init_test_db
 
 # Configure basic logging to ensure DEBUG level logs are output to the console
 logging.basicConfig(level=logging.DEBUG)
@@ -40,6 +39,7 @@ logging.getLogger("sqlalchemy.dialects").setLevel(logging.DEBUG)
 logging.getLogger("cq_server.semsearch").setLevel(logging.DEBUG)
 logging.getLogger("cq_server.semsearch.queries").setLevel(logging.DEBUG)
 logging.getLogger("cq_server.repositories").setLevel(logging.DEBUG)
+
 
 def _build_settings(db_path: Path) -> Settings:
     """Construct ``Settings`` directly so tests don't depend on env state."""

@@ -8,11 +8,11 @@ Integration tests patch the names imported into KnowledgeRepository
 run deterministically in CI without a real embedding server or sqlite-vec loaded.
 """
 
+import logging
 from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
-import logging
 from cq.models import Context, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 
 from cq_server import semsearch
@@ -29,7 +29,6 @@ def _make_unit(domain: str = "test", *, summary: str = "s", detail: str = "d", a
         tier=Tier.PRIVATE,
         created_by="tester",
     )
-
 
 
 # ---------------------------------------------------------------------------

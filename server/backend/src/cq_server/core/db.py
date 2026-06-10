@@ -15,9 +15,9 @@ from typing import Any
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 
+from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
+from ..semsearch import load as semsearch_load
 from .config import Settings
-
-from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED, load as semsearch_load
 
 
 def _apply_sqlite_pragmas(dbapi_connection, _connection_record) -> None:  # noqa: ANN001 (sqlalchemy event signature)

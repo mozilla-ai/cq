@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+import cq_server.semsearch as semsearch
 from cq_server.api.deps import require_api_key
 from cq_server.app import app
-import cq_server.semsearch as semsearch
 
 TEST_USERNAME = "test-user"
 
@@ -292,8 +292,10 @@ class TestQuery:
             domains=["astronomy"],
             insight={
                 "summary": "Map chemical enrichment in HII regions",
-                "detail": "Emission line analysis identifies the abundance of heavy elements (metals) like oxygen and nitrogen within ionized gas clouds.",
-                "action": "Target low-metallicity regions to study star formation conditions similar to the early universe.",
+                "detail": "Emission line analysis identifies the abundance of heavy elements (metals) like oxygen"
+                " and nitrogen within ionized gas clouds.",
+                "action": "Target low-metallicity regions to study star formation conditions similar"
+                " to the early universe.",
             },
         )
         self._insert_unit(
