@@ -779,6 +779,20 @@ class TestRemoteIntegration:
         assert any("unavailable" in w.lower() for w in stats.warnings)
         c.close()
 
+    def test_status_remote_non_object_body_surfaces_warning(self, tmp_path: Path, httpx_mock):
+        """A 2xx stats body that is valid JSON but not an object (e.g. a bare array)
+        must surface as a warning, not raise AttributeError from status()."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
+            json=[1, 2, 3],
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        assert stats.tier_counts == {"local": 0}
+        assert stats.warnings, "non-object stats body should surface as a warning"
+        c.close()
+
     def test_status_ignores_local_tier_from_remote(self, tmp_path: Path, httpx_mock):
         """status() ignores 'local' tier in remote response to prevent double-counting."""
         httpx_mock.add_response(

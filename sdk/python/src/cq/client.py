@@ -440,12 +440,16 @@ class Client:
 
         Raises:
             httpx.HTTPError: For transport-layer or HTTP status failures.
-            ValueError: If the response body is not valid JSON.
+            ValueError: If the response body is not a JSON object (invalid
+                JSON, or a valid non-object such as an array or string).
         """
         assert self._http is not None
         resp = self._http.get(f"{self._api_base_url()}/knowledge/stats")
         resp.raise_for_status()
-        return resp.json()
+        body = resp.json()
+        if not isinstance(body, dict):
+            raise ValueError("expected a JSON object from the knowledge stats endpoint")
+        return body
 
     def _remote_query(
         self,
