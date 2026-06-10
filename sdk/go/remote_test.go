@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mozilla-ai/cq/sdk/go/discovery"
 	"github.com/stretchr/testify/require"
+
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
 
 // staticResolver is a test double for apiResolver that returns a fixed
@@ -374,8 +375,8 @@ func TestRemoteQueryAddsPatternToURL(t *testing.T) {
 	t.Parallel()
 
 	var (
-		mu           sync.Mutex
-		capturedURL  string
+		mu          sync.Mutex
+		capturedURL string
 	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()

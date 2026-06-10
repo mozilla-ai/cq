@@ -78,7 +78,9 @@ func Logout(ctx context.Context, p LogoutConfig) error {
 	err = p.Client.Logout(ctx, creds.SessionJWT, p.AllDevices)
 	if err != nil {
 		if errors.Is(err, ErrSessionExpired) {
-			return clearAndReport("Signed out locally. Session was already expired or invalid, so server revocation could not be confirmed.")
+			return clearAndReport(
+				"Signed out locally. Session was already expired or invalid, so server revocation could not be confirmed.",
+			)
 		}
 
 		return fmt.Errorf("revoking server session: %w", err)

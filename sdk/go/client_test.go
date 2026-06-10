@@ -109,7 +109,6 @@ func testRemoteKUJSON(id string) map[string]any {
 // -- Local-only tests --
 
 func TestNewClientLocalOnly(t *testing.T) {
-
 	c := newTestClient(t)
 	require.NotNil(t, c)
 }
@@ -128,7 +127,6 @@ func TestNewClientWithRemote(t *testing.T) {
 }
 
 func TestClientQuery(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -146,7 +144,6 @@ func TestClientQuery(t *testing.T) {
 }
 
 func TestPropose(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -164,7 +161,6 @@ func TestPropose(t *testing.T) {
 }
 
 func TestConfirm(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -180,14 +176,12 @@ func TestConfirm(t *testing.T) {
 }
 
 func TestConfirmNotFound(t *testing.T) {
-
 	c := newTestClient(t)
 	_, err := c.Confirm(context.Background(), KnowledgeUnit{ID: "ku_00000000000000000000000000ffffff", Tier: Local})
 	require.Error(t, err)
 }
 
 func TestFlag(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -204,14 +198,12 @@ func TestFlag(t *testing.T) {
 }
 
 func TestFlagNotFound(t *testing.T) {
-
 	c := newTestClient(t)
 	_, err := c.Flag(context.Background(), KnowledgeUnit{ID: "ku_00000000000000000000000000ffffff", Tier: Local}, Stale)
 	require.Error(t, err)
 }
 
 func TestFlagDuplicateRequiresDuplicateOf(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -226,7 +218,6 @@ func TestFlagDuplicateRequiresDuplicateOf(t *testing.T) {
 }
 
 func TestFlagDuplicateWithValidDuplicateOf(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -248,7 +239,6 @@ func TestFlagDuplicateWithValidDuplicateOf(t *testing.T) {
 }
 
 func TestFlagDuplicateRejectsInvalidID(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -263,7 +253,6 @@ func TestFlagDuplicateRejectsInvalidID(t *testing.T) {
 }
 
 func TestStatus(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -282,7 +271,6 @@ func TestStatus(t *testing.T) {
 }
 
 func TestLifecycle(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -313,7 +301,6 @@ func TestLifecycle(t *testing.T) {
 // -- Remote integration tests --
 
 func TestProposeRemoteReachable(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -383,7 +370,6 @@ func TestFallbackErrorMessage(t *testing.T) {
 }
 
 func TestProposeRemoteRejects(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = w.Write([]byte("bad request"))
@@ -438,7 +424,6 @@ func TestProposeRemoteAuthRejectFallsBackLocally(t *testing.T) {
 }
 
 func TestQueryMergesLocalAndRemote(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			// Unreachable for propose; forces local storage.
@@ -467,7 +452,6 @@ func TestQueryMergesLocalAndRemote(t *testing.T) {
 }
 
 func TestQuerySourceLocalWhenNoRemote(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -483,7 +467,6 @@ func TestQuerySourceLocalWhenNoRemote(t *testing.T) {
 }
 
 func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -498,7 +481,6 @@ func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
 }
 
 func TestQuerySourceRemoteWhenRemoteFails(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
@@ -511,7 +493,6 @@ func TestQuerySourceRemoteWhenRemoteFails(t *testing.T) {
 }
 
 func TestQueryWarnsOnRemoteDecodeFailure(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// Bare array; the SDK now expects the {data: [...]} envelope.
@@ -526,7 +507,6 @@ func TestQueryWarnsOnRemoteDecodeFailure(t *testing.T) {
 }
 
 func TestConfirmLocalUnit(t *testing.T) {
-
 	var confirmedRemotely bool
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
@@ -556,7 +536,6 @@ func TestConfirmLocalUnit(t *testing.T) {
 }
 
 func TestConfirmRemoteUnit(t *testing.T) {
-
 	var confirmedRemotely bool
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id, ok := confirmationsUnitID(r.URL.Path); ok && r.Method == "POST" {
@@ -626,7 +605,6 @@ func TestDrain(t *testing.T) {
 }
 
 func TestDrainNoRemote(t *testing.T) {
-
 	c := newTestClient(t)
 	_, err := c.Drain(context.Background())
 	require.Error(t, err)
@@ -634,7 +612,6 @@ func TestDrainNoRemote(t *testing.T) {
 }
 
 func TestDrainableCount(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -658,15 +635,12 @@ func TestDrainableCount(t *testing.T) {
 }
 
 func TestHasRemote(t *testing.T) {
-
 	t.Run("without remote", func(t *testing.T) {
-
 		c := newTestClient(t)
 		require.False(t, c.HasRemote())
 	})
 
 	t.Run("with remote", func(t *testing.T) {
-
 		c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -675,7 +649,6 @@ func TestHasRemote(t *testing.T) {
 }
 
 func TestFlagRemoteUnit(t *testing.T) {
-
 	var received map[string]any
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id, ok := flagsUnitID(r.URL.Path); ok && r.Method == "POST" {
@@ -698,7 +671,6 @@ func TestFlagRemoteUnit(t *testing.T) {
 }
 
 func TestQueryLimitCappedAt50(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 

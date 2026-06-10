@@ -102,7 +102,14 @@ func TestCacheTreatsUnknownFieldEntryAsMiss(t *testing.T) {
 	c := newCache(dir, time.Hour)
 
 	p := c.pathFor("https://example.com")
-	require.NoError(t, os.WriteFile(p, []byte(`{"version":1,"api_base_url":"https://api.example.com/api/v1","api_version":"v1","mystery":"x"}`), 0o600))
+	require.NoError(
+		t,
+		os.WriteFile(
+			p,
+			[]byte(`{"version":1,"api_base_url":"https://api.example.com/api/v1","api_version":"v1","mystery":"x"}`),
+			0o600,
+		),
+	)
 
 	_, ok := c.get("https://example.com")
 	require.False(t, ok)
@@ -119,7 +126,14 @@ func TestCacheTreatsTrailingContentEntryAsMiss(t *testing.T) {
 	// json.Decoder semantics would accept the first object and drop
 	// the trailing bytes; decodeNodeInfo rejects it so a partially
 	// corrupted cache file falls through to a clean re-probe.
-	require.NoError(t, os.WriteFile(p, []byte(`{"version":1,"api_base_url":"https://api.example.com/api/v1","api_version":"v1"} garbage`), 0o600))
+	require.NoError(
+		t,
+		os.WriteFile(
+			p,
+			[]byte(`{"version":1,"api_base_url":"https://api.example.com/api/v1","api_version":"v1"} garbage`),
+			0o600,
+		),
+	)
 
 	_, ok := c.get("https://example.com")
 	require.False(t, ok)

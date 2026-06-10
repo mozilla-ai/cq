@@ -68,8 +68,16 @@ func TestParseTTL(t *testing.T) {
 		{name: "empty rejected", input: "", wantErr: "--ttl is required"},
 		{name: "grammar error quotes original input", input: "1w", wantErr: `--ttl "1w" is not a valid duration`},
 		{name: "negative rejected via grammar", input: "-1d", wantErr: `--ttl "-1d" is not a valid duration`},
-		{name: "over-cap rejected with cap message", input: "366d", wantErr: `--ttl "366d" exceeds the maximum of 365d`},
-		{name: "huge value rejected with cap message", input: "99999999999999999999d", wantErr: `--ttl "99999999999999999999d" exceeds the maximum of 365d`},
+		{
+			name:    "over-cap rejected with cap message",
+			input:   "366d",
+			wantErr: `--ttl "366d" exceeds the maximum of 365d`,
+		},
+		{
+			name:    "huge value rejected with cap message",
+			input:   "99999999999999999999d",
+			wantErr: `--ttl "99999999999999999999d" exceeds the maximum of 365d`,
+		},
 		{name: "zero rejected with positive message", input: "0d", wantErr: `--ttl "0d" must be greater than zero`},
 	}
 
@@ -158,7 +166,8 @@ func TestAuthKeyCreate_HappyPath_StdoutTokenStderrBanner(t *testing.T) {
 	require.Equal(t, []string{"ci", "laptop"}, gotReq.Labels)
 
 	require.Equal(t, "cqa.v1.0123.secret\n", stdout)
-	require.Equal(t,
+	require.Equal(
+		t,
 		"Created API key 'claude-cursor' (id=00000000-0000-0000-0000-000000000001 prefix=cqa12345 labels=ci,laptop expires=2026-08-06T12:00:00Z).\n"+
 			"The API key above is shown only once. Save it now (e.g. export CQ_API_KEY=...).\n",
 		stderr,
@@ -233,7 +242,11 @@ func TestAuthKeyCreate_TTLRejectsInvalidGrammar(t *testing.T) {
 
 	_, stderr, err := runKey(t, client, signedInStore(t), "create", "--name", "k", "--ttl", "1w")
 	require.EqualError(t, err, `--ttl "1w" is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h`)
-	require.Equal(t, "Error: --ttl \"1w\" is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h\n", stderr)
+	require.Equal(
+		t,
+		"Error: --ttl \"1w\" is not a valid duration: expected <integer><s|m|h|d>, e.g. 30d, 12h\n",
+		stderr,
+	)
 }
 
 // TestAuthKeyCreate_RequiresName_EmitsCobraMissingFlagError asserts

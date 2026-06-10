@@ -110,7 +110,12 @@ func (r *remoteClient) do(ctx context.Context, method string, endpoint string, b
 
 // flag flags a unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
-func (r *remoteClient) flag(ctx context.Context, unitID string, reason FlagReason, cfg flagConfig) (KnowledgeUnit, error) {
+func (r *remoteClient) flag(
+	ctx context.Context,
+	unitID string,
+	reason FlagReason,
+	cfg flagConfig,
+) (KnowledgeUnit, error) {
 	body := map[string]string{"reason": string(reason)}
 	if cfg.detail != "" {
 		body["detail"] = cfg.detail
