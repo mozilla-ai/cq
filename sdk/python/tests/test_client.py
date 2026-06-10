@@ -110,7 +110,7 @@ class TestLocalOnlyMode:
             domains=["api"],
         )
         stats = client.status()
-        assert stats.tier_counts == {"local": 1}
+        assert stats.tier_counts == {Tier.LOCAL: 1}
 
     def test_drain_raises_without_remote(self, client: Client):
         with pytest.raises(RuntimeError, match="No remote API configured"):
@@ -714,9 +714,9 @@ class TestRemoteIntegration:
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
         stats = c.status()
-        assert stats.tier_counts["local"] == 1
-        assert stats.tier_counts["private"] == 3
-        assert stats.tier_counts["public"] == 0
+        assert stats.tier_counts[Tier.LOCAL] == 1
+        assert stats.tier_counts[Tier.PRIVATE] == 3
+        assert stats.tier_counts[Tier.PUBLIC] == 0
         assert stats.total_count == 4
         c.close()
 
@@ -757,7 +757,7 @@ class TestRemoteIntegration:
         with caplog.at_level(logging.WARNING, logger="cq.client"):
             stats = c.status()
         assert stats.total_count == 1
-        assert stats.tier_counts == {"local": 1}
+        assert stats.tier_counts == {Tier.LOCAL: 1}
         assert stats.warnings, "remote failure should surface as a warning"
         assert any("unavailable" in w.lower() for w in stats.warnings)
         assert any("Remote stats unavailable" in r.message for r in caplog.records)
@@ -774,7 +774,7 @@ class TestRemoteIntegration:
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
         stats = c.status()
-        assert stats.tier_counts == {"local": 0}
+        assert stats.tier_counts == {Tier.LOCAL: 0}
         assert stats.warnings, "remote HTTP error should surface as a warning"
         assert any("unavailable" in w.lower() for w in stats.warnings)
         c.close()
@@ -789,7 +789,7 @@ class TestRemoteIntegration:
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
         stats = c.status()
-        assert stats.tier_counts == {"local": 0}
+        assert stats.tier_counts == {Tier.LOCAL: 0}
         assert stats.warnings, "non-object stats body should surface as a warning"
         c.close()
 
@@ -806,17 +806,18 @@ class TestRemoteIntegration:
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
         stats = c.status()
-        assert stats.tier_counts["local"] == 1
-        assert stats.tier_counts["private"] == 4
-        assert stats.tier_counts["public"] == 1
+        assert stats.tier_counts[Tier.LOCAL] == 1
+        assert stats.tier_counts[Tier.PRIVATE] == 4
+        assert stats.tier_counts[Tier.PUBLIC] == 1
         assert stats.total_count == 6
         c.close()
 
     def test_status_skips_and_logs_unknown_remote_tier(
         self, tmp_path: Path, httpx_mock, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A remote tier this SDK's enum does not know is skipped and logged,
-        not carried as a bare-string key nor summed into the total."""
+        """A remote tier this SDK's enum does not know is skipped, logged, and
+        surfaced as a warning; not carried as a bare-string key nor summed into
+        the total."""
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
             json={"total_count": 13, "tier_counts": {"private": 4, "team": 9}, "domain_counts": {}},
@@ -829,6 +830,7 @@ class TestRemoteIntegration:
         assert all(isinstance(key, Tier) for key in stats.tier_counts)
         assert stats.total_count == 4  # local 0 + private 4; unknown 'team' dropped
         assert any("team" in record.message for record in caplog.records)
+        assert any("team" in warning for warning in stats.warnings)
         c.close()
 
     def test_status_decodes_store_stats_wire_shape(self, tmp_path: Path, httpx_mock) -> None:
@@ -853,7 +855,7 @@ class TestRemoteIntegration:
 
         c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
         stats = c.status()
-        assert stats.tier_counts == {"local": 1, "private": 6, "public": 1}
+        assert stats.tier_counts == {Tier.LOCAL: 1, Tier.PRIVATE: 6, Tier.PUBLIC: 1}
         assert stats.total_count == 8
         # "api" appears locally (1) and remotely (4); counts must accumulate.
         assert stats.domain_counts["api"] == 5

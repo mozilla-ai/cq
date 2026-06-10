@@ -366,8 +366,9 @@ class Client:
         can distinguish an unreachable remote from a genuinely empty store.
 
         Remote tier keys are coerced to ``Tier``; a tier this SDK does not
-        recognize is skipped and logged at warn level, so its count is dropped
-        from the totals rather than carried as a bare string.
+        recognize is skipped, logged at warn level, and recorded in
+        ``StoreStats.warnings``, so its count is dropped from the totals rather
+        than carried as a bare string.
         """
         stats = self._store.stats()
         stats.tier_counts = {Tier.LOCAL: stats.total_count}
@@ -388,9 +389,13 @@ class Client:
                         tier = Tier(tier_key)
                     except ValueError:
                         # A tier this SDK's enum does not know (e.g. a newer
-                        # server). Skip it rather than carry a bare string, and
-                        # log so the dropped count is visible, not silent.
-                        self._logger.warning("Ignoring unknown tier %r in remote stats", tier_key)
+                        # server). Skip it rather than carry a bare string. Log
+                        # and surface a warning so the dropped count stays
+                        # visible to callers even when the SDK logger is
+                        # silenced by the default NullHandler.
+                        message = f"Ignoring unknown tier {tier_key!r} in remote stats"
+                        self._logger.warning(message)
+                        stats.warnings.append(message)
                         continue
                     # The remote store should never report a "local" tier, but guard
                     # against it to prevent overwriting the local count we already set.

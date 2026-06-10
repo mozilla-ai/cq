@@ -338,14 +338,16 @@ func TestStatusSkipsUnknownRemoteTier(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = c.Close() })
 
-	// A tier the SDK does not recognize is dropped from the totals and logged,
-	// never carried as an unknown key.
+	// A tier the SDK does not recognize is dropped from the totals, logged, and
+	// surfaced as a warning; never carried as an unknown key.
 	stats, err := c.Status(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 4, stats.TotalCount, "only the known private tier counts toward the total")
 	require.Equal(t, 4, stats.TierCounts[Private])
 	require.NotContains(t, stats.TierCounts, Tier("team"))
 	require.Contains(t, logBuf.String(), "unknown tier")
+	require.NotEmpty(t, stats.Warnings, "dropped tier should surface as a warning")
+	require.Contains(t, stats.Warnings[0].Error(), "team")
 }
 
 func TestLifecycle(t *testing.T) {
