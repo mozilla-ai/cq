@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
@@ -22,7 +23,13 @@ func TestPromptHelpDoesNotRecurse(t *testing.T) {
 	if args := os.Getenv(helpSubprocessEnv); args != "" {
 		rootCmd := newRootCmd()
 		rootCmd.SetArgs([]string{"prompt", args, "--help"})
-		_ = rootCmd.Execute()
+
+		// Exit non-zero on any render error so the parent's exit-status check
+		// catches it, not only the fatal stack overflow this test guards.
+		if err := rootCmd.Execute(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 
 		return
 	}
