@@ -30,6 +30,30 @@ func TestTierIsRemote(t *testing.T) {
 	}
 }
 
+func TestTierValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		tier     Tier
+		expected bool
+	}{
+		{name: "local", tier: Local, expected: true},
+		{name: "private", tier: Private, expected: true},
+		{name: "public", tier: Public, expected: true},
+		{name: "empty string", tier: "", expected: false},
+		{name: "unknown value", tier: "team", expected: false},
+		{name: "legacy proto local", tier: "TIER_LOCAL", expected: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.expected, tc.tier.Valid())
+		})
+	}
+}
+
 func TestTierValues(t *testing.T) {
 	t.Parallel()
 

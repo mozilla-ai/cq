@@ -30,9 +30,9 @@ func TestHandlePropose(t *testing.T) {
 			Params: mcp.CallToolParams{
 				Name: "propose",
 				Arguments: map[string]any{
-					"summary":   "summary",
-					"detail":    "detail",
-					"action":    "action",
+					"summary":    "summary",
+					"detail":     "detail",
+					"action":     "action",
 					"domains":    []any{"api"},
 					"languages":  []any{"go"},
 					"frameworks": []any{"cobra"},

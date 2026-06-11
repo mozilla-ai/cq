@@ -103,6 +103,11 @@ type StoreStats struct {
 	Recent                 []KnowledgeUnit `json:"recent"`
 	ConfidenceDistribution map[string]int  `json:"confidence_distribution"`
 	TierCounts             map[Tier]int    `json:"tier_counts"`
+
+	// Warnings collects non-fatal issues encountered while aggregating
+	// stats, such as a remote API being unreachable. When present, the
+	// reported counts reflect the local store only.
+	Warnings Warnings `json:"warnings,omitempty"`
 }
 
 type Warnings []error

@@ -209,7 +209,12 @@ func (c *Client) DrainableCount(ctx context.Context) (int, error) {
 // Flag marks a knowledge unit as problematic and reduces its confidence.
 // Routes to local store or remote API based on the unit's tier.
 // When reason is Duplicate, WithDuplicateOf must be provided.
-func (c *Client) Flag(ctx context.Context, ku KnowledgeUnit, reason FlagReason, opts ...FlagOption) (KnowledgeUnit, error) {
+func (c *Client) Flag(
+	ctx context.Context,
+	ku KnowledgeUnit,
+	reason FlagReason,
+	opts ...FlagOption,
+) (KnowledgeUnit, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
@@ -330,7 +335,10 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	if err := c.store.insert(ku); err != nil {
 		insertErr := fmt.Errorf("inserting knowledge unit: %w", err)
 		if remoteErr != nil {
-			return KnowledgeUnit{}, fmt.Errorf("fallback insert after remote failure: %w", errors.Join(remoteErr, insertErr))
+			return KnowledgeUnit{}, fmt.Errorf(
+				"fallback insert after remote failure: %w",
+				errors.Join(remoteErr, insertErr),
+			)
 		}
 		return KnowledgeUnit{}, insertErr
 	}
@@ -411,8 +419,13 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 
 // Status returns aggregated statistics about the knowledge store.
 // When a remote API is configured and reachable, tier counts include
-// both local and remote breakdowns. If the remote is unreachable,
-// only local counts are returned.
+// both local and remote breakdowns. If the remote stats request fails,
+// only local counts are returned, the failure is logged at warn level,
+// and a non-fatal entry is added to StoreStats.Warnings so callers can
+// distinguish an unreachable remote from a genuinely empty store.
+// A remote tier this SDK does not recognize is skipped, logged at warn
+// level, and recorded in StoreStats.Warnings, so its count is dropped
+// from the totals rather than carried as an unknown key.
 func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
@@ -434,8 +447,25 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 
 	if c.remote != nil {
 		remote, err := c.remote.stats(ctx)
-		if err == nil {
-			for tier, count := range remote.Tiers {
+		if err != nil {
+			// Surface the failure rather than silently reporting local-only
+			// counts that look identical to a genuinely empty store. Log to
+			// the client's logger (stderr, safe for the MCP stdout channel)
+			// and carry a warning to the caller.
+			c.logger.Warn("status: remote stats unavailable", "err", err)
+			stats.Warnings = append(stats.Warnings, fmt.Errorf("remote stats unavailable: %w", err))
+		} else {
+			for tier, count := range remote.TierCounts {
+				if !tier.Valid() {
+					// A tier this SDK does not recognize (e.g. a newer server).
+					// Skip it rather than carry an unknown key. Log and surface
+					// a warning so the dropped count stays visible to callers
+					// even when the client logger is silenced.
+					c.logger.Warn("status: ignoring unknown tier in remote stats", "tier", tier)
+					stats.Warnings = append(stats.Warnings, fmt.Errorf("ignoring unknown remote stats tier %s", tier))
+
+					continue
+				}
 				// The remote store should never report a "local" tier, but guard
 				// against it to prevent overwriting the local count we already set.
 				if tier == Local {
@@ -444,7 +474,7 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 				stats.TierCounts[tier] = count
 				stats.TotalCount += count
 			}
-			for domain, count := range remote.Domains {
+			for domain, count := range remote.DomainCounts {
 				stats.DomainCounts[domain] += count
 			}
 		}

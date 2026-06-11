@@ -110,7 +110,12 @@ func (r *remoteClient) do(ctx context.Context, method string, endpoint string, b
 
 // flag flags a unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
-func (r *remoteClient) flag(ctx context.Context, unitID string, reason FlagReason, cfg flagConfig) (KnowledgeUnit, error) {
+func (r *remoteClient) flag(
+	ctx context.Context,
+	unitID string,
+	reason FlagReason,
+	cfg flagConfig,
+) (KnowledgeUnit, error) {
 	body := map[string]string{"reason": string(reason)}
 	if cfg.detail != "" {
 		body["detail"] = cfg.detail
@@ -270,10 +275,12 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) ([]Knowled
 }
 
 // remoteStatsResponse holds the server's knowledge stats response.
+// Its fields mirror the StoreStats wire vocabulary, the canonical
+// stats contract for cq-compatible servers.
 type remoteStatsResponse struct {
-	TotalUnits int            `json:"total_units"`
-	Tiers      map[Tier]int   `json:"tiers"`
-	Domains    map[string]int `json:"domains"`
+	TotalCount   int            `json:"total_count"`
+	DomainCounts map[string]int `json:"domain_counts"`
+	TierCounts   map[Tier]int   `json:"tier_counts"`
 }
 
 // stats fetches store statistics from the remote API.

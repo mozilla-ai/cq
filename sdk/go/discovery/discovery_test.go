@@ -447,7 +447,13 @@ func (r *Resolver) waitForInflightWaiter(t *testing.T, addr string, n int) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %d in-flight waiter(s) on %s (have %d, registered=%v)", n, addr, waiters, ok)
+			t.Fatalf(
+				"timed out waiting for %d in-flight waiter(s) on %s (have %d, registered=%v)",
+				n,
+				addr,
+				waiters,
+				ok,
+			)
 		}
 		time.Sleep(time.Millisecond)
 	}

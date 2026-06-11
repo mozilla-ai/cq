@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mozilla-ai/cq/sdk/go/discovery"
 	"github.com/stretchr/testify/require"
+
+	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
 
 // staticResolver is a test double for apiResolver that returns a fixed
@@ -336,9 +337,9 @@ func TestRemoteStats(t *testing.T) {
 		require.Equal(t, "GET", r.Method)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"total_units": 5,
-			"tiers":       map[string]int{"private": 4, "public": 1},
-			"domains":     map[string]int{"api": 3, "db": 2},
+			"total_count":   5,
+			"tier_counts":   map[string]int{"private": 4, "public": 1},
+			"domain_counts": map[string]int{"api": 3, "db": 2},
 		})
 	}))
 	defer srv.Close()
@@ -346,9 +347,35 @@ func TestRemoteStats(t *testing.T) {
 	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
 	rs, err := rc.stats(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 5, rs.TotalUnits)
-	require.Equal(t, map[Tier]int{Private: 4, Public: 1}, rs.Tiers)
-	require.Equal(t, map[string]int{"api": 3, "db": 2}, rs.Domains)
+	require.Equal(t, 5, rs.TotalCount)
+	require.Equal(t, map[Tier]int{Private: 4, Public: 1}, rs.TierCounts)
+	require.Equal(t, map[string]int{"api": 3, "db": 2}, rs.DomainCounts)
+}
+
+// TestRemoteStatsDecodesStoreStatsWireShape serves a body marshalled from
+// the public StoreStats type and decodes it through the remote client,
+// pinning the wire DTO to the StoreStats vocabulary so the two cannot drift.
+func TestRemoteStatsDecodesStoreStatsWireShape(t *testing.T) {
+	t.Parallel()
+	body := StoreStats{
+		TotalCount:   7,
+		DomainCounts: map[string]int{"api": 4, "ci": 3},
+		TierCounts:   map[Tier]int{Private: 6, Public: 1},
+	}
+	data, err := json.Marshal(body)
+	require.NoError(t, err)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(data)
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	rs, statsErr := rc.stats(context.Background())
+	require.NoError(t, statsErr)
+	require.Equal(t, body.TotalCount, rs.TotalCount)
+	require.Equal(t, body.TierCounts, rs.TierCounts)
+	require.Equal(t, body.DomainCounts, rs.DomainCounts)
 }
 
 func TestRemoteStatsServerError(t *testing.T) {
@@ -374,8 +401,8 @@ func TestRemoteQueryAddsPatternToURL(t *testing.T) {
 	t.Parallel()
 
 	var (
-		mu           sync.Mutex
-		capturedURL  string
+		mu          sync.Mutex
+		capturedURL string
 	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()

@@ -86,7 +86,11 @@ func (s *stubAuthClient) ClaimUsername(context.Context, string, string) (auth.Us
 	panic("ClaimUsername not stubbed")
 }
 
-func (s *stubAuthClient) CreateAPIKey(ctx context.Context, jwt string, req auth.CreateAPIKeyRequest) (auth.CreatedAPIKey, error) {
+func (s *stubAuthClient) CreateAPIKey(
+	ctx context.Context,
+	jwt string,
+	req auth.CreateAPIKeyRequest,
+) (auth.CreatedAPIKey, error) {
 	if s.createAPIKey == nil { // pragma: allowlist secret
 		panic("CreateAPIKey not stubbed")
 	}

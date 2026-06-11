@@ -1,9 +1,11 @@
 package cq
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -109,7 +111,6 @@ func testRemoteKUJSON(id string) map[string]any {
 // -- Local-only tests --
 
 func TestNewClientLocalOnly(t *testing.T) {
-
 	c := newTestClient(t)
 	require.NotNil(t, c)
 }
@@ -128,7 +129,6 @@ func TestNewClientWithRemote(t *testing.T) {
 }
 
 func TestClientQuery(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -146,7 +146,6 @@ func TestClientQuery(t *testing.T) {
 }
 
 func TestPropose(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -164,7 +163,6 @@ func TestPropose(t *testing.T) {
 }
 
 func TestConfirm(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -180,14 +178,12 @@ func TestConfirm(t *testing.T) {
 }
 
 func TestConfirmNotFound(t *testing.T) {
-
 	c := newTestClient(t)
 	_, err := c.Confirm(context.Background(), KnowledgeUnit{ID: "ku_00000000000000000000000000ffffff", Tier: Local})
 	require.Error(t, err)
 }
 
 func TestFlag(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -204,14 +200,12 @@ func TestFlag(t *testing.T) {
 }
 
 func TestFlagNotFound(t *testing.T) {
-
 	c := newTestClient(t)
 	_, err := c.Flag(context.Background(), KnowledgeUnit{ID: "ku_00000000000000000000000000ffffff", Tier: Local}, Stale)
 	require.Error(t, err)
 }
 
 func TestFlagDuplicateRequiresDuplicateOf(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -226,7 +220,6 @@ func TestFlagDuplicateRequiresDuplicateOf(t *testing.T) {
 }
 
 func TestFlagDuplicateWithValidDuplicateOf(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -248,7 +241,6 @@ func TestFlagDuplicateWithValidDuplicateOf(t *testing.T) {
 }
 
 func TestFlagDuplicateRejectsInvalidID(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -263,7 +255,6 @@ func TestFlagDuplicateRejectsInvalidID(t *testing.T) {
 }
 
 func TestStatus(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -281,8 +272,85 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, 1, stats.TotalCount)
 }
 
-func TestLifecycle(t *testing.T) {
+func TestStatusAggregatesRemote(t *testing.T) {
+	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_count":   3,
+			"tier_counts":   map[string]int{"private": 2, "public": 1},
+			"domain_counts": map[string]int{"api": 3},
+		})
+	}))
 
+	stats, err := c.Status(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, stats.Warnings)
+	require.Equal(t, 3, stats.TotalCount)
+	require.Equal(t, 2, stats.TierCounts[Private])
+	require.Equal(t, 1, stats.TierCounts[Public])
+	require.Equal(t, 3, stats.DomainCounts["api"])
+}
+
+func TestStatusWarnsOnRemoteFailure(t *testing.T) {
+	testClearEnv(t)
+	srv := httptest.NewServer(withDiscoveryNotFound(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})))
+	t.Cleanup(srv.Close)
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath), WithLogger(logger))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
+
+	// A failing remote must surface as a warning + log, not a silent
+	// local-only result indistinguishable from a genuinely empty store.
+	stats, err := c.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 0, stats.TotalCount)
+	require.NotEmpty(t, stats.Warnings, "remote failure should surface as a warning")
+	require.Contains(t, stats.Warnings[0].Error(), "remote stats unavailable")
+	require.Contains(t, logBuf.String(), "remote stats unavailable")
+}
+
+func TestStatusSkipsUnknownRemoteTier(t *testing.T) {
+	testClearEnv(t)
+	srv := httptest.NewServer(withDiscoveryNotFound(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_count":   13,
+			"tier_counts":   map[string]int{"private": 4, "team": 9},
+			"domain_counts": map[string]int{},
+		})
+	})))
+	t.Cleanup(srv.Close)
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath), WithLogger(logger))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
+
+	// A tier the SDK does not recognize is dropped from the totals, logged, and
+	// surfaced as a warning; never carried as an unknown key.
+	stats, err := c.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 4, stats.TotalCount, "only the known private tier counts toward the total")
+	require.Equal(t, 4, stats.TierCounts[Private])
+	require.NotContains(t, stats.TierCounts, Tier("team"))
+	require.Contains(t, logBuf.String(), "unknown tier")
+	require.NotEmpty(t, stats.Warnings, "dropped tier should surface as a warning")
+	require.Contains(t, stats.Warnings[0].Error(), "team")
+}
+
+func TestLifecycle(t *testing.T) {
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -313,7 +381,6 @@ func TestLifecycle(t *testing.T) {
 // -- Remote integration tests --
 
 func TestProposeRemoteReachable(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
@@ -383,7 +450,6 @@ func TestFallbackErrorMessage(t *testing.T) {
 }
 
 func TestProposeRemoteRejects(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = w.Write([]byte("bad request"))
@@ -438,7 +504,6 @@ func TestProposeRemoteAuthRejectFallsBackLocally(t *testing.T) {
 }
 
 func TestQueryMergesLocalAndRemote(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
 			// Unreachable for propose; forces local storage.
@@ -467,7 +532,6 @@ func TestQueryMergesLocalAndRemote(t *testing.T) {
 }
 
 func TestQuerySourceLocalWhenNoRemote(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -483,7 +547,6 @@ func TestQuerySourceLocalWhenNoRemote(t *testing.T) {
 }
 
 func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -498,7 +561,6 @@ func TestQuerySourceRemoteWhenOnlyRemoteReturnsResults(t *testing.T) {
 }
 
 func TestQuerySourceRemoteWhenRemoteFails(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
@@ -511,7 +573,6 @@ func TestQuerySourceRemoteWhenRemoteFails(t *testing.T) {
 }
 
 func TestQueryWarnsOnRemoteDecodeFailure(t *testing.T) {
-
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// Bare array; the SDK now expects the {data: [...]} envelope.
@@ -526,7 +587,6 @@ func TestQueryWarnsOnRemoteDecodeFailure(t *testing.T) {
 }
 
 func TestConfirmLocalUnit(t *testing.T) {
-
 	var confirmedRemotely bool
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/knowledge" && r.Method == "POST" {
@@ -556,7 +616,6 @@ func TestConfirmLocalUnit(t *testing.T) {
 }
 
 func TestConfirmRemoteUnit(t *testing.T) {
-
 	var confirmedRemotely bool
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id, ok := confirmationsUnitID(r.URL.Path); ok && r.Method == "POST" {
@@ -626,7 +685,6 @@ func TestDrain(t *testing.T) {
 }
 
 func TestDrainNoRemote(t *testing.T) {
-
 	c := newTestClient(t)
 	_, err := c.Drain(context.Background())
 	require.Error(t, err)
@@ -634,7 +692,6 @@ func TestDrainNoRemote(t *testing.T) {
 }
 
 func TestDrainableCount(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -658,15 +715,12 @@ func TestDrainableCount(t *testing.T) {
 }
 
 func TestHasRemote(t *testing.T) {
-
 	t.Run("without remote", func(t *testing.T) {
-
 		c := newTestClient(t)
 		require.False(t, c.HasRemote())
 	})
 
 	t.Run("with remote", func(t *testing.T) {
-
 		c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -675,7 +729,6 @@ func TestHasRemote(t *testing.T) {
 }
 
 func TestFlagRemoteUnit(t *testing.T) {
-
 	var received map[string]any
 	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if id, ok := flagsUnitID(r.URL.Path); ok && r.Method == "POST" {
@@ -698,7 +751,6 @@ func TestFlagRemoteUnit(t *testing.T) {
 }
 
 func TestQueryLimitCappedAt50(t *testing.T) {
-
 	c := newTestClient(t)
 	ctx := context.Background()
 
@@ -732,9 +784,9 @@ func TestStatusWithRemoteMergesTierCounts(t *testing.T) {
 		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_units": 3,
-				"tiers":       map[string]int{"private": 3, "public": 0},
-				"domains":     map[string]int{"api": 2},
+				"total_count":   3,
+				"tier_counts":   map[string]int{"private": 3, "public": 0},
+				"domain_counts": map[string]int{"api": 2},
 			})
 			return
 		}
@@ -763,9 +815,9 @@ func TestStatusWithRemoteMergesDomainCounts(t *testing.T) {
 		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_units": 5,
-				"tiers":       map[string]int{"private": 5, "public": 0},
-				"domains":     map[string]int{"api": 3, "db": 2},
+				"total_count":   5,
+				"tier_counts":   map[string]int{"private": 5, "public": 0},
+				"domain_counts": map[string]int{"api": 3, "db": 2},
 			})
 			return
 		}
@@ -814,9 +866,9 @@ func TestStatusIgnoresLocalTierFromRemote(t *testing.T) {
 		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"total_units": 6,
-				"tiers":       map[string]int{"local": 1, "private": 4, "public": 1},
-				"domains":     map[string]int{},
+				"total_count":   6,
+				"tier_counts":   map[string]int{"local": 1, "private": 4, "public": 1},
+				"domain_counts": map[string]int{},
 			})
 			return
 		}

@@ -228,7 +228,10 @@ func (r *Resolver) probe(ctx context.Context, addr string) (NodeInfo, error) {
 
 	ct := resp.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "text/html") {
-		return NodeInfo{}, fmt.Errorf("discovery: %s returned text/html — the address likely points at a SPA, not a cq node API", addr)
+		return NodeInfo{}, fmt.Errorf(
+			"discovery: %s returned text/html — the address likely points at a SPA, not a cq node API",
+			addr,
+		)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
@@ -288,7 +291,11 @@ func defaultsFor(addr string) NodeInfo {
 // messages rather than raw comparison failures.
 func validate(info NodeInfo) error {
 	if info.Version != SupportedDiscoveryVersion {
-		return fmt.Errorf("discovery document declares version %d but this client supports %d — upgrade the client", info.Version, SupportedDiscoveryVersion)
+		return fmt.Errorf(
+			"discovery document declares version %d but this client supports %d — upgrade the client",
+			info.Version,
+			SupportedDiscoveryVersion,
+		)
 	}
 	if info.APIBaseURL == "" {
 		return errors.New("api_base_url is required")
@@ -317,7 +324,11 @@ func validate(info NodeInfo) error {
 		return errors.New("api_version is required")
 	}
 	if info.APIVersion != SupportedAPIVersion {
-		return fmt.Errorf("node speaks api_version %q but this client supports %q — upgrade the client", info.APIVersion, SupportedAPIVersion)
+		return fmt.Errorf(
+			"node speaks api_version %q but this client supports %q — upgrade the client",
+			info.APIVersion,
+			SupportedAPIVersion,
+		)
 	}
 	return nil
 }

@@ -6,6 +6,8 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+
+	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
 // NewStatusCmd returns the status command.
@@ -34,6 +36,10 @@ func NewStatusCmd() *cobra.Command {
 				return err
 			}
 
+			for _, w := range stats.Warnings {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s\n", w)
+			}
+
 			if format == "json" {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", jsonIndent)
@@ -43,6 +49,26 @@ func NewStatusCmd() *cobra.Command {
 
 			w := cmd.OutOrStdout()
 			_, _ = fmt.Fprintf(w, "Knowledge units: %d\n\n", stats.TotalCount)
+
+			// Render the per-tier split whenever any tier holds units, in
+			// canonical order, omitting empty tiers. Collecting the lines
+			// first avoids emitting a bare "By tier:" header for an empty
+			// store.
+			var tierLines []string
+			for _, tier := range []cq.Tier{cq.Local, cq.Private, cq.Public} {
+				if count := stats.TierCounts[tier]; count > 0 {
+					tierLines = append(tierLines, fmt.Sprintf("  %-20s %d", tier, count))
+				}
+			}
+
+			if len(tierLines) > 0 {
+				_, _ = fmt.Fprintln(w, "By tier:")
+				for _, line := range tierLines {
+					_, _ = fmt.Fprintln(w, line)
+				}
+
+				_, _ = fmt.Fprintln(w)
+			}
 
 			if len(stats.DomainCounts) > 0 {
 				_, _ = fmt.Fprintln(w, "Domains:")

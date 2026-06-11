@@ -93,7 +93,7 @@ class KnowledgeService:
     async def stats(self) -> StatsResponse:
         """Return overall knowledge-store stats (totals, tiers, domains)."""
         return StatsResponse(
-            total_units=await self._knowledge.count(),
-            tiers=await self._knowledge.counts_by_tier(),
-            domains=await self._knowledge.domain_counts(),
+            total_count=await self._knowledge.count(),
+            tier_counts=await self._knowledge.counts_by_tier(),
+            domain_counts=await self._knowledge.domain_counts(),
         )

@@ -12,8 +12,9 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/require"
 
-	"github.com/mozilla-ai/cq/cli/mcpserver"
 	cq "github.com/mozilla-ai/cq/sdk/go"
+
+	"github.com/mozilla-ai/cq/cli/mcpserver"
 )
 
 func newMCPTestClient(t *testing.T, srv *mcpserver.Server) *client.Client {
@@ -50,7 +51,6 @@ func newSDKClient(t *testing.T) *cq.Client {
 }
 
 func TestE2EProposeQueryConfirmFlagStatus(t *testing.T) {
-
 	realClient := newSDKClient(t)
 	srv := mcpserver.New(realClient, "test")
 	c := newMCPTestClient(t, srv)

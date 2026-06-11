@@ -10,13 +10,13 @@ import (
 var errMockNotImplemented = errors.New("mock method not implemented")
 
 type mockClient struct {
-	confirmFn   func(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
-	drainFn     func(ctx context.Context) (cq.DrainResult, error)
-	flagFn      func(ctx context.Context, ku cq.KnowledgeUnit, reason cq.FlagReason, opts ...cq.FlagOption) (cq.KnowledgeUnit, error)
-	hasRemote   bool
-	proposeFn   func(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
-	queryFn     func(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
-	statusFn    func(ctx context.Context) (cq.StoreStats, error)
+	confirmFn func(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
+	drainFn   func(ctx context.Context) (cq.DrainResult, error)
+	flagFn    func(ctx context.Context, ku cq.KnowledgeUnit, reason cq.FlagReason, opts ...cq.FlagOption) (cq.KnowledgeUnit, error)
+	hasRemote bool
+	proposeFn func(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
+	queryFn   func(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
+	statusFn  func(ctx context.Context) (cq.StoreStats, error)
 }
 
 func (m *mockClient) Confirm(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error) {

@@ -72,6 +72,16 @@ func (t Tier) IsRemote() bool {
 	return t == Private || t == Public
 }
 
+// Valid reports whether t is a known tier.
+func (t Tier) Valid() bool {
+	switch t {
+	case Local, Private, Public:
+		return true
+	default:
+		return false
+	}
+}
+
 // String returns a comma-separated list of flag reasons.
 func (r FlagReasons) String() string {
 	names := make([]string, len(r))

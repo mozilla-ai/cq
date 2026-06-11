@@ -30,8 +30,12 @@ class ProposeRequest(BaseModel):
 
 
 class StatsResponse(BaseModel):
-    """Response body for store statistics."""
+    """Response body for store statistics.
 
-    total_units: int
-    tiers: dict[str, int]
-    domains: dict[str, int]
+    Field names follow the canonical ``StoreStats`` wire vocabulary shared
+    with the SDK clients; renaming them is a breaking wire change.
+    """
+
+    total_count: int
+    tier_counts: dict[str, int]
+    domain_counts: dict[str, int]

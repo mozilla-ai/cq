@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	cqschema "github.com/mozilla-ai/cq/schema"
 	"github.com/stretchr/testify/require"
+
+	cqschema "github.com/mozilla-ai/cq/schema"
 )
 
 func TestKnowledgeUnitJSONRoundTrip(t *testing.T) {

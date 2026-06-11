@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"crypto/rand"
-	_ "embed"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
+	_ "embed"
 )
 
 const (

@@ -13,7 +13,12 @@ import (
 type Client interface {
 	Confirm(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
 	Drain(ctx context.Context) (cq.DrainResult, error)
-	Flag(ctx context.Context, ku cq.KnowledgeUnit, reason cq.FlagReason, opts ...cq.FlagOption) (cq.KnowledgeUnit, error)
+	Flag(
+		ctx context.Context,
+		ku cq.KnowledgeUnit,
+		reason cq.FlagReason,
+		opts ...cq.FlagOption,
+	) (cq.KnowledgeUnit, error)
 	HasRemote() bool
 	Propose(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
 	Query(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
