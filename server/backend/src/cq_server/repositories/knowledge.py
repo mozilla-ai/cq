@@ -58,7 +58,18 @@ class KnowledgeRepository:
         return await self._db.run_sync(self._get_any_sync, unit_id)
 
     async def insert(self, unit: KnowledgeUnit) -> None:
-        """Persist a new unit. Domains are normalised; raises on integrity failure."""
+        """
+        Persist a new KnowledgeUnit to the repository.
+        
+        Normalizes the unit's domains and inserts the unit and its domain mappings into the database. If semantic-search integration is enabled, the unit is also inserted into the semsearch store in a separate transaction.
+        
+        Parameters:
+            unit (KnowledgeUnit): The knowledge unit to persist; its domains will be normalized before storage.
+        
+        Raises:
+            ValueError: If normalization yields no domains.
+            sqlalchemy.IntegrityError: On database integrity constraint violations (the original DB error may be re-raised).
+        """
         logger.info(f"Inserting unit {unit.id} with domains {unit.domains} and tier {unit.tier}")
         # FIXME plugins should run in the same transaction as the main
         # db operations. Provindg sync and async interfaces simultaneously makes this
@@ -78,7 +89,19 @@ class KnowledgeRepository:
         pattern: str = "",
         limit: int = 5,
     ) -> list[KnowledgeUnit]:
-        """Return approved units matching ``domains``, ranked by relevance × confidence."""
+        """
+        Find approved knowledge units matching the given domains, ordered by relevance multiplied by the unit's evidence confidence.
+        
+        Parameters:
+            domains (list[str]): Domains to match against (domain strings).
+            languages (list[str] | None): Optional language filters that influence relevance scoring.
+            frameworks (list[str] | None): Optional framework filters that influence relevance scoring.
+            pattern (str): Optional textual pattern to match; affects relevance.
+            limit (int): Maximum number of units to return; must be greater than zero.
+        
+        Returns:
+            list[KnowledgeUnit]: A list of matching approved knowledge units ordered by relevance × confidence.
+        """
         if _SEMSEARCH_ENABLED:
             with self._db.engine.connect() as conn:
                 return await sem_query(

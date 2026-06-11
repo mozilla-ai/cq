@@ -42,7 +42,15 @@ logging.getLogger("cq_server.repositories").setLevel(logging.DEBUG)
 
 
 def _build_settings(db_path: Path) -> Settings:
-    """Construct ``Settings`` directly so tests don't depend on env state."""
+    """
+    Create a Settings instance configured for tests.
+    
+    Parameters:
+        db_path (Path): Filesystem path to the SQLite database file used by tests.
+    
+    Returns:
+        Settings: A Settings object with test secrets and a `sqlite:///` database URL pointing to `db_path`.
+    """
     return Settings(  # type: ignore[call-arg]
         jwt_secret="test-jwt-secret",  # pragma: allowlist secret
         api_key_pepper="test-pepper",  # pragma: allowlist secret
@@ -53,7 +61,12 @@ def _build_settings(db_path: Path) -> Settings:
 
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
-    """Path to a fresh, Alembic-initialised SQLite DB."""
+    """
+    Create a fresh SQLite database file at the test temporary path and initialize it with Alembic migrations.
+    
+    Returns:
+        Path: Path to the created SQLite database file initialized with Alembic migrations.
+    """
     db = tmp_path / "cq.db"
     init_test_db(db)
     return db
@@ -61,25 +74,54 @@ def db_path(tmp_path: Path) -> Path:
 
 @pytest_asyncio.fixture
 async def users_repo(repos: _RepoBundle) -> UserRepository:
-    """Yield the ``UserRepository`` from the shared bundle."""
+    """
+    Provide the UserRepository instance from the shared repository bundle.
+    
+    Parameters:
+    	repos (_RepoBundle): Shared bundle containing repository instances for tests.
+    
+    Returns:
+    	UserRepository: The repository used to access and manipulate user records.
+    """
     return repos.users
 
 
 @pytest_asyncio.fixture
 async def api_keys_repo(repos: _RepoBundle) -> APIKeyRepository:
-    """Yield the ``APIKeyRepository`` from the shared bundle."""
+    """
+    Provide the APIKeyRepository instance from the shared repository bundle.
+    
+    Returns:
+        APIKeyRepository: The API key repository extracted from the provided `_RepoBundle`.
+    """
     return repos.api_keys
 
 
 @pytest_asyncio.fixture
 async def knowledge_repo(repos: _RepoBundle) -> KnowledgeRepository:
-    """Yield the ``KnowledgeRepository`` from the shared bundle."""
+    """
+    Provide the KnowledgeRepository instance from the shared repository bundle.
+    
+    Parameters:
+        repos (_RepoBundle): Shared repository bundle provided by the `repos` fixture.
+    
+    Returns:
+        KnowledgeRepository: The knowledge repository from the bundle.
+    """
     return repos.knowledge
 
 
 @pytest_asyncio.fixture
 async def reviews_repo(repos: _RepoBundle) -> ReviewRepository:
-    """Yield the ``ReviewRepository`` from the shared bundle."""
+    """
+    Provide the ReviewRepository from the shared repository bundle.
+    
+    Parameters:
+    	repos (_RepoBundle): Shared bundle containing repository instances used by tests.
+    
+    Returns:
+    	ReviewRepository: The review repository instance from the provided bundle.
+    """
     return repos.reviews
 
 
@@ -102,7 +144,14 @@ async def repos(tmp_path: Path) -> AsyncIterator[_RepoBundle]:
 
 @pytest_asyncio.fixture
 async def database(tmp_path: Path) -> AsyncIterator[Database]:
-    """Yield a freshly-migrated ``Database`` rooted at a per-test temp path."""
+    """
+    Provide a freshly migrated Database instance backed by a per-test SQLite file.
+    
+    Yields the Database for use by tests and ensures the connection is closed when the fixture is torn down.
+    
+    Returns:
+        A Database connected to the migrated SQLite file at `tmp_path / "test.db"`.
+    """
     db_path = tmp_path / "test.db"
     init_test_db(db_path)
     db = Database(_build_settings(db_path))

@@ -30,7 +30,18 @@ if semsearch_enabled():
 
 
 async def _get_embeddings(wordlist: list[str]) -> "npt.ArrayLike":
-    """Get embeddings for a list of words using the embedding API."""
+    """
+    Fetches and returns the average embedding vector for the provided input strings from the configured embedding service.
+    
+    Parameters:
+        wordlist (list[str]): Input strings to send to the embedding API.
+    
+    Returns:
+        npt.ArrayLike: The averaged embedding vector computed across returned embeddings.
+    
+    Raises:
+        RuntimeError: If semantic search is not enabled or if the embedding API returns no embeddings for the given input.
+    """
     if not semsearch_enabled():
         raise RuntimeError(
             "Semantic search is not enabled. Set TOKEN_EMBEDDING_URL and install required packages to enable."
@@ -54,7 +65,11 @@ def _serialize_embedding(vec: "npt.ArrayLike") -> bytes:
 
 
 async def upsert_unit(conn: Connection, unit: KnowledgeUnit) -> None:
-    """Update a knowledge unit embedding row."""
+    """
+    Update the stored vector embedding for a KnowledgeUnit.
+    
+    If semantic search is disabled or the combined insight text (summary, detail, action) is empty, this function does nothing. Otherwise it deletes any existing vector row for the unit and inserts a new row containing the serialized embedding derived from the unit's insight text.
+    """
     if not semsearch_enabled():
         return
     text = " ".join([unit.insight.summary, unit.insight.detail, unit.insight.action]).strip()
@@ -67,7 +82,18 @@ async def upsert_unit(conn: Connection, unit: KnowledgeUnit) -> None:
 
 
 async def insert_unit(conn: Connection, unit: KnowledgeUnit) -> None:
-    """Insert a knowledge unit embedding row."""
+    """
+    Insert a KnowledgeUnit's embedding into the vector index.
+    
+    Builds a single insight text from the unit's insight fields and inserts a serialized embedding row for the unit into the database.
+    
+    Parameters:
+    	conn (Connection): Database connection used to execute the insert statement.
+    	unit (KnowledgeUnit): Unit whose insight text will be embedded and stored.
+    
+    Raises:
+    	ValueError: If the combined insight text is empty.
+    """
     if not semsearch_enabled():
         logger.warning("Attempted to insert embedding while semantic search is disabled; skipping embedding insert")
         return
@@ -89,7 +115,25 @@ async def query(
     *,
     limit: int = 5,
 ) -> list[KnowledgeUnit]:
-    """Semantic search implementation."""
+    """
+    Perform a semantic vector search over KnowledgeUnit entries for the given domains and query constraints.
+    
+    Normalizes `domains` before searching and returns early if domains are empty, normalization yields no domains, or `limit` is not positive. Results are ranked by calculated relevance (using `languages`, `frameworks`, and `pattern` as filters) multiplied by each unit's `evidence.confidence`; ties are broken by unit id in descending order.
+    
+    Parameters:
+        conn (Connection): Database connection used to execute the vector search.
+        domains (list[str]): Domain strings to search for; they will be normalized prior to querying.
+        languages (list[str] | None): Optional language filter passed to relevance calculation.
+        frameworks (list[str] | None): Optional framework filter passed to relevance calculation.
+        pattern (str): Pattern string passed to relevance calculation (e.g., code or text pattern to match).
+        limit (int, optional): Maximum number of results to return. Defaults to 5.
+    
+    Returns:
+        list[KnowledgeUnit]: Top matching KnowledgeUnit objects ordered by score (relevance × evidence.confidence), limited to `limit`.
+    
+    Raises:
+        RuntimeError: If semantic search is not enabled or if a database error occurs while performing the base query.
+    """
     if not semsearch_enabled():
         raise RuntimeError(
             "Semantic search is not enabled. Set TOKEN_EMBEDDING_URL and install required packages to enable."
@@ -140,7 +184,26 @@ async def combined_query(
     *,
     limit: int = 5,
 ) -> list[Any]:
-    """Generate SQL for a combined domain filter + vector search query."""
+    """
+    Perform a combined domain-filtered vector search and return ranked KnowledgeUnit results.
+    
+    Performs a vector search constrained to the provided domains, re-ranks results by a combination of calculated relevance and vector distance (weighted), applies each unit's evidence confidence, and returns the top results ordered by combined score (highest first).
+    
+    Parameters:
+        conn (Connection): SQLite connection used to execute the combined query.
+        domains (list[str]): Domains to filter and to use for computing the query embedding; must be non-empty.
+        languages (list[str] | None): Optional list of languages to guide relevance calculation.
+        frameworks (list[str] | None): Optional list of frameworks to guide relevance calculation.
+        pattern (str): Pattern used to influence relevance scoring.
+        limit (int, optional): Maximum number of results to return; must be greater than zero. Defaults to 5.
+    
+    Returns:
+        list[Any]: List of matching KnowledgeUnit objects ordered by combined score (highest first), limited to `limit`.
+    
+    Raises:
+        RuntimeError: If semantic search is not enabled, or if a database/general error occurs during the query.
+        ValueError: If `limit` is not a positive integer.
+    """
     if not semsearch_enabled():
         raise RuntimeError(
             "Semantic search is not enabled. Set TOKEN_EMBEDDING_URL and install required packages to enable."
@@ -168,7 +231,16 @@ async def combined_query(
     total_distance = sum(distance for _, distance in units)
 
     def combine(relevance, distance) -> float:
-        """Combine relevance and distance into a single score."""
+        """
+        Combine a relevance score and a distance into a single weighted score.
+        
+        Parameters:
+            relevance (float): Base relevance value to weight.
+            distance (float): Non-negative distance value; it is normalized by the module-level `total_distance` (treated as 0 if `total_distance` <= 0) before weighting.
+        
+        Returns:
+            float: Combined score computed as 0.8 * relevance + 0.2 * (normalized distance), where normalized distance is `distance / total_distance` or 0 when `total_distance` is 0.
+        """
         # Simple example: partially weighted over normalized distance
         relevance_weight = 0.8
         distance_weight = 0.2
@@ -206,10 +278,17 @@ def build_field_logits(
     *,
     invert: bool = True,
 ) -> dict[int, dict[Any, float]]:
-    """Build logit-normalized scores for each additional field across all rows.
-
-    When ``invert`` is True (the default), lower field values — e.g. cosine
-    distances — receive higher logits.
+    """
+    Compute per-field logit scores from numeric column values across multiple rows.
+    
+    For each field index present in the input rows, collects numeric values (int/float) and maps each observed value to a logit computed from its ratio to the field mean. If all values for a field are equal, every observed value maps to 0.0. When `invert` is True (default), smaller values produce larger (more positive) logits; when False, larger values produce larger logits.
+    
+    Parameters:
+        row_data_by_id (dict[str, tuple[Any, ...]]): Mapping of row id to a tuple of field values. Non-numeric values are ignored for a field.
+        invert (bool, optional): If True, invert the sign of the logit so lower numeric values yield higher scores. Defaults to True.
+    
+    Returns:
+        dict[int, dict[Any, float]]: A mapping from field index to a map of observed numeric values for that field to their logit score.
     """
     field_logits: dict[int, dict[Any, float]] = {}
     if not row_data_by_id:

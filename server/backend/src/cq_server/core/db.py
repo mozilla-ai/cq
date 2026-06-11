@@ -47,7 +47,17 @@ class Database:
     """
 
     def __init__(self, settings: Settings) -> None:
-        """Build the engine from ``settings`` and register the SQLite PRAGMA hook."""
+        """
+        Create and configure the shared SQLAlchemy Engine based on the provided settings.
+        
+        Initializes a SQLite engine when `settings.resolved_database_url` starts with `sqlite:///`: it ensures the database file's parent directory exists, creates the engine with `check_same_thread=False`, and registers the SQLite PRAGMA hook; if semsearch is enabled, registers the semsearch load hook on connection as well. For non-SQLite URLs, raises a clear NotImplementedError.
+        
+        Parameters:
+            settings (Settings): Application settings providing `resolved_database_url` (and related DB configuration).
+        
+        Raises:
+            NotImplementedError: If `settings.resolved_database_url` does not start with `sqlite:///`.
+        """
         url = settings.resolved_database_url
         if url.startswith("sqlite:///"):
             # Derive the file path from the resolved URL itself rather than
