@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/ci-server.yaml
+      - .github/workflows/ci-server-embeddings.yaml
       - schema/**
       - server/**
   pull_request:
     branches: [main]
     paths:
-      - .github/workflows/ci-server.yaml
+      - .github/workflows/ci-server-embeddings.yaml
       - schema/**
       - server/**
 
@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@v7
 
@@ -34,6 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -99,6 +103,24 @@ jobs:
 
       - name: Setup and test
         run: |
-          "${GITHUB_WORKSPACE}/.cache/encoderfiles/modernbert.x86_64-unknown-linux-gnu.encoderfile" serve > /dev/null &
+          "${GITHUB_WORKSPACE}/.cache/encoderfiles/modernbert.x86_64-unknown-linux-gnu.encoderfile" serve > /tmp/encoderfile.log 2>&1 &
+
+          # Wait for the encoder health endpoint before running tests.
+          for i in {1..60}; do
+            if curl -fsS "http://127.0.0.1:8080/health" > /dev/null; then
+              echo "Encoderfile health check passed"
+              break
+            fi
+
+            if [ "$i" -eq 60 ]; then
+              echo "Encoderfile did not become healthy in time"
+              echo "Last 100 lines of encoderfile logs:"
+              tail -n 100 /tmp/encoderfile.log || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
           export TOKEN_EMBEDDING_URL=http://127.0.0.1:8080
           make setup-server test-server

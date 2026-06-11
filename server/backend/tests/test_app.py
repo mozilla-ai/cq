@@ -266,7 +266,7 @@ class TestQuery:
         resp = client.get("/api/v1/knowledge", params={"domains": ["astronomy"]})
         assert resp.status_code == 200
         results = resp.json()
-        assert len(results) == 1
+        assert len(results["data"]) == 1
         result = results["data"][0]
         assert result["domains"] == ["astronomy"]
         assert "exoplanets" in result["insight"]["summary"].lower()
