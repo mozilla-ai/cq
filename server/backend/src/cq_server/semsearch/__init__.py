@@ -87,9 +87,8 @@ _VEC_INSERT_SQL = "INSERT INTO knowledge_units_vec (id, embedding) VALUES (:unit
 
 
 def is_enabled() -> bool:
-    """
-    Indicates whether semantic search is enabled for this process.
-    
+    """Indicates whether semantic search is enabled for this process.
+
     Returns:
         `true` if semantic search is enabled and required dependencies were successfully loaded, `false` otherwise.
     """
@@ -97,11 +96,12 @@ def is_enabled() -> bool:
 
 
 def load(conn, _) -> None:
-    """
-    Load the sqlite-vec extension into the given SQLite connection and ensure the vector schema exists.
-    
-    If semantic search is disabled, this function is a no-op. When enabled, it temporarily enables extension loading on the connection, loads the sqlite_vec extension, disables extension loading again, and then creates the vector table if it does not already exist.
-    
+    """Load the sqlite-vec extension into the given SQLite connection and ensure the vector schema exists.
+
+    If semantic search is disabled, this function is a no-op. When enabled, it temporarily enables
+        extension loading on the connection, loads the sqlite_vec extension, disables extension loading
+        again, and then creates the vector table if it does not already exist.
+
     Parameters:
         conn (sqlite3.Connection): An open SQLite connection to extend.
         _ : Ignored placeholder parameter.
@@ -115,9 +115,8 @@ def load(conn, _) -> None:
 
 
 def ensure_schema(conn) -> None:
-    """
-    Ensure the semantic-search vector table for embeddings exists; no-op if semantic search is disabled.
-    
+    """Ensure the semantic-search vector table for embeddings exists; no-op if semantic search is disabled.
+
     Parameters:
         conn: SQLite connection on which the schema creation script will be executed.
     """

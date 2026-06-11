@@ -20,12 +20,13 @@ from .db_helpers import _make_store
 def _make_unit(domain: str = "auth") -> KnowledgeUnit:
     """
     Builds a KnowledgeUnit test fixture for the given domain.
-    
-    Creates a KnowledgeUnit with a fixed Insight payload (summary="s", detail="d", action="a"), an empty Context, tier set to Tier.PRIVATE, and created_by set to "alice".
-    
+
+    Creates a KnowledgeUnit with a fixed Insight payload (summary="s", detail="d", action="a"),
+        an empty Context, tier set to Tier.PRIVATE, and created_by set to "alice".
+
     Parameters:
         domain (str): Domain name to assign to the unit; defaults to "auth".
-    
+
     Returns:
         KnowledgeUnit: The constructed test KnowledgeUnit.
     """

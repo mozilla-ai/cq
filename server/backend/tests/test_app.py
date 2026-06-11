@@ -267,7 +267,7 @@ class TestQuery:
         assert resp.status_code == 200
         results = resp.json()
         assert len(results) == 1
-        result = results['data'][0]
+        result = results["data"][0]
         assert result["domains"] == ["astronomy"]
         assert "exoplanets" in result["insight"]["summary"].lower()
 
@@ -312,9 +312,9 @@ class TestQuery:
         resp = client.get("/api/v1/knowledge", params={"domains": ["astronomy"]})
         assert resp.status_code == 200
         results = resp.json()
-        result_confidences = {result["id"]: result["evidence"]["confidence"] for result in results['data']}
-        assert len(results['data']) >= 1
-        result = results['data'][0]
+        result_confidences = {result["id"]: result["evidence"]["confidence"] for result in results["data"]}
+        assert len(results["data"]) >= 1
+        result = results["data"][0]
         assert ku1["id"] in result_confidences and ku2["id"] in result_confidences
         assert result["domains"] == ["astronomy"]
         assert result_confidences[ku1["id"]] >= result_confidences[ku2["id"]]

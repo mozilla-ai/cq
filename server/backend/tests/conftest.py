@@ -44,10 +44,10 @@ logging.getLogger("cq_server.repositories").setLevel(logging.DEBUG)
 def _build_settings(db_path: Path) -> Settings:
     """
     Create a Settings instance configured for tests.
-    
+
     Parameters:
         db_path (Path): Filesystem path to the SQLite database file used by tests.
-    
+
     Returns:
         Settings: A Settings object with test secrets and a `sqlite:///` database URL pointing to `db_path`.
     """
@@ -63,7 +63,7 @@ def _build_settings(db_path: Path) -> Settings:
 def db_path(tmp_path: Path) -> Path:
     """
     Create a fresh SQLite database file at the test temporary path and initialize it with Alembic migrations.
-    
+
     Returns:
         Path: Path to the created SQLite database file initialized with Alembic migrations.
     """
@@ -76,12 +76,12 @@ def db_path(tmp_path: Path) -> Path:
 async def users_repo(repos: _RepoBundle) -> UserRepository:
     """
     Provide the UserRepository instance from the shared repository bundle.
-    
+
     Parameters:
-    	repos (_RepoBundle): Shared bundle containing repository instances for tests.
-    
+        repos (_RepoBundle): Shared bundle containing repository instances for tests.
+
     Returns:
-    	UserRepository: The repository used to access and manipulate user records.
+        UserRepository: The repository used to access and manipulate user records.
     """
     return repos.users
 
@@ -90,7 +90,7 @@ async def users_repo(repos: _RepoBundle) -> UserRepository:
 async def api_keys_repo(repos: _RepoBundle) -> APIKeyRepository:
     """
     Provide the APIKeyRepository instance from the shared repository bundle.
-    
+
     Returns:
         APIKeyRepository: The API key repository extracted from the provided `_RepoBundle`.
     """
@@ -101,10 +101,10 @@ async def api_keys_repo(repos: _RepoBundle) -> APIKeyRepository:
 async def knowledge_repo(repos: _RepoBundle) -> KnowledgeRepository:
     """
     Provide the KnowledgeRepository instance from the shared repository bundle.
-    
+
     Parameters:
         repos (_RepoBundle): Shared repository bundle provided by the `repos` fixture.
-    
+
     Returns:
         KnowledgeRepository: The knowledge repository from the bundle.
     """
@@ -115,12 +115,12 @@ async def knowledge_repo(repos: _RepoBundle) -> KnowledgeRepository:
 async def reviews_repo(repos: _RepoBundle) -> ReviewRepository:
     """
     Provide the ReviewRepository from the shared repository bundle.
-    
+
     Parameters:
-    	repos (_RepoBundle): Shared bundle containing repository instances used by tests.
-    
+        repos (_RepoBundle): Shared bundle containing repository instances used by tests.
+
     Returns:
-    	ReviewRepository: The review repository instance from the provided bundle.
+        ReviewRepository: The review repository instance from the provided bundle.
     """
     return repos.reviews
 
@@ -146,9 +146,9 @@ async def repos(tmp_path: Path) -> AsyncIterator[_RepoBundle]:
 async def database(tmp_path: Path) -> AsyncIterator[Database]:
     """
     Provide a freshly migrated Database instance backed by a per-test SQLite file.
-    
+
     Yields the Database for use by tests and ensures the connection is closed when the fixture is torn down.
-    
+
     Returns:
         A Database connected to the migrated SQLite file at `tmp_path / "test.db"`.
     """

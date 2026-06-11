@@ -24,15 +24,16 @@ from .db_helpers import _make_store
 def _make_unit(domain: str = "test", *, summary: str = "s", detail: str = "d", action: str = "a") -> KnowledgeUnit:
     """
     Create a test KnowledgeUnit with the given domain and simple default insight and metadata.
-    
+
     Parameters:
         domain (str): Domain to assign to the unit (placed into the unit's `domains` list).
         summary (str): Insight summary text.
         detail (str): Insight detail text.
         action (str): Insight action text.
-    
+
     Returns:
-        KnowledgeUnit: A newly created KnowledgeUnit configured for tests (private tier, empty Context, created_by="tester").
+        KnowledgeUnit: A newly created KnowledgeUnit configured for tests (private tier, empty Context,
+            created_by="tester").
     """
     return create_knowledge_unit(
         domains=[domain],

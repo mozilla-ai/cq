@@ -1,0 +1,104 @@
+name: Server CI (using embeddings)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-server.yaml
+      - schema/**
+      - server/**
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-server.yaml
+      - schema/**
+      - server/**
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Validate schemas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Validate fixtures against schemas
+        run: make validate-schema
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/frontend/pnpm-lock.yaml
+
+      - name: Setup and lint
+        run: make setup-server lint-server
+
+  test:
+    name: Test
+    needs: [schema, lint]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/frontend/pnpm-lock.yaml
+
+      - name: Cache ModernBERT encoderfile
+        id: cache-modernbert-encoderfile
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.cache/encoderfiles
+          key: ${{ runner.os }}-modernbert-encoderfile-v1
+
+      - name: Download ModernBERT encoderfile
+        if: steps.cache-modernbert-encoderfile.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "${GITHUB_WORKSPACE}/.cache/encoderfiles"
+          curl -fL --retry 3 --retry-delay 2 \
+            "https://huggingface.co/mozilla-ai/embedding-modernbert-encoderfile/resolve/main/modernbert.x86_64-unknown-linux-gnu.encoderfile" \
+            -o "${GITHUB_WORKSPACE}/.cache/encoderfiles/modernbert.x86_64-unknown-linux-gnu.encoderfile"
+
+      - name: Prepare ModernBERT encoderfile
+        run: |
+          chmod +x "${GITHUB_WORKSPACE}/.cache/encoderfiles/modernbert.x86_64-unknown-linux-gnu.encoderfile"
+          ls -lh "${GITHUB_WORKSPACE}/.cache/encoderfiles/modernbert.x86_64-unknown-linux-gnu.encoderfile"
+
+      - name: Setup and test
+        run: |
+          "${GITHUB_WORKSPACE}/.cache/encoderfiles/modernbert.x86_64-unknown-linux-gnu.encoderfile" serve > /dev/null &
+          export TOKEN_EMBEDDING_URL=http://127.0.0.1:8080
+          make setup-server test-server

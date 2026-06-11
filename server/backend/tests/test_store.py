@@ -28,10 +28,11 @@ from .db_helpers import _RepoBundle
 def _make_insight(**overrides: Any) -> Insight:
     """
     Create an Insight with sensible default values, allowing callers to override any fields.
-    
+
     Parameters:
-        overrides (Any): Keyword arguments corresponding to Insight's initializer fields (e.g., `summary`, `detail`, `action`) that will replace the defaults.
-    
+        overrides (Any): Keyword arguments corresponding to Insight's initializer fields (e.g., `summary`, `detail`,
+            `action`) that will replace the defaults.
+
     Returns:
         Insight: An Insight instance constructed from the default values merged with the provided overrides.
     """
