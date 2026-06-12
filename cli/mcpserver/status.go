@@ -12,7 +12,7 @@ import (
 func StatusTool() mcp.Tool {
 	return mcp.NewTool("status",
 		mcp.WithDescription(
-			"Show knowledge store statistics: tier counts and domain counts aggregated across local and remote, plus recent additions and confidence distribution (local only).",
+			"Show knowledge store statistics: tier counts, domain counts, and confidence distribution aggregated across local and the remote's private/org units (excludes the public commons), plus recent additions.",
 		),
 	)
 }
