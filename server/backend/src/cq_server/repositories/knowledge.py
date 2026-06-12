@@ -36,9 +36,11 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
 
 # Bucket approved units by their persisted confidence in SQL rather than
 # parsing every unit into a model to read one float. The CASE thresholds must
-# stay in lockstep with `_CONFIDENCE_BUCKETS` above. SQLite-specific
-# (`json_extract`), so it lives here rather than in the portable `_queries`
-# module; the backend is SQLite-only (see `core.db.Database`).
+# stay in lockstep with `_CONFIDENCE_BUCKETS` above. COALESCE to 0.5 mirrors
+# the Evidence.confidence default that model-parsing applied, so a row whose
+# JSON omits the field buckets identically instead of falling to the catch-all.
+# SQLite-specific (`json_extract`), so it lives here rather than in the portable
+# `_queries` module; the backend is SQLite-only (see `core.db.Database`).
 _SELECT_CONFIDENCE_DISTRIBUTION: TextClause = text(
     "SELECT "
     "CASE "
@@ -47,7 +49,7 @@ _SELECT_CONFIDENCE_DISTRIBUTION: TextClause = text(
     "WHEN confidence < 0.7 THEN '0.5-0.7' "
     "ELSE '0.7-1.0' "
     "END AS bucket, COUNT(*) AS cnt "
-    "FROM (SELECT json_extract(data, '$.evidence.confidence') AS confidence "
+    "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
     "FROM knowledge_units WHERE status = 'approved') "
     "GROUP BY bucket"
 )

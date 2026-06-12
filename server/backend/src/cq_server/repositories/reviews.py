@@ -25,9 +25,11 @@ from ._queries import (
 # Bucket approved units by their persisted confidence in SQL rather than
 # parsing every unit into a model to read one float. The review dashboard uses
 # different bucket boundaries (0.3/0.6/0.8) than the knowledge stats; keep them
-# distinct unless deliberately unified. SQLite-specific (`json_extract`), so it
-# lives here rather than in the portable `_queries` module; the backend is
-# SQLite-only (see `core.db.Database`).
+# distinct unless deliberately unified. COALESCE to 0.5 mirrors the
+# Evidence.confidence default that model-parsing applied, so a row whose JSON
+# omits the field buckets identically instead of falling to the catch-all.
+# SQLite-specific (`json_extract`), so it lives here rather than in the portable
+# `_queries` module; the backend is SQLite-only (see `core.db.Database`).
 _SELECT_CONFIDENCE_DISTRIBUTION: TextClause = text(
     "SELECT "
     "CASE "
@@ -36,7 +38,7 @@ _SELECT_CONFIDENCE_DISTRIBUTION: TextClause = text(
     "WHEN confidence < 0.8 THEN '0.6-0.8' "
     "ELSE '0.8-1.0' "
     "END AS bucket, COUNT(*) AS cnt "
-    "FROM (SELECT json_extract(data, '$.evidence.confidence') AS confidence "
+    "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
     "FROM knowledge_units WHERE status = 'approved') "
     "GROUP BY bucket"
 )
