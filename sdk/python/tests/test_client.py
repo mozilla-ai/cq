@@ -101,6 +101,9 @@ class TestLocalOnlyMode:
         stats = client.status()
         assert stats.total_count == 1
         assert "api" in stats.domain_counts
+        # Local buckets use this SDK's unbracketed labels; a fresh unit sits at
+        # the default 0.5 confidence.
+        assert stats.confidence_distribution["0.5-0.7"] == 1
 
     def test_status_local_only_has_tier_counts(self, client: Client):
         client.propose(
@@ -744,6 +747,54 @@ class TestRemoteIntegration:
         assert stats.domain_counts["db"] == 2
         c.close()
 
+    def test_status_merges_remote_confidence_distribution(self, tmp_path: Path, httpx_mock):
+        """status() maps remote bracketed buckets to local labels and sums them per bucket."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
+            json={
+                "total_count": 5,
+                "tier_counts": {"private": 5, "public": 0},
+                "domain_counts": {},
+                "confidence_distribution": {"0.5-0.7": 4, "0.7-1.0": 1},
+            },
+        )
+
+        # Local unit sits at the default 0.5 confidence, sharing a bucket with
+        # the remote's "0.5-0.7" so we can verify accumulation.
+        local_client = Client(local_db_path=tmp_path / "test.db")
+        local_client.propose(summary="S", detail="D", action="A", domains=["api"])
+        local_client.close()
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        stats = c.status()
+        assert stats.confidence_distribution["0.5-0.7"] == 5  # local 1 + remote 4
+        assert stats.confidence_distribution["0.7-1.0"] == 1
+        c.close()
+
+    def test_status_skips_and_logs_unknown_remote_confidence_bucket(
+        self, tmp_path: Path, httpx_mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A remote bucket label this SDK does not recognize is skipped, logged, and
+        surfaced as a warning; never carried as an unknown key nor summed in."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
+            json={
+                "total_count": 5,
+                "tier_counts": {"private": 5},
+                "domain_counts": {},
+                "confidence_distribution": {"0.5-0.7": 4, "0.5-0.9": 2},
+            },
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        with caplog.at_level(logging.WARNING, logger="cq.client"):
+            stats = c.status()
+        assert stats.confidence_distribution["0.5-0.7"] == 4
+        assert "0.5-0.9" not in stats.confidence_distribution
+        assert any("0.5-0.9" in record.message for record in caplog.records)
+        assert any("0.5-0.9" in warning for warning in stats.warnings)
+        c.close()
+
     def test_status_remote_unreachable_surfaces_warning(self, tmp_path: Path, httpx_mock, caplog):
         """A remote stats failure surfaces a warning + log, not a silent local-only result
         indistinguishable from a genuinely empty store."""
@@ -843,6 +894,8 @@ class TestRemoteIntegration:
             total_count=7,
             domain_counts={"api": 4, "ci": 3},
             tier_counts={"private": 6, "public": 1},
+            # The server emits the canonical bucket labels, shared with the SDK.
+            confidence_distribution={"0.5-0.7": 6, "0.7-1.0": 1},
         )
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
@@ -860,6 +913,10 @@ class TestRemoteIntegration:
         # "api" appears locally (1) and remotely (4); counts must accumulate.
         assert stats.domain_counts["api"] == 5
         assert stats.domain_counts["ci"] == 3
+        # Local and remote share bucket labels; the local unit at 0.5
+        # accumulates with the remote's 6 in the same bucket.
+        assert stats.confidence_distribution["0.5-0.7"] == 7
+        assert stats.confidence_distribution["0.7-1.0"] == 1
         c.close()
 
     def test_flag_local_ignores_remote_rejection(self, tmp_path: Path, httpx_mock):

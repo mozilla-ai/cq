@@ -369,9 +369,18 @@ class Client:
         recognize is skipped, logged at warn level, and recorded in
         ``StoreStats.warnings``, so its count is dropped from the totals rather
         than carried as a bare string.
+
+        ``confidence_distribution`` sums the local buckets with the remote's
+        reported buckets (the caller's private/org units), so it covers
+        everything except the public commons. Local and remote share the
+        canonical bucket labels; a label this SDK does not recognize is
+        skipped, logged, and recorded in ``StoreStats.warnings``.
         """
         stats = self._store.stats()
         stats.tier_counts = {Tier.LOCAL: stats.total_count}
+        # The local store seeds every canonical bucket, so its keys are the
+        # label set a remote distribution must match to merge.
+        known_buckets = set(stats.confidence_distribution)
 
         if self._http is not None:
             try:
@@ -405,6 +414,18 @@ class Client:
                     stats.total_count += count
                 for domain, count in remote.get("domain_counts", {}).items():
                     stats.domain_counts[domain] = stats.domain_counts.get(domain, 0) + count
+                for label, count in remote.get("confidence_distribution", {}).items():
+                    if label not in known_buckets:
+                        # A bucket label this SDK does not recognize (e.g. a
+                        # newer server). Skip it rather than carry an unknown
+                        # key. Log and surface a warning so the dropped count
+                        # stays visible even when the SDK logger is silenced by
+                        # the default NullHandler.
+                        message = f"Ignoring unknown confidence bucket {label!r} in remote stats"
+                        self._logger.warning(message)
+                        stats.warnings.append(message)
+                        continue
+                    stats.confidence_distribution[label] = stats.confidence_distribution.get(label, 0) + count
 
         return stats
 

@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 # Sort fallback for knowledge units with no last_confirmed timestamp.
 _EPOCH_UTC = datetime.min.replace(tzinfo=UTC)
 
-# Confidence distribution bucket boundaries (upper bound, label).
+# Confidence-distribution buckets (exclusive upper bound, label), ordered low
+# to high. These labels are the canonical wire-contract convention; servers and
+# other SDKs follow the same labels so a remote distribution merges without the
+# labels drifting apart.
 _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
     (0.3, "0.0-0.3"),
     (0.5, "0.3-0.5"),
@@ -54,6 +57,9 @@ class StoreStats(BaseModel):
     total_count: int
     domain_counts: dict[str, int] = Field(default_factory=dict)
     recent: list[KnowledgeUnit] = Field(default_factory=list)
+    # Covers the local store plus any private/org units a configured remote
+    # reports; it excludes the public commons. Keyed by the canonical bucket
+    # labels (see CONFIDENCE_BUCKETS).
     confidence_distribution: dict[str, int] = Field(default_factory=dict)
     # Keyed by Tier rather than str: the tiers are a closed set, and typing
     # the keys keeps producers and consumers from drifting into bare strings.
