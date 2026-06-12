@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from cq.models import Context, Insight, KnowledgeUnit, Tier, create_knowledge_unit
+from cq.models import Context, Evidence, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 
 from cq_server.core.config import Settings
 from cq_server.core.db import Database
@@ -207,6 +207,40 @@ async def test_distribution_and_activity_and_daily(db_path: Path) -> None:
 
         with pytest.raises(ValueError):
             await store.daily_counts(days=0)
+    finally:
+        await store.close()
+
+
+async def test_confidence_distribution_buckets_across_boundaries(db_path: Path) -> None:
+    """Both distributions bucket approved units by their persisted confidence.
+
+    Knowledge and review distributions use different bucket boundaries
+    (0.3/0.5/0.7 vs 0.3/0.6/0.8); this seeds units that straddle every
+    boundary and pins each repository's mapping. A pending unit confirms
+    only approved units are counted.
+    """
+    store = _make_store(db_path)
+    try:
+        for confidence in (0.2, 0.3, 0.5, 0.6, 0.7, 0.8):
+            unit = _make_unit().model_copy(update={"evidence": Evidence(confidence=confidence)})
+            await store.insert(unit)
+            await store.set_review_status(unit.id, "approved", "r")
+        # A pending unit must be excluded from both distributions.
+        pending = _make_unit().model_copy(update={"evidence": Evidence(confidence=0.9)})
+        await store.insert(pending)
+
+        assert await store.knowledge.confidence_distribution() == {
+            "0.0-0.3": 1,  # 0.2
+            "0.3-0.5": 1,  # 0.3
+            "0.5-0.7": 2,  # 0.5, 0.6
+            "0.7-1.0": 2,  # 0.7, 0.8
+        }
+        assert await store.reviews.confidence_distribution() == {
+            "0.0-0.3": 1,  # 0.2
+            "0.3-0.6": 2,  # 0.3, 0.5
+            "0.6-0.8": 2,  # 0.6, 0.7
+            "0.8-1.0": 1,  # 0.8
+        }
     finally:
         await store.close()
 
