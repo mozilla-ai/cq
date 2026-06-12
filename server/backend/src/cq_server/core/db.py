@@ -15,6 +15,8 @@ from typing import Any
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 
+from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
+from ..semsearch import load as semsearch_load
 from .config import Settings
 
 
@@ -45,7 +47,19 @@ class Database:
     """
 
     def __init__(self, settings: Settings) -> None:
-        """Build the engine from ``settings`` and register the SQLite PRAGMA hook."""
+        """Create and configure the shared SQLAlchemy Engine based on the provided settings.
+
+        Initializes a SQLite engine when `settings.resolved_database_url` starts with `sqlite:///`:
+            it ensures the database file's parent directory exists, creates the engine with `check_same_thread=False`,
+            and registers the SQLite PRAGMA hook; if semsearch is enabled, registers the semsearch load hook on
+            connection as well. For non-SQLite URLs, raises a clear NotImplementedError.
+
+        Parameters:
+            settings (Settings): Application settings providing `resolved_database_url` (and related DB configuration).
+
+        Raises:
+            NotImplementedError: If `settings.resolved_database_url` does not start with `sqlite:///`.
+        """
         url = settings.resolved_database_url
         if url.startswith("sqlite:///"):
             # Derive the file path from the resolved URL itself rather than
@@ -59,6 +73,8 @@ class Database:
                 future=True,
             )
             event.listen(self._engine, "connect", _apply_sqlite_pragmas)
+            if _SEMSEARCH_ENABLED:
+                event.listen(self._engine, "connect", semsearch_load)
         else:
             # PostgreSQL backend is gated by #311/#312; lifespan resolves
             # the URL up-front so this branch should be unreachable in
