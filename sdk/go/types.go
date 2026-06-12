@@ -98,11 +98,25 @@ type QueryResult struct {
 
 // StoreStats holds aggregated statistics about the knowledge store.
 type StoreStats struct {
-	TotalCount             int             `json:"total_count"`
-	DomainCounts           map[string]int  `json:"domain_counts"`
-	Recent                 []KnowledgeUnit `json:"recent"`
-	ConfidenceDistribution map[string]int  `json:"confidence_distribution"`
-	TierCounts             map[Tier]int    `json:"tier_counts"`
+	// TotalCount is the number of knowledge units across the local store
+	// and any units a configured remote reports.
+	TotalCount int `json:"total_count"`
+
+	// DomainCounts is the per-domain unit count, summing the local store
+	// with any units a configured remote reports.
+	DomainCounts map[string]int `json:"domain_counts"`
+
+	// Recent holds the most recently confirmed units from the local store.
+	Recent []KnowledgeUnit `json:"recent"`
+
+	// ConfidenceDistribution covers the local store plus any private/org
+	// units a configured remote reports; it excludes the public commons.
+	// Keys are the canonical bucket labels (see confidenceBuckets).
+	ConfidenceDistribution map[string]int `json:"confidence_distribution"`
+
+	// TierCounts is the unit count per tier: the local total plus any
+	// private/public totals a configured remote reports.
+	TierCounts map[Tier]int `json:"tier_counts"`
 
 	// Warnings collects non-fatal issues encountered while aggregating
 	// stats, such as a remote API being unreachable. When present, the

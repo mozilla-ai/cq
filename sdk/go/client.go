@@ -426,6 +426,11 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 // A remote tier this SDK does not recognize is skipped, logged at warn
 // level, and recorded in StoreStats.Warnings, so its count is dropped
 // from the totals rather than carried as an unknown key.
+//
+// ConfidenceDistribution sums the local buckets with the remote's reported
+// buckets (the caller's private/org units), so it covers everything except
+// the public commons. A remote bucket label this SDK does not recognize is
+// skipped, logged, and recorded in StoreStats.Warnings.
 func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
@@ -476,6 +481,22 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 			}
 			for domain, count := range remote.DomainCounts {
 				stats.DomainCounts[domain] += count
+			}
+			for label, count := range remote.ConfidenceDistribution {
+				if _, ok := confidenceBuckets[label]; !ok {
+					// A bucket label this SDK does not recognize (e.g. a newer
+					// server). Skip it rather than carry an unknown key. Log and
+					// surface a warning so the dropped count stays visible to
+					// callers even when the client logger is silenced.
+					c.logger.Warn("status: ignoring unknown confidence bucket in remote stats", "bucket", label)
+					stats.Warnings = append(
+						stats.Warnings,
+						fmt.Errorf("ignoring unknown remote confidence bucket %s", label),
+					)
+
+					continue
+				}
+				stats.ConfidenceDistribution[label] += count
 			}
 		}
 	}

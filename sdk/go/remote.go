@@ -278,9 +278,10 @@ func (r *remoteClient) query(ctx context.Context, params QueryParams) ([]Knowled
 // Its fields mirror the StoreStats wire vocabulary, the canonical
 // stats contract for cq-compatible servers.
 type remoteStatsResponse struct {
-	TotalCount   int            `json:"total_count"`
-	DomainCounts map[string]int `json:"domain_counts"`
-	TierCounts   map[Tier]int   `json:"tier_counts"`
+	TotalCount             int            `json:"total_count"`
+	DomainCounts           map[string]int `json:"domain_counts"`
+	TierCounts             map[Tier]int   `json:"tier_counts"`
+	ConfidenceDistribution map[string]int `json:"confidence_distribution"`
 }
 
 // stats fetches store statistics from the remote API.

@@ -842,6 +842,72 @@ func TestStatusWithRemoteMergesDomainCounts(t *testing.T) {
 	require.Equal(t, 2, stats.DomainCounts["db"])
 }
 
+func TestStatusWithRemoteMergesConfidenceDistribution(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/knowledge/stats" && r.Method == "GET" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_count":             5,
+				"tier_counts":             map[string]int{"private": 5, "public": 0},
+				"domain_counts":           map[string]int{},
+				"confidence_distribution": map[string]int{"0.5-0.7": 3, "0.7-1.0": 1},
+			})
+
+			return
+		}
+		// Propose unreachable — forces local fallback.
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	c := newTestClientWithRemote(t, handler)
+	ctx := context.Background()
+
+	// Local unit sits at the default 0.5 confidence, sharing the "0.5-0.7"
+	// bucket with the remote so we can verify accumulation.
+	_, err := c.Propose(ctx, ProposeParams{
+		Summary: "Local", Detail: "D.", Action: "A.", Domains: []string{"api"},
+	})
+	var fb *FallbackError
+	require.ErrorAs(t, err, &fb)
+
+	stats, err := c.Status(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 4, stats.ConfidenceDistribution["0.5-0.7"], "local 1 + remote 3")
+	require.Equal(t, 1, stats.ConfidenceDistribution["0.7-1.0"])
+}
+
+func TestStatusSkipsUnknownRemoteConfidenceBucket(t *testing.T) {
+	testClearEnv(t)
+	srv := httptest.NewServer(withDiscoveryNotFound(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_count":             5,
+			"tier_counts":             map[string]int{"private": 5},
+			"domain_counts":           map[string]int{},
+			"confidence_distribution": map[string]int{"0.5-0.7": 3, "0.5-0.9": 2},
+		})
+	})))
+	t.Cleanup(srv.Close)
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	c, err := NewClient(WithAddr(srv.URL), WithLocalDBPath(dbPath), WithLogger(logger))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
+
+	// A bucket label the SDK does not recognize is dropped, logged, and surfaced
+	// as a warning; never carried as an unknown key.
+	stats, err := c.Status(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 3, stats.ConfidenceDistribution["0.5-0.7"])
+	require.NotContains(t, stats.ConfidenceDistribution, "0.5-0.9")
+	require.Contains(t, logBuf.String(), "unknown confidence bucket")
+	require.NotEmpty(t, stats.Warnings, "dropped bucket should surface as a warning")
+	require.Contains(t, stats.Warnings[0].Error(), "0.5-0.9")
+}
+
 func TestStatusRemoteUnreachableStillReturnsLocal(t *testing.T) {
 	testClearEnv(t)
 	dbPath := filepath.Join(t.TempDir(), "test.db")

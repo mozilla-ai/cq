@@ -1,6 +1,7 @@
 package cq
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -56,6 +57,17 @@ const (
 	keyLastWriteAt = "last_write_at"
 )
 
+// confidenceBuckets are the canonical confidence-distribution buckets, ordered
+// low to high by upper bound. The labels are the wire contract shared with the
+// server and the other SDKs; keep them aligned so a remote distribution merges
+// without drift.
+var confidenceBuckets = map[string]float64{
+	"0.0-0.3": 0.3,
+	"0.3-0.5": 0.5,
+	"0.5-0.7": 0.7,
+	"0.7-1.0": math.Inf(1),
+}
+
 // errClosed is returned when an operation is attempted on a closed store.
 var errClosed = errors.New("store is closed")
 
@@ -70,6 +82,22 @@ type localStore struct {
 type storeQueryResult struct {
 	KUs      []KnowledgeUnit
 	Warnings []error
+}
+
+// ConfidenceBucketLabels returns the canonical confidence-distribution bucket
+// labels in ascending order by upper bound. Display and bucketing code should
+// use this rather than hardcoding labels, so order and spelling stay tied to
+// StoreStats output.
+func ConfidenceBucketLabels() []string {
+	labels := make([]string, 0, len(confidenceBuckets))
+	for label := range confidenceBuckets {
+		labels = append(labels, label)
+	}
+	slices.SortFunc(labels, func(a, b string) int {
+		return cmp.Compare(confidenceBuckets[a], confidenceBuckets[b])
+	})
+
+	return labels
 }
 
 // newLocalStore opens or creates a local store at the given path.
@@ -504,23 +532,12 @@ func (s *localStore) stats(recentLimit int) (StoreStats, error) {
 		return StoreStats{}, fmt.Errorf("iterating recent rows: %w", err)
 	}
 
-	// Confidence distribution.
-	buckets := map[string]int{
-		"[0.0-0.3)": 0,
-		"[0.3-0.5)": 0,
-		"[0.5-0.7)": 0,
-		"[0.7-1.0]": 0,
-	}
-
-	type bucket struct {
-		label string
-		upper float64
-	}
-	boundaries := []bucket{
-		{"[0.0-0.3)", 0.3},
-		{"[0.3-0.5)", 0.5},
-		{"[0.5-0.7)", 0.7},
-		{"[0.7-1.0]", math.Inf(1)},
+	// Confidence distribution. Iterate labels low to high so the first bound
+	// that exceeds a unit's confidence is its bucket.
+	orderedLabels := ConfidenceBucketLabels()
+	buckets := make(map[string]int, len(confidenceBuckets))
+	for label := range confidenceBuckets {
+		buckets[label] = 0
 	}
 
 	allRows, err := s.db.Query("SELECT data FROM knowledge_units")
@@ -539,9 +556,9 @@ func (s *localStore) stats(recentLimit int) (StoreStats, error) {
 			return StoreStats{}, fmt.Errorf("unmarshalling confidence unit: %w", err)
 		}
 		conf := ku.Evidence.Confidence
-		for _, b := range boundaries {
-			if conf < b.upper {
-				buckets[b.label]++
+		for _, label := range orderedLabels {
+			if conf < confidenceBuckets[label] {
+				buckets[label]++
 				break
 			}
 		}
@@ -583,6 +600,15 @@ func applyPragmas(db *sql.DB) error {
 	return nil
 }
 
+// ensureMetadata creates the metadata table and stamps the writer.
+func ensureMetadata(db *sql.DB) error {
+	if _, err := db.Exec(metadataDDL); err != nil {
+		return fmt.Errorf("creating metadata table: %w", err)
+	}
+
+	return stampWriter(db)
+}
+
 // insertDomains writes domain rows for a unit within an existing transaction.
 func insertDomains(tx *sql.Tx, unitID string, domains []string) error {
 	stmt, err := tx.Prepare("INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)")
@@ -615,6 +641,11 @@ func insertFTS(tx *sql.Tx, ku KnowledgeUnit) error {
 	return nil
 }
 
+// marshalUnit serialises a KnowledgeUnit to JSON for SQLite storage.
+func marshalUnit(ku KnowledgeUnit) ([]byte, error) {
+	return json.Marshal(ku)
+}
+
 // normalizeDomains lowercases, trims whitespace, drops empties, and deduplicates preserving order.
 func normalizeDomains(domains []string) []string {
 	seen := make(map[string]struct{}, len(domains))
@@ -635,35 +666,6 @@ func normalizeDomains(domains []string) []string {
 	return result
 }
 
-// marshalUnit serialises a KnowledgeUnit to JSON for SQLite storage.
-func marshalUnit(ku KnowledgeUnit) ([]byte, error) {
-	return json.Marshal(ku)
-}
-
-// unmarshalUnit deserialises a KnowledgeUnit from JSON.
-func unmarshalUnit(data []byte) (KnowledgeUnit, error) {
-	var ku KnowledgeUnit
-	if err := json.Unmarshal(data, &ku); err != nil {
-		return KnowledgeUnit{}, err
-	}
-	return ku, nil
-}
-
-// writerTag returns a User-Agent style identifier for this SDK.
-func writerTag() string {
-	goVer := strings.TrimPrefix(runtime.Version(), "go")
-	return fmt.Sprintf("cq-go-sdk/%s go/%s", version.Version(), goVer)
-}
-
-// ensureMetadata creates the metadata table and stamps the writer.
-func ensureMetadata(db *sql.DB) error {
-	if _, err := db.Exec(metadataDDL); err != nil {
-		return fmt.Errorf("creating metadata table: %w", err)
-	}
-
-	return stampWriter(db)
-}
-
 // stampWriter updates the last_writer and last_write_at metadata.
 func stampWriter(db *sql.DB) error {
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -680,4 +682,19 @@ func stampWriter(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+// unmarshalUnit deserialises a KnowledgeUnit from JSON.
+func unmarshalUnit(data []byte) (KnowledgeUnit, error) {
+	var ku KnowledgeUnit
+	if err := json.Unmarshal(data, &ku); err != nil {
+		return KnowledgeUnit{}, err
+	}
+	return ku, nil
+}
+
+// writerTag returns a User-Agent style identifier for this SDK.
+func writerTag() string {
+	goVer := strings.TrimPrefix(runtime.Version(), "go")
+	return fmt.Sprintf("cq-go-sdk/%s go/%s", version.Version(), goVer)
 }

@@ -12,6 +12,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func TestConfidenceBucketLabels(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, []string{"0.0-0.3", "0.3-0.5", "0.5-0.7", "0.7-1.0"}, ConfidenceBucketLabels())
+}
+
 func newTestStore(t *testing.T) *localStore {
 	t.Helper()
 
@@ -776,10 +781,10 @@ func TestStats(t *testing.T) {
 
 		stats, err := s.stats(10)
 		require.NoError(t, err)
-		require.Equal(t, 2, stats.ConfidenceDistribution["[0.0-0.3)"])
-		require.Equal(t, 1, stats.ConfidenceDistribution["[0.3-0.5)"])
-		require.Equal(t, 1, stats.ConfidenceDistribution["[0.5-0.7)"])
-		require.Equal(t, 2, stats.ConfidenceDistribution["[0.7-1.0]"])
+		require.Equal(t, 2, stats.ConfidenceDistribution["0.0-0.3"])
+		require.Equal(t, 1, stats.ConfidenceDistribution["0.3-0.5"])
+		require.Equal(t, 1, stats.ConfidenceDistribution["0.5-0.7"])
+		require.Equal(t, 2, stats.ConfidenceDistribution["0.7-1.0"])
 	})
 }
 
