@@ -773,7 +773,9 @@ func TestStats(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		for _, conf := range []float64{0.1, 0.2, 0.4, 0.6, 0.8, 0.95} {
+		// Includes the exact bucket boundaries (0.3, 0.5, 0.7) to pin the
+		// strict-< edge: a value equal to a boundary lands in the next bucket up.
+		for _, conf := range []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.95} {
 			ku := newFakeKU(t, []string{"api"})
 			ku.Evidence.Confidence = conf
 			require.NoError(t, s.insert(ku))
@@ -781,10 +783,10 @@ func TestStats(t *testing.T) {
 
 		stats, err := s.stats(10)
 		require.NoError(t, err)
-		require.Equal(t, 2, stats.ConfidenceDistribution["0.0-0.3"])
-		require.Equal(t, 1, stats.ConfidenceDistribution["0.3-0.5"])
-		require.Equal(t, 1, stats.ConfidenceDistribution["0.5-0.7"])
-		require.Equal(t, 2, stats.ConfidenceDistribution["0.7-1.0"])
+		require.Equal(t, 2, stats.ConfidenceDistribution["0.0-0.3"]) // 0.1, 0.2
+		require.Equal(t, 2, stats.ConfidenceDistribution["0.3-0.5"]) // 0.3, 0.4
+		require.Equal(t, 2, stats.ConfidenceDistribution["0.5-0.7"]) // 0.5, 0.6
+		require.Equal(t, 3, stats.ConfidenceDistribution["0.7-1.0"]) // 0.7, 0.8, 0.95
 	})
 }
 

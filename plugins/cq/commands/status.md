@@ -37,14 +37,15 @@ local: {count} | private: {count} | public: {count}
 ■ 0.0-0.3: {count} units
 
 ### Domains
-{distinct count} total — {domain} ({count}), {domain} ({count}), ... +{remaining} more
+{distinct count} total
+{domain} ({count}), {domain} ({count}) ... +{remaining} more
 ```
 
 The `tier_counts` field contains the tier breakdown. Display all tiers present in the response. Omit tiers with a count of 0.
 
 The `recent` field reflects the local store only. When a remote is configured and reachable, units proposed via `Client.Propose` go directly to the remote and do not appear here. If `recent` is empty, render the section as `(no recent local additions)` so users understand the scope.
 
-The `domain_counts` field maps each domain to its unit count. Domains are the least important section, so render them last and keep them compact: lead with the number of distinct domains, then the most-tagged few inline as `{domain} ({count})` (highest count first, ties alphabetical), capped at 8. If more than 8 exist, append ` ... +{remaining} more`; do not leave a trailing comma before the ellipsis.
+The `domain_counts` field maps each domain to its unit count. Domains are the least important section, so render them last and keep them compact: a `{distinct count} total` line, then the most-tagged few on the next line as `{domain} ({count})` (highest count first, ties alphabetical), capped at 8. If more than 8 exist, append the truncation marker after a single space, e.g. `{domain} ({count}) ... +{remaining} more`; do not leave a trailing comma before it.
 
 If the `warnings` field is non-empty, surface each entry prominently above the summary so the counts are not mistaken for the full picture. A warning means stats aggregation degraded; for example, an unreachable or misconfigured remote, in which case the counts reflect the local store only:
 

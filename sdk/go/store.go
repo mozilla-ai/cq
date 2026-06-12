@@ -57,10 +57,11 @@ const (
 	keyLastWriteAt = "last_write_at"
 )
 
-// confidenceBuckets are the canonical confidence-distribution buckets, ordered
-// low to high by upper bound. The labels are the wire contract shared with the
-// server and the other SDKs; keep them aligned so a remote distribution merges
-// without drift.
+// confidenceBuckets maps each canonical confidence-distribution label to its
+// exclusive upper bound. The unbracketed labels are the wire contract shared
+// with the server and the other SDKs; keep them aligned so a remote
+// distribution merges without drift. Use ConfidenceBucketLabels() for the
+// labels in ascending order.
 var confidenceBuckets = map[string]float64{
 	"0.0-0.3": 0.3,
 	"0.3-0.5": 0.5,

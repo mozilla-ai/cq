@@ -748,7 +748,7 @@ class TestRemoteIntegration:
         c.close()
 
     def test_status_merges_remote_confidence_distribution(self, tmp_path: Path, httpx_mock):
-        """status() maps remote bracketed buckets to local labels and sums them per bucket."""
+        """status() sums remote confidence buckets into the local distribution per bucket."""
         httpx_mock.add_response(
             url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
             json={
@@ -793,6 +793,31 @@ class TestRemoteIntegration:
         assert "0.5-0.9" not in stats.confidence_distribution
         assert any("0.5-0.9" in record.message for record in caplog.records)
         assert any("0.5-0.9" in warning for warning in stats.warnings)
+        c.close()
+
+    def test_status_skips_non_object_remote_section(
+        self, tmp_path: Path, httpx_mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A non-object stats section (e.g. null) degrades to a warning, not a crash;
+        the other sections still merge."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge/stats"),
+            json={
+                "total_count": 3,
+                "tier_counts": {"private": 3},
+                "domain_counts": {"api": 2},
+                "confidence_distribution": None,
+            },
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        with caplog.at_level(logging.WARNING, logger="cq.client"):
+            stats = c.status()
+        # The malformed section is dropped with a warning; siblings still merge.
+        assert stats.tier_counts[Tier.PRIVATE] == 3
+        assert stats.domain_counts["api"] == 2
+        assert any("confidence_distribution" in warning for warning in stats.warnings)
+        assert any("confidence_distribution" in record.message for record in caplog.records)
         c.close()
 
     def test_status_remote_unreachable_surfaces_warning(self, tmp_path: Path, httpx_mock, caplog):

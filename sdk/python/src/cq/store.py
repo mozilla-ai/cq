@@ -59,7 +59,7 @@ class StoreStats(BaseModel):
     recent: list[KnowledgeUnit] = Field(default_factory=list)
     # Covers the local store plus any private/org units a configured remote
     # reports; it excludes the public commons. Keyed by the canonical bucket
-    # labels (see CONFIDENCE_BUCKETS).
+    # labels (see _CONFIDENCE_BUCKETS).
     confidence_distribution: dict[str, int] = Field(default_factory=dict)
     # Keyed by Tier rather than str: the tiers are a closed set, and typing
     # the keys keeps producers and consumers from drifting into bare strings.
