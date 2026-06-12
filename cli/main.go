@@ -78,8 +78,16 @@ func newRootCmd() *cobra.Command {
 	return rootCmd
 }
 
-// hideFlagsFor hides the persistent client flags on the named subcommands.
+// hideFlagsFor hides the persistent client flags on the named subcommands and
+// their descendants.
+//
+// NOTE: the help func must delegate to the captured default renderer, not to
+// c.Parent().HelpFunc(). Cobra resolves HelpFunc by walking up the parent
+// chain, so a descendant of a named command resolves back to this very
+// closure; delegating through the parent would recurse without bound.
 func hideFlagsFor(root *cobra.Command, names ...string) {
+	defaultHelp := root.HelpFunc()
+
 	hidden := make(map[string]bool, len(names))
 	for _, n := range names {
 		hidden[n] = true
@@ -94,7 +102,7 @@ func hideFlagsFor(root *cobra.Command, names ...string) {
 					}
 				}
 
-				c.Parent().HelpFunc()(c, args)
+				defaultHelp(c, args)
 			})
 		}
 	}

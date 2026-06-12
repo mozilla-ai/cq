@@ -184,6 +184,16 @@ Add to `~/.config/opencode/opencode.json` or your project-level config, in the M
 }
 ```
 
+### Pi
+
+Add to `~/.pi/agent/settings.json` under `shellCommandPrefix`:
+
+```json
+{
+  "shellCommandPrefix": "export CQ_ADDR='http://localhost:3000'"
+}
+```
+
 ## Configuration
 
 cq works out of the box in local-only mode with no configuration. Set environment variables to customize the local store path or connect to a remote API.
