@@ -34,8 +34,13 @@ class StatsResponse(BaseModel):
 
     Field names follow the canonical ``StoreStats`` wire vocabulary shared
     with the SDK clients; renaming them is a breaking wire change.
+
+    NOTE: ``confidence_distribution`` covers the units this store reports to
+    the caller (their private/org tier), not the public commons. Clients merge
+    it with their local distribution and label the combined scope accordingly.
     """
 
     total_count: int
     tier_counts: dict[str, int]
     domain_counts: dict[str, int]
+    confidence_distribution: dict[str, int]

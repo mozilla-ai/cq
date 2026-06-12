@@ -15,6 +15,7 @@ from ._queries import (
     INSERT_UNIT,
     INSERT_UNIT_DOMAIN,
     SELECT_APPROVED_BY_ID,
+    SELECT_APPROVED_DATA,
     SELECT_BY_ID,
     SELECT_COUNTS_BY_TIER,
     SELECT_DOMAIN_COUNTS,
@@ -22,6 +23,17 @@ from ._queries import (
     SELECT_TOTAL_COUNT,
     UPDATE_UNIT_DATA,
 )
+
+# Mirrors `cq.store._CONFIDENCE_BUCKETS`. Each entry is `(exclusive upper
+# bound, label)`, ordered low to high; the last entry's `inf` upper bound is
+# the catch-all. Single source for both the bucket assignment and the result
+# dict's key set.
+_CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
+    (0.3, "0.0-0.3"),
+    (0.5, "0.3-0.5"),
+    (0.7, "0.5-0.7"),
+    (float("inf"), "0.7-1.0"),
+]
 
 
 class KnowledgeRepository:
@@ -34,6 +46,10 @@ class KnowledgeRepository:
     async def count(self) -> int:
         """Return the total number of stored units across all review statuses."""
         return await self._db.run_sync(self._count_sync)
+
+    async def confidence_distribution(self) -> dict[str, int]:
+        """Return approved-unit counts grouped into the canonical confidence buckets."""
+        return await self._db.run_sync(self._confidence_distribution_sync)
 
     async def counts_by_tier(self) -> dict[str, int]:
         """Return approved-unit counts grouped by tier."""
@@ -81,6 +97,16 @@ class KnowledgeRepository:
     def _count_sync(self) -> int:
         with self._db.engine.connect() as conn:
             return int(conn.execute(SELECT_TOTAL_COUNT).scalar() or 0)
+
+    def _confidence_distribution_sync(self) -> dict[str, int]:
+        buckets = {label: 0 for _, label in _CONFIDENCE_BUCKETS}
+        with self._db.engine.connect() as conn:
+            rows = conn.execute(SELECT_APPROVED_DATA).fetchall()
+        for row in rows:
+            confidence = KnowledgeUnit.model_validate_json(row[0]).evidence.confidence
+            label = next(label for upper, label in _CONFIDENCE_BUCKETS if confidence < upper)
+            buckets[label] += 1
+        return buckets
 
     def _counts_by_tier_sync(self) -> dict[str, int]:
         with self._db.engine.connect() as conn:

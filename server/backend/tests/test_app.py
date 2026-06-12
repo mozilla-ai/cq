@@ -290,6 +290,12 @@ class TestStats:
         assert body["total_count"] == 0
         assert body["tier_counts"] == {}
         assert body["domain_counts"] == {}
+        assert body["confidence_distribution"] == {
+            "0.0-0.3": 0,
+            "0.3-0.5": 0,
+            "0.5-0.7": 0,
+            "0.7-1.0": 0,
+        }
 
     def test_stats_after_inserts(self, client: TestClient) -> None:
         r1 = client.post("/api/v1/knowledge", json=_propose_payload(domains=["api", "auth"]))
@@ -305,6 +311,8 @@ class TestStats:
         assert body["domain_counts"]["api"] == 2
         assert body["domain_counts"]["auth"] == 1
         assert body["domain_counts"]["payments"] == 1
+        # Freshly approved units sit at the default 0.5 confidence.
+        assert body["confidence_distribution"]["0.5-0.7"] == 2
 
     def test_stats_body_decodes_as_store_stats(self, client: TestClient) -> None:
         """The stats body validates against the SDK's public StoreStats model.
@@ -319,6 +327,7 @@ class TestStats:
         assert stats.total_count == 1
         assert stats.tier_counts == {"private": 1}
         assert stats.domain_counts == {"api": 1}
+        assert stats.confidence_distribution["0.5-0.7"] == 1
 
 
 class TestReviewLifecycleEndToEnd:
