@@ -40,6 +40,7 @@ func NewPromptCmd() *cobra.Command {
 
 	cmd.AddCommand(newPromptReflectCmd())
 	cmd.AddCommand(newPromptSkillCmd())
+	cmd.AddCommand(newPromptStatusCmd())
 
 	return cmd
 }
@@ -65,6 +66,18 @@ func newPromptSkillCmd() *cobra.Command {
 			"agent should interact with the knowledge commons.",
 		jsonKey: "prompt",
 		body:    prompts.Skill,
+	})
+}
+
+// newPromptStatusCmd prints the /cq:status slash-command prompt.
+func newPromptStatusCmd() *cobra.Command {
+	return newPromptSubCmd(promptSubCmd{
+		use:   "status",
+		short: "Print the /cq:status slash-command prompt.",
+		long: "Print the /cq:status slash-command prompt, which guides an agent " +
+			"through summarizing the cq knowledge store.",
+		jsonKey: "prompt",
+		body:    prompts.Status,
 	})
 }
 

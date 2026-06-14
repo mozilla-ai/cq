@@ -75,3 +75,14 @@ func TestPromptBareInvocationShowsHelp(t *testing.T) {
 	require.Contains(t, buf.String(), "skill")
 	require.Contains(t, buf.String(), "reflect")
 }
+
+func TestPromptStatusEmitsBody(t *testing.T) {
+	cmd := NewPromptCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"status"})
+	require.NoError(t, cmd.Execute())
+	require.Contains(t, out.String(), "name: cq:status")
+	require.Contains(t, out.String(), "# /cq:status")
+}
