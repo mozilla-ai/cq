@@ -6,11 +6,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from cq.models import KnowledgeUnit
+from sqlalchemy.sql.expression import TextClause, text
 
 from ..core.db import Database
 from ._queries import (
     SELECT_APPROVED_DAILY,
-    SELECT_APPROVED_DATA,
     SELECT_COUNTS_BY_STATUS,
     SELECT_PENDING_COUNT,
     SELECT_PENDING_QUEUE,
@@ -20,6 +20,27 @@ from ._queries import (
     SELECT_REVIEW_STATUS_BY_ID,
     UPDATE_REVIEW_STATUS,
     select_list_units,
+)
+
+# Bucket approved units by their persisted confidence in SQL rather than
+# parsing every unit into a model to read one float. The review dashboard uses
+# different bucket boundaries (0.3/0.6/0.8) than the knowledge stats; keep them
+# distinct unless deliberately unified. COALESCE to 0.5 mirrors the
+# Evidence.confidence default that model-parsing applied, so a row whose JSON
+# omits the field buckets identically instead of falling to the catch-all.
+# SQLite-specific (`json_extract`), so it lives here rather than in the portable
+# `_queries` module; the backend is SQLite-only (see `core.db.Database`).
+_SELECT_CONFIDENCE_DISTRIBUTION: TextClause = text(
+    "SELECT "
+    "CASE "
+    "WHEN confidence < 0.3 THEN '0.0-0.3' "
+    "WHEN confidence < 0.6 THEN '0.3-0.6' "
+    "WHEN confidence < 0.8 THEN '0.6-0.8' "
+    "ELSE '0.8-1.0' "
+    "END AS bucket, COUNT(*) AS cnt "
+    "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
+    "FROM knowledge_units WHERE status = 'approved') "
+    "GROUP BY bucket"
 )
 
 
@@ -84,19 +105,13 @@ class ReviewRepository:
         await self._db.run_sync(self._set_status_sync, unit_id, status, reviewed_by)
 
     def _confidence_distribution_sync(self) -> dict[str, int]:
+        # Seed every bucket so absent labels report 0; the SQL only returns
+        # rows for buckets that have at least one approved unit.
         buckets = {"0.0-0.3": 0, "0.3-0.6": 0, "0.6-0.8": 0, "0.8-1.0": 0}
         with self._db.engine.connect() as conn:
-            rows = conn.execute(SELECT_APPROVED_DATA).fetchall()
-        for row in rows:
-            c = KnowledgeUnit.model_validate_json(row[0]).evidence.confidence
-            if c < 0.3:
-                buckets["0.0-0.3"] += 1
-            elif c < 0.6:
-                buckets["0.3-0.6"] += 1
-            elif c < 0.8:
-                buckets["0.6-0.8"] += 1
-            else:
-                buckets["0.8-1.0"] += 1
+            rows = conn.execute(_SELECT_CONFIDENCE_DISTRIBUTION).fetchall()
+        for label, count in rows:
+            buckets[label] = count
         return buckets
 
     def _counts_by_status_sync(self) -> dict[str, int]:

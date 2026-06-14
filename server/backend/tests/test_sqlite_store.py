@@ -11,7 +11,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from cq.models import Context, Insight, KnowledgeUnit, Tier, create_knowledge_unit
+from cq.models import Context, Evidence, Insight, KnowledgeUnit, Tier, create_knowledge_unit
+from sqlalchemy import text
 
 from cq_server.core.config import Settings
 from cq_server.core.db import Database
@@ -207,6 +208,68 @@ async def test_distribution_and_activity_and_daily(db_path: Path) -> None:
 
         with pytest.raises(ValueError):
             await store.daily_counts(days=0)
+    finally:
+        await store.close()
+
+
+async def test_confidence_distribution_buckets_across_boundaries(db_path: Path) -> None:
+    """Both distributions bucket approved units by their persisted confidence.
+
+    Knowledge and review distributions use different bucket boundaries
+    (0.3/0.5/0.7 vs 0.3/0.6/0.8); this seeds units that straddle every
+    boundary and pins each repository's mapping. A pending unit confirms
+    only approved units are counted.
+    """
+    store = _make_store(db_path)
+    try:
+        for confidence in (0.2, 0.3, 0.5, 0.6, 0.7, 0.8):
+            unit = _make_unit().model_copy(update={"evidence": Evidence(confidence=confidence)})
+            await store.insert(unit)
+            await store.set_review_status(unit.id, "approved", "r")
+        # A pending unit must be excluded from both distributions.
+        pending = _make_unit().model_copy(update={"evidence": Evidence(confidence=0.9)})
+        await store.insert(pending)
+
+        assert await store.knowledge.confidence_distribution() == {
+            "0.0-0.3": 1,  # 0.2
+            "0.3-0.5": 1,  # 0.3
+            "0.5-0.7": 2,  # 0.5, 0.6
+            "0.7-1.0": 2,  # 0.7, 0.8
+        }
+        assert await store.reviews.confidence_distribution() == {
+            "0.0-0.3": 1,  # 0.2
+            "0.3-0.6": 2,  # 0.3, 0.5
+            "0.6-0.8": 2,  # 0.6, 0.7
+            "0.8-1.0": 1,  # 0.8
+        }
+    finally:
+        await store.close()
+
+
+async def test_confidence_distribution_defaults_missing_field_to_half(db_path: Path) -> None:
+    """A row whose JSON omits ``evidence.confidence`` buckets as 0.5.
+
+    The repository's own writes always serialize the field, so this seeds a
+    raw row directly to mimic a legacy or hand-edited blob. The SQL COALESCE
+    must reproduce the ``Evidence.confidence`` default the prior model-parsing
+    path applied, rather than routing the row to the catch-all bucket.
+    """
+    store = _make_store(db_path)
+    try:
+        ku_id = "ku_" + "0" * 32
+        with store._engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO knowledge_units (id, data, status) VALUES (:id, :data, 'approved')"),
+                {"id": ku_id, "data": f'{{"id": "{ku_id}", "evidence": {{}}}}'},
+            )
+
+        knowledge_dist = await store.knowledge.confidence_distribution()
+        assert knowledge_dist["0.5-0.7"] == 1
+        assert sum(knowledge_dist.values()) == 1
+
+        review_dist = await store.reviews.confidence_distribution()
+        assert review_dist["0.3-0.6"] == 1
+        assert sum(review_dist.values()) == 1
     finally:
         await store.close()
 
