@@ -37,13 +37,16 @@ help:
 
 PROMPT_SRC_SKILL := ../../plugins/cq/skills/cq/SKILL.md
 PROMPT_SRC_REFLECT := ../../plugins/cq/commands/reflect.md
+PROMPT_SRC_STATUS := ../../plugins/cq/commands/status.md
 PROMPT_DST_SKILL := prompts/SKILL.md
 PROMPT_DST_REFLECT := prompts/reflect.md
+PROMPT_DST_STATUS := prompts/status.md
 
 .PHONY: sync-prompts
 sync-prompts:
 	@cp $(PROMPT_SRC_SKILL) $(PROMPT_DST_SKILL)
 	@cp $(PROMPT_SRC_REFLECT) $(PROMPT_DST_REFLECT)
+	@cp $(PROMPT_SRC_STATUS) $(PROMPT_DST_STATUS)
 	@echo "✓ Prompts synced."
 
 .PHONY: check-prompts-sync
@@ -52,6 +55,8 @@ check-prompts-sync:
 		|| (echo "$(PROMPT_DST_SKILL) is out of sync. Run: make sync-prompts" && exit 1)
 	@diff -q $(PROMPT_SRC_REFLECT) $(PROMPT_DST_REFLECT) > /dev/null 2>&1 \
 		|| (echo "$(PROMPT_DST_REFLECT) is out of sync. Run: make sync-prompts" && exit 1)
+	@diff -q $(PROMPT_SRC_STATUS) $(PROMPT_DST_STATUS) > /dev/null 2>&1 \
+		|| (echo "$(PROMPT_DST_STATUS) is out of sync. Run: make sync-prompts" && exit 1)
 	@echo "✓ Prompts are in sync."
 
 .PHONY: lint

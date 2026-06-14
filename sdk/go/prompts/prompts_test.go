@@ -32,3 +32,16 @@ func TestReflectContainsReflectFrontmatter(t *testing.T) {
 func TestSkillAndReflectAreDistinct(t *testing.T) {
 	require.NotEqual(t, Skill(), Reflect())
 }
+
+func TestStatusContainsStatusFrontmatter(t *testing.T) {
+	body := normalize(Status())
+	require.NotEmpty(t, body)
+	require.True(t, strings.HasPrefix(body, "---\n"), "status prompt must start with frontmatter")
+	require.Contains(t, body, "name: cq:status")
+	require.Contains(t, body, "### Tier Counts")
+}
+
+func TestStatusIsDistinctFromSkillAndReflect(t *testing.T) {
+	require.NotEqual(t, Status(), Skill())
+	require.NotEqual(t, Status(), Reflect())
+}
