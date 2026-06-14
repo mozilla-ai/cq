@@ -26,3 +26,13 @@ def skill() -> str:
         ``plugins/cq/skills/cq/SKILL.md`` via ``make sync-prompts``.
     """
     return files("cq.prompts").joinpath("SKILL.md").read_text()
+
+
+def status() -> str:
+    """Return the /cq:status slash-command prompt.
+
+    Returns:
+        The Markdown body of the /cq:status slash command, synced from
+        ``plugins/cq/commands/status.md`` via ``make sync-prompts``.
+    """
+    return files("cq.prompts").joinpath("status.md").read_text()

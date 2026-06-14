@@ -4,7 +4,7 @@ Validates the structure of the canonical cq agent prompts to catch upstream
 changes in the authoring sources.
 """
 
-from cq.prompts import reflect, skill
+from cq.prompts import reflect, skill, status
 
 
 def _normalize(body: str) -> str:
@@ -80,6 +80,26 @@ def test_skill_contains_examples():
     assert "#### Example 1" in p
     assert "#### Example 2" in p
     assert "#### Example 3" in p
+
+
+def test_status_not_empty():
+    assert len(status()) > 0
+
+
+def test_status_has_frontmatter():
+    p = _normalize(status())
+    assert p.startswith("---\n")
+    parts = p.split("---\n", 2)
+    assert len(parts) == 3
+    assert "name: cq:status" in parts[1]
+    assert "description:" in parts[1]
+
+
+def test_status_contains_output_sections():
+    p = status()
+    assert "# /cq:status" in p
+    assert "### Tier Counts" in p
+    assert "## Empty Store" in p
 
 
 def test_reflect_not_empty():
