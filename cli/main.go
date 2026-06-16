@@ -50,6 +50,7 @@ func newRootCmd() *cobra.Command {
 		cmd.NewConfirmCmd,
 		cmd.NewDrainCmd,
 		cmd.NewFlagCmd,
+		cmd.NewInstallCmd,
 		cmd.NewMCPCmd,
 		cmd.NewPromptCmd,
 		cmd.NewProposeCmd,

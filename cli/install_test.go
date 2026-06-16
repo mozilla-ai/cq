@@ -1,0 +1,60 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func runInstall(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	root := newRootCmd()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(append([]string{"install"}, args...))
+	err := root.Execute()
+	return out.String(), err
+}
+
+func TestInstallRequiresAHost(t *testing.T) {
+	_, err := runInstall(t)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "select at least one host")
+}
+
+func TestInstallWindsurfEndToEnd(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	_, err := runInstall(t, "--windsurf")
+	require.NoError(t, err)
+
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+	cfg := filepath.Join(home, ".codeium", "windsurf", "mcp_config.json")
+	data, err := os.ReadFile(cfg)
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(data, &m))
+	require.Equal(t, bin,
+		m["mcpServers"].(map[string]any)["cq"].(map[string]any)["command"])
+
+	// Re-run is idempotent.
+	_, err = runInstall(t, "--windsurf")
+	require.NoError(t, err)
+
+	// Uninstall reverses the MCP entry.
+	_, err = runInstall(t, "--windsurf", "--uninstall")
+	require.NoError(t, err)
+	data, err = os.ReadFile(cfg)
+	require.NoError(t, err)
+	m = nil
+	require.NoError(t, json.Unmarshal(data, &m))
+	require.NotContains(t, m, "mcpServers")
+}
