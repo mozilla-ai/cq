@@ -16,7 +16,15 @@ import pytest
 
 from cq.models import Context, Evidence, Insight, KnowledgeUnit, create_knowledge_unit
 from cq.scoring import apply_confirmation
-from cq.store import DuplicateUnitError, QueryParams, SqliteStore, Store
+from cq.store import (
+    _MAX_QUERY_FRAMEWORKS,
+    _MAX_QUERY_LANGUAGES,
+    _MAX_QUERY_LIMIT,
+    DuplicateUnitError,
+    QueryParams,
+    SqliteStore,
+    Store,
+)
 from cq.stores import InMemoryStore
 
 StoreFactory = Callable[[], Store]
@@ -57,6 +65,7 @@ def run_store_conformance(make_store: StoreFactory) -> None:
     _assert_query_respects_limit(make_store)
     _assert_query_returns_domain_matches(make_store)
     _assert_query_limit_zero_defaults_negative_raises(make_store)
+    _assert_query_bounds_reject_excess(make_store)
     _assert_stats_aggregates(make_store)
     _assert_close_is_idempotent_and_blocks_ops(make_store)
 
@@ -222,6 +231,24 @@ def _assert_query_limit_zero_defaults_negative_raises(make_store: StoreFactory) 
         assert len(result.units) == 5
         with pytest.raises(ValueError, match="limit must be positive"):
             store.query(QueryParams(domains=["databases"], limit=-1))
+    finally:
+        store.close()
+
+
+def _assert_query_bounds_reject_excess(make_store: StoreFactory) -> None:
+    store = make_store()
+    try:
+        store.insert(_make_unit(domains=["databases"]))
+        with pytest.raises(ValueError, match="limit must be at most"):
+            store.query(QueryParams(domains=["databases"], limit=_MAX_QUERY_LIMIT + 1))
+        with pytest.raises(ValueError, match="languages"):
+            store.query(
+                QueryParams(domains=["databases"], languages=[f"l{i}" for i in range(_MAX_QUERY_LANGUAGES + 1)])
+            )
+        with pytest.raises(ValueError, match="frameworks"):
+            store.query(
+                QueryParams(domains=["databases"], frameworks=[f"f{i}" for i in range(_MAX_QUERY_FRAMEWORKS + 1)])
+            )
     finally:
         store.close()
 

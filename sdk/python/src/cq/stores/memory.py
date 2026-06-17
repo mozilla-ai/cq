@@ -155,7 +155,10 @@ class InMemoryStore:
             self._check_open()
             candidates = [u.model_copy(deep=True) for u in self._units.values() if wanted & set(u.domains)]
 
-        ranked = rank_candidates(candidates, params.model_copy(update={"domains": normalized}))
+        ranked = rank_candidates(
+            candidates,
+            params.model_copy(update={"domains": normalized, "languages": languages, "frameworks": frameworks}),
+        )
         return StoreQueryResult(units=ranked)
 
     def stats(self, *, recent_limit: int = 5) -> StoreStats:

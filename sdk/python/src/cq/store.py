@@ -529,7 +529,8 @@ class SqliteStore:
         ``StoreQueryResult.warnings`` rather than raised.
 
         Raises:
-            ValueError: If limit is negative or exceeds the maximum.
+            ValueError: If limit is negative, exceeds the maximum, or
+                language/framework counts exceed their bounds.
         """
         if params.limit < 0:
             raise ValueError("limit must be positive")
@@ -598,7 +599,10 @@ class SqliteStore:
                 seen.add(unit.id)
                 candidates.append(unit)
 
-        ranked = rank_candidates(candidates, params.model_copy(update={"domains": normalized}))
+        ranked = rank_candidates(
+            candidates,
+            params.model_copy(update={"domains": normalized, "languages": languages, "frameworks": frameworks}),
+        )
         return StoreQueryResult(units=ranked, warnings=warnings)
 
     def stats(self, *, recent_limit: int = 5) -> StoreStats:
