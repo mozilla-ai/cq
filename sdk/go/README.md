@@ -57,6 +57,7 @@ The client works out of the box in local-only mode with no configuration.
 | `CQ_ADDR`          | Remote cq API address | None (local-only)            |
 | `CQ_API_KEY`      | API key               | None                         |
 | `CQ_LOCAL_DB_PATH` | Local SQLite path     | `~/.local/share/cq/local.db` |
+| `CQ_LOCAL_DATABASE_URL` | Local store connection URL (e.g. `sqlite:///abs/path/local.db`) | None (falls back to `CQ_LOCAL_DB_PATH`) |
 
 Or pass directly:
 
@@ -68,6 +69,21 @@ c, err := cq.NewClient(
 ```
 
 The default database path follows the [XDG Base Directory spec](https://specifications.freedesktop.org/basedir/latest/).
+
+### Custom storage
+
+The local store is pluggable. By default the SDK opens a SQLite file at the path above; you can point it at a different backend or supply your own.
+
+- **By connection string.** Set `CQ_LOCAL_DATABASE_URL` (for example `sqlite:///abs/path/local.db`); it takes precedence over `CQ_LOCAL_DB_PATH`. `cq.StoreFromURL` performs the same resolution programmatically.
+- **By injection.** Pass any `cq.Store` to `cq.WithStore`:
+
+  ```go
+  c, err := cq.NewClient(cq.WithStore(cq.NewInMemoryStore()))
+  ```
+
+- **Bring your own.** Implement the `cq.Store` interface (`Unit`, `All`, `Insert`, `Update`, `Delete`, `Query`, `Stats`, `Close`) and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query`, and verify the implementation against the conformance suite in [`storetest`](./storetest).
+
+Selection precedence: `WithStore` > `CQ_LOCAL_DATABASE_URL` > `CQ_LOCAL_DB_PATH`/`WithLocalDBPath` > XDG default. A first-party PostgreSQL adapter is planned as a separate module; until then a `postgres://` URL returns a clear error.
 
 ## Knowledge tiers
 
