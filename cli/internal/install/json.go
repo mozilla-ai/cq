@@ -120,19 +120,19 @@ func loadJSONObject(path string) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
+		return nil, fmt.Errorf("reading config file %s: %w", path, err)
 	}
 	if len(data) == 0 {
 		return map[string]any{}, nil
 	}
 	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, fmt.Errorf("config file is not a JSON object: %w", err)
+		return nil, fmt.Errorf("config file %s is not a JSON object: %w", path, err)
 	}
 	if m == nil {
 		// A file containing literal `null` decodes to a nil map; treat it as
 		// malformed rather than letting callers assign into a nil map.
-		return nil, fmt.Errorf("config file is not a JSON object")
+		return nil, fmt.Errorf("config file %s is not a JSON object", path)
 	}
 	return m, nil
 }
