@@ -15,11 +15,6 @@ const windsurfMCPFile = "mcp_config.json"
 // is global-only; it reads skills from the shared commons.
 type windsurfHost struct{}
 
-// init registers the Windsurf adapter so SelectHosts can return it.
-func init() {
-	registry["windsurf"] = windsurfHost{}
-}
-
 // GlobalTarget returns the Windsurf config dir under home.
 func (windsurfHost) GlobalTarget(home string) string {
 	return windsurfTarget(home)
@@ -46,7 +41,7 @@ func (windsurfHost) Install(ctx Context) ([]Change, error) {
 }
 
 // Name returns the host identifier.
-func (windsurfHost) Name() string { return "windsurf" }
+func (windsurfHost) Name() Target { return TargetWindsurf }
 
 // SupportsProject reports that Windsurf is global-only.
 func (windsurfHost) SupportsProject() bool { return false }

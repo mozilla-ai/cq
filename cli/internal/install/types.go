@@ -62,7 +62,7 @@ type Host interface {
 	Install(ctx Context) ([]Change, error)
 
 	// Name is the host's stable identifier.
-	Name() string
+	Name() Target
 
 	// SupportsProject reports whether the host can be installed per-project.
 	SupportsProject() bool
