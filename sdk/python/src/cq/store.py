@@ -1,9 +1,15 @@
-"""Local SQLite knowledge store for cq.
+"""Local persistence for cq: the Store SPI and its SQLite default.
 
-Stores knowledge units in a SQLite database following the XDG Base Directory
-spec. Default location: $XDG_DATA_HOME/cq/local.db (~/.local/share/cq/local.db).
-Auto-creates the database directory and schema on first use.
-Implements the context manager protocol for deterministic resource cleanup.
+The ``Store`` Protocol is the narrow contract the Client depends on; the
+default ``SqliteStore`` implements it over SQLite following the XDG Base
+Directory spec. Default location: $XDG_DATA_HOME/cq/local.db
+(~/.local/share/cq/local.db). The store auto-creates the database
+directory and schema on first use and implements the context manager
+protocol for deterministic resource cleanup.
+
+``create_store`` resolves a connection-string URL to a concrete store, and
+``rank_candidates`` is the shared ranker any implementation can reuse so a
+from-scratch store only has to gather candidates and hand them over.
 """
 
 import logging
@@ -13,11 +19,10 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from ._util import _as_list
 from .models import KnowledgeUnit, Tier
 from .scoring import calculate_relevance
 
@@ -37,6 +42,10 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
     (float("inf"), "0.7-1.0"),
 ]
 
+_FTS_MAX_TERMS = 20
+_MAX_QUERY_DOMAINS = 50
+_FTS_MAX_TERM_LENGTH = 200
+
 
 def _default_db_path() -> Path:
     """Return the default database path per the XDG Base Directory spec."""
@@ -49,6 +58,17 @@ def _default_db_path() -> Path:
             xdg,
         )
     return Path.home() / ".local" / "share" / "cq" / "local.db"
+
+
+class DuplicateUnitError(Exception):
+    """Raised when inserting a knowledge unit whose ID already exists.
+
+    A backend-neutral error so the Client and any store implementation
+    agree on duplicate-insert semantics regardless of the underlying
+    storage engine.
+    NOTE: implementations must map their driver's uniqueness violation
+    onto this error so callers never see a driver-specific exception.
+    """
 
 
 class StoreStats(BaseModel):
@@ -69,6 +89,179 @@ class StoreStats(BaseModel):
     # remote API being unreachable. When present, the reported counts
     # reflect the local store only.
     warnings: list[str] = Field(default_factory=list)
+
+
+# Default number of ranked results when a query does not request a positive limit.
+_DEFAULT_QUERY_LIMIT = 5
+
+
+class QueryParams(BaseModel):
+    """Inputs to a store query: domain tags plus optional ranking context.
+
+    A frozen value object passed at the Store SPI boundary in place of
+    keyword arguments. Domains drive candidate selection; languages,
+    frameworks, and pattern are secondary ranking signals; limit caps the
+    returned units. Normalization (lowercasing, deduplication, truncation)
+    is the store's responsibility, applied inside ``query``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    domains: list[str]
+    languages: list[str] = Field(default_factory=list)
+    frameworks: list[str] = Field(default_factory=list)
+    pattern: str = ""
+    limit: int = _DEFAULT_QUERY_LIMIT
+
+
+class StoreQueryResult(BaseModel):
+    """Ranked query output plus any non-fatal degradation warnings.
+
+    ``units`` is ordered most-relevant first. ``warnings`` is the single
+    channel for non-fatal degradation (for example a full-text index that
+    could not be consulted for a given query); it is empty on a clean run.
+    """
+
+    units: list[KnowledgeUnit] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+@runtime_checkable
+class Store(Protocol):
+    """Local persistence provider for the cq SDK.
+
+    Runtime-checkable Protocol; the default SqliteStore and first-party
+    adapters satisfy it structurally. The Client depends only on these
+    methods and never learns whether a store uses full-text search, what
+    dialect it speaks, or how it ranks.
+    NOTE: implementations must be safe for use across asyncio.to_thread
+    executor threads.
+    """
+
+    def get(self, unit_id: str) -> KnowledgeUnit | None:
+        """Retrieve a knowledge unit by ID, or None if not found."""
+        ...
+
+    def all(self) -> list[KnowledgeUnit]:
+        """Return every knowledge unit in the store."""
+        ...
+
+    def insert(self, unit: KnowledgeUnit) -> None:
+        """Insert a knowledge unit; raise DuplicateUnitError on an existing ID."""
+        ...
+
+    def update(self, unit: KnowledgeUnit) -> None:
+        """Replace an existing knowledge unit; raise KeyError when absent."""
+        ...
+
+    def delete(self, unit_id: str) -> None:
+        """Remove a knowledge unit by ID; raise KeyError when absent."""
+        ...
+
+    def query(self, params: QueryParams) -> StoreQueryResult:
+        """Return units matching the query, ranked most-relevant first."""
+        ...
+
+    def stats(self, *, recent_limit: int = 5) -> StoreStats:
+        """Return aggregated statistics for the store."""
+        ...
+
+    def close(self) -> None:
+        """Release any resources the store holds."""
+        ...
+
+
+def _normalize_domains(domains: list[str]) -> list[str]:
+    """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
+    return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
+
+
+def _build_fts_match_expr(terms: list[str]) -> str:
+    r"""Build a safe FTS5 MATCH expression from untrusted search terms.
+
+    FTS5 MATCH accepts a mini query language where double quotes delimit
+    phrase queries. Characters like /, \\, \*, +, -, ^, etc. are all
+    harmless *inside* a quoted phrase. The only character that can break
+    a quoted phrase is an unescaped double quote.
+
+    This function strips double quotes from each term, truncates to
+    ``_FTS_MAX_TERM_LENGTH`` characters, wraps each surviving term in
+    double quotes, and joins with OR. At most ``_FTS_MAX_TERMS`` terms
+    are included. Returns an empty string when no usable terms remain.
+
+    The result is intended for use as the value of a parameterised
+    ``MATCH ?`` query, never for string interpolation into SQL.
+    """
+    safe: list[str] = []
+    for term in terms:
+        cleaned = term.replace('"', "").strip()[:_FTS_MAX_TERM_LENGTH]
+        if cleaned:
+            safe.append(f'"{cleaned}"')
+        if len(safe) >= _FTS_MAX_TERMS:
+            break
+    return " OR ".join(safe)
+
+
+def create_store(database_url: str | None = None) -> Store:
+    """Resolve a connection-string URL to a concrete Store.
+
+    A ``None`` URL or a ``sqlite:`` URL selects the built-in SqliteStore.
+    Accepted SQLite forms are ``sqlite:///<path>`` (absolute) and
+    ``sqlite:<path>``; the path is taken verbatim. A ``postgresql://`` or
+    ``postgres://`` URL is not yet available and raises NotImplementedError
+    naming the optional install. Any other scheme raises ValueError.
+
+    Args:
+        database_url: The store connection string, or None for the
+            zero-config SQLite default at the XDG path.
+
+    Returns:
+        A Store ready for use.
+
+    Raises:
+        NotImplementedError: For a PostgreSQL URL; the adapter is not yet
+            available.
+        ValueError: For an unrecognized scheme.
+    """
+    if database_url is None:
+        return SqliteStore()
+
+    if database_url.startswith("sqlite:///"):
+        return SqliteStore(db_path=Path(database_url[len("sqlite:///") :]))
+    if database_url.startswith("sqlite:"):
+        return SqliteStore(db_path=Path(database_url[len("sqlite:") :]))
+    if database_url.startswith(("postgresql://", "postgres://")):
+        raise NotImplementedError(
+            "PostgreSQL persistence is not yet available; install the 'cq-sdk[postgres]' extra when it ships."
+        )
+    raise ValueError("Unsupported database URL; expected a 'sqlite:' connection string")
+
+
+def rank_candidates(candidates: list[KnowledgeUnit], params: QueryParams) -> list[KnowledgeUnit]:
+    """Rank candidate units by relevance * confidence and truncate to the limit.
+
+    The shared ranker every Store implementation reuses: a store gathers
+    candidates however it likes (domain tags, full-text, native search),
+    hands them here, and returns the result. Scoring multiplies each
+    unit's relevance (domain overlap plus language/framework/pattern
+    boosts) by its confidence, sorts descending, and keeps the top
+    ``params.limit`` units.
+    """
+    scored: list[tuple[float, KnowledgeUnit]] = []
+    for unit in candidates:
+        relevance = calculate_relevance(
+            unit,
+            params.domains,
+            query_languages=params.languages or None,
+            query_frameworks=params.frameworks or None,
+            query_pattern=params.pattern,
+        )
+        scored.append((relevance * unit.evidence.confidence, unit))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    # A non-positive limit means "unset": fall back to the default count.
+    limit = params.limit if params.limit > 0 else _DEFAULT_QUERY_LIMIT
+    return [unit for _, unit in scored[:limit]]
 
 
 _SCHEMA_SQL = """
@@ -101,44 +294,8 @@ CREATE TABLE IF NOT EXISTS metadata (
 """
 
 
-def _normalize_domains(domains: list[str]) -> list[str]:
-    """Lowercase, strip whitespace, drop empties, and deduplicate domain tags."""
-    return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
-
-
-_FTS_MAX_TERMS = 20
-_MAX_QUERY_DOMAINS = 50
-_FTS_MAX_TERM_LENGTH = 200
-
-
-def _build_fts_match_expr(terms: list[str]) -> str:
-    r"""Build a safe FTS5 MATCH expression from untrusted search terms.
-
-    FTS5 MATCH accepts a mini query language where double quotes delimit
-    phrase queries. Characters like /, \\, \*, +, -, ^, etc. are all
-    harmless *inside* a quoted phrase. The only character that can break
-    a quoted phrase is an unescaped double quote.
-
-    This function strips double quotes from each term, truncates to
-    ``_FTS_MAX_TERM_LENGTH`` characters, wraps each surviving term in
-    double quotes, and joins with OR. At most ``_FTS_MAX_TERMS`` terms
-    are included. Returns an empty string when no usable terms remain.
-
-    The result is intended for use as the value of a parameterised
-    ``MATCH ?`` query, never for string interpolation into SQL.
-    """
-    safe: list[str] = []
-    for term in terms:
-        cleaned = term.replace('"', "").strip()[:_FTS_MAX_TERM_LENGTH]
-        if cleaned:
-            safe.append(f'"{cleaned}"')
-        if len(safe) >= _FTS_MAX_TERMS:
-            break
-    return " OR ".join(safe)
-
-
-class LocalStore:
-    """SQLite-backed local knowledge store.
+class SqliteStore:
+    """SQLite-backed local knowledge store; the default Store implementation.
 
     Holds a single persistent connection for the lifetime of the instance.
     Use as a context manager or call ``close()`` explicitly.
@@ -169,7 +326,7 @@ class LocalStore:
         conn.execute("PRAGMA foreign_keys = ON")
         fk_enabled = conn.execute("PRAGMA foreign_keys").fetchone()
         if not fk_enabled or fk_enabled[0] != 1:
-            raise RuntimeError("SQLite foreign key enforcement is not available")
+            raise RuntimeError("Foreign key enforcement is not available")
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
         conn.execute("PRAGMA busy_timeout = 5000")
@@ -216,7 +373,7 @@ class LocalStore:
             self._closed = True
             self._conn.close()
 
-    def __enter__(self) -> "LocalStore":
+    def __enter__(self) -> "SqliteStore":
         """Enter the context manager."""
         return self
 
@@ -238,7 +395,7 @@ class LocalStore:
         """Insert a knowledge unit into the store.
 
         Raises:
-            sqlite3.IntegrityError: If a unit with the same ID already exists.
+            DuplicateUnitError: If a unit with the same ID already exists.
             ValueError: If domain normalization results in no valid domains.
         """
         domains = _normalize_domains(unit.domains)
@@ -248,20 +405,23 @@ class LocalStore:
         data = unit.model_dump_json(exclude_none=True)
         with self._lock:
             self._check_open()
-            with self._conn:
-                self._conn.execute(
-                    "INSERT INTO knowledge_units (id, data) VALUES (?, ?)",
-                    (unit.id, data),
-                )
-                self._conn.executemany(
-                    "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
-                    [(unit.id, d) for d in domains],
-                )
-                fts_sql = "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)"
-                self._conn.execute(
-                    fts_sql,
-                    (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
-                )
+            try:
+                with self._conn:
+                    self._conn.execute(
+                        "INSERT INTO knowledge_units (id, data) VALUES (?, ?)",
+                        (unit.id, data),
+                    )
+                    self._conn.executemany(
+                        "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
+                        [(unit.id, d) for d in domains],
+                    )
+                    fts_sql = "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)"
+                    self._conn.execute(
+                        fts_sql,
+                        (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
+                    )
+            except sqlite3.IntegrityError as exc:
+                raise DuplicateUnitError(f"Knowledge unit already exists: {unit.id}") from exc
 
     def get(self, unit_id: str) -> KnowledgeUnit | None:
         """Retrieve a knowledge unit by ID, or None if not found."""
@@ -343,15 +503,7 @@ class LocalStore:
                     (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
                 )
 
-    def query(
-        self,
-        domains: list[str],
-        *,
-        languages: list[str] | None = None,
-        frameworks: list[str] | None = None,
-        pattern: str = "",
-        limit: int = 5,
-    ) -> list[KnowledgeUnit]:
+    def query(self, params: QueryParams) -> StoreQueryResult:
         """Search for knowledge units by domain tags with relevance ranking.
 
         Retrieves units whose domain tags overlap with the query, then
@@ -360,22 +512,18 @@ class LocalStore:
         boosted by language, framework, or pattern context, and ranked by
         relevance * confidence.
 
-        Raises:
-            ValueError: If limit is not positive.
-        """
-        domains = _as_list(domains)
-        if languages is not None:
-            languages = _as_list(languages)
-        if frameworks is not None:
-            frameworks = _as_list(frameworks)
-        if limit <= 0:
-            raise ValueError("limit must be positive")
-        if not domains:
-            return []
+        A full-text degradation is non-fatal and surfaced in
+        ``StoreQueryResult.warnings`` rather than raised.
 
-        normalized = _normalize_domains(domains)
+        Raises:
+            ValueError: If limit is negative.
+        """
+        if params.limit < 0:
+            raise ValueError("limit must be positive")
+
+        normalized = _normalize_domains(params.domains)
         if not normalized:
-            return []
+            return StoreQueryResult()
         if len(normalized) > _MAX_QUERY_DOMAINS:
             logger.warning(
                 "Query domain count (%d) exceeds limit (%d); truncating.",
@@ -402,6 +550,7 @@ class LocalStore:
             JOIN knowledge_units ku ON ku.id = fts.id
             WHERE knowledge_units_fts MATCH ?
         """
+        warnings: list[str] = []
         with self._lock:
             self._check_open()
             rows = self._conn.execute(sql, normalized).fetchall()
@@ -415,29 +564,19 @@ class LocalStore:
                         len(fts_terms),
                         exc_info=True,
                     )
+                    warnings.append("Full-text search degraded; results limited to domain matches")
 
         # Merge and deduplicate by ID.
         seen: set[str] = set()
-        units: list[KnowledgeUnit] = []
+        candidates: list[KnowledgeUnit] = []
         for row in [*rows, *fts_rows]:
             unit = KnowledgeUnit.model_validate_json(row[0])
             if unit.id not in seen:
                 seen.add(unit.id)
-                units.append(unit)
+                candidates.append(unit)
 
-        scored = []
-        for unit in units:
-            relevance = calculate_relevance(
-                unit,
-                normalized,
-                query_languages=languages,
-                query_frameworks=frameworks,
-                query_pattern=pattern,
-            )
-            scored.append((relevance * unit.evidence.confidence, unit))
-
-        scored.sort(key=lambda pair: pair[0], reverse=True)
-        return [unit for _, unit in scored[:limit]]
+        ranked = rank_candidates(candidates, params.model_copy(update={"domains": normalized}))
+        return StoreQueryResult(units=ranked, warnings=warnings)
 
     def stats(self, *, recent_limit: int = 5) -> StoreStats:
         """Return aggregated statistics for the local store.
@@ -477,3 +616,8 @@ class LocalStore:
             recent=recent,
             confidence_distribution=buckets,
         )
+
+
+# Backwards-compatible alias for the pre-SPI store name. New code should
+# depend on the Store Protocol and construct SqliteStore (or create_store).
+LocalStore = SqliteStore

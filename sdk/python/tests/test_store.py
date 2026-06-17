@@ -22,10 +22,43 @@ from cq.scoring import apply_confirmation, apply_flag
 from cq.store import (
     _FTS_MAX_TERM_LENGTH,
     _FTS_MAX_TERMS,
+    DuplicateUnitError,
     LocalStore,
+    QueryParams,
     _build_fts_match_expr,
     _default_db_path,
 )
+
+
+def _query(
+    store: LocalStore,
+    domains: list[str] | str,
+    *,
+    languages: list[str] | str | None = None,
+    frameworks: list[str] | str | None = None,
+    pattern: str = "",
+    limit: int = 5,
+) -> list[KnowledgeUnit]:
+    """Call ``store.query`` with QueryParams and return the ranked units.
+
+    Bridges the kwargs-style call these tests were written against to the
+    QueryParams SPI boundary, coercing bare strings the way the old store
+    boundary did.
+    """
+    return store.query(
+        QueryParams(
+            domains=_as_list(domains),
+            languages=_as_list(languages) if languages is not None else [],
+            frameworks=_as_list(frameworks) if frameworks is not None else [],
+            pattern=pattern,
+            limit=limit,
+        )
+    ).units
+
+
+def _as_list(value: list[str] | str) -> list[str]:
+    """Coerce a bare string to a single-item list for the test bridge."""
+    return [value] if isinstance(value, str) else value
 
 
 def _make_insight(**overrides: Any) -> Insight:
@@ -231,7 +264,7 @@ class TestContextManager:
         with pytest.raises(RuntimeError, match="LocalStore is closed"):
             s.update(_make_unit())
         with pytest.raises(RuntimeError, match="LocalStore is closed"):
-            s.query(["databases"])
+            _query(s, ["databases"])
 
 
 class TestInsert:
@@ -244,7 +277,7 @@ class TestInsert:
     def test_insert_duplicate_raises(self, store: LocalStore):
         unit = _make_unit()
         store.insert(unit)
-        with pytest.raises(sqlite3.IntegrityError):
+        with pytest.raises(DuplicateUnitError):
             store.insert(unit)
 
     def test_insert_stores_domain_tags(self, store: LocalStore):
@@ -328,41 +361,42 @@ class TestQuery:
     def test_returns_units_with_matching_domain(self, store: LocalStore):
         unit = _make_unit(domains=["databases", "performance"])
         store.insert(unit)
-        results = store.query(["databases"])
+        results = _query(store, ["databases"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
     def test_returns_empty_for_no_match(self, store: LocalStore):
         unit = _make_unit(domains=["databases"])
         store.insert(unit)
-        results = store.query(["networking"])
+        results = _query(store, ["networking"])
         assert results == []
 
     def test_returns_empty_for_empty_domains(self, store: LocalStore):
         unit = _make_unit(domains=["databases"])
         store.insert(unit)
-        results = store.query([])
+        results = _query(store, [])
         assert results == []
 
-    def test_rejects_non_positive_limit(self, store: LocalStore):
+    def test_zero_limit_uses_default_negative_raises(self, store: LocalStore):
+        store.insert(_make_unit(domains=["databases"]))
+        # Zero means unset: the store applies its default limit rather than raising.
+        assert _query(store, ["databases"], limit=0) != []
         with pytest.raises(ValueError, match="limit must be positive"):
-            store.query(["databases"], limit=0)
-        with pytest.raises(ValueError, match="limit must be positive"):
-            store.query(["databases"], limit=-1)
+            _query(store, ["databases"], limit=-1)
 
     def test_ranks_by_domain_overlap(self, store: LocalStore):
         high_relevance = _make_unit(domains=["databases", "performance"])
         low_relevance = _make_unit(domains=["databases", "networking"])
         store.insert(high_relevance)
         store.insert(low_relevance)
-        results = store.query(["databases", "performance"])
+        results = _query(store, ["databases", "performance"])
         assert len(results) == 2
         assert results[0].id == high_relevance.id
 
     def test_respects_limit(self, store: LocalStore):
         for _ in range(10):
             store.insert(_make_unit(domains=["databases"]))
-        results = store.query(["databases"], limit=3)
+        results = _query(store, ["databases"], limit=3)
         assert len(results) == 3
 
     def test_language_boosts_ranking_without_excluding(self, store: LocalStore):
@@ -376,7 +410,7 @@ class TestQuery:
         )
         store.insert(python_unit)
         store.insert(go_unit)
-        results = store.query(["databases"], languages=["python"])
+        results = _query(store, ["databases"], languages=["python"])
         assert len(results) == 2
         assert results[0].id == python_unit.id
 
@@ -396,7 +430,7 @@ class TestQuery:
         store.insert(other_unit)
         store.insert(python_unit)
         store.insert(go_unit)
-        results = store.query(["databases"], languages=["python", "go"])
+        results = _query(store, ["databases"], languages=["python", "go"])
         assert len(results) == 3
         boosted_ids = {results[0].id, results[1].id}
         assert python_unit.id in boosted_ids
@@ -413,7 +447,7 @@ class TestQuery:
         )
         store.insert(django_unit)
         store.insert(flask_unit)
-        results = store.query(["web"], frameworks=["django"])
+        results = _query(store, ["web"], frameworks=["django"])
         assert len(results) == 2
         assert results[0].id == django_unit.id
 
@@ -433,7 +467,7 @@ class TestQuery:
         store.insert(other_unit)
         store.insert(django_unit)
         store.insert(flask_unit)
-        results = store.query(["web"], frameworks=["django", "flask"])
+        results = _query(store, ["web"], frameworks=["django", "flask"])
         assert len(results) == 3
         boosted_ids = {results[0].id, results[1].id}
         assert django_unit.id in boosted_ids
@@ -450,7 +484,7 @@ class TestQuery:
         )
         store.insert(match)
         store.insert(partial)
-        results = store.query(["web"], languages=["python"], frameworks=["django"])
+        results = _query(store, ["web"], languages=["python"], frameworks=["django"])
         assert len(results) == 2
         assert results[0].id == match.id
 
@@ -459,7 +493,7 @@ class TestQuery:
         store.insert(unit)
         # Without _as_list, "zzzqqqxxx" is iterated char-by-char and
         # no domain or FTS match is found, returning an empty list.
-        results = store.query("zzzqqqxxx")  # type: ignore[arg-type]
+        results = _query(store, "zzzqqqxxx")  # type: ignore[arg-type]
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -476,7 +510,7 @@ class TestQuery:
         store.insert(python_unit)
         boosted = apply_confirmation(go_unit)
         store.insert(boosted)
-        results = store.query(["databases"], languages="python")  # type: ignore[arg-type]
+        results = _query(store, ["databases"], languages="python")  # type: ignore[arg-type]
         assert len(results) == 2
         assert results[0].id == python_unit.id
 
@@ -493,7 +527,7 @@ class TestQuery:
         store.insert(django_unit)
         boosted = apply_confirmation(flask_unit)
         store.insert(boosted)
-        results = store.query(["web"], frameworks="django")  # type: ignore[arg-type]
+        results = _query(store, ["web"], frameworks="django")  # type: ignore[arg-type]
         assert len(results) == 2
         assert results[0].id == django_unit.id
 
@@ -505,7 +539,7 @@ class TestQuery:
         confirmed = apply_confirmation(high_conf)
         confirmed = apply_confirmation(confirmed)
         store.update(confirmed)
-        results = store.query(["databases"])
+        results = _query(store, ["databases"])
         assert results[0].id == high_conf.id
 
     def test_pattern_boosts_matching_unit(self, store: LocalStore):
@@ -517,7 +551,7 @@ class TestQuery:
         plain = _make_unit(domains=["api"])
         store.insert(matching)
         store.insert(plain)
-        results = store.query(["api"], pattern="api-client")
+        results = _query(store, ["api"], pattern="api-client")
         assert len(results) == 2
         assert results[0].id == matching.id
 
@@ -533,7 +567,7 @@ class TestFTS:
             ),
         )
         store.insert(unit)
-        results = store.query(["checkout"])
+        results = _query(store, ["checkout"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -547,7 +581,7 @@ class TestFTS:
             ),
         )
         store.insert(unit)
-        results = store.query(["setup-uv"])
+        results = _query(store, ["setup-uv"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -561,7 +595,7 @@ class TestFTS:
             ),
         )
         store.insert(unit)
-        results = store.query(["github-actions"])
+        results = _query(store, ["github-actions"])
         assert len(results) == 1
 
     def test_fts_query_with_double_quote_in_domain(self, store: LocalStore):
@@ -577,12 +611,12 @@ class TestFTS:
         store.insert(unit)
 
         # Baseline: FTS finds "stripe-mock" via summary text.
-        results = store.query(["stripe-mock"])
+        results = _query(store, ["stripe-mock"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
         # A term with a double quote must not poison the FTS MATCH.
-        results = store.query(["stripe-mock", 'bad"term'])
+        results = _query(store, ["stripe-mock", 'bad"term'])
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -598,7 +632,7 @@ class TestFTS:
         )
         store.insert(unit)
 
-        results = store.query(['"', "stripe-mock"])
+        results = _query(store, ['"', "stripe-mock"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -637,7 +671,7 @@ class TestFTS:
         )
         store.insert(unit)
 
-        results = store.query(["stripe-mock", malicious_domain])
+        results = _query(store, ["stripe-mock", malicious_domain])
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -653,7 +687,7 @@ class TestFTS:
         )
         store.insert(unit)
 
-        results = store.query(['"', '""'])
+        results = _query(store, ['"', '""'])
         assert results == []
 
     def test_fts_updated_after_unit_update(self, store: LocalStore):
@@ -676,8 +710,8 @@ class TestFTS:
             }
         )
         store.update(updated)
-        assert store.query(["webpack"]) == []
-        results = store.query(["vite"])
+        assert _query(store, ["webpack"]) == []
+        results = _query(store, ["vite"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -698,14 +732,14 @@ class TestDomainNormalization:
     def test_case_insensitive_query(self, store: LocalStore):
         unit = _make_unit(domains=["API", "Payments"])
         store.insert(unit)
-        results = store.query(["api"])
+        results = _query(store, ["api"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
     def test_mixed_case_query_matches(self, store: LocalStore):
         unit = _make_unit(domains=["databases"])
         store.insert(unit)
-        results = store.query(["Databases"])
+        results = _query(store, ["Databases"])
         assert len(results) == 1
         assert results[0].id == unit.id
 
@@ -731,7 +765,7 @@ class TestDomainNormalization:
     def test_query_with_whitespace_only_domains_returns_empty(self, store: LocalStore):
         unit = _make_unit(domains=["databases"])
         store.insert(unit)
-        results = store.query(["  ", ""])
+        results = _query(store, ["  ", ""])
         assert results == []
 
 
@@ -743,19 +777,19 @@ class TestEndToEnd:
         )
         store.insert(unit)
 
-        results = store.query(["api", "payments"], languages=["python"])
+        results = _query(store, ["api", "payments"], languages=["python"])
         assert len(results) == 1
         assert results[0].evidence.confidence == 0.5
 
         confirmed = apply_confirmation(results[0])
         store.update(confirmed)
-        results = store.query(["api", "payments"])
+        results = _query(store, ["api", "payments"])
         assert results[0].evidence.confidence == pytest.approx(0.6)
         assert results[0].evidence.confirmations == 2
 
         flagged = apply_flag(results[0], FlagReason.STALE)
         store.update(flagged)
-        results = store.query(["api", "payments"])
+        results = _query(store, ["api", "payments"])
         assert results[0].evidence.confidence == pytest.approx(0.45)
         assert len(results[0].flags) == 1
 
@@ -923,7 +957,7 @@ class TestDelete:
         unit = _make_unit(domains=["api"])
         store.insert(unit)
         store.delete(unit.id)
-        results = store.query(["api"])
+        results = _query(store, ["api"])
         assert len(results) == 0
 
     def test_delete_missing_unit_raises_key_error(self, store: LocalStore):

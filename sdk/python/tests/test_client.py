@@ -9,8 +9,9 @@ import httpx
 import pytest
 
 from cq.client import Client, FallbackError, RemoteError
-from cq.models import FlagReason, Tier
-from cq.store import StoreStats
+from cq.models import FlagReason, Insight, Tier, create_knowledge_unit
+from cq.store import SqliteStore, StoreStats, create_store
+from cq.stores import InMemoryStore
 
 
 @pytest.fixture()
@@ -326,6 +327,78 @@ class TestRemoteConfig:
         c = Client(local_db_path=tmp_path / "test.db", timeout=10.0)
         assert c._http is None
         c.close()
+
+
+class TestStoreSelection:
+    """Precedence and wiring of the store injection seam and URL factory."""
+
+    def test_injected_store_takes_precedence(self, tmp_path: Path) -> None:
+        injected = InMemoryStore()
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{tmp_path / 'url.db'}"}):
+            c = Client(local_db_path=tmp_path / "ignored.db", store=injected)
+            assert c._store is injected
+            c.close()
+
+    def test_injected_store_closed_on_client_close(self, tmp_path: Path) -> None:
+        injected = InMemoryStore()
+        c = Client(store=injected)
+        c.close()
+        with pytest.raises(RuntimeError):
+            injected.all()
+
+    def test_database_url_env_selects_sqlite_store(self, tmp_path: Path) -> None:
+        db = tmp_path / "from-url.db"
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{db}"}):
+            c = Client()
+            assert isinstance(c._store, SqliteStore)
+            assert c._store.db_path == db
+            c.close()
+
+    def test_database_url_env_takes_precedence_over_db_path(self, tmp_path: Path) -> None:
+        url_db = tmp_path / "url.db"
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{url_db}"}):
+            c = Client(local_db_path=tmp_path / "path.db")
+            assert isinstance(c._store, SqliteStore)
+            assert c._store.db_path == url_db
+            c.close()
+
+    def test_round_trip_through_injected_store(self, tmp_path: Path) -> None:
+        unit = create_knowledge_unit(domains=["testing"], insight=Insight(summary="s", detail="d", action="a"))
+        c = Client(store=InMemoryStore())
+        c.propose(unit.insight.summary, unit.insight.detail, unit.insight.action, ["testing"])
+        assert c.query(["testing"]).units[0].domains == ["testing"]
+        c.close()
+
+
+class TestCreateStore:
+    """The connection-string factory's scheme handling."""
+
+    def test_none_returns_sqlite_store(self) -> None:
+        store = create_store(None)
+        assert isinstance(store, SqliteStore)
+        store.close()
+
+    def test_sqlite_triple_slash_url(self, tmp_path: Path) -> None:
+        db = tmp_path / "factory.db"
+        store = create_store(f"sqlite:///{db}")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == db
+        store.close()
+
+    def test_sqlite_short_form_url(self, tmp_path: Path) -> None:
+        db = tmp_path / "short.db"
+        store = create_store(f"sqlite:{db}")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == db
+        store.close()
+
+    def test_postgres_url_raises_not_implemented_with_install_hint(self) -> None:
+        with pytest.raises(NotImplementedError, match="cq-sdk\\[postgres\\]"):
+            create_store("postgresql://localhost/cq")
+
+    def test_unknown_scheme_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="Unsupported database URL"):
+            create_store("mysql://localhost/cq")
 
 
 class TestRemoteIntegration:

@@ -24,7 +24,7 @@ from .models import (
     create_knowledge_unit,
 )
 from .scoring import apply_confirmation, apply_flag
-from .store import LocalStore, StoreStats
+from .store import QueryParams, SqliteStore, Store, StoreStats, create_store
 
 _DEFAULT_TIMEOUT = 5.0
 
@@ -109,6 +109,7 @@ class Client:
         local_db_path: Path | None = None,
         timeout: float = _DEFAULT_TIMEOUT,
         logger: logging.Logger | None = None,
+        store: Store | None = None,
         _resolver: Resolver | None = None,
     ) -> None:
         """Initialize the client.
@@ -123,13 +124,19 @@ class Client:
                 Defaults to ``logging.getLogger("cq.client")``.
                 The library installs a NullHandler on the parent ``cq`` logger at import time,
                 so the SDK is silent unless the caller wires a handler.
+            store: A pre-built local store to use. When given, it takes
+                precedence over every other store selector and the client
+                treats it as owning its own lifecycle (still closed on
+                ``Client.close()``). When omitted, the store is selected by,
+                in order: the ``CQ_LOCAL_DATABASE_URL`` connection string, the
+                ``local_db_path`` argument/``CQ_LOCAL_DB_PATH`` env var, then
+                the XDG default.
             _resolver: Private test seam for injecting a pre-built Resolver.
                 Not part of the public API; the leading underscore signals that
                 callers outside the SDK's own tests should leave this unset.
         """
         self._addr = addr or os.environ.get("CQ_ADDR")
-        db_path = local_db_path or _db_path_from_env()
-        self._store = LocalStore(db_path=db_path)
+        self._store: Store = _select_store(store, local_db_path)
         self._logger = logger if logger is not None else logging.getLogger("cq.client")
         self._http: httpx.Client | None = None
         self._resolver: Resolver | None = None
@@ -195,16 +202,20 @@ class Client:
 
         source = "local"
         warnings: list[str] = []
-        local_results = self._store.query(
-            domains,
-            languages=languages,
-            frameworks=frameworks,
-            pattern=pattern,
-            limit=limit,
+        local_result = self._store.query(
+            QueryParams(
+                domains=domains,
+                languages=languages or [],
+                frameworks=frameworks or [],
+                pattern=pattern,
+                limit=limit,
+            )
         )
+        local_results = local_result.units
+        warnings.extend(local_result.warnings)
 
         if self._http is None:
-            return QueryResult(units=local_results, source=source)
+            return QueryResult(units=local_results, source=source, warnings=warnings)
 
         remote_results: list[KnowledgeUnit] = []
         try:
@@ -646,6 +657,22 @@ def _db_path_from_env() -> Path | None:
     if env_path:
         return Path(env_path).expanduser().resolve()
     return None
+
+
+def _select_store(store: Store | None, local_db_path: Path | None) -> Store:
+    """Pick the local store from the available selectors, in precedence order.
+
+    An explicitly injected store wins; otherwise the ``CQ_LOCAL_DATABASE_URL``
+    connection string is resolved through the factory; otherwise the SQLite
+    store is built from ``local_db_path``/``CQ_LOCAL_DB_PATH``, falling back to
+    the XDG default.
+    """
+    if store is not None:
+        return store
+    database_url = os.environ.get("CQ_LOCAL_DATABASE_URL")
+    if database_url:
+        return create_store(database_url)
+    return SqliteStore(db_path=local_db_path or _db_path_from_env())
 
 
 def _merge_results(

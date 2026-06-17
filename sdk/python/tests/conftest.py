@@ -11,6 +11,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempP
     monkeypatch.delenv("CQ_ADDR", raising=False)
     monkeypatch.delenv("CQ_API_KEY", raising=False)
     monkeypatch.delenv("CQ_LOCAL_DB_PATH", raising=False)
+    monkeypatch.delenv("CQ_LOCAL_DATABASE_URL", raising=False)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path_factory.mktemp("xdg_cache")))
 
 
