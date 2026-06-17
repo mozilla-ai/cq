@@ -49,6 +49,52 @@ func TestInstallCursorEndToEnd(t *testing.T) {
 	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
 }
 
+func TestInstallOpencodeEndToEnd(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("OPENCODE_CONFIG_DIR", "")
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	out, err := runInstall(t, "--target", "opencode")
+	require.NoError(t, err)
+	require.Contains(t, out, "[opencode]")
+
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+	require.FileExists(t, filepath.Join(home, ".config", "opencode", "opencode.json"))
+	require.FileExists(t, filepath.Join(home, ".config", "opencode", "commands", "reflect.md"))
+	require.FileExists(t, filepath.Join(home, ".config", "opencode", "commands", "status.md"))
+	require.FileExists(t, filepath.Join(home, ".config", "opencode", "AGENTS.md"))
+
+	cfg := filepath.Join(home, ".config", "opencode", "opencode.json")
+	data, err := os.ReadFile(cfg)
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(data, &m))
+	mcp := m["mcp"].(map[string]any)
+	cq := mcp["cq"].(map[string]any)
+	require.Equal(t, "local", cq["type"])
+	cmd := cq["command"].([]any)
+	require.Equal(t, bin, cmd[0])
+	require.Equal(t, "mcp", cmd[1])
+
+	// Re-run is idempotent.
+	_, err = runInstall(t, "--target", "opencode")
+	require.NoError(t, err)
+
+	// Uninstall reverses config and commands but keeps shared skill.
+	_, err = runInstall(t, "--target", "opencode", "--uninstall")
+	require.NoError(t, err)
+	data, err = os.ReadFile(cfg)
+	require.NoError(t, err)
+	m = nil
+	require.NoError(t, json.Unmarshal(data, &m))
+	require.NotContains(t, m, "mcp")
+	require.NoDirExists(t, filepath.Join(home, ".config", "opencode", "commands"))
+	require.NoFileExists(t, filepath.Join(home, ".config", "opencode", "AGENTS.md"))
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+}
+
 func TestInstallWindsurfEndToEnd(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

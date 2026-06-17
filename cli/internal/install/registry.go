@@ -10,6 +10,9 @@ const (
 	// TargetCursor is the Cursor editor.
 	TargetCursor Target = "cursor"
 
+	// TargetOpenCode is the OpenCode editor.
+	TargetOpenCode Target = "opencode"
+
 	// TargetWindsurf is the Windsurf editor.
 	TargetWindsurf Target = "windsurf"
 )
@@ -20,6 +23,7 @@ const (
 // an entry extends ValidTarget, AllowedTargets, and SelectHosts.
 var hosts = map[Target]Host{
 	TargetCursor:   cursorHost{},
+	TargetOpenCode: opencodeHost{},
 	TargetWindsurf: windsurfHost{},
 }
 
