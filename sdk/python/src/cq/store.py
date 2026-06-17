@@ -43,8 +43,13 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
 ]
 
 _FTS_MAX_TERMS = 20
-_MAX_QUERY_DOMAINS = 50
 _FTS_MAX_TERM_LENGTH = 200
+
+# Store-level query bounds, aligned with the Go SDK.
+_MAX_QUERY_DOMAINS = 50
+_MAX_QUERY_FRAMEWORKS = 50
+_MAX_QUERY_LANGUAGES = 50
+_MAX_QUERY_LIMIT = 500
 
 
 def _default_db_path() -> Path:
@@ -251,7 +256,9 @@ def rank_candidates(candidates: list[KnowledgeUnit], params: QueryParams) -> lis
     hands them here, and returns the result. Scoring multiplies each
     unit's relevance (domain overlap plus language/framework/pattern
     boosts) by its confidence, sorts descending, and keeps the top
-    ``params.limit`` units.
+    ``params.limit`` units. A zero limit defaults to ``_DEFAULT_QUERY_LIMIT``.
+    NOTE: callers must validate that limit is non-negative before calling;
+    this helper does not reject negative values (it treats them as zero).
     """
     scored: list[tuple[float, KnowledgeUnit]] = []
     for unit in candidates:
@@ -522,10 +529,13 @@ class SqliteStore:
         ``StoreQueryResult.warnings`` rather than raised.
 
         Raises:
-            ValueError: If limit is negative.
+            ValueError: If limit is negative, exceeds the maximum, or
+                language/framework counts exceed their bounds.
         """
         if params.limit < 0:
             raise ValueError("limit must be positive")
+        if params.limit > _MAX_QUERY_LIMIT:
+            raise ValueError(f"limit must be at most {_MAX_QUERY_LIMIT}")
 
         normalized = _normalize_domains(params.domains)
         if not normalized:
@@ -537,6 +547,14 @@ class SqliteStore:
                 _MAX_QUERY_DOMAINS,
             )
             normalized = normalized[:_MAX_QUERY_DOMAINS]
+
+        languages = _normalize_domains(params.languages)
+        if len(languages) > _MAX_QUERY_LANGUAGES:
+            raise ValueError(f"maximum number of languages ({_MAX_QUERY_LANGUAGES}) exceeded")
+
+        frameworks = _normalize_domains(params.frameworks)
+        if len(frameworks) > _MAX_QUERY_FRAMEWORKS:
+            raise ValueError(f"maximum number of frameworks ({_MAX_QUERY_FRAMEWORKS}) exceeded")
 
         # Safe: placeholders is only '?' characters, never user input.
         placeholders = ",".join("?" for _ in normalized)
@@ -581,7 +599,10 @@ class SqliteStore:
                 seen.add(unit.id)
                 candidates.append(unit)
 
-        ranked = rank_candidates(candidates, params.model_copy(update={"domains": normalized}))
+        ranked = rank_candidates(
+            candidates,
+            params.model_copy(update={"domains": normalized, "languages": languages, "frameworks": frameworks}),
+        )
         return StoreQueryResult(units=ranked, warnings=warnings)
 
     def stats(self, *, recent_limit: int = 5) -> StoreStats:

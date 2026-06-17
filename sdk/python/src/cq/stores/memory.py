@@ -16,6 +16,9 @@ from ..store import (
     _CONFIDENCE_BUCKETS,
     _EPOCH_UTC,
     _MAX_QUERY_DOMAINS,
+    _MAX_QUERY_FRAMEWORKS,
+    _MAX_QUERY_LANGUAGES,
+    _MAX_QUERY_LIMIT,
     DuplicateUnitError,
     QueryParams,
     StoreQueryResult,
@@ -125,10 +128,13 @@ class InMemoryStore:
         full-text), then scores and ranks via the shared ranker.
 
         Raises:
-            ValueError: If limit is negative.
+            ValueError: If limit is negative, exceeds the maximum, or
+                language/framework counts exceed their bounds.
         """
         if params.limit < 0:
             raise ValueError("limit must be positive")
+        if params.limit > _MAX_QUERY_LIMIT:
+            raise ValueError(f"limit must be at most {_MAX_QUERY_LIMIT}")
 
         normalized = _normalize_domains(params.domains)
         if not normalized:
@@ -136,12 +142,23 @@ class InMemoryStore:
         if len(normalized) > _MAX_QUERY_DOMAINS:
             normalized = normalized[:_MAX_QUERY_DOMAINS]
 
+        languages = _normalize_domains(params.languages)
+        if len(languages) > _MAX_QUERY_LANGUAGES:
+            raise ValueError(f"maximum number of languages ({_MAX_QUERY_LANGUAGES}) exceeded")
+
+        frameworks = _normalize_domains(params.frameworks)
+        if len(frameworks) > _MAX_QUERY_FRAMEWORKS:
+            raise ValueError(f"maximum number of frameworks ({_MAX_QUERY_FRAMEWORKS}) exceeded")
+
         wanted = set(normalized)
         with self._lock:
             self._check_open()
             candidates = [u.model_copy(deep=True) for u in self._units.values() if wanted & set(u.domains)]
 
-        ranked = rank_candidates(candidates, params.model_copy(update={"domains": normalized}))
+        ranked = rank_candidates(
+            candidates,
+            params.model_copy(update={"domains": normalized, "languages": languages, "frameworks": frameworks}),
+        )
         return StoreQueryResult(units=ranked)
 
     def stats(self, *, recent_limit: int = 5) -> StoreStats:
