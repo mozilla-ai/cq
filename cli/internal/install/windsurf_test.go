@@ -43,9 +43,9 @@ func TestWindsurfUninstallReverses(t *testing.T) {
 }
 
 func TestWindsurfRegistered(t *testing.T) {
-	hosts := SelectHosts(Selection{Windsurf: true})
-	require.Len(t, hosts, 1)
-	require.Equal(t, "windsurf", hosts[0].Name())
+	selected := SelectHosts(Targets{TargetWindsurf})
+	require.Len(t, selected, 1)
+	require.Equal(t, TargetWindsurf, selected[0].Name())
 }
 
 func TestWindsurfUninstallLeavesSharedSkill(t *testing.T) {
