@@ -25,10 +25,10 @@ repos:
     hooks:
       - id: check-docs
         name: check docs links
-        entry: python scripts/check_docs.py
+        entry: uv run --no-project python scripts/check_docs.py
         language: system
         pass_filenames: false
-        files: '^docs/|^README\.md$|^CONTRIBUTING\.md$|^DEVELOPMENT\.md$|^LICENSE$|^SECURITY\.md$|^CONTRIBUTOR_AGREEMENT\.md$|^cli/|^sdk/|^server/backend/README\.md$'
+        files: '\.md$|^\.gitbook\.yaml$|^\.gitbook-branch-readme\.md$|^scripts/(check_docs|prepare_gitbook_site)\.py$'
 
       - id: ty-check-install
         name: ty (scripts/install)
