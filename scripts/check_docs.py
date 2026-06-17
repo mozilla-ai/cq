@@ -19,6 +19,7 @@ DOCS_DIR = REPO_ROOT / "docs"
 # Source files outside docs/ that are published to the site.
 # Must stay in sync with ROOT_FILES in prepare_gitbook_site.py.
 PUBLISHED_ROOT_FILES: tuple[Path, ...] = (
+    REPO_ROOT / ".gitbook-branch-readme.md",
     REPO_ROOT / "README.md",
     REPO_ROOT / "CONTRIBUTING.md",
     REPO_ROOT / "DEVELOPMENT.md",

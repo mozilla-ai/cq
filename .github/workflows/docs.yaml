@@ -15,11 +15,31 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: docs-${{ github.ref }}
+  group: docs-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
   cancel-in-progress: false
 
 jobs:
-  docs:
+  validate:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Check documentation links
+        run: python scripts/check_docs.py
+
+      - name: Build GitBook site
+        run: python scripts/prepare_gitbook_site.py
+
+  publish:
+    if: github.event_name != 'pull_request'
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -36,18 +56,12 @@ jobs:
       - name: Check documentation links
         run: python scripts/check_docs.py
 
-      - name: Build GitBook site (validate)
-        if: github.event_name == 'pull_request'
-        run: python scripts/prepare_gitbook_site.py
-
-      - name: Build GitBook site (publish)
-        if: github.event_name != 'pull_request'
+      - name: Build GitBook site
         run: python scripts/prepare_gitbook_site.py --from-tags --ref "$DOCS_REF"
         env:
           DOCS_REF: ${{ github.ref_name }}
 
       - name: Deploy to gitbook-docs branch
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'

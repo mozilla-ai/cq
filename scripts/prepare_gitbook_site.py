@@ -183,8 +183,12 @@ def expand_includes(path: Path) -> None:
         stripped = line.strip()
         if stripped.startswith(INCLUDE_PREFIX) and stripped.endswith(INCLUDE_SUFFIX):
             include_path = stripped[len(INCLUDE_PREFIX) : -len(INCLUDE_SUFFIX)].strip()
-            source_path = REPO_ROOT / include_path
-            if not source_path.exists():
+            source_path = (REPO_ROOT / include_path).resolve()
+            if not source_path.is_relative_to(REPO_ROOT):
+                raise ValueError(
+                    f"Include `{include_path}` escapes the repository root"
+                )
+            if not source_path.is_file():
                 raise FileNotFoundError(
                     f"Missing include `{include_path}` referenced from {path.relative_to(REPO_ROOT)}"
                 )
@@ -215,21 +219,14 @@ def copy_component_files(*, from_tags: bool) -> None:
             prefix = COMPONENT_TAG_PREFIXES[component]
             tag = latest_tag(prefix)
             if tag is None:
-                print(f"  {component}: no tag found ({prefix}*), using working tree")
-                for repo_rel, dest in entries:
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(REPO_ROOT / repo_rel, dest)
-                continue
+                raise SystemExit(
+                    f"Error: no release tag found for {component} ({prefix}*)"
+                )
             print(f"  {component}: {tag}")
             for repo_rel, dest in entries:
-                try:
-                    content = git_show(tag, repo_rel)
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_text(content, encoding="utf-8")
-                except subprocess.CalledProcessError:
-                    print(f"    {repo_rel} not found at {tag}, using working tree")
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(REPO_ROOT / repo_rel, dest)
+                content = git_show(tag, repo_rel)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(content, encoding="utf-8")
         else:
             for repo_rel, dest in entries:
                 dest.parent.mkdir(parents=True, exist_ok=True)
