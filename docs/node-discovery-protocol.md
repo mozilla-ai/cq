@@ -19,7 +19,7 @@ GET {addr}/.well-known/cq-node.json
 
 Content type: `application/json`.
 
-Schema: [`schema/node_discovery.json`](../schema/node_discovery.json).
+Schema: [`schema/node_discovery.json`]({{REPO_TREE_URL}}/schema/node_discovery.json).
 
 ### Example — split origin
 

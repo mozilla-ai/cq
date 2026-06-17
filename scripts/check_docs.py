@@ -41,13 +41,21 @@ SKIP_LINK_CHECK: frozenset[Path] = frozenset({(DOCS_DIR / "SUMMARY.md").resolve(
 LINK_RE = re.compile(r"!\[[^\]]*\]\(([^)\n]+)\)|(?<!!)\[([^\]]*)\]\(([^)\n]+)\)")
 HEADER_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 CODE_FENCE_RE = re.compile(r"^```")
-SKIPPED_PREFIXES = ("http://", "https://", "mailto:", "tel:", "data:")
+SKIPPED_PREFIXES = ("http://", "https://", "mailto:", "tel:", "data:", "{{")
+
+
+DOCS_IGNORE_DIRS = {"plans"}
 
 
 def all_published_sources() -> set[Path]:
     """Return resolved paths of every source file that will appear in the site."""
     sources = {p.resolve() for p in PUBLISHED_ROOT_FILES if p.exists()}
-    sources.update(p.resolve() for p in DOCS_DIR.rglob("*") if p.is_file())
+    sources.update(
+        p.resolve()
+        for p in DOCS_DIR.rglob("*")
+        if p.is_file()
+        and not any(part in DOCS_IGNORE_DIRS for part in p.relative_to(DOCS_DIR).parts)
+    )
     return sources
 
 

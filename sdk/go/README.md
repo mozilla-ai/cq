@@ -97,7 +97,7 @@ See the [top-level README](../../README.md) for the full description.
 
 Knowledge units are stored as JSON in SQLite. The database schema is shared
 with the [cq Python SDK](../../sdk/python/) — both SDKs read and write the
-same `local.db` file. The [JSON Schema definitions](https://github.com/mozilla-ai/cq/tree/main/schema) are the
+same `local.db` file. The [JSON Schema definitions]({{REPO_TREE_URL}}/schema) are the
 source of truth.
 
 ## Development

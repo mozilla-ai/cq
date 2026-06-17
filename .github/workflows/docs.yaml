@@ -2,41 +2,21 @@ name: Documentation
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "README.md"
-      - "CONTRIBUTING.md"
-      - "DEVELOPMENT.md"
-      - "LICENSE"
-      - "SECURITY.md"
-      - "CONTRIBUTOR_AGREEMENT.md"
-      - "cli/**"
-      - "sdk/**"
-      - "server/backend/README.md"
-      - "scripts/prepare_gitbook_site.py"
-      - "scripts/check_docs.py"
-      - ".gitbook.yaml"
-      - ".gitbook-branch-readme.md"
-      - ".github/workflows/docs.yml"
+    tags: ["docs/v*"]
   pull_request:
     paths:
       - "docs/**"
-      - "README.md"
-      - "CONTRIBUTING.md"
-      - "DEVELOPMENT.md"
-      - "LICENSE"
-      - "SECURITY.md"
-      - "CONTRIBUTOR_AGREEMENT.md"
-      - "cli/**"
-      - "sdk/**"
-      - "server/backend/README.md"
+      - "**/*.md"
       - "scripts/prepare_gitbook_site.py"
       - "scripts/check_docs.py"
       - ".gitbook.yaml"
       - ".gitbook-branch-readme.md"
-      - ".github/workflows/docs.yml"
+      - ".github/workflows/docs.yaml"
   workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   docs:
@@ -45,22 +25,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Check documentation links
         run: python scripts/check_docs.py
 
-      - name: Build GitBook site
+      - name: Build GitBook site (validate)
+        if: github.event_name == 'pull_request'
         run: python scripts/prepare_gitbook_site.py
 
+      - name: Build GitBook site (publish)
+        if: github.event_name != 'pull_request'
+        run: python scripts/prepare_gitbook_site.py --from-tags --ref "$DOCS_REF"
+        env:
+          DOCS_REF: ${{ github.ref_name }}
+
       - name: Deploy to gitbook-docs branch
-        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
