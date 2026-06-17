@@ -81,7 +81,7 @@ The local store is pluggable. By default the SDK opens a SQLite file at the path
   c, err := cq.NewClient(cq.WithStore(cq.NewInMemoryStore()))
   ```
 
-- **Bring your own.** Implement the `cq.Store` interface (`Unit`, `All`, `Insert`, `Update`, `Delete`, `Query`, `Stats`, `Close`) and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query`, and verify the implementation against the conformance suite in [`storetest`](./storetest).
+- **Bring your own.** Implement the `cq.Store` interface (`Unit`, `All`, `Insert`, `Update`, `Delete`, `Query`, `Stats`, `Close`) and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query`, and verify the implementation against the conformance suite in [`storetest`]({{REPO_TREE_URL}}/sdk/go/storetest).
 
 Selection precedence: `WithStore` > `CQ_LOCAL_DATABASE_URL` > `CQ_LOCAL_DB_PATH`/`WithLocalDBPath` > XDG default. A first-party PostgreSQL adapter is planned as a separate module; until then a `postgres://` URL returns a clear error.
 
