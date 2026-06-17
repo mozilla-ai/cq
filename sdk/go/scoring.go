@@ -2,11 +2,55 @@ package cq
 
 import (
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	cqschema "github.com/mozilla-ai/cq/schema"
 )
+
+// RankCandidates scores each candidate by relevance * confidence, sorts the
+// candidates by descending score, and truncates to the parameter limit.
+// Tags in params are normalized before scoring so a store may pass the raw
+// query parameters. A non-positive limit defaults to defaultStoreQueryLimit.
+// Stores call this so ranking stays shared rather than duplicated per backend.
+func RankCandidates(candidates []KnowledgeUnit, params QueryParams) []KnowledgeUnit {
+	domains := normalizeDomains(params.Domains)
+	languages := normalizeDomains(params.Languages)
+	frameworks := normalizeDomains(params.Frameworks)
+	pattern := strings.ToLower(strings.TrimSpace(params.Pattern))
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = defaultStoreQueryLimit
+	}
+
+	type ranked struct {
+		ku    KnowledgeUnit
+		score float64
+	}
+
+	results := make([]ranked, 0, len(candidates))
+	for _, ku := range candidates {
+		relevance := ku.relevance(domains, languages, frameworks, pattern)
+		results = append(results, ranked{ku: ku, score: relevance * ku.Evidence.Confidence})
+	}
+
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].score > results[j].score
+	})
+
+	if len(results) > limit {
+		results = results[:limit]
+	}
+
+	units := make([]KnowledgeUnit, len(results))
+	for i, r := range results {
+		units[i] = r.ku
+	}
+
+	return units
+}
 
 // relevance scores how relevant ku is to the given query parameters.
 func (ku KnowledgeUnit) relevance(

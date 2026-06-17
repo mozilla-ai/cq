@@ -35,7 +35,7 @@ const (
 // Client provides access to the cq knowledge store.
 // Create one with NewClient and close it when done.
 type Client struct {
-	store   *localStore
+	store   Store
 	remote  *remoteClient
 	timeout time.Duration
 	logger  *slog.Logger
@@ -56,7 +56,7 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 		logger = slog.New(slog.DiscardHandler)
 	}
 
-	s, err := newLocalStore(cfg.localDBPath)
+	s, err := selectStore(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("opening local store: %w", err)
 	}
@@ -79,9 +79,7 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 
 // Close releases all resources held by the client.
 func (c *Client) Close() error {
-	c.store.close()
-
-	return nil
+	return c.store.Close()
 }
 
 // HasRemote reports whether the client is configured with a remote API.
@@ -100,7 +98,7 @@ func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, 
 	}
 
 	if !ku.Tier.IsRemote() {
-		stored, err := c.store.get(ku.ID)
+		stored, err := c.store.Unit(ku.ID)
 		if err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("reading knowledge unit: %w", err)
 		}
@@ -110,7 +108,7 @@ func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, 
 		}
 
 		updated := applyConfirmation(*stored)
-		if err := c.store.update(updated); err != nil {
+		if err := c.store.Update(updated); err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("updating knowledge unit: %w", err)
 		}
 
@@ -147,7 +145,7 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 		return DrainResult{}, fmt.Errorf("no remote API configured")
 	}
 
-	units, err := c.store.all()
+	units, err := c.store.All()
 	if err != nil {
 		return DrainResult{}, fmt.Errorf("reading local units: %w", err)
 	}
@@ -171,7 +169,7 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 			continue
 		}
 
-		if err := c.store.delete(ku.ID); err != nil {
+		if err := c.store.Delete(ku.ID); err != nil {
 			result.Warnings = append(result.Warnings, fmt.Errorf("deleting local %s: %w", ku.ID, err))
 
 			continue
@@ -191,7 +189,7 @@ func (c *Client) DrainableCount(ctx context.Context) (int, error) {
 	default:
 	}
 
-	units, err := c.store.all()
+	units, err := c.store.All()
 	if err != nil {
 		return 0, fmt.Errorf("reading local units: %w", err)
 	}
@@ -235,7 +233,7 @@ func (c *Client) Flag(
 	}
 
 	if !ku.Tier.IsRemote() {
-		stored, err := c.store.get(ku.ID)
+		stored, err := c.store.Unit(ku.ID)
 		if err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("reading knowledge unit: %w", err)
 		}
@@ -245,7 +243,7 @@ func (c *Client) Flag(
 		}
 
 		updated := applyFlag(*stored, reason, cfg)
-		if err := c.store.update(updated); err != nil {
+		if err := c.store.Update(updated); err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("updating knowledge unit: %w", err)
 		}
 
@@ -332,7 +330,7 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	ku.Evidence.FirstObserved = &now
 	ku.Evidence.LastConfirmed = &now
 
-	if err := c.store.insert(ku); err != nil {
+	if err := c.store.Insert(ku); err != nil {
 		insertErr := fmt.Errorf("inserting knowledge unit: %w", err)
 		if remoteErr != nil {
 			return KnowledgeUnit{}, fmt.Errorf(
@@ -369,24 +367,10 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 		limit = maxClientQueryLimit
 	}
 
-	qOpts := []queryOption{withLimit(limit)}
-	for _, d := range params.Domains {
-		qOpts = append(qOpts, withDomain(d))
-	}
+	storeParams := params
+	storeParams.Limit = limit
 
-	for _, l := range params.Languages {
-		qOpts = append(qOpts, withLanguage(l))
-	}
-
-	for _, f := range params.Frameworks {
-		qOpts = append(qOpts, withFramework(f))
-	}
-
-	if params.Pattern != "" {
-		qOpts = append(qOpts, withPattern(params.Pattern))
-	}
-
-	storeResult, err := c.store.query(qOpts...)
+	storeResult, err := c.store.Query(storeParams)
 	if err != nil {
 		return QueryResult{}, fmt.Errorf("querying store: %w", err)
 	}
@@ -401,9 +385,7 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 		}, nil
 	}
 
-	normalised := params
-	normalised.Limit = limit
-	remoteResults, remoteErr := c.remote.query(ctx, normalised)
+	remoteResults, remoteErr := c.remote.query(ctx, storeParams)
 
 	warnings := storeResult.Warnings
 	if remoteErr != nil {
@@ -439,7 +421,7 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 		return StoreStats{}, err
 	}
 
-	stats, err := c.store.stats(defaultRecentLimit)
+	stats, err := c.store.Stats(defaultRecentLimit)
 	if err != nil {
 		return StoreStats{}, fmt.Errorf("reading store stats: %w", err)
 	}
@@ -543,4 +525,19 @@ func mergeResults(local []KnowledgeUnit, remote []KnowledgeUnit, limit int) []Kn
 	}
 
 	return merged
+}
+
+// selectStore resolves the local Store per configured precedence:
+// an explicit injected store, then CQ_LOCAL_DATABASE_URL, then the
+// local database path (CQ_LOCAL_DB_PATH/WithLocalDBPath or the XDG default).
+func selectStore(cfg *clientConfig) (Store, error) {
+	if cfg.store != nil {
+		return cfg.store, nil
+	}
+
+	if cfg.localDBURL != "" {
+		return StoreFromURL(cfg.localDBURL)
+	}
+
+	return newSQLiteStore(cfg.localDBPath)
 }

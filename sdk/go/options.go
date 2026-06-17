@@ -17,6 +17,8 @@ type clientConfig struct {
 	addr        string
 	apiKey      string
 	localDBPath string
+	localDBURL  string
+	store       Store
 	timeout     time.Duration
 	logger      *slog.Logger
 }
@@ -86,18 +88,6 @@ func WithLocalDBPath(path string) ClientOption {
 	}
 }
 
-// WithTimeout overrides the default HTTP request timeout.
-func WithTimeout(d time.Duration) ClientOption {
-	return func(c *clientConfig) error {
-		if d <= 0 {
-			return fmt.Errorf("timeout must be positive, got %v", d)
-		}
-
-		c.timeout = d
-		return nil
-	}
-}
-
 // WithLogger installs a structured logger for SDK diagnostics.
 // The library defaults to slog.DiscardHandler so it writes nothing to
 // stdout or stderr without explicit caller wiring; this matters
@@ -112,6 +102,33 @@ func WithLogger(l *slog.Logger) ClientOption {
 		}
 
 		c.logger = l
+		return nil
+	}
+}
+
+// WithStore injects a custom local persistence Store.
+// An injected store takes precedence over CQ_LOCAL_DATABASE_URL,
+// CQ_LOCAL_DB_PATH, WithLocalDBPath, and the default path.
+// The Client calls Close on the injected store when the Client is closed.
+func WithStore(s Store) ClientOption {
+	return func(c *clientConfig) error {
+		if s == nil {
+			return fmt.Errorf("store cannot be nil")
+		}
+
+		c.store = s
+		return nil
+	}
+}
+
+// WithTimeout overrides the default HTTP request timeout.
+func WithTimeout(d time.Duration) ClientOption {
+	return func(c *clientConfig) error {
+		if d <= 0 {
+			return fmt.Errorf("timeout must be positive, got %v", d)
+		}
+
+		c.timeout = d
 		return nil
 	}
 }
@@ -165,6 +182,10 @@ func resolveConfig(opts ...ClientOption) (*clientConfig, error) {
 
 	if v := os.Getenv("CQ_API_KEY"); v != "" {
 		cfg.apiKey = v
+	}
+
+	if v := os.Getenv("CQ_LOCAL_DATABASE_URL"); v != "" {
+		cfg.localDBURL = v
 	}
 
 	if v := os.Getenv("CQ_LOCAL_DB_PATH"); v != "" {
