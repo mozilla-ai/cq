@@ -62,6 +62,9 @@ func newRootCmd() *cobra.Command {
 		rootCmd.AddCommand(c)
 	}
 
+	// _hook is internal wiring invoked by host hook configs, not a user command.
+	rootCmd.AddCommand(cmd.NewHookCmd())
+
 	// Assign built-in commands (e.g. help, completion) to the 'system' group.
 	rootCmd.AddGroup(&cobra.Group{
 		ID:    "system",
