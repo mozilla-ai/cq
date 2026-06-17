@@ -227,9 +227,15 @@ def create_store(database_url: str | None = None) -> Store:
         return SqliteStore()
 
     if database_url.startswith("sqlite:///"):
-        return SqliteStore(db_path=Path(database_url[len("sqlite:///") :]))
+        path = database_url[len("sqlite:///") :]
+        if not path:
+            raise ValueError("sqlite store URL must include a file path")
+        return SqliteStore(db_path=Path(path))
     if database_url.startswith("sqlite:"):
-        return SqliteStore(db_path=Path(database_url[len("sqlite:") :]))
+        path = database_url[len("sqlite:") :]
+        if not path:
+            raise ValueError("sqlite store URL must include a file path")
+        return SqliteStore(db_path=Path(path))
     if database_url.startswith(("postgresql://", "postgres://")):
         raise NotImplementedError(
             "PostgreSQL persistence is not yet available; install the 'cq-sdk[postgres]' extra when it ships."
@@ -363,7 +369,7 @@ class SqliteStore:
     def _check_open(self) -> None:
         """Raise if the store has been closed."""
         if self._closed:
-            raise RuntimeError("LocalStore is closed")
+            raise RuntimeError("store is closed")
 
     def close(self) -> None:
         """Close the underlying database connection."""

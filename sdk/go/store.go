@@ -186,8 +186,8 @@ func normalizeDomains(domains []string) []string {
 
 // normalizeQueryParams validates and normalizes query parameters against the
 // store-level bounds, returning an error when a bound is exceeded.
-// Tags are lowercased, trimmed, deduplicated, and order-stable; a non-positive
-// limit defaults to defaultStoreQueryLimit.
+// Tags are lowercased, trimmed, deduplicated, and order-stable; a zero limit
+// defaults to defaultStoreQueryLimit; a negative limit errors.
 func normalizeQueryParams(params QueryParams) (normalizedQuery, error) {
 	domains := normalizeDomains(params.Domains)
 	if len(domains) > maxQueryDomains {

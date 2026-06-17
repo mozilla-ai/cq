@@ -257,13 +257,13 @@ class TestContextManager:
     def test_operations_after_close_raise(self, tmp_path: Path):
         s = LocalStore(db_path=tmp_path / "test.db")
         s.close()
-        with pytest.raises(RuntimeError, match="LocalStore is closed"):
+        with pytest.raises(RuntimeError, match="store is closed"):
             s.insert(_make_unit())
-        with pytest.raises(RuntimeError, match="LocalStore is closed"):
+        with pytest.raises(RuntimeError, match="store is closed"):
             s.get("ku_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-        with pytest.raises(RuntimeError, match="LocalStore is closed"):
+        with pytest.raises(RuntimeError, match="store is closed"):
             s.update(_make_unit())
-        with pytest.raises(RuntimeError, match="LocalStore is closed"):
+        with pytest.raises(RuntimeError, match="store is closed"):
             _query(s, ["databases"])
 
 
@@ -916,7 +916,7 @@ class TestStats:
     def test_stats_raises_when_store_closed(self, tmp_path: Path):
         s = LocalStore(db_path=tmp_path / "test.db")
         s.close()
-        with pytest.raises(RuntimeError, match="LocalStore is closed"):
+        with pytest.raises(RuntimeError, match="store is closed"):
             s.stats()
 
 

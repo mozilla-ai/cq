@@ -41,7 +41,7 @@ class InMemoryStore:
     def _check_open(self) -> None:
         """Raise if the store has been closed."""
         if self._closed:
-            raise RuntimeError("LocalStore is closed")
+            raise RuntimeError("store is closed")
 
     def close(self) -> None:
         """Drop all in-memory state and mark the store closed."""
@@ -69,7 +69,7 @@ class InMemoryStore:
         domains = _normalize_domains(unit.domains)
         if not domains:
             raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains})
+        unit = unit.model_copy(update={"domains": domains}, deep=True)
         with self._lock:
             self._check_open()
             if unit.id in self._units:
@@ -80,13 +80,14 @@ class InMemoryStore:
         """Retrieve a knowledge unit by ID, or None if not found."""
         with self._lock:
             self._check_open()
-            return self._units.get(unit_id)
+            unit = self._units.get(unit_id)
+            return unit.model_copy(deep=True) if unit is not None else None
 
     def all(self) -> list[KnowledgeUnit]:
         """Return every knowledge unit in the store."""
         with self._lock:
             self._check_open()
-            return list(self._units.values())
+            return [u.model_copy(deep=True) for u in self._units.values()]
 
     def delete(self, unit_id: str) -> None:
         """Remove a knowledge unit by ID.
@@ -110,7 +111,7 @@ class InMemoryStore:
         domains = _normalize_domains(unit.domains)
         if not domains:
             raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains})
+        unit = unit.model_copy(update={"domains": domains}, deep=True)
         with self._lock:
             self._check_open()
             if unit.id not in self._units:
@@ -138,7 +139,7 @@ class InMemoryStore:
         wanted = set(normalized)
         with self._lock:
             self._check_open()
-            candidates = [unit for unit in self._units.values() if wanted & set(unit.domains)]
+            candidates = [u.model_copy(deep=True) for u in self._units.values() if wanted & set(u.domains)]
 
         ranked = rank_candidates(candidates, params.model_copy(update={"domains": normalized}))
         return StoreQueryResult(units=ranked)
@@ -154,7 +155,7 @@ class InMemoryStore:
 
         with self._lock:
             self._check_open()
-            units = list(self._units.values())
+            units = [u.model_copy(deep=True) for u in self._units.values()]
 
         domain_counts: dict[str, int] = {}
         for unit in units:

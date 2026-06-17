@@ -205,14 +205,23 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		s := newStore()
 		t.Cleanup(func() { _ = s.Close() })
 
-		ku := newKU("ku_00000000000000000000000000000030", []string{"api"}, 0.5)
-		noErr(t, s.Insert(ku))
+		for i, id := range []string{
+			"ku_00000000000000000000000000000030",
+			"ku_00000000000000000000000000000031",
+			"ku_00000000000000000000000000000032",
+			"ku_00000000000000000000000000000033",
+			"ku_00000000000000000000000000000034",
+			"ku_00000000000000000000000000000035",
+			"ku_00000000000000000000000000000036",
+		} {
+			noErr(t, s.Insert(newKU(id, []string{"api"}, 0.5+float64(i)*0.01)))
+		}
 
-		// A zero limit means "unset": the store falls back to its default.
+		// A zero limit means "unset": the store falls back to its default (5).
 		res, err := s.Query(cq.QueryParams{Domains: []string{"api"}, Limit: 0})
 		noErr(t, err)
-		if len(res.KUs) == 0 {
-			t.Fatal("Query with Limit 0 should fall back to the default, got no results")
+		if len(res.KUs) != 5 {
+			t.Fatalf("Query with Limit 0 returned %d units, want default 5", len(res.KUs))
 		}
 
 		_, err = s.Query(cq.QueryParams{Domains: []string{"api"}, Limit: -1})

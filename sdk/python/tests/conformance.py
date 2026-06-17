@@ -215,9 +215,11 @@ def _assert_query_returns_domain_matches(make_store: StoreFactory) -> None:
 def _assert_query_limit_zero_defaults_negative_raises(make_store: StoreFactory) -> None:
     store = make_store()
     try:
-        store.insert(_make_unit(domains=["databases"]))
-        # Zero limit means "unset": the store falls back to its default count.
-        assert store.query(QueryParams(domains=["databases"], limit=0)).units != []
+        for _ in range(7):
+            store.insert(_make_unit(domains=["databases"]))
+        # Zero limit means "unset": the store falls back to its default (5).
+        result = store.query(QueryParams(domains=["databases"], limit=0))
+        assert len(result.units) == 5
         with pytest.raises(ValueError, match="limit must be positive"):
             store.query(QueryParams(domains=["databases"], limit=-1))
     finally:
@@ -267,11 +269,17 @@ def _assert_close_is_idempotent_and_blocks_ops(make_store: StoreFactory) -> None
     with pytest.raises(RuntimeError):
         store.insert(_make_unit())
     with pytest.raises(RuntimeError):
+        store.update(_make_unit())
+    with pytest.raises(RuntimeError):
+        store.delete("ku_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+    with pytest.raises(RuntimeError):
         store.get("ku_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
     with pytest.raises(RuntimeError):
         store.all()
     with pytest.raises(RuntimeError):
         store.query(QueryParams(domains=["databases"]))
+    with pytest.raises(RuntimeError):
+        store.stats()
 
 
 def conformance_store_factories(tmp_path: Path) -> dict[str, StoreFactory]:
