@@ -86,8 +86,9 @@ def slugify_heading(raw_heading: str) -> str:
 
 def extract_anchors(path: Path) -> set[str]:
     """Collect heading anchors from a Markdown document."""
+    text = strip_code_blocks(path.read_text(encoding="utf-8"))
     anchors: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         match = HEADER_RE.match(line)
         if match:
             anchors.add(slugify_heading(match.group(2)))
@@ -107,11 +108,13 @@ def split_target(raw_target: str) -> tuple[str, str]:
     return target, ""
 
 
-def resolve_target(source_path: Path, target_path: str) -> Path | None:
+def resolve_target(source_path: Path, target_path: str) -> Path:
     """Resolve a relative link target from a source file.
 
-    Returns None for directory targets with no publishable index (source-code
-    directory references) rather than raising an error.
+    Always returns a Path. For directories without a publishable index,
+    returns the directory itself so the caller can flag it as unpublished.
+    For targets that don't exist on disk, returns the resolved path so the
+    caller can report the missing target.
     """
     base = source_path.parent
     resolved = (base / target_path).resolve()

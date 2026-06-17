@@ -18,7 +18,7 @@ import os
 import re
 import shutil
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = REPO_ROOT / "docs"
@@ -160,7 +160,7 @@ def rewrite_links(site_file: Path, source_file: Path, path_map: dict[Path, Path]
             if site_target is None:
                 return m.group(0)
 
-            rel = os.path.relpath(site_target, _site.parent)
+            rel = PurePosixPath(os.path.relpath(site_target, _site.parent))
             return f"{label}({rel}{anchor})"
 
         output_lines.append(LINK_RE.sub(replace, line))
