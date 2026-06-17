@@ -12,7 +12,9 @@ import (
 // RankCandidates scores each candidate by relevance * confidence, sorts the
 // candidates by descending score, and truncates to the parameter limit.
 // Tags in params are normalized before scoring so a store may pass the raw
-// query parameters. A non-positive limit defaults to defaultStoreQueryLimit.
+// query parameters. A zero limit defaults to defaultStoreQueryLimit.
+// NOTE: callers must validate that Limit is non-negative before calling;
+// this helper does not reject negative values (it treats them as zero).
 // Stores call this so ranking stays shared rather than duplicated per backend.
 func RankCandidates(candidates []KnowledgeUnit, params QueryParams) []KnowledgeUnit {
 	domains := normalizeDomains(params.Domains)
