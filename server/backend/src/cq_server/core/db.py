@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.exc import ArgumentError
 
 from .config import Settings
 
@@ -45,12 +46,22 @@ class Database:
     """
 
     def __init__(self, settings: Settings) -> None:
-        """Build the engine from ``settings`` and register the SQLite PRAGMA hook."""
+        """Build the engine from ``settings`` and register dialect hooks.
+
+        SQLite URLs get a live engine with cq's required PRAGMAs.
+        The canonical ``postgresql+psycopg://`` URL raises
+        ``NotImplementedError`` until the Phase 2 implementation lands
+        (#312). Other PostgreSQL driver suffixes are rejected with a
+        message naming the canonical driver. Anything else raises
+        ``ValueError``.
+        """
         url = settings.resolved_database_url
-        if url.startswith("sqlite:///"):
-            # Derive the file path from the resolved URL itself rather than
-            # ``settings.db_path``, because ``CQ_DATABASE_URL`` (when set)
-            # wins over ``CQ_DB_PATH`` and the two can disagree.
+        try:
+            parsed = make_url(url)
+        except ArgumentError as exc:
+            raise ValueError("Invalid CQ_DATABASE_URL (could not parse as a database URL)") from exc
+        driver = parsed.drivername
+        if driver.startswith("sqlite"):
             sqlite_path = Path(url.removeprefix("sqlite:///"))
             sqlite_path.parent.mkdir(parents=True, exist_ok=True)
             self._engine: Engine = create_engine(
@@ -59,14 +70,19 @@ class Database:
                 future=True,
             )
             event.listen(self._engine, "connect", _apply_sqlite_pragmas)
-        else:
-            # PostgreSQL backend is gated by #311/#312; lifespan resolves
-            # the URL up-front so this branch should be unreachable in
-            # normal flows. Surface a clear error if anything ever reaches
-            # here so the failure mode isn't a cryptic driver error.
+        elif driver == "postgresql+psycopg":
             raise NotImplementedError(
-                f"Only sqlite:// URLs are supported (got {url!r}). See #311/#312.",
+                "PostgreSQL backend is not implemented yet; the psycopg "
+                "v3-backed implementation lands in epic #257 (issue #312)."
             )
+        elif driver == "postgresql" or driver.startswith("postgresql+"):
+            raise NotImplementedError(
+                f"PostgreSQL driver {driver!r} is not supported; "
+                "use postgresql+psycopg:// once the PostgreSQL backend "
+                "implementation lands in epic #257 (issue #312)."
+            )
+        else:
+            raise ValueError(f"Unsupported database URL scheme: {driver!r}")
         self._closed = False
 
     @property
