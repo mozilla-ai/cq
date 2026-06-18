@@ -214,6 +214,23 @@ def substitute_placeholders(path: Path, repo_tree_url: str) -> None:
         path.write_text(text.replace(REPO_TREE_URL_MARKER, repo_tree_url), encoding="utf-8")
 
 
+def _inject_version_badge(content: str, version: str) -> str:
+    """Insert a version indicator after the first top-level heading."""
+    lines = content.split("\n")
+    in_fence = False
+    for i, line in enumerate(lines):
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and line.startswith("# "):
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            lines[j:j] = [f"*Version: {version}*", ""]
+            break
+    return "\n".join(lines)
+
+
 def copy_component_files(*, from_tags: bool) -> None:
     """Copy component documentation to the site directory.
 
@@ -226,15 +243,28 @@ def copy_component_files(*, from_tags: bool) -> None:
             tag = latest_tag(prefix)
             if tag is None:
                 raise SystemExit(f"Error: no release tag found for {component} ({prefix}*)")
+            version = tag[len(component) + 1 :]
             print(f"  {component}: {tag}")
             for repo_rel, dest in entries:
-                content = git_show(tag, repo_rel)
+                try:
+                    content = git_show(tag, repo_rel)
+                except subprocess.CalledProcessError as exc:
+                    stderr = exc.stderr or ""
+                    if "does not exist" in stderr or "exists on disk, but not in" in stderr:
+                        print(f"    warning: {repo_rel} not found at {tag}, skipping")
+                        continue
+                    raise
+                content = _inject_version_badge(content, version)
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_text(content, encoding="utf-8")
         else:
             for repo_rel, dest in entries:
+                src = REPO_ROOT / repo_rel
+                if not src.exists():
+                    print(f"    warning: {repo_rel} not found in working tree, skipping")
+                    continue
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(REPO_ROOT / repo_rel, dest)
+                shutil.copy2(src, dest)
 
 
 def parse_args() -> argparse.Namespace:
