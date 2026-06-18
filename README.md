@@ -13,14 +13,14 @@ what they've learned and listening for what others already know.
 
 If you are looking for a specific cq component in a package registry, marketplace, or tagged GitHub release, use the names below.
 
-| Component | Where to get it | Published name | Release tag prefix |
-|---|---|---|---|
-| Plugin (Claude Code) | Claude plugin marketplace | `mozilla-ai/cq` (install as `cq`) | N/A |
-| CLI | Homebrew/Scoop/GitHub Releases | `github.com/mozilla-ai/cq/cli` | `cli/vX.Y.Z` |
-| Go SDK | Go modules | `github.com/mozilla-ai/cq/sdk/go` | `sdk/go/vX.Y.Z` |
-| Python SDK | PyPI | `cq-sdk` | `sdk/python/X.Y.Z` |
-| Schema | PyPI and Go modules | `cq-schema` and `github.com/mozilla-ai/cq/schema` | `schema/vX.Y.Z` |
-| Server image | GHCR and Docker Hub | `ghcr.io/mozilla-ai/cq/server` and `mzdotai/cq-server` | `server/vX.Y.Z` |
+| Component            | Where to get it                | Published name                                         | Release tag prefix |
+| -------------------- | ------------------------------ | ------------------------------------------------------ | ------------------ |
+| Plugin (Claude Code) | Claude plugin marketplace      | `mozilla-ai/cq` (install as `cq`)                      | N/A                |
+| CLI                  | Homebrew/Scoop/GitHub Releases | `github.com/mozilla-ai/cq/cli`                         | `cli/vX.Y.Z`       |
+| Go SDK               | Go modules                     | `github.com/mozilla-ai/cq/sdk/go`                      | `sdk/go/vX.Y.Z`    |
+| Python SDK           | PyPI                           | `cq-sdk`                                               | `sdk/python/X.Y.Z` |
+| Schema               | PyPI and Go modules            | `cq-schema` and `github.com/mozilla-ai/cq/schema`      | `schema/vX.Y.Z`    |
+| Server image         | GHCR and Docker Hub            | `ghcr.io/mozilla-ai/cq/server` and `mzdotai/cq-server` | `server/vX.Y.Z`    |
 
 ## Plugin Installation
 
@@ -44,12 +44,67 @@ cd cq
 
 Run `make setup-plugin` before running the relevant `Makefile` target:
 
-| Agent    | Install                 |
-|----------|-------------------------|
-| OpenCode | `make install-opencode` |
-| Cursor   | `make install-cursor`   |
-| Windsurf | `make install-windsurf` |
-| Pi       | `make install-pi`       |
+| Agent    | Install                          | Manifest location           |
+| -------- | -------------------------------- | --------------------------- |
+| OpenCode | `make install-opencode`          | `.opencode/`                |
+| Cursor   | `make install-cursor`            | `.cursor/`                  |
+| Windsurf | `make install-windsurf`          | `.windsurf/`                |
+| Pi       | `make install-pi`                | `.pi/`                      |
+| Codex    | `plugins/codex/` \*              | `.codex-plugin/plugin.json` |
+| Copilot  | `make install-copilot` (planned) | `.plugin/plugin.json`       |
+
+> \* Codex and Copilot require platform-specific manifest paths, so they live in separate directories under `plugins/` rather than a single shared layout. Shared code (`skills/cq`, `scripts/`) is referenced via symlinks.
+
+### VS Code Copilot (Preview)
+
+Requires VS Code 1.125+ with agent plugins enabled.
+
+**Option 1 — Install from source (recommended):**
+
+1. In VS Code, open the Command Palette (`Ctrl+Shift+P`).
+2. Run **Chat: Install Plugin From Source**.
+3. Enter the repository URL:
+   ```
+   https://github.com/mozilla-ai/cq
+   ```
+4. VS Code clones the repo and activates the `cq` plugin automatically.
+
+The plugin provides an MCP server (auto-downloads the `cq` binary) and the `cq` agent skill.
+
+**Option 2 — Local clone (development):**  
+Clone the repo and add it to your VS Code `settings.json`:
+
+```json
+"chat.pluginLocations": {
+    "C:/path/to/cq": true
+}
+```
+
+**Option 3 — From marketplace (PR pending):**  
+Once accepted into the [official marketplace](https://github.com/github/copilot-plugins), install from the Extensions view — search `@agentPlugins` and install `cq`.
+
+> To submit the plugin for marketplace inclusion, send a PR to `github/copilot-plugins` adding this entry to `.github/plugin/marketplace.json`:
+>
+> ```json
+> {
+>   "name": "cq",
+>   "source": {
+>     "source": "github",
+>     "repo": "mozilla-ai/cq",
+>     "path": "plugins/copilot"
+>   },
+>   "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
+>   "version": "0.11.0",
+>   "author": {
+>     "name": "Mozilla AI",
+>     "url": "https://github.com/mozilla-ai/"
+>   },
+>   "homepage": "https://github.com/mozilla-ai/cq",
+>   "repository": "https://github.com/mozilla-ai/cq",
+>   "keywords": ["knowledge-sharing", "agent-learning", "mcp", "pitfall-avoidance"],
+>   "license": "Apache-2.0"
+> }
+> ```
 
 For Windows, project-specific installs, and uninstall instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
@@ -134,7 +189,7 @@ them for approval, and queries the store before submitting each one to avoid dup
 The five MCP tools underneath:
 
 | Tool      | What it does                               |
-|-----------|--------------------------------------------|
+| --------- | ------------------------------------------ |
 | `query`   | Search the knowledge store before acting   |
 | `propose` | Submit a new knowledge unit                |
 | `confirm` | Endorse an existing KU that proved correct |
@@ -170,7 +225,7 @@ make seed-users USER=demo PASS=demo123
 Whichever option you use, set these environment variables for your AI coding assistant:
 
 | Variable     | Description                                                                                                                                                       |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CQ_ADDR`    | Remote API URL. Use `https://cq.exchange` for the hosted service, or your server's URL if self-hosting.                                                           |
 | `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `stats`). Generated in the server's UI dashboard. |
 

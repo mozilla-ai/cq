@@ -1,0 +1,20 @@
+{
+  "name": "cq",
+  "interface": {
+    "displayName": "CQ Plugin"
+  },
+  "plugins": [
+    {
+      "name": "cq",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex/cq"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Knowledge"
+    }
+  ]
+}

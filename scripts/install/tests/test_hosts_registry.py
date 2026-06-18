@@ -8,7 +8,7 @@ from cq_install.hosts import REGISTRY, HostDef, get_host
 
 
 def test_registry_lists_all_hosts():
-    assert set(REGISTRY) == {"cursor", "windsurf", "opencode", "claude", "pi"}
+        assert set(REGISTRY) == {"cursor", "windsurf", "opencode", "claude", "pi", "codex"}
 
 
 def test_registry_includes_pi():

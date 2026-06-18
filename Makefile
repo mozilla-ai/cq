@@ -24,6 +24,10 @@ help:
 	@echo "  make install-windsurf                        Install globally (~/.codeium/windsurf/)"
 	@echo "  make uninstall-windsurf                      Remove global Windsurf install"
 	@echo ""
+	@echo "Codex:"
+	@echo "  make install-codex                            Install cq plugin via Codex marketplace"
+	@echo "  make uninstall-codex                          Remove cq plugin from Codex"
+	@echo ""
 	@echo "Pi:"
 	@echo "  make install-pi                              Install globally (~/.pi/agent/)"
 	@echo "  make install-pi PROJECT=/path/to/app         Install into a specific project"
@@ -119,6 +123,14 @@ setup-server: setup-server-backend setup-server-frontend
 .PHONY: setup
 setup: setup-cli setup-install setup-plugin setup-schema setup-sdk-go setup-sdk-python setup-server
 
+.PHONY: install-codex
+install-codex:
+	cd scripts/install && uv run python -m cq_install install --target codex
+
+.PHONY: uninstall-codex
+uninstall-codex:
+	cd scripts/install && uv run python -m cq_install uninstall --target codex
+
 .PHONY: install-claude
 install-claude:
 	cd scripts/install && uv run python -m cq_install install --target claude
@@ -193,10 +205,11 @@ endif
 install-all:
 ifdef PROJECT
 	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target claude --target pi --project "$(PROJECT)"
-	@echo "Note: Windsurf has no per-project MCP config; installing it globally."
+	@echo "Note: Codex and Windsurf have no per-project config; installing them globally."
 	cd scripts/install && uv run python -m cq_install install --target windsurf --global
+	cd scripts/install && uv run python -m cq_install install --target codex
 else
-	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --target pi --global
+	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --target pi --target codex --global
 endif
 
 .PHONY: compose-up

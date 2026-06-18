@@ -1,0 +1,34 @@
+{
+    "name": "cq",
+    "owner": {
+        "name": "Mozilla AI",
+        "email": "hello@mozilla.ai",
+        "url": "https://github.com/mozilla-ai/"
+    },
+    "metadata": {
+        "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
+        "version": "0.11.0"
+    },
+    "plugins": [
+        {
+            "name": "cq",
+            "source": ".",
+            "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
+            "version": "0.11.0",
+            "author": {
+                "name": "Mozilla AI",
+                "url": "https://github.com/mozilla-ai/"
+            },
+            "homepage": "https://github.com/mozilla-ai/cq",
+            "repository": "https://github.com/mozilla-ai/cq",
+            "keywords": [
+                "knowledge-sharing",
+                "agent-learning",
+                "mcp",
+                "pitfall-avoidance",
+                "team-knowledge"
+            ],
+            "license": "Apache-2.0"
+        }
+    ]
+}

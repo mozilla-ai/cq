@@ -1,0 +1,19 @@
+{
+  "name": "cq",
+  "plugins": [
+    {
+      "name": "cq",
+      "source": "../../plugins/codex/cq",
+      "description": "Shared knowledge commons for AI agents.",
+      "category": "knowledge",
+      "tags": [
+        "knowledge-sharing",
+        "agent-learning",
+        "agent-commons",
+        "mcp",
+        "pitfall-avoidance",
+        "team-knowledge"
+      ]
+    }
+  ]
+}
