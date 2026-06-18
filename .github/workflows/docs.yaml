@@ -13,6 +13,10 @@ on:
       - ".gitbook-branch-readme.md"
       - ".github/workflows/docs.yaml"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Prefixed tag to publish (e.g. docs/v0.1.0)"
+        required: true
 
 concurrency:
   group: docs-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
@@ -51,7 +55,7 @@ jobs:
       - name: Validate tag
         id: tag
         env:
-          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
           if [[ -z "$TAG" ]]; then
             echo "::error::No tag provided"
