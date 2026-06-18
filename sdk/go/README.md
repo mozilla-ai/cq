@@ -52,12 +52,13 @@ reflectPrompt := prompts.Reflect()
 
 The client works out of the box in local-only mode with no configuration.
 
-| Variable           | Description           | Default                      |
-|--------------------|-----------------------|------------------------------|
-| `CQ_ADDR`          | Remote cq API address | None (local-only)            |
-| `CQ_API_KEY`      | API key               | None                         |
-| `CQ_LOCAL_DB_PATH` | Local SQLite path     | `~/.local/share/cq/local.db` |
+| Variable              | Description                                                       | Default                       |
+|-----------------------|-------------------------------------------------------------------|-------------------------------|
+| `CQ_ADDR`             | Remote cq API address                                             | None (local-only)             |
+| `CQ_API_KEY`          | API key for the remote API                                        | None                          |
 | `CQ_LOCAL_DATABASE_URL` | Local store connection URL (e.g. `sqlite:///abs/path/local.db`) | None (falls back to `CQ_LOCAL_DB_PATH`) |
+| `CQ_LOCAL_DB_PATH`    | Local SQLite file path                                            | `$XDG_DATA_HOME/cq/local.db` |
+| `XDG_DATA_HOME`       | Base directory for the default database path ([XDG spec](https://specifications.freedesktop.org/basedir/latest/)) | `~/.local/share` |
 
 Or pass directly:
 
@@ -68,22 +69,56 @@ c, err := cq.NewClient(
 )
 ```
 
-The default database path follows the [XDG Base Directory spec](https://specifications.freedesktop.org/basedir/latest/).
+### Store interface
 
-### Custom storage
+The local store is pluggable. The SDK defines a `Store` interface that the `Client` depends on; the default SQLite store satisfies it, and you can supply any implementation.
 
-The local store is pluggable. By default the SDK opens a SQLite file at the path above; you can point it at a different backend or supply your own.
+#### Selecting a store
 
-- **By connection string.** Set `CQ_LOCAL_DATABASE_URL` (for example `sqlite:///abs/path/local.db`); it takes precedence over `CQ_LOCAL_DB_PATH`. `cq.StoreFromURL` performs the same resolution programmatically.
-- **By injection.** Pass any `cq.Store` to `cq.WithStore`:
+The client resolves the local store in this precedence order:
 
-  ```go
-  c, err := cq.NewClient(cq.WithStore(cq.NewInMemoryStore()))
-  ```
+1. **`cq.WithStore`** — inject any `cq.Store` directly.
+2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.StoreFromURL`. Accepted schemes: `sqlite:///abs/path` or `sqlite:path`. A `postgres://` URL returns an error naming the planned adapter module.
+3. **`CQ_LOCAL_DB_PATH` / `cq.WithLocalDBPath`** — path to a SQLite file.
+4. **XDG default** — `$XDG_DATA_HOME/cq/local.db` (typically `~/.local/share/cq/local.db`).
 
-- **Bring your own.** Implement the `cq.Store` interface (`Unit`, `All`, `Insert`, `Update`, `Delete`, `Query`, `Stats`, `Close`) and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query`, and verify the implementation against the conformance suite in [`storetest`]({{REPO_TREE_URL}}/sdk/go/storetest).
+#### Interface
 
-Selection precedence: `WithStore` > `CQ_LOCAL_DATABASE_URL` > `CQ_LOCAL_DB_PATH`/`WithLocalDBPath` > XDG default. A first-party PostgreSQL adapter is planned as a separate module; until then a `postgres://` URL returns a clear error.
+The `cq.Store` interface requires eight methods. Implementations must be safe for concurrent use.
+
+| Method   | Signature                                            | Semantics |
+|----------|------------------------------------------------------|-----------|
+| `Unit`   | `(id string) (*KnowledgeUnit, error)`                | Retrieve by ID, or `nil` if absent. |
+| `All`    | `() ([]KnowledgeUnit, error)`                        | Return every unit in the store. |
+| `Insert` | `(ku KnowledgeUnit) error`                           | Insert a unit. Error on duplicate ID or empty domains after normalization. |
+| `Update` | `(ku KnowledgeUnit) error`                           | Replace an existing unit. Error when the ID is absent or domains are empty. |
+| `Delete` | `(id string) error`                                  | Remove by ID. Error when absent. |
+| `Query`  | `(params QueryParams) (StoreQueryResult, error)`     | Return units matching the query, ranked most-relevant first. |
+| `Stats`  | `(recentLimit int) (StoreStats, error)`              | Return aggregated store statistics. |
+| `Close`  | `() error`                                           | Release resources. Must be safe to call more than once. |
+
+#### Built-in implementations
+
+- **SQLite store** (default, unexported) — opens a SQLite file with FTS5 full-text search, WAL journaling, and domain-tag indexing.
+- **`NewInMemoryStore()`** — map-backed, no persistence. Useful for tests and as a worked example for custom stores (domain-tag matching only, no full-text).
+
+```go
+c, err := cq.NewClient(cq.WithStore(cq.NewInMemoryStore()))
+```
+
+#### Bring your own
+
+Implement the `cq.Store` interface and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query` implementation so ranking stays consistent across backends. Verify the implementation against the conformance suite in [`storetest`]({{REPO_TREE_URL}}/sdk/go/storetest):
+
+```go
+import "github.com/mozilla-ai/cq/sdk/go/storetest"
+
+func TestMyStore(t *testing.T) {
+    storetest.RunConformance(t, func() cq.Store {
+        return NewMyCustomStore()
+    })
+}
+```
 
 ## Knowledge tiers
 

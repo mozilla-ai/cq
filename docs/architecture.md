@@ -13,7 +13,6 @@ flowchart TB
     subgraph cc["Claude Code Process"]
         direction TB
         skill["SKILL.md\nBehavioral instructions"]
-        hook["hooks.json\nPost-error auto-query"]
         cmd_status["/cq:status\nStore statistics"]
         cmd_reflect["/cq:reflect\nSession mining"]
     end
@@ -40,7 +39,7 @@ flowchart TB
     classDef dockerStyle fill:#e6f4ea,stroke:#34a853,color:#1a1a1a
     classDef dbStyle fill:#fce8e6,stroke:#ea4335,color:#1a1a1a
 
-    class skill,hook,cmd_status,cmd_reflect ccStyle
+    class skill,cmd_status,cmd_reflect ccStyle
     class server mcpStyle
     class api dockerStyle
     class local_db,remote_db dbStyle
@@ -356,7 +355,6 @@ flowchart LR
         skill["SKILL.md\nTeaches agent when to\nquery, propose, confirm, flag"]
         reviewer["cq-reviewer.md\nSub-agent for reviewing\ngraduation candidates"]
         mcp_cfg[".mcp.json\nMCP server configuration"]
-        hooks["hooks.json\nPost-error: auto-query\ncommons on failure"]
         commands["Commands\n/cq:status — store stats\n/cq:reflect — session mining"]
     end
 
@@ -368,7 +366,6 @@ flowchart LR
     manifest -.->|"declares"| skill
     manifest -.->|"declares"| reviewer
     manifest -.->|"declares"| mcp_cfg
-    manifest -.->|"declares"| hooks
     manifest -.->|"declares"| commands
     mcp_cfg -->|"spawns via stdio"| server
     skill -->|"instructs agent to call"| tools
@@ -376,17 +373,15 @@ flowchart LR
     classDef pluginStyle fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a
     classDef serverStyle fill:#fef7e0,stroke:#f9ab00,color:#1a1a1a
 
-    class manifest,skill,reviewer,mcp_cfg,hooks,commands pluginStyle
+    class manifest,skill,reviewer,mcp_cfg,commands pluginStyle
     class tools serverStyle
 ```
 
-**SKILL.md** is the behavioral layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behavior, confirm when knowledge proves correct, flag when it is wrong or stale.
+**SKILL.md** is the behavioral layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behavior, confirm when knowledge proves correct, flag when it is wrong or stale. The Skill's core protocol instructs the agent to query before acting and propose immediately when a non-obvious insight stabilizes mid-task.
 
 **MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, remote API communication, confidence scoring, and query matching.
 
-**Hooks** trigger automatically. The post-error hook instructs the agent to call `query` with the error context before attempting a fix.
-
-**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalizability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
+**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that the mid-task propose flow missed, ranks candidates by estimated generalizability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
 
 **plugin.json** is the manifest that declares all components and wires them together for one-command installation.
 
@@ -449,7 +444,7 @@ flowchart TB
 
 2. **Skill via skills.sh** — installs `SKILL.md` and MCP configuration. Works across 30+ agents that support the Agent Skills standard. The Skill adds judgment: it teaches the agent *when* and *why* to call the tools.
 
-3. **Full Plugin** — bundles the Skill, MCP server, hooks, commands, and manifest into a one-command install for Claude Code, OpenCode, and other plugin-compatible agents. This is the richest experience.
+3. **Full Plugin** — bundles the Skill, MCP server, commands, and manifest into a one-command install for Claude Code, OpenCode, and other plugin-compatible agents. This is the richest experience.
 
 The ecosystem convergence on MCP and Agent Skills means cq does not need to convince developers to adopt new protocols. It plugs into the infrastructure they already have.
 

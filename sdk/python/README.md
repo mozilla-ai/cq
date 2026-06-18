@@ -49,12 +49,13 @@ reflect_prompt = prompts.reflect()
 
 The client reads configuration from environment variables:
 
-| Variable           | Description           | Default                      |
-|--------------------|-----------------------|------------------------------|
-| `CQ_ADDR`          | Remote cq API address | None (local-only)            |
-| `CQ_API_KEY`       | API key               | None                         |
-| `CQ_LOCAL_DB_PATH` | Local SQLite path     | `~/.local/share/cq/local.db` |
+| Variable              | Description                                                       | Default                       |
+|-----------------------|-------------------------------------------------------------------|-------------------------------|
+| `CQ_ADDR`             | Remote cq API address                                             | None (local-only)             |
+| `CQ_API_KEY`          | API key for the remote API                                        | None                          |
 | `CQ_LOCAL_DATABASE_URL` | Local store connection URL (e.g. `sqlite:///abs/path/local.db`) | None (falls back to `CQ_LOCAL_DB_PATH`) |
+| `CQ_LOCAL_DB_PATH`    | Local SQLite file path                                            | `$XDG_DATA_HOME/cq/local.db` |
+| `XDG_DATA_HOME`       | Base directory for the default database path ([XDG spec](https://specifications.freedesktop.org/basedir/latest/)) | `~/.local/share` |
 
 Or pass directly:
 
@@ -65,22 +66,54 @@ cq = Client(
 )
 ```
 
-### Custom storage
+### Store protocol
 
-The local store is pluggable. By default the SDK opens a SQLite file at the path above; you can point it at a different backend or supply your own.
+The local store is pluggable. The SDK defines a `Store` runtime-checkable Protocol that the `Client` depends on; the default `SqliteStore` satisfies it, and you can supply any implementation.
 
-- **By connection string.** Set `CQ_LOCAL_DATABASE_URL` (for example `sqlite:///abs/path/local.db`); it takes precedence over `CQ_LOCAL_DB_PATH`. `cq.create_store` performs the same resolution programmatically.
-- **By injection.** Pass any `cq.Store` to the `store` argument:
+#### Selecting a store
 
-  ```python
-  from cq import Client, InMemoryStore
+The client resolves the local store in this precedence order:
 
-  client = Client(store=InMemoryStore())
-  ```
+1. **`store=` argument** — inject any `cq.Store` directly.
+2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.create_store`. Accepted schemes: `sqlite:///abs/path` or `sqlite:path`. A `postgresql://` URL raises `NotImplementedError` naming the planned `cq-sdk[postgres]` extra.
+3. **`local_db_path=` argument / `CQ_LOCAL_DB_PATH` env var** — path to a SQLite file.
+4. **XDG default** — `$XDG_DATA_HOME/cq/local.db` (typically `~/.local/share/cq/local.db`).
 
-- **Bring your own.** Implement the `cq.Store` protocol (`get`, `all`, `insert`, `update`, `delete`, `query`, `stats`, `close`) and inject it via `store=`. Reuse the shared ranker `cq.rank_candidates` from your `query`, and verify the implementation against the conformance suite in `tests/conformance.py`.
+#### Interface
 
-Selection precedence: `store=` > `CQ_LOCAL_DATABASE_URL` > `local_db_path`/`CQ_LOCAL_DB_PATH` > XDG default. A first-party PostgreSQL adapter is planned as the `cq-sdk[postgres]` extra; until then a `postgresql://` URL raises `NotImplementedError` naming the install.
+The `cq.Store` Protocol requires eight methods. Implementations must be safe for use across `asyncio.to_thread` executor threads.
+
+| Method   | Signature                                           | Semantics |
+|----------|-----------------------------------------------------|-----------|
+| `get`    | `(unit_id: str) -> KnowledgeUnit \| None`           | Retrieve by ID, or `None` if absent. |
+| `all`    | `() -> list[KnowledgeUnit]`                         | Return every unit in the store. |
+| `insert` | `(unit: KnowledgeUnit) -> None`                     | Insert a unit. Raise `DuplicateUnitError` on an existing ID; raise `ValueError` if domains are empty after normalization. |
+| `update` | `(unit: KnowledgeUnit) -> None`                     | Replace an existing unit. Raise `KeyError` when the ID is absent; raise `ValueError` if domains are empty. |
+| `delete` | `(unit_id: str) -> None`                            | Remove by ID. Raise `KeyError` when absent. |
+| `query`  | `(params: QueryParams) -> StoreQueryResult`         | Return units matching the query, ranked most-relevant first. |
+| `stats`  | `(*, recent_limit: int = 5) -> StoreStats`          | Return aggregated store statistics. |
+| `close`  | `() -> None`                                        | Release resources. Must be safe to call more than once. |
+
+#### Built-in implementations
+
+- **`SqliteStore`** — the default. Opens a SQLite file with FTS5 full-text search, WAL journaling, and domain-tag indexing.
+- **`InMemoryStore`** — map-backed, no persistence. Useful for tests and as a worked example for custom stores (domain-tag matching only, no full-text).
+
+```python
+from cq import Client, InMemoryStore
+
+client = Client(store=InMemoryStore())
+```
+
+#### Bring your own
+
+Implement the `cq.Store` protocol and inject it via `store=`. Reuse the shared ranker `cq.rank_candidates` from your `query` implementation so ranking stays consistent across backends. Verify the implementation against the conformance suite in `tests/conformance.py`:
+
+```python
+from tests.conformance import run_store_conformance
+
+run_store_conformance(lambda: MyCustomStore())
+```
 
 ## Knowledge tiers
 
