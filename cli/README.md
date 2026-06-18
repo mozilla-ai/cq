@@ -52,6 +52,13 @@ cq flag <unit_id> --reason duplicate --duplicate-of <other_id>
 cq status
 cq status --format json
 
+# Install the plugin into a coding agent.
+cq install --target claude
+cq install --target claude --target cursor
+cq install --target claude --project .
+cq install --target claude --dry-run
+cq install --target claude --uninstall
+
 # Print the agent protocol prompt (for frameworks without the cq plugin).
 cq prompt
 
@@ -67,6 +74,7 @@ The CLI works out of the box in local-only mode with no configuration.
 |--------------------|------------------------------------|--------------------------------|
 | `CQ_ADDR`          | Remote cq API address              | None (local-only)              |
 | `CQ_API_KEY`       | API key (data-plane, long-lived)   | None                           |
+| `CQ_LOCAL_DATABASE_URL` | Local store connection URL (e.g. `sqlite:///abs/path/local.db`) | None (falls back to `CQ_LOCAL_DB_PATH`) |
 | `CQ_LOCAL_DB_PATH` | Local SQLite path                  | `~/.local/share/cq/local.db`   |
 | `CQ_CONFIG_DIR`    | Credential and config directory    | `${XDG_CONFIG_HOME:-~/.config}/cq` |
 | `CQ_TIMEOUT`       | CLI operation timeout              | 30s                            |
@@ -131,7 +139,7 @@ Knowledge units live in one of three tiers:
 
 - **local** — on-disk SQLite, never leaves your machine.
 - **private** — stored on the remote at `CQ_ADDR`, visible to every client that can reach the same remote (e.g. teammates pointing at the same server).
-- **public** — open commons; not yet available.
+- **public** — open commons, available via [cq exchange](https://cq.exchange).
 
 With `CQ_ADDR` set, `cq propose` sends the unit straight to the remote as `private` (falling back to local if the remote is unreachable). With no remote, everything stays local. `cq status` shows the count in each tier.
 

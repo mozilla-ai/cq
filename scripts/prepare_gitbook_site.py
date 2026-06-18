@@ -52,6 +52,9 @@ COMPONENT_FILES: dict[str, list[tuple[str, Path]]] = {
         ("sdk/python/README.md", SITE_DIR / "sdk" / "python" / "README.md"),
         ("sdk/python/DEVELOPMENT.md", SITE_DIR / "sdk" / "python" / "DEVELOPMENT.md"),
     ],
+    "plugin": [
+        ("plugins/cq/README.md", SITE_DIR / "plugin" / "README.md"),
+    ],
     "server": [
         ("server/backend/README.md", SITE_DIR / "server" / "README.md"),
     ],
@@ -59,6 +62,7 @@ COMPONENT_FILES: dict[str, list[tuple[str, Path]]] = {
 
 COMPONENT_TAG_PREFIXES = {
     "cli": "cli/v",
+    "plugin": "plugin/",
     "sdk/go": "sdk/go/v",
     "sdk/python": "sdk/python/",
     "server": "server/v",
@@ -185,9 +189,7 @@ def expand_includes(path: Path) -> None:
             include_path = stripped[len(INCLUDE_PREFIX) : -len(INCLUDE_SUFFIX)].strip()
             source_path = (REPO_ROOT / include_path).resolve()
             if not source_path.is_relative_to(REPO_ROOT):
-                raise ValueError(
-                    f"Include `{include_path}` escapes the repository root"
-                )
+                raise ValueError(f"Include `{include_path}` escapes the repository root")
             if not source_path.is_file():
                 raise FileNotFoundError(
                     f"Missing include `{include_path}` referenced from {path.relative_to(REPO_ROOT)}"
@@ -219,9 +221,7 @@ def copy_component_files(*, from_tags: bool) -> None:
             prefix = COMPONENT_TAG_PREFIXES[component]
             tag = latest_tag(prefix)
             if tag is None:
-                raise SystemExit(
-                    f"Error: no release tag found for {component} ({prefix}*)"
-                )
+                raise SystemExit(f"Error: no release tag found for {component} ({prefix}*)")
             print(f"  {component}: {tag}")
             for repo_rel, dest in entries:
                 content = git_show(tag, repo_rel)
@@ -234,6 +234,7 @@ def copy_component_files(*, from_tags: bool) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--from-tags",

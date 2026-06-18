@@ -11,6 +11,7 @@
 
 * [CLI](cli/README.md)
   * [CLI Development](cli/DEVELOPMENT.md)
+* [Plugin](plugin/README.md)
 * [Go SDK](sdk/go/README.md)
   * [Go SDK Development](sdk/go/DEVELOPMENT.md)
 * [Python SDK](sdk/python/README.md)
