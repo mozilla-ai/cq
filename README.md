@@ -80,31 +80,7 @@ Clone the repo and add it to your VS Code `settings.json`:
 }
 ```
 
-**Option 3 — From marketplace (PR pending):**  
-Once accepted into the [official marketplace](https://github.com/github/copilot-plugins), install from the Extensions view — search `@agentPlugins` and install `cq`.
 
-> To submit the plugin for marketplace inclusion, send a PR to `github/copilot-plugins` adding this entry to `.github/plugin/marketplace.json`:
->
-> ```json
-> {
->   "name": "cq",
->   "source": {
->     "source": "github",
->     "repo": "mozilla-ai/cq",
->     "path": "plugins/copilot"
->   },
->   "description": "Shared knowledge commons for AI agents; find, share, and confirm collective knowledge to stop rediscovering the same failures.",
->   "version": "0.11.0",
->   "author": {
->     "name": "Mozilla AI",
->     "url": "https://github.com/mozilla-ai/"
->   },
->   "homepage": "https://github.com/mozilla-ai/cq",
->   "repository": "https://github.com/mozilla-ai/cq",
->   "keywords": ["knowledge-sharing", "agent-learning", "mcp", "pitfall-avoidance"],
->   "license": "Apache-2.0"
-> }
-> ```
 
 For Windows, project-specific installs, and uninstall instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
