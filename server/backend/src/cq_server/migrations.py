@@ -107,7 +107,7 @@ def run_migrations(database_url: str | None = None) -> None:
     # latter routes through ConfigParser's interpolation engine, which
     # raises ``ValueError: invalid interpolation syntax`` eagerly on any
     # literal ``%`` in the URL — a foot-gun once URL-encoded passwords
-    # land with Postgres in #311/#312, and already triggerable today by
+    # land with Postgres in #312, and already triggerable today by
     # a SQLite filename containing ``%``. ``env.py`` picks up the
     # connection before it tries to build its own engine.
     engine = create_engine(url)

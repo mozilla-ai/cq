@@ -38,8 +38,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # Single URL feeds both the database wrapper and the migration runner,
     # so they can't diverge on which database they target. Build the
     # ``Database`` first so a Postgres URL surfaces ``NotImplementedError``
-    # (#311/#312 guidance) instead of failing inside Alembic with a raw
-    # psycopg ``ModuleNotFoundError``.
+    # (#312) instead of failing inside Alembic with a cryptic driver error.
     database = Database(settings)
     # Close the database if migrations fail — otherwise its engine and
     # SQLite file handle leak across in-process lifespan re-entries

@@ -478,7 +478,6 @@ class TestDatabaseUrlBoot:
         with pytest.raises(NotImplementedError) as exc, TestClient(app):
             pass
         message = str(exc.value)
-        assert "#311" in message
         assert "#312" in message
 
 

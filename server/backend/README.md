@@ -32,15 +32,14 @@ three cases:
 
 ### Database URL
 
-Resolution lives in `cq_server.db_url.resolve_database_url` and is the
-single source of truth for `alembic/env.py`, the migration runner, and
-the runtime store factory (`cq_server.store.create_store`). Precedence:
+Resolution lives in `cq_server.core.config.Settings.resolved_database_url`
+and is the single source of truth for `alembic/env.py`, the migration
+runner, and the ``Database`` engine wrapper. Precedence:
 
 1. `CQ_DATABASE_URL` — used verbatim. SQLite URLs (`sqlite:///<path>`)
    work today; `postgresql+psycopg://...` is reserved for the Postgres
-   backend and currently rejected at startup with a
-   `NotImplementedError` pointing at the Phase 2 child issues
-   ([#311][issue-311] / [#312][issue-312]).
+   backend and currently raises `NotImplementedError` at startup
+   pointing at the Phase 2 implementation issue ([#312][issue-312]).
 2. `CQ_DB_PATH` — wrapped as `sqlite:///<path>`. The SQLite shortcut
    for single-instance deployments; supported alongside
    `CQ_DATABASE_URL`.
@@ -71,5 +70,4 @@ CQ_DB_PATH=./dev.db uv run alembic upgrade head
 The full environment-variable table for self-hosters lives in
 [DEVELOPMENT.md](../../DEVELOPMENT.md#self-hosted-server).
 
-[issue-311]: https://github.com/mozilla-ai/cq/issues/311
 [issue-312]: https://github.com/mozilla-ai/cq/issues/312
