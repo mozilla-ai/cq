@@ -126,6 +126,27 @@ func printChanges(cmd *cobra.Command, host install.Target, changes []install.Cha
 	}
 }
 
+// cliVerbs returns the cq CLI verb descriptions derived from the actual cobra
+// command definitions, for hosts that embed CLI invocation instructions.
+func cliVerbs() []install.CLIVerb {
+	cmds := []*cobra.Command{
+		NewQueryCmd(),
+		NewProposeCmd(),
+		NewConfirmCmd(),
+		NewFlagCmd(),
+		NewStatusCmd(),
+	}
+	verbs := make([]install.CLIVerb, len(cmds))
+	for i, c := range cmds {
+		verbs[i] = install.CLIVerb{
+			Name:       c.Name(),
+			UseLine:    c.Use,
+			FlagUsages: c.Flags().FlagUsages(),
+		}
+	}
+	return verbs
+}
+
 // runInstallCmd resolves the selected hosts and applies the requested action.
 func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 	hosts := install.SelectHosts(f.targets.names())
@@ -151,6 +172,7 @@ func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 			SkillsDir:  install.SharedSkillsDir(home),
 			BinaryPath: binary,
 			DryRun:     f.dryRun,
+			CLIVerbs:   cliVerbs(),
 		}
 		var changes []install.Change
 		if f.uninstall {

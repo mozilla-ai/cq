@@ -37,6 +37,14 @@ func opencodeTarget(home string) string {
 	return filepath.Join(home, ".config", "opencode")
 }
 
+// piTarget returns the Pi global configuration directory under home.
+//
+// NOTE: Pi's global path has an extra "agent" segment (~/.pi/agent) that the
+// per-project path (.pi/) does not.
+func piTarget(home string) string {
+	return filepath.Join(home, ".pi", "agent")
+}
+
 // windsurfTarget returns the Windsurf configuration directory under home.
 func windsurfTarget(home string) string {
 	return filepath.Join(home, ".codeium", "windsurf")

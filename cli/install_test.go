@@ -49,6 +49,39 @@ func TestInstallCursorEndToEnd(t *testing.T) {
 	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
 }
 
+func TestInstallPiEndToEnd(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	out, err := runInstall(t, "--target", "pi")
+	require.NoError(t, err)
+	require.Contains(t, out, "[pi]")
+
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+	require.FileExists(t, filepath.Join(home, ".pi", "agent", "prompts", "cq-reflect.md"))
+	require.FileExists(t, filepath.Join(home, ".pi", "agent", "prompts", "cq-status.md"))
+	require.FileExists(t, filepath.Join(home, ".pi", "agent", "AGENTS.md"))
+
+	// AGENTS.md embeds the binary path in CLI mappings.
+	agents, err := os.ReadFile(filepath.Join(home, ".pi", "agent", "AGENTS.md"))
+	require.NoError(t, err)
+	require.Contains(t, string(agents), bin)
+	require.Contains(t, string(agents), bin+" query")
+
+	// Re-run is idempotent.
+	_, err = runInstall(t, "--target", "pi")
+	require.NoError(t, err)
+
+	// Uninstall reverses prompts and AGENTS.md but keeps shared skill.
+	_, err = runInstall(t, "--target", "pi", "--uninstall")
+	require.NoError(t, err)
+	require.NoDirExists(t, filepath.Join(home, ".pi", "agent", "prompts"))
+	require.NoFileExists(t, filepath.Join(home, ".pi", "agent", "AGENTS.md"))
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+}
+
 func TestInstallOpencodeEndToEnd(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
