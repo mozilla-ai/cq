@@ -1,8 +1,8 @@
 name: Documentation
 
 on:
-  push:
-    tags: ["docs/v*"]
+  release:
+    types: [published]
   pull_request:
     paths:
       - "docs/**"
@@ -13,6 +13,10 @@ on:
       - ".gitbook-branch-readme.md"
       - ".github/workflows/docs.yaml"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Prefixed tag to publish (e.g. docs/v0.1.0)"
+        required: true
 
 concurrency:
   group: docs-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
@@ -41,14 +45,36 @@ jobs:
         run: python scripts/prepare_gitbook_site.py
 
   publish:
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'docs/v'))
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
+      - name: Validate tag
+        id: tag
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+        run: |
+          if [[ -z "$TAG" ]]; then
+            echo "::error::No tag provided"
+            exit 1
+          fi
+
+          if [[ ! "$TAG" =~ ^docs/v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not match expected pattern docs/vX.Y.Z"
+            exit 1
+          fi
+
+          VERSION="${TAG#docs/}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Check out the repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ steps.tag.outputs.tag }}
           fetch-depth: 0
 
       - uses: actions/setup-python@v6
@@ -61,7 +87,7 @@ jobs:
       - name: Build GitBook site
         run: python scripts/prepare_gitbook_site.py --from-tags --ref "$DOCS_REF"
         env:
-          DOCS_REF: ${{ github.ref_name }}
+          DOCS_REF: ${{ steps.tag.outputs.tag }}
 
       - name: Deploy to gitbook-docs branch
         run: |
