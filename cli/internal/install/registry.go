@@ -13,6 +13,9 @@ const (
 	// TargetOpenCode is the OpenCode editor.
 	TargetOpenCode Target = "opencode"
 
+	// TargetPi is the Pi coding agent.
+	TargetPi Target = "pi"
+
 	// TargetWindsurf is the Windsurf editor.
 	TargetWindsurf Target = "windsurf"
 )
@@ -24,6 +27,7 @@ const (
 var hosts = map[Target]Host{
 	TargetCursor:   cursorHost{},
 	TargetOpenCode: opencodeHost{},
+	TargetPi:       piHost{},
 	TargetWindsurf: windsurfHost{},
 }
 

@@ -32,6 +32,20 @@ type Change struct {
 	Detail string
 }
 
+// CLIVerb describes one cq CLI verb for hosts that embed CLI invocation
+// instructions instead of MCP config.
+type CLIVerb struct {
+	// Name is the verb (e.g. "query", "propose").
+	Name string
+
+	// UseLine is the cobra Use string (e.g. "query", "confirm <unit_id>").
+	UseLine string
+
+	// FlagUsages is the rendered flag table from cobra (may be empty for
+	// commands with no flags, like confirm).
+	FlagUsages string
+}
+
 // Context carries the resolved per-host paths for one install or uninstall.
 type Context struct {
 	// Target is the host's configuration directory.
@@ -45,6 +59,14 @@ type Context struct {
 
 	// DryRun reports the planned changes without writing.
 	DryRun bool
+
+	// CLIVerbs lists the cq CLI verbs and their argument templates.
+	//
+	// Populated by the install command from the cobra command definitions;
+	// consumed by hosts that embed CLI instructions (e.g. Pi) instead of MCP
+	// config.
+	// Nil for MCP-capable hosts.
+	CLIVerbs []CLIVerb
 }
 
 // Host installs and removes cq for one agent host.

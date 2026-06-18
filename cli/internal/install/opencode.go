@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	// opencodeConfigFile is the main configuration file OpenCode reads.
-	opencodeConfigFile = "opencode.json"
-
 	// opencodeAgentsFile is the always-loaded instruction file for OpenCode.
 	opencodeAgentsFile = "AGENTS.md"
 
 	// opencodeCommandsDir holds command files within the OpenCode target.
 	opencodeCommandsDir = "commands"
+
+	// opencodeConfigFile is the main configuration file OpenCode reads.
+	opencodeConfigFile = "opencode.json"
 
 	// opencodeSchemaURL is seeded into a fresh opencode.json for editor
 	// autocomplete and validation.
@@ -130,6 +130,21 @@ func (opencodeHost) Uninstall(ctx Context) ([]Change, error) {
 	return changes, nil
 }
 
+// opencodeInstallCommands transforms and writes the command files into the
+// target's commands directory, tracked by a manifest for idempotent updates
+// and safe uninstall.
+func opencodeInstallCommands(ctx Context) (Change, error) {
+	files := make(map[string]string, len(opencodeCommands))
+	for _, cmd := range opencodeCommands {
+		files[cmd.file] = transformCommand(cmd.body())
+	}
+	return writeManagedFiles(
+		filepath.Join(ctx.Target, opencodeCommandsDir),
+		files,
+		ctx.DryRun,
+	)
+}
+
 // opencodeInstallMCP writes the MCP server entry, seeding $schema on fresh
 // file creation only so editor autocomplete works from the first install.
 func opencodeInstallMCP(ctx Context) (Change, error) {
@@ -164,19 +179,4 @@ func seedOpenCodeSchema(configPath string, dryRun bool) error {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 	return writeJSONObject(configPath, map[string]any{"$schema": opencodeSchemaURL})
-}
-
-// opencodeInstallCommands transforms and writes the command files into the
-// target's commands directory, tracked by a manifest for idempotent updates
-// and safe uninstall.
-func opencodeInstallCommands(ctx Context) (Change, error) {
-	files := make(map[string]string, len(opencodeCommands))
-	for _, cmd := range opencodeCommands {
-		files[cmd.file] = transformCommand(cmd.body())
-	}
-	return writeManagedFiles(
-		filepath.Join(ctx.Target, opencodeCommandsDir),
-		files,
-		ctx.DryRun,
-	)
 }
