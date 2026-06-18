@@ -242,14 +242,22 @@ def copy_component_files(*, from_tags: bool) -> None:
             version = tag[len(prefix) :]
             print(f"  {component}: {tag}")
             for repo_rel, dest in entries:
-                content = git_show(tag, repo_rel)
+                try:
+                    content = git_show(tag, repo_rel)
+                except subprocess.CalledProcessError:
+                    print(f"    warning: {repo_rel} not found at {tag}, skipping")
+                    continue
                 content = _inject_version_badge(content, version)
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_text(content, encoding="utf-8")
         else:
             for repo_rel, dest in entries:
+                src = REPO_ROOT / repo_rel
+                if not src.exists():
+                    print(f"    warning: {repo_rel} not found in working tree, skipping")
+                    continue
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(REPO_ROOT / repo_rel, dest)
+                shutil.copy2(src, dest)
 
 
 def parse_args() -> argparse.Namespace:
