@@ -214,6 +214,19 @@ def substitute_placeholders(path: Path, repo_tree_url: str) -> None:
         path.write_text(text.replace(REPO_TREE_URL_MARKER, repo_tree_url), encoding="utf-8")
 
 
+def _inject_version_badge(content: str, version: str) -> str:
+    """Insert a version indicator after the first top-level heading."""
+    lines = content.split("\n")
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            lines[j:j] = [f"*Version: {version}*", ""]
+            break
+    return "\n".join(lines)
+
+
 def copy_component_files(*, from_tags: bool) -> None:
     """Copy component documentation to the site directory.
 
@@ -226,9 +239,11 @@ def copy_component_files(*, from_tags: bool) -> None:
             tag = latest_tag(prefix)
             if tag is None:
                 raise SystemExit(f"Error: no release tag found for {component} ({prefix}*)")
+            version = tag[len(prefix) :]
             print(f"  {component}: {tag}")
             for repo_rel, dest in entries:
                 content = git_show(tag, repo_rel)
+                content = _inject_version_badge(content, version)
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_text(content, encoding="utf-8")
         else:
