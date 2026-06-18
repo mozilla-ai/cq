@@ -10,6 +10,9 @@ const (
 	// TargetClaude is Claude Code via the plugin marketplace.
 	TargetClaude Target = "claude"
 
+	// TargetCopilot is GitHub Copilot in VSCode.
+	TargetCopilot Target = "copilot"
+
 	// TargetCursor is the Cursor editor.
 	TargetCursor Target = "cursor"
 
@@ -29,6 +32,7 @@ const (
 // an entry extends ValidTarget, AllowedTargets, and SelectHosts.
 var hosts = map[Target]Host{
 	TargetClaude:   claudeHost{},
+	TargetCopilot:  copilotHost{},
 	TargetCursor:   cursorHost{},
 	TargetOpenCode: opencodeHost{},
 	TargetPi:       piHost{},
