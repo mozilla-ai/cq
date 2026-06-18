@@ -48,25 +48,27 @@ type CLIVerb struct {
 
 // Context carries the resolved per-host paths for one install or uninstall.
 type Context struct {
-	// Target is the host's configuration directory.
-	Target string
-
-	// SkillsDir is the shared skills commons the skill is written into.
-	SkillsDir string
-
 	// BinaryPath is the absolute cq binary path written into host config.
 	BinaryPath string
-
-	// DryRun reports the planned changes without writing.
-	DryRun bool
 
 	// CLIVerbs lists the cq CLI verbs and their argument templates.
 	//
 	// Populated by the install command from the cobra command definitions;
 	// consumed by hosts that embed CLI instructions (e.g. Pi) instead of MCP
 	// config.
-	// Nil for MCP-capable hosts.
 	CLIVerbs []CLIVerb
+
+	// DryRun reports the planned changes without writing.
+	DryRun bool
+
+	// Home is the user's home directory.
+	Home string
+
+	// SkillsDir is the shared skills commons the skill is written into.
+	SkillsDir string
+
+	// Target is the host's configuration directory.
+	Target string
 }
 
 // Host installs and removes cq for one agent host.

@@ -3,6 +3,7 @@ package install
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // opencodeConfigDirEnv overrides the default OpenCode config directory.
@@ -17,6 +18,27 @@ const opencodeConfigDirEnv = "OPENCODE_CONFIG_DIR"
 // written once per scope rather than copied per host.
 func SharedSkillsDir(root string) string {
 	return filepath.Join(root, ".agents", "skills")
+}
+
+// copilotTarget returns the VSCode user configuration directory.
+//
+// VSCode stores user-level config under a platform-specific directory:
+//   - macOS:   ~/Library/Application Support/Code/User
+//   - Linux:   ~/.config/Code/User
+//   - Windows: ~/AppData/Roaming/Code/User
+//
+// NOTE: targets the default VSCode profile only.
+// Custom profiles store config in a profiles/<id>/ subdirectory; VSCode
+// Insiders uses "Code - Insiders" instead of "Code".
+func copilotTarget(home string) string {
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "Code", "User")
+	case "windows":
+		return filepath.Join(home, "AppData", "Roaming", "Code", "User")
+	default:
+		return filepath.Join(home, ".config", "Code", "User")
+	}
 }
 
 // cursorTarget returns the Cursor configuration directory under home.

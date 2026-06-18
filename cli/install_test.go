@@ -21,15 +21,47 @@ func runInstall(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
+// setTestHome sets both HOME (Unix) and USERPROFILE (Windows) so
+// os.UserHomeDir() resolves to the temp dir on all platforms.
+func setTestHome(t *testing.T, home string) {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+}
+
 func TestInstallRequiresAHost(t *testing.T) {
 	_, err := runInstall(t)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "select at least one --target")
 }
 
+func TestInstallCopilotEndToEnd(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	out, err := runInstall(t, "--target", "copilot")
+	require.NoError(t, err)
+	require.Contains(t, out, "[copilot]")
+
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+	require.FileExists(t, filepath.Join(home, ".copilot", "instructions", "cq.md"))
+
+	// Re-run is idempotent.
+	_, err = runInstall(t, "--target", "copilot")
+	require.NoError(t, err)
+
+	// Uninstall reverses instruction but keeps shared skill.
+	_, err = runInstall(t, "--target", "copilot", "--uninstall")
+	require.NoError(t, err)
+	require.NoFileExists(t, filepath.Join(home, ".copilot", "instructions", "cq.md"))
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+}
+
 func TestInstallClaudeDryRun(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
 
@@ -41,7 +73,7 @@ func TestInstallClaudeDryRun(t *testing.T) {
 
 func TestInstallCursorEndToEnd(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
 
@@ -63,7 +95,7 @@ func TestInstallCursorEndToEnd(t *testing.T) {
 
 func TestInstallPiEndToEnd(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
 
@@ -96,7 +128,7 @@ func TestInstallPiEndToEnd(t *testing.T) {
 
 func TestInstallOpencodeEndToEnd(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	t.Setenv("OPENCODE_CONFIG_DIR", "")
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
@@ -142,7 +174,7 @@ func TestInstallOpencodeEndToEnd(t *testing.T) {
 
 func TestInstallWindsurfEndToEnd(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
 

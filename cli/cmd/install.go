@@ -168,6 +168,7 @@ func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 			return fmt.Errorf("host %s does not support project installs", h.Name())
 		}
 		ctx := install.Context{
+			Home:       home,
 			Target:     h.GlobalTarget(home),
 			SkillsDir:  install.SharedSkillsDir(home),
 			BinaryPath: binary,
