@@ -239,7 +239,7 @@ def copy_component_files(*, from_tags: bool) -> None:
             tag = latest_tag(prefix)
             if tag is None:
                 raise SystemExit(f"Error: no release tag found for {component} ({prefix}*)")
-            version = tag[len(prefix) :]
+            version = tag[len(component) + 1 :]
             print(f"  {component}: {tag}")
             for repo_rel, dest in entries:
                 try:
