@@ -62,8 +62,9 @@ class Database:
             raise ValueError("Invalid CQ_DATABASE_URL (could not parse as a database URL)") from exc
         driver = parsed.drivername
         if driver.startswith("sqlite"):
-            sqlite_path = Path(url.removeprefix("sqlite:///"))
-            sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+            database = parsed.database
+            if database and database != ":memory:":
+                Path(database).parent.mkdir(parents=True, exist_ok=True)
             self._engine: Engine = create_engine(
                 url,
                 connect_args={"check_same_thread": False},
