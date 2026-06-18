@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// TargetClaude is Claude Code via the plugin marketplace.
+	TargetClaude Target = "claude"
+
 	// TargetCursor is the Cursor editor.
 	TargetCursor Target = "cursor"
 
@@ -25,6 +28,7 @@ const (
 // It is the single source of truth for the targets cq install accepts; adding
 // an entry extends ValidTarget, AllowedTargets, and SelectHosts.
 var hosts = map[Target]Host{
+	TargetClaude:   claudeHost{},
 	TargetCursor:   cursorHost{},
 	TargetOpenCode: opencodeHost{},
 	TargetPi:       piHost{},
