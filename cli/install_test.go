@@ -35,6 +35,40 @@ func TestInstallRequiresAHost(t *testing.T) {
 	require.Contains(t, err.Error(), "select at least one --target")
 }
 
+func TestInstallCodexEndToEnd(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	out, err := runInstall(t, "--target", "codex")
+	require.NoError(t, err)
+	require.Contains(t, out, "[codex]")
+
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+	require.FileExists(t, filepath.Join(home, ".codex", "config.toml"))
+	require.FileExists(t, filepath.Join(home, ".codex", "AGENTS.md"))
+
+	// Config contains the MCP server entry.
+	config, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	require.NoError(t, err)
+	require.Contains(t, string(config), "[mcp_servers.cq]")
+	require.Contains(t, string(config), bin)
+
+	// Re-run is idempotent.
+	_, err = runInstall(t, "--target", "codex")
+	require.NoError(t, err)
+
+	// Uninstall reverses MCP and AGENTS.md but keeps shared skill.
+	_, err = runInstall(t, "--target", "codex", "--uninstall")
+	require.NoError(t, err)
+	configAfter, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	require.NoError(t, err)
+	require.NotContains(t, string(configAfter), "mcp_servers")
+	require.NoFileExists(t, filepath.Join(home, ".codex", "AGENTS.md"))
+	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
+}
+
 func TestInstallCopilotEndToEnd(t *testing.T) {
 	home := t.TempDir()
 	setTestHome(t, home)

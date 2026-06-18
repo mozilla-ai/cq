@@ -10,6 +10,9 @@ const (
 	// TargetClaude is Claude Code via the plugin marketplace.
 	TargetClaude Target = "claude"
 
+	// TargetCodex is the OpenAI Codex CLI.
+	TargetCodex Target = "codex"
+
 	// TargetCopilot is GitHub Copilot in VSCode.
 	TargetCopilot Target = "copilot"
 
@@ -32,6 +35,7 @@ const (
 // an entry extends ValidTarget, AllowedTargets, and SelectHosts.
 var hosts = map[Target]Host{
 	TargetClaude:   claudeHost{},
+	TargetCodex:    codexHost{},
 	TargetCopilot:  copilotHost{},
 	TargetCursor:   cursorHost{},
 	TargetOpenCode: opencodeHost{},

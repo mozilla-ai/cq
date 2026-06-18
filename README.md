@@ -44,12 +44,15 @@ cd cq
 
 Run `make setup-plugin` before running the relevant `Makefile` target:
 
-| Agent    | Install                 |
-|----------|-------------------------|
-| OpenCode | `make install-opencode` |
-| Cursor   | `make install-cursor`   |
-| Windsurf | `make install-windsurf` |
-| Pi       | `make install-pi`       |
+| Agent    | Install                           |
+|----------|-----------------------------------|
+| Claude   | `make install-claude`             |
+| Codex    | `cq install --target codex`      |
+| Copilot  | `cq install --target copilot`    |
+| Cursor   | `make install-cursor`             |
+| OpenCode | `make install-opencode`           |
+| Pi       | `make install-pi`                 |
+| Windsurf | `make install-windsurf`           |
 
 For Windows, project-specific installs, and uninstall instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
 

@@ -20,6 +20,11 @@ func SharedSkillsDir(root string) string {
 	return filepath.Join(root, ".agents", "skills")
 }
 
+// codexTarget returns the Codex configuration directory under home.
+func codexTarget(home string) string {
+	return filepath.Join(home, ".codex")
+}
+
 // copilotTarget returns the VSCode user configuration directory.
 //
 // VSCode stores user-level config under a platform-specific directory:

@@ -3,6 +3,7 @@ module github.com/mozilla-ai/cq/cli
 go 1.26.1
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/mark3labs/mcp-go v0.46.0
 	github.com/mozilla-ai/cq/sdk/go v0.11.0
 	github.com/spf13/cobra v1.10.2

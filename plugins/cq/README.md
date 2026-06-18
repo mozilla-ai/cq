@@ -12,7 +12,7 @@ Requires: the [cq CLI](../cli/README.md).
 cq install --target claude
 ```
 
-Supported targets: `claude`, `cursor`, `opencode`, `pi`, `windsurf`. Install into multiple agents at once by repeating `--target`:
+Supported targets: `claude`, `codex`, `copilot`, `cursor`, `opencode`, `pi`, `windsurf`. Install into multiple agents at once by repeating `--target`:
 
 ```bash
 cq install --target claude --target cursor

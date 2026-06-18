@@ -116,6 +116,38 @@ make uninstall-pi PROJECT=/path/to/your/project
 
 To verify, run `/cq-status` in a Pi session (note: `/cq-status`, not `/cq:status`, and there is no MCP approval prompt — cq runs as a CLI). The agent runs `cq status --format json` and renders the summary.
 
+### Copilot (VSCode)
+
+Copilot is installed via the Go CLI binary (not the Python Make targets):
+
+```bash
+cq install --target copilot
+```
+
+This writes the shared skill, the MCP server entry to VSCode's user-level `mcp.json`, and a global instruction file to `~/.copilot/instructions/cq.md`.
+
+To uninstall:
+
+```bash
+cq install --target copilot --uninstall
+```
+
+### Codex (OpenAI)
+
+Codex is installed via the Go CLI binary (not the Python Make targets):
+
+```bash
+cq install --target codex
+```
+
+This writes the shared skill, the `[mcp_servers.cq]` entry to `~/.codex/config.toml`, and a cq block in `~/.codex/AGENTS.md`.
+
+To uninstall:
+
+```bash
+cq install --target codex --uninstall
+```
+
 ### Go SDK
 
 ```bash
