@@ -54,6 +54,7 @@ The client reads configuration from environment variables:
 | `CQ_ADDR`          | Remote cq API address | None (local-only)            |
 | `CQ_API_KEY`       | API key               | None                         |
 | `CQ_LOCAL_DB_PATH` | Local SQLite path     | `~/.local/share/cq/local.db` |
+| `CQ_LOCAL_DATABASE_URL` | Local store connection URL (e.g. `sqlite:///abs/path/local.db`) | None (falls back to `CQ_LOCAL_DB_PATH`) |
 
 Or pass directly:
 
@@ -63,6 +64,23 @@ cq = Client(
     local_db_path=Path("~/.local/share/cq/local.db").expanduser(),
 )
 ```
+
+### Custom storage
+
+The local store is pluggable. By default the SDK opens a SQLite file at the path above; you can point it at a different backend or supply your own.
+
+- **By connection string.** Set `CQ_LOCAL_DATABASE_URL` (for example `sqlite:///abs/path/local.db`); it takes precedence over `CQ_LOCAL_DB_PATH`. `cq.create_store` performs the same resolution programmatically.
+- **By injection.** Pass any `cq.Store` to the `store` argument:
+
+  ```python
+  from cq import Client, InMemoryStore
+
+  client = Client(store=InMemoryStore())
+  ```
+
+- **Bring your own.** Implement the `cq.Store` protocol (`get`, `all`, `insert`, `update`, `delete`, `query`, `stats`, `close`) and inject it via `store=`. Reuse the shared ranker `cq.rank_candidates` from your `query`, and verify the implementation against the conformance suite in `tests/conformance.py`.
+
+Selection precedence: `store=` > `CQ_LOCAL_DATABASE_URL` > `local_db_path`/`CQ_LOCAL_DB_PATH` > XDG default. A first-party PostgreSQL adapter is planned as the `cq-sdk[postgres]` extra; until then a `postgresql://` URL raises `NotImplementedError` naming the install.
 
 ## Knowledge tiers
 
