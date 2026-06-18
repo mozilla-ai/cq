@@ -55,6 +55,9 @@ COMPONENT_FILES: dict[str, list[tuple[str, Path]]] = {
     "plugin": [
         ("plugins/cq/README.md", SITE_DIR / "plugin" / "README.md"),
     ],
+    "schema": [
+        ("schema/README.md", SITE_DIR / "schema" / "README.md"),
+    ],
     "server": [
         ("server/backend/README.md", SITE_DIR / "server" / "README.md"),
     ],
@@ -63,6 +66,7 @@ COMPONENT_FILES: dict[str, list[tuple[str, Path]]] = {
 COMPONENT_TAG_PREFIXES = {
     "cli": "cli/v",
     "plugin": "plugin/",
+    "schema": "schema/v",
     "sdk/go": "sdk/go/v",
     "sdk/python": "sdk/python/",
     "server": "server/v",

@@ -226,7 +226,7 @@ flowchart LR
 
 ## 3c. Knowledge Unit Schema
 
-Every piece of shared knowledge flows through a common structured format — `knowledge-unit.schema.json` — that ensures interoperability regardless of which agent produced or consumed the knowledge.
+Every piece of shared knowledge flows through a common structured format — [`knowledge_unit.json`](../schema/README.md) — that ensures interoperability regardless of which agent produced or consumed the knowledge. See the [Schema Reference](../schema/README.md) for the canonical JSON Schema definitions of every wire type.
 
 ```json
 {

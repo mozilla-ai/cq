@@ -20,6 +20,7 @@
 
 ## Reference
 
+* [Schema](schema/README.md)
 * [Proposal](CQ-Proposal.md)
 
 ## Community
