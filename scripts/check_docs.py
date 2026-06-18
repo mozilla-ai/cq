@@ -32,6 +32,7 @@ PUBLISHED_ROOT_FILES: tuple[Path, ...] = (
     REPO_ROOT / "sdk" / "go" / "DEVELOPMENT.md",
     REPO_ROOT / "sdk" / "python" / "README.md",
     REPO_ROOT / "sdk" / "python" / "DEVELOPMENT.md",
+    REPO_ROOT / "schema" / "README.md",
     REPO_ROOT / "server" / "backend" / "README.md",
 )
 
@@ -54,8 +55,7 @@ def all_published_sources() -> set[Path]:
     sources.update(
         p.resolve()
         for p in DOCS_DIR.rglob("*")
-        if p.is_file()
-        and not any(part in DOCS_IGNORE_DIRS for part in p.relative_to(DOCS_DIR).parts)
+        if p.is_file() and not any(part in DOCS_IGNORE_DIRS for part in p.relative_to(DOCS_DIR).parts)
     )
     return sources
 
@@ -165,10 +165,7 @@ def main() -> int:
 
     validate_summary(errors)
 
-    sources_to_check = [
-        p for p in sorted(published)
-        if p.suffix == ".md" and p not in SKIP_LINK_CHECK
-    ]
+    sources_to_check = [p for p in sorted(published) if p.suffix == ".md" and p not in SKIP_LINK_CHECK]
 
     for source_path in sources_to_check:
         text = strip_code_blocks(source_path.read_text(encoding="utf-8"))
@@ -184,14 +181,11 @@ def main() -> int:
             else:
                 target_file = resolve_target(source_path, target_path)
                 if not target_file.exists():
-                    errors.append(
-                        f"{source_path.relative_to(REPO_ROOT)} -> missing target `{target_path}`"
-                    )
+                    errors.append(f"{source_path.relative_to(REPO_ROOT)} -> missing target `{target_path}`")
                     continue
                 if target_file.resolve() not in published:
-                    errors.append(
-                        f"{source_path.relative_to(REPO_ROOT)} -> `{target_path}` exists but is not published to the site"
-                    )
+                    rel = source_path.relative_to(REPO_ROOT)
+                    errors.append(f"{rel} -> `{target_path}` exists but is not published to the site")
                     continue
 
             if anchor and target_file.suffix == ".md":
