@@ -217,8 +217,12 @@ def substitute_placeholders(path: Path, repo_tree_url: str) -> None:
 def _inject_version_badge(content: str, version: str) -> str:
     """Insert a version indicator after the first top-level heading."""
     lines = content.split("\n")
+    in_fence = False
     for i, line in enumerate(lines):
-        if line.startswith("# "):
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and line.startswith("# "):
             j = i + 1
             while j < len(lines) and not lines[j].strip():
                 j += 1
@@ -244,9 +248,12 @@ def copy_component_files(*, from_tags: bool) -> None:
             for repo_rel, dest in entries:
                 try:
                     content = git_show(tag, repo_rel)
-                except subprocess.CalledProcessError:
-                    print(f"    warning: {repo_rel} not found at {tag}, skipping")
-                    continue
+                except subprocess.CalledProcessError as exc:
+                    stderr = exc.stderr or ""
+                    if "does not exist" in stderr or "exists on disk, but not in" in stderr:
+                        print(f"    warning: {repo_rel} not found at {tag}, skipping")
+                        continue
+                    raise
                 content = _inject_version_badge(content, version)
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_text(content, encoding="utf-8")

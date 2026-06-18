@@ -59,6 +59,9 @@ unfixable = [
     "D",
     "N999",
 ]
+"**/test_*.py" = [
+    "D",
+]
 
 [lint.pydocstyle]
 convention = "google"

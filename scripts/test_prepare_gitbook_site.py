@@ -36,3 +36,9 @@ class TestInjectVersionBadge:
         content = "## Subtitle\n\nBody"
         result = _inject_version_badge(content, "1.0.0")
         assert result == content
+
+    def test_heading_inside_code_fence_is_skipped(self) -> None:
+        content = "```\n# Not a heading\n```\n\n# Real heading\n\nBody"
+        result = _inject_version_badge(content, "1.0.0")
+        assert "*Version: 1.0.0*" in result
+        assert result.index("*Version: 1.0.0*") > result.index("# Real heading")
