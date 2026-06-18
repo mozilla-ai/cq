@@ -27,6 +27,18 @@ func TestInstallRequiresAHost(t *testing.T) {
 	require.Contains(t, err.Error(), "select at least one --target")
 }
 
+func TestInstallClaudeDryRun(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	out, err := runInstall(t, "--target", "claude", "--dry-run")
+	require.NoError(t, err)
+	require.Contains(t, out, "[claude]")
+	require.Contains(t, out, "claude marketplace")
+}
+
 func TestInstallCursorEndToEnd(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

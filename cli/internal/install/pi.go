@@ -90,6 +90,7 @@ func (piHost) Uninstall(ctx Context) ([]Change, error) {
 		return nil, err
 	}
 	if promptChanges.Action == ActionRemoved && !ctx.DryRun {
+		// Best-effort: remove the now-empty prompts directory.
 		_ = os.Remove(promptsPath)
 	}
 	changes := []Change{promptChanges}
