@@ -450,7 +450,11 @@ The ecosystem convergence on MCP and Agent Skills means cq does not need to conv
 
 ### Multi-host installer
 
-Non-Claude-Code hosts (Cursor, Windsurf, OpenCode) are installed via a host-agnostic Python installer at `scripts/install/`. It is a stdlib-only uv-managed project whose CLI (`python -m cq_install install --target <host>`) resolves a per-host target directory, writes the host-specific MCP config, and installs the shared skill commons to `~/.agents/skills/cq/` (or a project-scoped equivalent). Adding a new host is a single file under `scripts/install/src/cq_install/hosts/`: the primitive library in `common.py` (merge-not-replace JSON, hook entry, manifest-tracked file copies, markdown blocks) handles the shared mechanics. Claude Code remains on its own native marketplace via a thin wrapper host that shells out to `claude plugin marketplace`.
+All hosts are installed via the Go CLI binary (`cq install --target <host>`).
+Each host adapter lives in `cli/internal/install/` and implements the `Host` interface: `Install`, `Uninstall`, `GlobalTarget`, `Name`, `SupportsProject`.
+The shared primitives (idempotent JSON/TOML/markdown-block upsert/remove, manifest-tracked file writes, shell quoting) are in the same package.
+Adding a new host is a single adapter file plus a registry entry.
+Claude Code uses a thin marketplace wrapper that shells out to `claude plugin marketplace add/install/remove`.
 
 > **Domain scope:** The initial implementation targets coding agents — the domain where agent tooling is most mature and adoption is fastest. The underlying mechanism (structured knowledge sharing via MCP with tiered trust) generalizes to arbitrary domains: DevOps, security, data engineering, and beyond.
 

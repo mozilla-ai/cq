@@ -22,39 +22,29 @@ If you are looking for a specific cq component in a package registry, marketplac
 | Schema | PyPI and Go modules | `cq-schema` and `github.com/mozilla-ai/cq/schema` | `schema/vX.Y.Z` |
 | Server image | GHCR and Docker Hub | `ghcr.io/mozilla-ai/cq/server` and `mzdotai/cq-server` | `server/vX.Y.Z` |
 
-## Plugin Installation
+## Installation
 
-Requires: `uv`, Python 3.11+
-
-Optional (for Go SDK and Go CLI): Go 1.26.1+
-
-### Claude Code (plugin)
+Install the [cq CLI](https://github.com/mozilla-ai/cq/releases) (via Homebrew, Scoop, or GitHub Releases), then install into your coding agent:
 
 ```bash
-claude plugin marketplace add mozilla-ai/cq
-claude plugin install cq
+cq install --target <host>
 ```
 
-### Other Agents
+| Agent      | Target     |
+|------------|------------|
+| Claude     | `claude`   |
+| Codex      | `codex`    |
+| Copilot    | `copilot`  |
+| Cursor     | `cursor`   |
+| OpenCode   | `opencode` |
+| Pi         | `pi`       |
+| Windsurf   | `windsurf` |
 
-```bash
-git clone https://github.com/mozilla-ai/cq.git
-cd cq
-```
+Install into multiple hosts at once by repeating `--target`.
+Use `--dry-run` to preview changes, `--uninstall` to remove.
+Re-running is idempotent.
 
-Run `make setup-plugin` before running the relevant `Makefile` target:
-
-| Agent    | Install                           |
-|----------|-----------------------------------|
-| Claude   | `make install-claude`             |
-| Codex    | `cq install --target codex`      |
-| Copilot  | `cq install --target copilot`    |
-| Cursor   | `make install-cursor`             |
-| OpenCode | `make install-opencode`           |
-| Pi       | `make install-pi`                 |
-| Windsurf | `make install-windsurf`           |
-
-For Windows, project-specific installs, and uninstall instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
+> **Note:** You can also install the Claude Code plugin directly via the marketplace (`claude plugin marketplace add mozilla-ai/cq && claude plugin install cq`), but `cq` must be on your PATH.
 
 ## Verify the plugin is working
 

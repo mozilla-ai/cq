@@ -42,7 +42,7 @@ Re-running `cq install` is idempotent.
 
 The plugin bundles three things:
 
-1. **MCP server** — exposes the five cq tools (`query`, `propose`, `confirm`, `flag`, `status`) over stdio. The plugin bootstraps the cq CLI binary automatically on first run.
+1. **MCP server** — exposes the five cq tools (`query`, `propose`, `confirm`, `flag`, `status`) over stdio via the `cq` binary.
 2. **Skill** (`cq`) — the core protocol that guides the agent to query before acting, propose when it discovers something novel, and confirm or flag existing knowledge.
 3. **Commands** — `/cq:status` and `/cq:reflect`, described below.
 
@@ -98,16 +98,6 @@ Knowledge units live in one of three tiers:
 With `CQ_ADDR` set, `propose` sends the unit to the remote as `private` (falling back to local if the remote is unreachable). With no remote, everything stays local. `/cq:status` shows the count in each tier.
 
 See the [top-level README](../../README.md) for the full description.
-
-## Development
-
-From the repository root:
-
-```
-make setup-plugin       # uv sync
-make test-plugin        # pytest
-make lint-plugin        # pre-commit (ruff, ty)
-```
 
 ## License
 
