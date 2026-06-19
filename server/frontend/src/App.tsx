@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router"
 import { AuthProvider, useAuth } from "./auth"
 import { Layout } from "./components/Layout"
@@ -33,11 +34,25 @@ function AppRoutes() {
   )
 }
 
+function ThemeInitializer({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    const stored = localStorage.getItem("cq-dark-mode")
+    const dark =
+      stored !== null
+        ? stored === "true"
+        : window.matchMedia("(prefers-color-scheme: dark)").matches
+    document.documentElement.classList.toggle("dark", dark)
+  }, [])
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <ThemeInitializer>
+          <AppRoutes />
+        </ThemeInitializer>
       </AuthProvider>
     </BrowserRouter>
   )

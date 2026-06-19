@@ -74,13 +74,27 @@ export function Layout() {
             <span className="hidden md:inline text-sm text-gray-500 dark:text-slate-400">
               {username}
             </span>
-            <button
-              type="button"
-              onClick={() => setDark(!dark)}
-              className="text-sm text-gray-400 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200"
-            >
-              {dark ? "☀️" : "🌙"}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs select-none">{dark ? "🌙" : "☀️"}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={dark}
+                onClick={() => setDark(!dark)}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                  dark
+                    ? "bg-indigo-600"
+                    : "bg-gray-300"
+                }`}
+              >
+                <span className="sr-only">Toggle dark mode</span>
+                <span
+                  className={`inline-flex items-center justify-center h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    dark ? "translate-x-[18px]" : "translate-x-[3px]"
+                  }`}
+                />
+              </button>
+            </div>
             <button
               type="button"
               onClick={logout}

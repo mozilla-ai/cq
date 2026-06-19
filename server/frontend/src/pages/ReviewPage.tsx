@@ -162,7 +162,9 @@ export function ReviewPage() {
     const hasSkipped = skippedIds.current.size > 0
     return (
       <div className="max-w-xl mx-auto border-2 border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 p-10 text-center mt-8">
-        <div className="text-4xl mb-3">{hasSkipped ? "\u23ed" : "\u2713"}</div>
+        <div className={`text-4xl mb-3 ${hasSkipped ? "text-amber-500 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}>
+          {hasSkipped ? "\u23ed" : "\u2713"}
+        </div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-1">
           {hasSkipped ? "All remaining skipped" : "All caught up"}
         </h2>
