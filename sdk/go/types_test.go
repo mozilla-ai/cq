@@ -2,6 +2,8 @@ package cq
 
 import (
 	"encoding/json"
+	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -126,6 +128,50 @@ func TestKnowledgeUnitJSONSchemaFieldCoverage(t *testing.T) {
 
 	for field := range props {
 		require.Contains(t, kuMap, field, "Go KnowledgeUnit missing JSON Schema field %q", field)
+	}
+}
+
+func TestStoreStatsJSONSchemaFieldCoverage(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("../../schema/stats.json")
+	require.NoError(t, err)
+
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal(raw, &schema))
+
+	props, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+
+	now := time.Now().UTC()
+	stats := StoreStats{
+		TotalCount:             42,
+		DomainCounts:           map[string]int{"api": 20},
+		TierCounts:             map[Tier]int{Local: 30, Private: 10, Public: 2},
+		ConfidenceDistribution: map[string]int{"0.0-0.3": 5, "0.3-0.5": 10, "0.5-0.7": 15, "0.7-1.0": 12},
+		Recent: []KnowledgeUnit{{
+			ID:      "ku_0123456789abcdef0123456789abcdef",
+			Domains: []string{"test"},
+			Evidence: Evidence{
+				Confidence:    0.5,
+				FirstObserved: &now,
+			},
+		}},
+		Warnings: Warnings{errors.New("remote stats unavailable")},
+	}
+
+	data, err := json.Marshal(stats)
+	require.NoError(t, err)
+
+	var statsMap map[string]any
+	require.NoError(t, json.Unmarshal(data, &statsMap))
+
+	for field := range props {
+		require.Contains(t, statsMap, field, "Go StoreStats missing JSON Schema field %q", field)
+	}
+
+	for field := range statsMap {
+		require.Contains(t, props, field, "Go StoreStats has field %q not in stats.json", field)
 	}
 }
 

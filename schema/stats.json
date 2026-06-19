@@ -1,10 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mozilla-ai.github.io/cq/schema/stats.json",
-  "title": "StatsResponse",
-  "description": "Store-level statistics.",
+  "title": "StoreStats",
+  "description": "Aggregated knowledge-store statistics. Models the canonical StoreStats shape produced by SDK clients; the server StatsResponse is a required subset (recent and warnings are SDK-only).",
   "type": "object",
-  "required": ["total_count", "domain_counts"],
+  "required": [
+    "total_count",
+    "domain_counts",
+    "tier_counts",
+    "confidence_distribution"
+  ],
   "properties": {
     "total_count": {
       "type": "integer",
@@ -16,15 +21,25 @@
       "additionalProperties": { "type": "integer", "minimum": 0 },
       "description": "Count of knowledge units per domain."
     },
-    "recent": {
-      "type": "array",
-      "items": { "$ref": "knowledge_unit.json" },
-      "description": "Recently added or confirmed knowledge units."
+    "tier_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "description": "Count of knowledge units per tier (local, private, public)."
     },
     "confidence_distribution": {
       "type": "object",
       "additionalProperties": { "type": "integer", "minimum": 0 },
       "description": "Count of knowledge units per confidence bucket."
+    },
+    "recent": {
+      "type": "array",
+      "items": { "$ref": "knowledge_unit.json" },
+      "description": "Recently added or confirmed knowledge units."
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Non-fatal issues encountered while aggregating stats."
     }
   },
   "additionalProperties": false

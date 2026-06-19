@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 import cq_schema
 import jsonschema
 import pytest
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 from cq.models import (
     Context,
@@ -25,6 +27,7 @@ from cq.models import (
     Tier,
     create_knowledge_unit,
 )
+from cq.store import StoreStats
 
 
 def _make_full_unit() -> KnowledgeUnit:
@@ -82,3 +85,54 @@ def test_tiers_match_canonical_enum(tier: Tier) -> None:
     schema = cq_schema.load_schema("knowledge_unit")
     tier_def = schema["$defs"]["Tier"]
     assert tier.value in tier_def["enum"]
+
+
+def _stats_validator() -> jsonschema.Draft202012Validator:
+    """Build a validator for stats.json with the knowledge_unit $ref resolvable."""
+    stats_schema = cq_schema.load_schema("stats")
+    ku_schema = cq_schema.load_schema("knowledge_unit")
+    registry = Registry().with_resources(
+        [
+            (
+                "https://mozilla-ai.github.io/cq/schema/knowledge_unit.json",
+                Resource.from_contents(ku_schema, default_specification=DRAFT202012),
+            ),
+        ]
+    )
+    return jsonschema.Draft202012Validator(stats_schema, registry=registry)
+
+
+def test_full_store_stats_validates_against_canonical_schema() -> None:
+    unit = _make_full_unit()
+    stats = StoreStats(
+        total_count=42,
+        domain_counts={"api": 20, "ci": 12, "testing": 10},
+        recent=[unit],
+        confidence_distribution={"0.0-0.3": 5, "0.3-0.5": 10, "0.5-0.7": 15, "0.7-1.0": 12},
+        tier_counts={Tier.LOCAL: 30, Tier.PRIVATE: 10, Tier.PUBLIC: 2},
+        warnings=["remote stats unavailable"],
+    )
+    payload = json.loads(stats.model_dump_json(exclude_none=True))
+    _stats_validator().validate(payload)
+
+
+def test_minimal_store_stats_validates_against_canonical_schema() -> None:
+    stats = StoreStats(
+        total_count=0,
+        domain_counts={},
+        confidence_distribution={},
+        tier_counts={},
+    )
+    payload = json.loads(stats.model_dump_json(exclude_none=True))
+    _stats_validator().validate(payload)
+
+
+def test_store_stats_field_coverage() -> None:
+    """Every StoreStats field must appear in the canonical stats schema."""
+    schema = cq_schema.load_schema("stats")
+    schema_props = set(schema["properties"])
+    model_fields = set(StoreStats.model_fields)
+    missing = model_fields - schema_props
+    assert not missing, f"StoreStats fields missing from stats.json: {missing}"
+    extra = schema_props - model_fields
+    assert not extra, f"stats.json properties not present in StoreStats: {extra}"
