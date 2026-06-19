@@ -148,7 +148,7 @@ func TestStoreStatsJSONSchemaFieldCoverage(t *testing.T) {
 		TotalCount:             42,
 		DomainCounts:           map[string]int{"api": 20},
 		TierCounts:             map[Tier]int{Local: 30, Private: 10, Public: 2},
-		ConfidenceDistribution: map[string]int{"low": 5},
+		ConfidenceDistribution: map[string]int{"0.0-0.3": 5, "0.3-0.5": 10, "0.5-0.7": 15, "0.7-1.0": 12},
 		Recent: []KnowledgeUnit{{
 			ID:      "ku_0123456789abcdef0123456789abcdef",
 			Domains: []string{"test"},

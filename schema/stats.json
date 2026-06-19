@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mozilla-ai.github.io/cq/schema/stats.json",
   "title": "StoreStats",
-  "description": "Aggregated knowledge-store statistics. Models the canonical StoreStats shape shared by the SDK clients and the server StatsResponse.",
+  "description": "Aggregated knowledge-store statistics. Models the canonical StoreStats shape produced by SDK clients; the server StatsResponse is a required subset (recent and warnings are SDK-only).",
   "type": "object",
   "required": [
     "total_count",

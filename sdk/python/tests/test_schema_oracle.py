@@ -108,7 +108,7 @@ def test_full_store_stats_validates_against_canonical_schema() -> None:
         total_count=42,
         domain_counts={"api": 20, "ci": 12, "testing": 10},
         recent=[unit],
-        confidence_distribution={"low": 5, "medium": 25, "high": 12},
+        confidence_distribution={"0.0-0.3": 5, "0.3-0.5": 10, "0.5-0.7": 15, "0.7-1.0": 12},
         tier_counts={Tier.LOCAL: 30, Tier.PRIVATE: 10, Tier.PUBLIC: 2},
         warnings=["remote stats unavailable"],
     )
@@ -134,3 +134,5 @@ def test_store_stats_field_coverage() -> None:
     model_fields = set(StoreStats.model_fields)
     missing = model_fields - schema_props
     assert not missing, f"StoreStats fields missing from stats.json: {missing}"
+    extra = schema_props - model_fields
+    assert not extra, f"stats.json properties not present in StoreStats: {extra}"
