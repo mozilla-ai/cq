@@ -161,26 +161,30 @@ export function ReviewPage() {
     const total = sessionApproved + sessionRejected
     const hasSkipped = skippedIds.current.size > 0
     return (
-      <div className="max-w-xl mx-auto border-2 border-gray-200 rounded-lg bg-white p-10 text-center mt-8">
+      <div className="max-w-xl mx-auto border-2 border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 p-10 text-center mt-8">
         <div className="text-4xl mb-3">{hasSkipped ? "\u23ed" : "\u2713"}</div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-1">
           {hasSkipped ? "All remaining skipped" : "All caught up"}
         </h2>
         {hasSkipped && (
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-slate-400">
             {skippedIds.current.size} skipped{" "}
             {skippedIds.current.size === 1 ? "item" : "items"} still pending
           </p>
         )}
         {total > 0 && (
           <>
-            <p className="text-gray-500">You've reviewed {total} KUs today</p>
+            <p className="text-gray-500 dark:text-slate-400">
+              You've reviewed {total} KUs today
+            </p>
             <div className="flex gap-4 justify-center mt-3 text-sm">
-              <span className="text-red-600 font-medium">
+              <span className="text-red-600 dark:text-red-400 font-medium">
                 {sessionRejected} rejected
               </span>
-              <span className="text-gray-300">{"\u00b7"}</span>
-              <span className="text-green-600 font-medium">
+              <span className="text-gray-300 dark:text-slate-600">
+                {"\u00b7"}
+              </span>
+              <span className="text-green-600 dark:text-green-400 font-medium">
                 {sessionApproved} approved
               </span>
             </div>
@@ -193,14 +197,14 @@ export function ReviewPage() {
               skippedIds.current.clear()
               fetchNext()
             }}
-            className="inline-block mt-5 text-sm font-medium text-indigo-500 hover:text-indigo-700"
+            className="inline-block mt-5 text-sm font-medium text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
           >
             Review skipped items
           </button>
         )}
         <Link
           to="/dashboard"
-          className="inline-block mt-5 text-sm font-medium text-indigo-500 ml-4"
+          className="inline-block mt-5 text-sm font-medium text-indigo-500 dark:text-indigo-400 ml-4"
         >
           View dashboard {"\u2192"}
         </Link>
@@ -211,7 +215,7 @@ export function ReviewPage() {
   return (
     <div>
       {conflictMessage && (
-        <p className="text-center text-amber-600 text-sm font-medium mb-3">
+        <p className="text-center text-amber-600 dark:text-amber-400 text-sm font-medium mb-3">
           {conflictMessage}
         </p>
       )}
@@ -234,7 +238,9 @@ export function ReviewPage() {
       />
 
       {error && (
-        <p className="text-center text-red-600 text-sm mt-3">{error}</p>
+        <p className="text-center text-red-600 dark:text-red-400 text-sm mt-3">
+          {error}
+        </p>
       )}
     </div>
   )

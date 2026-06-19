@@ -38,7 +38,7 @@ export function DragIndicators({ drag }: Props) {
         >
           {INDICATORS.approve.symbol}
         </div>
-        <span className="text-xs font-semibold text-green-600">
+        <span className="text-xs font-semibold text-green-600 dark:text-green-400">
           {INDICATORS.approve.label}
         </span>
       </div>
@@ -56,7 +56,7 @@ export function DragIndicators({ drag }: Props) {
         >
           {INDICATORS.reject.symbol}
         </div>
-        <span className="text-xs font-semibold text-red-600">
+        <span className="text-xs font-semibold text-red-600 dark:text-red-400">
           {INDICATORS.reject.label}
         </span>
       </div>
@@ -74,7 +74,7 @@ export function DragIndicators({ drag }: Props) {
         >
           {INDICATORS.skip.symbol}
         </div>
-        <span className="text-xs font-semibold text-slate-600">
+        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
           {INDICATORS.skip.label}
         </span>
       </div>
@@ -92,7 +92,7 @@ export function DragIndicators({ drag }: Props) {
         >
           {INDICATORS.skip.symbol}
         </div>
-        <span className="text-xs font-semibold text-slate-600">
+        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
           {INDICATORS.skip.label}
         </span>
       </div>

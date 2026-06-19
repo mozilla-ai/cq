@@ -22,34 +22,40 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 w-full max-w-sm"
+        className="bg-white dark:bg-slate-900 p-8 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800 w-full max-w-sm"
       >
-        <h1 className="text-3xl font-bold mb-6 text-center text-indigo-600">
+        <h1 className="text-3xl font-bold mb-6 text-center text-indigo-600 dark:text-indigo-400">
           cq
         </h1>
         {error && (
-          <p className="text-red-600 text-sm mb-4 text-center">{error}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm mb-4 text-center">
+            {error}
+          </p>
         )}
         <label className="block mb-4">
-          <span className="text-sm font-medium text-gray-700">Username</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
+            Username
+          </span>
           <input
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
+            className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
             required
           />
         </label>
         <label className="block mb-6">
-          <span className="text-sm font-medium text-gray-700">Password</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
+            Password
+          </span>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
+            className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
             required
           />
         </label>

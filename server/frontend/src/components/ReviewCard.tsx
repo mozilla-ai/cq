@@ -17,24 +17,28 @@ interface Props {
 }
 
 const CARD_STYLES: Record<string, string> = {
-  neutral: "border-gray-200 bg-white",
-  approve: "border-green-300 bg-green-50",
-  reject: "border-red-300 bg-red-50",
-  skip: "border-slate-400 bg-slate-50",
+  neutral: "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900",
+  approve:
+    "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/40",
+  reject: "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40",
+  skip: "border-slate-400 dark:border-slate-600 bg-slate-50 dark:bg-slate-800",
 }
 
 const ACTION_BOX_STYLES: Record<string, string> = {
-  neutral: "bg-indigo-50 border-indigo-500 text-indigo-500",
-  approve: "bg-green-50 border-green-500 text-green-600",
-  reject: "bg-red-50 border-red-500 text-red-600",
-  skip: "bg-slate-50 border-slate-400 text-slate-500",
+  neutral:
+    "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-500",
+  approve:
+    "bg-green-50 dark:bg-green-950/40 border-green-500 text-green-600 dark:text-green-400",
+  reject:
+    "bg-red-50 dark:bg-red-950/40 border-red-500 text-red-600 dark:text-red-400",
+  skip: "bg-slate-50 dark:bg-slate-800 border-slate-400 text-slate-500 dark:text-slate-300",
 }
 
 function confidenceColor(c: number): string {
-  if (c < 0.3) return "text-red-600"
-  if (c < 0.5) return "text-amber-600"
-  if (c < 0.7) return "text-yellow-500"
-  return "text-green-600"
+  if (c < 0.3) return "text-red-600 dark:text-red-400"
+  if (c < 0.5) return "text-amber-600 dark:text-amber-400"
+  if (c < 0.7) return "text-yellow-500 dark:text-yellow-400"
+  return "text-green-600 dark:text-green-400"
 }
 
 export const ReviewCard = forwardRef<HTMLDivElement, Props>(function ReviewCard(
@@ -68,17 +72,17 @@ export const ReviewCard = forwardRef<HTMLDivElement, Props>(function ReviewCard(
       <div className="flex items-center justify-between mb-3">
         <DomainTags domains={unit.domains} variant={activeState} />
         {unit.evidence.first_observed && (
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-400 dark:text-slate-500">
             {timeAgo(unit.evidence.first_observed)}
           </span>
         )}
       </div>
 
-      <h2 className="text-lg font-semibold text-gray-900 mb-2">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">
         {unit.insight.summary}
       </h2>
 
-      <p className="text-gray-600 mb-3 leading-relaxed">
+      <p className="text-gray-600 dark:text-slate-300 mb-3 leading-relaxed">
         {unit.insight.detail}
       </p>
 
@@ -88,10 +92,12 @@ export const ReviewCard = forwardRef<HTMLDivElement, Props>(function ReviewCard(
         <span className="text-xs font-semibold uppercase tracking-wide">
           Action
         </span>
-        <p className="text-gray-800 text-sm mt-1">{unit.insight.action}</p>
+        <p className="text-gray-800 dark:text-slate-200 text-sm mt-1">
+          {unit.insight.action}
+        </p>
       </div>
 
-      <div className="flex gap-4 text-sm text-gray-500">
+      <div className="flex gap-4 text-sm text-gray-500 dark:text-slate-400">
         <span>
           Confidence:{" "}
           <strong className={confidenceColor(unit.evidence.confidence)}>
@@ -100,7 +106,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, Props>(function ReviewCard(
         </span>
         <span>
           Confirmations:{" "}
-          <strong className="text-gray-800">
+          <strong className="text-gray-800 dark:text-slate-200">
             {unit.evidence.confirmations}
           </strong>
         </span>

@@ -78,7 +78,7 @@ export function FilteredListModal({ filter, onClose, onSelectUnit }: Props) {
         tabIndex={-1}
         aria-hidden="true"
         onClick={onClose}
-        className="absolute inset-0 bg-black/40 cursor-default"
+        className="absolute inset-0 bg-black/40 dark:bg-black/60 cursor-default"
       />
       <div
         ref={dialogRef}
@@ -86,19 +86,19 @@ export function FilteredListModal({ filter, onClose, onSelectUnit }: Props) {
         aria-modal="true"
         aria-labelledby={MODAL_TITLE_ID}
         tabIndex={-1}
-        className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col outline-none"
+        className="relative bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col outline-none"
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-800">
           <h2
             id={MODAL_TITLE_ID}
-            className="text-lg font-semibold text-gray-900"
+            className="text-lg font-semibold text-gray-900 dark:text-slate-100"
           >
             {filter.title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200 text-xl leading-none"
             aria-label="Close"
           >
             &times;
@@ -107,7 +107,9 @@ export function FilteredListModal({ filter, onClose, onSelectUnit }: Props) {
 
         <div className="flex-1 overflow-y-auto p-4">
           {error && (
-            <p className="text-red-600 text-sm text-center py-4">{error}</p>
+            <p className="text-red-600 dark:text-red-400 text-sm text-center py-4">
+              {error}
+            </p>
           )}
 
           {!items && !error && (
@@ -115,14 +117,14 @@ export function FilteredListModal({ filter, onClose, onSelectUnit }: Props) {
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-16 animate-pulse bg-gray-100 rounded-lg"
+                  className="h-16 animate-pulse bg-gray-100 dark:bg-slate-800 rounded-lg"
                 />
               ))}
             </div>
           )}
 
           {items && items.length === 0 && (
-            <p className="text-gray-400 text-sm text-center py-8">
+            <p className="text-gray-400 dark:text-slate-500 text-sm text-center py-8">
               No knowledge units found.
             </p>
           )}
@@ -133,18 +135,18 @@ export function FilteredListModal({ filter, onClose, onSelectUnit }: Props) {
                 <button
                   type="button"
                   key={item.knowledge_unit.id}
-                  className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
+                  className="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition-colors"
                   onClick={() => onSelectUnit(item.knowledge_unit.id)}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <StatusBadge status={item.status} />
-                    <span className="text-sm font-medium text-gray-900 truncate">
+                    <span className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">
                       {item.knowledge_unit.insight.summary}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
                     <DomainTags domains={item.knowledge_unit.domains} />
-                    <span className="text-xs text-gray-400 ml-auto shrink-0">
+                    <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto shrink-0">
                       {confidenceLabel(item.knowledge_unit.evidence.confidence)}
                     </span>
                   </div>

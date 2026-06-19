@@ -24,17 +24,22 @@ function statusLabel(key: ApiKeyPublic): string {
 }
 
 function statusBadgeClasses(key: ApiKeyPublic): string {
-  if (key.revoked_at) return "bg-red-100 text-red-700"
-  if (key.is_expired) return "bg-gray-200 text-gray-600"
-  return "bg-green-100 text-green-700"
+  if (key.revoked_at)
+    return "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300"
+  if (key.is_expired)
+    return "bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-400"
+  return "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300"
 }
 
 function expiryUrgencyClasses(key: ApiKeyPublic): string {
-  if (key.revoked_at || key.is_expired) return "bg-gray-100 text-gray-500"
+  if (key.revoked_at || key.is_expired)
+    return "bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400"
   const remaining = secondsUntil(key.expires_at)
-  if (remaining <= DAY_SECONDS) return "bg-red-100 text-red-700"
-  if (remaining <= WEEK_SECONDS) return "bg-amber-100 text-amber-700"
-  return "bg-green-100 text-green-700"
+  if (remaining <= DAY_SECONDS)
+    return "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300"
+  if (remaining <= WEEK_SECONDS)
+    return "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
+  return "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300"
 }
 
 function expiryLabel(key: ApiKeyPublic): string {
@@ -190,22 +195,26 @@ export function ApiKeysPage() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="text-2xl font-semibold text-gray-900">API Keys</h1>
-        <p className="mt-2 text-sm text-gray-600">
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
+          API Keys
+        </h1>
+        <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
           API keys let agents act on your behalf. Give each key a name and an
           expiry; attach optional labels to group or filter keys later. The full
           key is shown only once at creation.
         </p>
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-lg font-medium text-gray-900">Create a new key</h2>
+      <section className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
+        <h2 className="text-lg font-medium text-gray-900 dark:text-slate-100">
+          Create a new key
+        </h2>
         <form
           onSubmit={handleCreate}
           className="mt-4 grid gap-4 md:grid-cols-2"
         >
           <label className="flex flex-col text-sm">
-            <span className="text-gray-700">Name</span>
+            <span className="text-gray-700 dark:text-slate-300">Name</span>
             <input
               type="text"
               required
@@ -213,11 +222,11 @@ export function ApiKeysPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. laptop-mcp"
-              className="mt-1 rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+              className="mt-1 rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 px-3 py-2 focus:border-indigo-500 focus:outline-none"
             />
           </label>
           <label className="flex flex-col text-sm">
-            <span className="text-gray-700">TTL</span>
+            <span className="text-gray-700 dark:text-slate-300">TTL</span>
             <input
               type="text"
               required
@@ -226,26 +235,28 @@ export function ApiKeysPage() {
               onChange={(e) => setTtl(e.target.value)}
               maxLength={16}
               aria-invalid={ttl.length > 0 && !ttlIsValid}
-              className="mt-1 rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+              className="mt-1 rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 px-3 py-2 focus:border-indigo-500 focus:outline-none"
             />
             <datalist id="ttl-suggestions">
               {TTL_SUGGESTIONS.map((s) => (
                 <option key={s} value={s} />
               ))}
             </datalist>
-            <span className="mt-1 text-xs text-gray-500">
+            <span className="mt-1 text-xs text-gray-500 dark:text-slate-400">
               e.g. <code>30s</code>, <code>15m</code>, <code>2h</code>,{" "}
               <code>90d</code> (max 365d).
             </span>
           </label>
           <label className="flex flex-col text-sm md:col-span-2">
-            <span className="text-gray-700">Labels (optional)</span>
+            <span className="text-gray-700 dark:text-slate-300">
+              Labels (optional)
+            </span>
             <input
               type="text"
               value={labelsInput}
               onChange={(e) => setLabelsInput(e.target.value)}
               placeholder="comma-separated, e.g. mcp, claude, personal"
-              className="mt-1 rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+              className="mt-1 rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 px-3 py-2 focus:border-indigo-500 focus:outline-none"
             />
           </label>
           <div className="md:col-span-2">
@@ -264,20 +275,22 @@ export function ApiKeysPage() {
             )}
           </div>
         </form>
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>
+        )}
       </section>
 
       <section>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="shrink-0 text-lg font-medium text-gray-900">
+          <h2 className="shrink-0 text-lg font-medium text-gray-900 dark:text-slate-100">
             Your keys
-            <span className="ml-2 text-sm font-normal text-gray-500">
+            <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">
               {activeCount} of {MAX_ACTIVE_KEYS} active
             </span>
           </h2>
           <fieldset
             aria-label="Filter keys"
-            className="inline-flex shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white text-sm"
+            className="inline-flex shrink-0 overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
           >
             {(
               [
@@ -294,7 +307,7 @@ export function ApiKeysPage() {
                 className={`px-3 py-1.5 ${
                   filter === value
                     ? "bg-indigo-600 text-white"
-                    : "text-gray-700 hover:bg-gray-50"
+                    : "text-gray-700 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800"
                 }`}
               >
                 {label}
@@ -307,15 +320,19 @@ export function ApiKeysPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name or label…"
             aria-label="Search keys"
-            className="min-w-40 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+            className="min-w-40 flex-1 rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
           />
         </div>
         {loading ? (
-          <p className="mt-4 text-sm text-gray-500">Loading…</p>
+          <p className="mt-4 text-sm text-gray-500 dark:text-slate-400">
+            Loading…
+          </p>
         ) : keys.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">No API keys yet.</p>
+          <p className="mt-4 text-sm text-gray-500 dark:text-slate-400">
+            No API keys yet.
+          </p>
         ) : filteredKeys.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">
+          <p className="mt-4 text-sm text-gray-500 dark:text-slate-400">
             No keys match the current filter.
           </p>
         ) : (
@@ -325,21 +342,21 @@ export function ApiKeysPage() {
               return (
                 <li
                   key={key.id}
-                  className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm"
                 >
                   <button
                     type="button"
                     onClick={() => toggleExpanded(key.id)}
                     aria-expanded={isOpen}
                     aria-controls={`apikey-details-${key.id}`}
-                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-gray-50"
+                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-slate-800"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="truncate text-base font-semibold text-gray-900">
+                        <h3 className="truncate text-base font-semibold text-gray-900 dark:text-slate-100">
                           {key.name}
                         </h3>
-                        <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600">
+                        <code className="rounded bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-gray-600 dark:text-slate-400">
                           {key.prefix}…
                         </code>
                       </div>
@@ -354,7 +371,7 @@ export function ApiKeysPage() {
                           </span>
                           <span
                             role="tooltip"
-                            className="pointer-events-none invisible absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:visible group-hover:opacity-100"
+                            className="pointer-events-none invisible absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 dark:bg-slate-700 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:visible group-hover:opacity-100"
                           >
                             {expiryTooltip(key)}
                           </span>
@@ -371,7 +388,7 @@ export function ApiKeysPage() {
                       </span>
                       <svg
                         aria-hidden="true"
-                        className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        className={`h-4 w-4 text-gray-400 dark:text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
                         viewBox="0 0 20 20"
                         fill="currentColor"
                       >
@@ -387,18 +404,18 @@ export function ApiKeysPage() {
                   {isOpen && (
                     <div
                       id={`apikey-details-${key.id}`}
-                      className="border-t border-gray-200 bg-gray-50/60 px-5 py-4"
+                      className="border-t border-gray-200 dark:border-slate-800 bg-gray-50/60 dark:bg-slate-900 px-5 py-4"
                     >
                       {key.labels.length > 0 && (
                         <div className="mb-4">
-                          <div className="text-xs uppercase tracking-wide text-gray-400">
+                          <div className="text-xs uppercase tracking-wide text-gray-400 dark:text-slate-500">
                             Labels
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1">
                             {key.labels.map((label) => (
                               <span
                                 key={label}
-                                className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700"
+                                className="rounded-full bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 text-xs text-indigo-700 dark:text-indigo-300"
                               >
                                 {label}
                               </span>
@@ -408,26 +425,26 @@ export function ApiKeysPage() {
                       )}
                       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-400">
+                          <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-slate-500">
                             TTL
                           </dt>
-                          <dd className="mt-0.5 font-mono text-gray-800">
+                          <dd className="mt-0.5 font-mono text-gray-800 dark:text-slate-200">
                             {key.ttl}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-400">
+                          <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-slate-500">
                             Created
                           </dt>
-                          <dd className="mt-0.5 text-gray-700">
+                          <dd className="mt-0.5 text-gray-700 dark:text-slate-300">
                             {timeAgo(key.created_at)}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs uppercase tracking-wide text-gray-400">
+                          <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-slate-500">
                             Last used
                           </dt>
-                          <dd className="mt-0.5 text-gray-700">
+                          <dd className="mt-0.5 text-gray-700 dark:text-slate-300">
                             {key.last_used_at
                               ? timeAgo(key.last_used_at)
                               : "never"}
@@ -441,7 +458,7 @@ export function ApiKeysPage() {
                             onClick={() =>
                               setRevokePrompt({ id: key.id, name: key.name })
                             }
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                           >
                             <svg
                               aria-hidden="true"
@@ -475,18 +492,18 @@ export function ApiKeysPage() {
           aria-labelledby="created-key-heading"
           className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
         >
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full max-w-lg rounded-lg bg-white dark:bg-slate-900 p-6 shadow-xl">
             <h3
               id="created-key-heading"
-              className="text-lg font-semibold text-gray-900"
+              className="text-lg font-semibold text-gray-900 dark:text-slate-100"
             >
               Your new API key
             </h3>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
               Copy this token now. It will not be shown again.
             </p>
-            <div className="mt-4 flex items-center gap-2 rounded-md bg-gray-100 p-3">
-              <code className="flex-1 break-all text-sm">
+            <div className="mt-4 flex items-center gap-2 rounded-md bg-gray-100 dark:bg-slate-800 p-3">
+              <code className="flex-1 break-all text-sm text-gray-900 dark:text-slate-100">
                 {createdKey.token}
               </code>
               <button
@@ -497,7 +514,7 @@ export function ApiKeysPage() {
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
-            <label className="mt-4 flex items-center gap-2 text-sm text-gray-700">
+            <label className="mt-4 flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
               <input
                 type="checkbox"
                 checked={acknowledged}
@@ -526,14 +543,14 @@ export function ApiKeysPage() {
           aria-labelledby="revoke-key-heading"
           className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-slate-900 p-6 shadow-xl">
             <h3
               id="revoke-key-heading"
-              className="text-lg font-semibold text-gray-900"
+              className="text-lg font-semibold text-gray-900 dark:text-slate-100"
             >
               Revoke &ldquo;{revokePrompt.name}&rdquo;?
             </h3>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
               Clients using this key will start receiving 401 responses
               immediately. This cannot be undone.
             </p>
@@ -542,7 +559,7 @@ export function ApiKeysPage() {
                 type="button"
                 onClick={() => setRevokePrompt(null)}
                 disabled={revoking}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
               >
                 Cancel
               </button>

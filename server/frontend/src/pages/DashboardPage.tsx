@@ -62,17 +62,17 @@ export function DashboardPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="bg-white rounded-lg border border-gray-200 p-4"
+              className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4"
             >
-              <div className="h-4 w-16 animate-pulse bg-gray-200 rounded mb-2" />
-              <div className="h-8 w-12 animate-pulse bg-gray-200 rounded" />
+              <div className="h-4 w-16 animate-pulse bg-gray-200 dark:bg-slate-700 rounded mb-2" />
+              <div className="h-8 w-12 animate-pulse bg-gray-200 dark:bg-slate-700 rounded" />
             </div>
           ))}
         </div>
         {[1, 2].map((i) => (
           <div
             key={i}
-            className="bg-white rounded-lg border border-gray-200 p-4 h-40 animate-pulse bg-gray-100"
+            className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 h-40 animate-pulse bg-gray-100 dark:bg-slate-800"
           />
         ))}
       </div>
@@ -82,8 +82,10 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-          <p className="text-red-600 text-sm font-medium">{error}</p>
+        <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center">
+          <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+            {error}
+          </p>
         </div>
       )}
 
@@ -92,36 +94,42 @@ export function DashboardPage() {
           <div className="grid grid-cols-3 gap-4">
             <Link
               to="/review"
-              className="bg-white rounded-lg border border-gray-200 p-4 text-center hover:border-amber-300 transition-colors"
+              className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 text-center hover:border-amber-300 dark:hover:border-amber-600 transition-colors"
             >
               <p className="text-3xl font-bold text-amber-500">
                 {stats.counts.pending}
               </p>
-              <p className="text-xs text-gray-500 uppercase mt-1">Pending</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mt-1">
+                Pending
+              </p>
             </Link>
-            <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-              <p className="text-3xl font-bold text-green-600">
+            <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 text-center">
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
                 {stats.counts.approved}
               </p>
-              <p className="text-xs text-gray-500 uppercase mt-1">Approved</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mt-1">
+                Approved
+              </p>
             </div>
             <button
               type="button"
-              className="bg-white rounded-lg border border-gray-200 p-4 text-center hover:border-red-300 transition-colors w-full"
+              className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 text-center hover:border-red-300 dark:hover:border-red-600 transition-colors w-full"
               onClick={() =>
                 setListFilter({ title: "Rejected", status: "rejected" })
               }
             >
-              <p className="text-3xl font-bold text-red-600">
+              <p className="text-3xl font-bold text-red-600 dark:text-red-400">
                 {stats.counts.rejected}
               </p>
-              <p className="text-xs text-gray-500 uppercase mt-1">Rejected</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mt-1">
+                Rejected
+              </p>
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
+            <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-3">
                 Domains
               </h3>
               <div className="space-y-3 max-h-48 overflow-y-auto">
@@ -133,7 +141,7 @@ export function DashboardPage() {
                       <button
                         type="button"
                         key={domain}
-                        className="flex items-center gap-3 w-full text-left rounded hover:bg-indigo-50 transition-colors -mx-1 px-1"
+                        className="flex items-center gap-3 w-full text-left rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors -mx-1 px-1"
                         onClick={() =>
                           setListFilter({
                             title: `Domain: ${domain}`,
@@ -142,16 +150,16 @@ export function DashboardPage() {
                           })
                         }
                       >
-                        <span className="text-sm text-gray-700 w-24 truncate">
+                        <span className="text-sm text-gray-700 dark:text-slate-300 w-24 truncate">
                           {domain}
                         </span>
-                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="flex-1 h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-indigo-500 rounded-full"
                             style={{ width: `${(count / maxCount) * 100}%` }}
                           />
                         </div>
-                        <span className="text-xs text-gray-400 w-6 text-right">
+                        <span className="text-xs text-gray-400 dark:text-slate-500 w-6 text-right">
                           {count}
                         </span>
                       </button>
@@ -160,8 +168,8 @@ export function DashboardPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
+            <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-3">
                 Confidence
               </h3>
               {(() => {
@@ -179,7 +187,7 @@ export function DashboardPage() {
                           <button
                             type="button"
                             key={bucket}
-                            className="flex-1 flex flex-col items-center gap-1 rounded hover:bg-gray-50 transition-colors cursor-pointer"
+                            className="flex-1 flex flex-col items-center gap-1 rounded hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                             disabled={count === 0}
                             onClick={() =>
                               setListFilter({
@@ -190,12 +198,12 @@ export function DashboardPage() {
                               })
                             }
                           >
-                            <span className="text-xs text-gray-500 font-medium">
+                            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">
                               {count}
                             </span>
                             <div className="w-full h-24 flex items-end">
                               <div
-                                className={`w-full rounded-t ${CONFIDENCE_COLORS[bucket] ?? "bg-gray-200"}`}
+                                className={`w-full rounded-t ${CONFIDENCE_COLORS[bucket] ?? "bg-gray-200 dark:bg-slate-600"}`}
                                 style={{
                                   height:
                                     maxCount > 0
@@ -205,7 +213,7 @@ export function DashboardPage() {
                                 }}
                               />
                             </div>
-                            <span className="text-[10px] text-gray-500 truncate w-full text-center">
+                            <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate w-full text-center">
                               {bucket}
                             </span>
                           </button>
@@ -218,21 +226,37 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-3">
               Submissions
             </h3>
             {trendData.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-8">
+              <p className="text-gray-400 dark:text-slate-500 text-sm text-center py-8">
                 No submission data yet
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={trendData}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    stroke="#475569"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    stroke="#475569"
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1e293b",
+                      border: "1px solid #334155",
+                      borderRadius: "6px",
+                      color: "#f1f5f9",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11, color: "#cbd5e1" }} />
                   <Line
                     type="monotone"
                     dataKey="proposed"
@@ -262,16 +286,18 @@ export function DashboardPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase mb-3">
               Recent Activity
             </h3>
             <div className="max-h-60 overflow-y-auto">
               {stats.recent_activity.length === 0 ? (
-                <p className="text-gray-400 text-sm">No activity yet</p>
+                <p className="text-gray-400 dark:text-slate-500 text-sm">
+                  No activity yet
+                </p>
               ) : (
                 <ul>
-                  <li className="grid grid-cols-[5rem_1fr_5rem_4rem] gap-3 border-b border-gray-200 py-1.5 text-[10px] font-semibold text-gray-400 uppercase">
+                  <li className="grid grid-cols-[5rem_1fr_5rem_4rem] gap-3 border-b border-gray-200 dark:border-slate-800 py-1.5 text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase">
                     <span>Status</span>
                     <span>Summary</span>
                     <span className="text-right">Reviewer</span>
@@ -282,18 +308,18 @@ export function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedUnitId(event.unit_id)}
-                        className="grid grid-cols-[5rem_1fr_5rem_4rem] gap-3 items-center w-full text-left border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors py-2"
+                        className="grid grid-cols-[5rem_1fr_5rem_4rem] gap-3 items-center w-full text-left border-b border-gray-50 dark:border-slate-800/50 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors py-2"
                       >
                         <span>
                           <StatusBadge status={event.type} />
                         </span>
-                        <span className="text-sm text-gray-700 truncate min-w-0">
+                        <span className="text-sm text-gray-700 dark:text-slate-300 truncate min-w-0">
                           {event.summary}
                         </span>
-                        <span className="text-xs text-gray-400 whitespace-nowrap text-right">
+                        <span className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap text-right">
                           {event.reviewed_by ?? ""}
                         </span>
-                        <span className="text-xs text-gray-400 whitespace-nowrap text-right">
+                        <span className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap text-right">
                           {event.timestamp ? timeAgo(event.timestamp) : ""}
                         </span>
                       </button>
