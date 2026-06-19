@@ -15,8 +15,8 @@ If you are looking for a specific cq component in a package registry, marketplac
 
 | Component | Where to get it | Published name | Release tag prefix |
 |---|---|---|---|
-| Plugin (Claude Code) | Claude plugin marketplace | `mozilla-ai/cq` (install as `cq`) | N/A |
-| CLI | Homebrew/Scoop/GitHub Releases | `github.com/mozilla-ai/cq/cli` | `cli/vX.Y.Z` |
+| Plugin (Claude Code) | Claude plugin marketplace | `mozilla-ai/cq` (install as `cq`) | `plugin/X.Y.Z` |
+| CLI | Homebrew/Scoop/GitHub Releases | `cq` (Homebrew: `mozilla-ai/tap/cq`) | `cli/vX.Y.Z` |
 | Go SDK | Go modules | `github.com/mozilla-ai/cq/sdk/go` | `sdk/go/vX.Y.Z` |
 | Python SDK | PyPI | `cq-sdk` | `sdk/python/X.Y.Z` |
 | Schema | PyPI and Go modules | `cq-schema` and `github.com/mozilla-ai/cq/schema` | `schema/vX.Y.Z` |
@@ -176,7 +176,7 @@ Knowledge proposed locally will be automatically drained to the remote store whe
 cq runs across three runtime boundaries:
 
 1. **Agent process** — the plugin loads `SKILL.md`, which guides when and how the agent uses cq tools.
-2. **Local MCP server** — spawned via stdio, runs the Go based CLI (`mcp-go`), exposes the five tools above, owns the local SQLite store which defaults to `~/.local/share/cq/local.db`.
+2. **Local MCP server** — spawned via stdio, runs the Go based CLI, exposes the five tools above, owns the local SQLite store which defaults to `~/.local/share/cq/local.db`.
 3. **Remote API** (optional) — runs in a Docker container as a separate FastAPI service. In production this would be hosted with auth, tenancy, and RBAC.
 See [docs/architecture.md](architecture.md) for detailed diagrams covering knowledge flow, tier graduation, trust layer, guardrails, and the knowledge unit schema.
 

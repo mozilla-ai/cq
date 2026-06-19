@@ -19,7 +19,7 @@ GET {addr}/.well-known/cq-node.json
 
 Content type: `application/json`.
 
-Schema: [`schema/node_discovery.json`](https://github.com/mozilla-ai/cq/tree/docs/v0.1.0/schema/node_discovery.json).
+Schema: [`schema/node_discovery.json`](https://github.com/mozilla-ai/cq/tree/docs/v0.1.2/schema/node_discovery.json).
 
 ### Example — split origin
 
