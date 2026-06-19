@@ -13,7 +13,6 @@ flowchart TB
     subgraph cc["Claude Code Process"]
         direction TB
         skill["SKILL.md\nBehavioral instructions"]
-        hook["hooks.json\nPost-error auto-query"]
         cmd_status["/cq:status\nStore statistics"]
         cmd_reflect["/cq:reflect\nSession mining"]
     end
@@ -40,7 +39,7 @@ flowchart TB
     classDef dockerStyle fill:#e6f4ea,stroke:#34a853,color:#1a1a1a
     classDef dbStyle fill:#fce8e6,stroke:#ea4335,color:#1a1a1a
 
-    class skill,hook,cmd_status,cmd_reflect ccStyle
+    class skill,cmd_status,cmd_reflect ccStyle
     class server mcpStyle
     class api dockerStyle
     class local_db,remote_db dbStyle
@@ -227,7 +226,7 @@ flowchart LR
 
 ## 3c. Knowledge Unit Schema
 
-Every piece of shared knowledge flows through a common structured format — `knowledge-unit.schema.json` — that ensures interoperability regardless of which agent produced or consumed the knowledge.
+Every piece of shared knowledge flows through a common structured format — [`knowledge_unit.json`](schema/README.md) — that ensures interoperability regardless of which agent produced or consumed the knowledge. See the [Schema Reference](schema/README.md) for the canonical JSON Schema definitions of every wire type.
 
 ```json
 {
@@ -356,7 +355,6 @@ flowchart LR
         skill["SKILL.md\nTeaches agent when to\nquery, propose, confirm, flag"]
         reviewer["cq-reviewer.md\nSub-agent for reviewing\ngraduation candidates"]
         mcp_cfg[".mcp.json\nMCP server configuration"]
-        hooks["hooks.json\nPost-error: auto-query\ncommons on failure"]
         commands["Commands\n/cq:status — store stats\n/cq:reflect — session mining"]
     end
 
@@ -368,7 +366,6 @@ flowchart LR
     manifest -.->|"declares"| skill
     manifest -.->|"declares"| reviewer
     manifest -.->|"declares"| mcp_cfg
-    manifest -.->|"declares"| hooks
     manifest -.->|"declares"| commands
     mcp_cfg -->|"spawns via stdio"| server
     skill -->|"instructs agent to call"| tools
@@ -376,17 +373,15 @@ flowchart LR
     classDef pluginStyle fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a
     classDef serverStyle fill:#fef7e0,stroke:#f9ab00,color:#1a1a1a
 
-    class manifest,skill,reviewer,mcp_cfg,hooks,commands pluginStyle
+    class manifest,skill,reviewer,mcp_cfg,commands pluginStyle
     class tools serverStyle
 ```
 
-**SKILL.md** is the behavioral layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behavior, confirm when knowledge proves correct, flag when it is wrong or stale.
+**SKILL.md** is the behavioral layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behavior, confirm when knowledge proves correct, flag when it is wrong or stale. The Skill's core protocol instructs the agent to query before acting and propose immediately when a non-obvious insight stabilizes mid-task.
 
 **MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, remote API communication, confidence scoring, and query matching.
 
-**Hooks** trigger automatically. The post-error hook instructs the agent to call `query` with the error context before attempting a fix.
-
-**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that real-time hooks miss, ranks candidates by estimated generalizability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
+**Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that the mid-task propose flow missed, ranks candidates by estimated generalizability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
 
 **plugin.json** is the manifest that declares all components and wires them together for one-command installation.
 
@@ -449,13 +444,17 @@ flowchart TB
 
 2. **Skill via skills.sh** — installs `SKILL.md` and MCP configuration. Works across 30+ agents that support the Agent Skills standard. The Skill adds judgment: it teaches the agent *when* and *why* to call the tools.
 
-3. **Full Plugin** — bundles the Skill, MCP server, hooks, commands, and manifest into a one-command install for Claude Code, OpenCode, and other plugin-compatible agents. This is the richest experience.
+3. **Full Plugin** — bundles the Skill, MCP server, commands, and manifest into a one-command install for Claude Code, OpenCode, and other plugin-compatible agents. This is the richest experience.
 
 The ecosystem convergence on MCP and Agent Skills means cq does not need to convince developers to adopt new protocols. It plugs into the infrastructure they already have.
 
 ### Multi-host installer
 
-Non-Claude-Code hosts (Cursor, Windsurf, OpenCode) are installed via a host-agnostic Python installer at `scripts/install/`. It is a stdlib-only uv-managed project whose CLI (`python -m cq_install install --target <host>`) resolves a per-host target directory, writes the host-specific MCP config, and installs the shared skill commons to `~/.agents/skills/cq/` (or a project-scoped equivalent). Adding a new host is a single file under `scripts/install/src/cq_install/hosts/`: the primitive library in `common.py` (merge-not-replace JSON, hook entry, manifest-tracked file copies, markdown blocks) handles the shared mechanics. Claude Code remains on its own native marketplace via a thin wrapper host that shells out to `claude plugin marketplace`.
+All hosts are installed via the Go CLI binary (`cq install --target <host>`).
+Each host adapter lives in `cli/internal/install/` and implements the `Host` interface: `Install`, `Uninstall`, `GlobalTarget`, `Name`, `SupportsProject`.
+The shared primitives (idempotent JSON/TOML/markdown-block upsert/remove, manifest-tracked file writes, shell quoting) are in the same package.
+Adding a new host is a single adapter file plus a registry entry.
+Claude Code uses a thin marketplace wrapper that shells out to `claude plugin marketplace add/install/remove`.
 
 > **Domain scope:** The initial implementation targets coding agents — the domain where agent tooling is most mature and adoption is fastest. The underlying mechanism (structured knowledge sharing via MCP with tiered trust) generalizes to arbitrary domains: DevOps, security, data engineering, and beyond.
 

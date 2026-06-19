@@ -1,5 +1,7 @@
 # Development
 
+*Version: 0.15.1*
+
 ## Requirements
 
 - Python 3.11+

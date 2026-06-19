@@ -1,5 +1,7 @@
 # Development
 
+*Version: v0.11.1*
+
 ## Requirements
 
 - Go 1.26.1+
