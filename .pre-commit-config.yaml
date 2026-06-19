@@ -30,20 +30,6 @@ repos:
         pass_filenames: false
         files: '\.md$|^\.gitbook\.yaml$|^\.gitbook-branch-readme\.md$|^scripts/(check_docs|prepare_gitbook_site)\.py$'
 
-      - id: ty-check-install
-        name: ty (scripts/install)
-        entry: bash -c 'cd scripts/install && uvx ty check src/cq_install --python .venv'
-        language: system
-        pass_filenames: false
-        types: [python]
-        files: ^scripts/install/
-      - id: ty-check-plugin
-        name: ty (plugin)
-        entry: bash -c 'uvx ty check plugins/cq/scripts/'
-        language: system
-        pass_filenames: false
-        types: [python]
-        files: ^plugins/cq/scripts/
       - id: ty-check-schema-python
         name: ty (schema/python)
         entry: bash -c 'cd schema/python && uvx ty check src/cq_schema --python .venv'
@@ -68,18 +54,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: uv-lock-check-install
-        name: uv lock --check (scripts/install)
-        entry: uv lock --check --directory scripts/install
-        language: system
-        pass_filenames: false
-        files: ^scripts/install/(pyproject\.toml|uv\.lock|uv\.toml)$
-      - id: uv-lock-check-plugin
-        name: uv lock --check (plugins/cq)
-        entry: uv lock --check --directory plugins/cq
-        language: system
-        pass_filenames: false
-        files: ^plugins/cq/(pyproject\.toml|uv\.lock|uv\.toml)$
       - id: uv-lock-check-schema-python
         name: uv lock --check (schema/python)
         entry: uv lock --check --directory schema/python

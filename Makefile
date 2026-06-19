@@ -4,41 +4,16 @@
 help:
 	@echo "cq - shared agent knowledge commons"
 	@echo ""
-	@echo "Claude Code (recommended):"
-	@echo "  make install-claude                          Install cq plugin via Claude marketplace"
-	@echo "  make uninstall-claude                        Remove cq plugin via Claude marketplace"
+	@echo "Install cq into a coding agent (requires the cq binary):"
+	@echo "  cq install --target <host>                    Install globally"
+	@echo "  cq install --target <host> --uninstall        Remove"
+	@echo "  cq install --target <host> --dry-run          Preview changes"
 	@echo ""
-	@echo "OpenCode:"
-	@echo "  make install-opencode                        Install globally (~/.config/opencode/)"
-	@echo "  make install-opencode PROJECT=/path/to/app   Install into a specific project"
-	@echo "  make uninstall-opencode                      Remove global OpenCode install"
-	@echo "  make uninstall-opencode PROJECT=/path/to/app Remove from a specific project"
-	@echo ""
-	@echo "Cursor:"
-	@echo "  make install-cursor                          Install globally (~/.cursor/)"
-	@echo "  make install-cursor PROJECT=/path/to/app     Install into a specific project"
-	@echo "  make uninstall-cursor                        Remove global Cursor install"
-	@echo "  make uninstall-cursor PROJECT=/path/to/app   Remove from a specific project"
-	@echo ""
-	@echo "Windsurf:"
-	@echo "  make install-windsurf                        Install globally (~/.codeium/windsurf/)"
-	@echo "  make uninstall-windsurf                      Remove global Windsurf install"
-	@echo ""
-	@echo "Pi:"
-	@echo "  make install-pi                              Install globally (~/.pi/agent/)"
-	@echo "  make install-pi PROJECT=/path/to/app         Install into a specific project"
-	@echo "  make uninstall-pi                            Remove global Pi install"
-	@echo "  make uninstall-pi PROJECT=/path/to/app       Remove from a specific project"
-	@echo ""
-	@echo "All hosts at once:"
-	@echo "  make install-all                             Install every host globally"
-	@echo "  make install-all PROJECT=/path/to/app        Install every project-capable host into a project"
+	@echo "  Supported hosts: claude, codex, copilot, cursor, opencode, pi, windsurf"
 	@echo ""
 	@echo "Development:"
 	@echo "  make setup                  Install all dependencies"
 	@echo "    - make setup-cli            CLI"
-	@echo "    - make setup-install        Multi-host installer"
-	@echo "    - make setup-plugin         Plugin"
 	@echo "    - make setup-schema         Schema (Python package only; Go module needs no setup)"
 	@echo "    - make setup-sdk-go         Go SDK"
 	@echo "    - make setup-sdk-python     Python SDK"
@@ -47,8 +22,6 @@ help:
 	@echo "      - make setup-server-frontend Frontend"
 	@echo "  make lint                   Lint all components"
 	@echo "    - make lint-cli             CLI"
-	@echo "    - make lint-install         Multi-host installer"
-	@echo "    - make lint-plugin          Plugin"
 	@echo "    - make lint-schema          Schema (Go module + Python package)"
 	@echo "    - make lint-sdk-go          Go SDK"
 	@echo "    - make lint-sdk-python      Python SDK"
@@ -57,8 +30,6 @@ help:
 	@echo "      - make lint-server-frontend Frontend"
 	@echo "  make test                   Run all tests"
 	@echo "    - make test-cli             CLI"
-	@echo "    - make test-install         Multi-host installer"
-	@echo "    - make test-plugin          Plugin (Cursor hook helper)"
 	@echo "    - make test-schema          Schema (Go module + Python package)"
 	@echo "    - make test-sdk-go          Go SDK"
 	@echo "    - make test-sdk-python      Python SDK"
@@ -85,14 +56,6 @@ help:
 setup-cli:
 	cd cli && go mod download
 
-.PHONY: setup-install
-setup-install:
-	cd scripts/install && uv sync --group dev
-
-.PHONY: setup-plugin
-setup-plugin:
-	cd plugins/cq && uv sync --group dev
-
 .PHONY: setup-schema
 setup-schema:
 	cd schema && $(MAKE) setup
@@ -117,87 +80,7 @@ setup-server-frontend:
 setup-server: setup-server-backend setup-server-frontend
 
 .PHONY: setup
-setup: setup-cli setup-install setup-plugin setup-schema setup-sdk-go setup-sdk-python setup-server
-
-.PHONY: install-claude
-install-claude:
-	cd scripts/install && uv run python -m cq_install install --target claude
-
-.PHONY: uninstall-claude
-uninstall-claude:
-	cd scripts/install && uv run python -m cq_install uninstall --target claude
-
-.PHONY: install-cursor
-install-cursor:
-ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install install --target cursor --project "$(PROJECT)"
-else
-	cd scripts/install && uv run python -m cq_install install --target cursor --global
-endif
-
-.PHONY: uninstall-cursor
-uninstall-cursor:
-ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install uninstall --target cursor --project "$(PROJECT)"
-else
-	cd scripts/install && uv run python -m cq_install uninstall --target cursor --global
-endif
-
-.PHONY: install-opencode
-install-opencode:
-ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install install --target opencode --project "$(PROJECT)"
-else
-	cd scripts/install && uv run python -m cq_install install --target opencode --global
-endif
-
-.PHONY: uninstall-opencode
-uninstall-opencode:
-ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install uninstall --target opencode --project "$(PROJECT)"
-else
-	cd scripts/install && uv run python -m cq_install uninstall --target opencode --global
-endif
-
-.PHONY: install-windsurf
-install-windsurf:
-ifdef PROJECT
-	@echo "Note: Windsurf has no per-project MCP config; installing globally and ignoring PROJECT=$(PROJECT)."
-endif
-	cd scripts/install && uv run python -m cq_install install --target windsurf --global
-
-.PHONY: uninstall-windsurf
-uninstall-windsurf:
-ifdef PROJECT
-	@echo "Note: Windsurf has no per-project MCP config; uninstalling globally and ignoring PROJECT=$(PROJECT)."
-endif
-	cd scripts/install && uv run python -m cq_install uninstall --target windsurf --global
-
-.PHONY: install-pi
-install-pi:
-ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install install --target pi --project "$(PROJECT)"
-else
-	cd scripts/install && uv run python -m cq_install install --target pi --global
-endif
-
-.PHONY: uninstall-pi
-uninstall-pi:
-ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install uninstall --target pi --project "$(PROJECT)"
-else
-	cd scripts/install && uv run python -m cq_install uninstall --target pi --global
-endif
-
-.PHONY: install-all
-install-all:
-ifdef PROJECT
-	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target claude --target pi --project "$(PROJECT)"
-	@echo "Note: Windsurf has no per-project MCP config; installing it globally."
-	cd scripts/install && uv run python -m cq_install install --target windsurf --global
-else
-	cd scripts/install && uv run python -m cq_install install --target opencode --target cursor --target windsurf --target claude --target pi --global
-endif
+setup: setup-cli setup-schema setup-sdk-go setup-sdk-python setup-server
 
 .PHONY: compose-up
 compose-up: .env
@@ -266,14 +149,6 @@ validate-schema:
 lint-cli:
 	cd cli && $(MAKE) lint
 
-.PHONY: lint-install
-lint-install:
-	bash scripts/lint-python-component.sh scripts/install
-
-.PHONY: lint-plugin
-lint-plugin:
-	bash scripts/lint-python-component.sh plugins/cq
-
 .PHONY: lint-schema-go
 lint-schema-go:
 	cd schema && golangci-lint run --fix -v
@@ -325,19 +200,11 @@ sync-schema:
 	cd schema && $(MAKE) sync-schema
 
 .PHONY: lint
-lint: check-prompts-sync sync-schema lint-cli lint-install lint-plugin lint-schema lint-sdk-go lint-sdk-python lint-server
+lint: check-prompts-sync sync-schema lint-cli lint-schema lint-sdk-go lint-sdk-python lint-server
 
 .PHONY: test-cli
 test-cli:
 	cd cli && $(MAKE) test
-
-.PHONY: test-install
-test-install:
-	cd scripts/install && uv run pytest
-
-.PHONY: test-plugin
-test-plugin:
-	cd plugins/cq && uv run pytest
 
 .PHONY: test-schema-go
 test-schema-go:
@@ -370,4 +237,4 @@ test-server-frontend:
 test-server: test-server-backend test-server-frontend
 
 .PHONY: test
-test: test-cli test-install test-plugin test-schema test-sdk-go test-sdk-python test-server
+test: test-cli test-schema test-sdk-go test-sdk-python test-server
