@@ -11,7 +11,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "pydantic>=2.0",
-    "pydantic-settings>=2.0",
+    "pydantic-settings>=2.14.2",
     "pyjwt>=2.13.0",
     "bcrypt>=4.0",
     "cq-sdk~=0.16.0",
