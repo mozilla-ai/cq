@@ -35,6 +35,8 @@ github.com/mattn/go-isatty v0.0.22 h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw
 github.com/mattn/go-isatty v0.0.22/go.mod h1:ZXfXG4SQHsB/w3ZeOYbR0PrPwLy+n6xiMrJlRFqopa4=
 github.com/mozilla-ai/cq/schema v0.2.0 h1:Kd8x08vOQVUrk8SejcHlNI9/EKffc/wDi+U+x8wY1wc=
 github.com/mozilla-ai/cq/schema v0.2.0/go.mod h1:9T+ORUPz850IheKjwTCL90rB5nbOGrYqijZn1bsvAZU=
+github.com/mozilla-ai/cq/sdk/go v0.12.1 h1:mHFM8JJs1B0mR5T9vKrf6N4Qj7tmDSjeZc2oT9dXhtY=
+github.com/mozilla-ai/cq/sdk/go v0.12.1/go.mod h1:ck05OshvY3b2VSVyuYc3nDQt2aN0A1NpqOw7GGfHU7U=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
