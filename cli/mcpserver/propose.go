@@ -75,9 +75,11 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 
 	var extensions map[string]any
 	if raw, ok := req.GetArguments()["extensions"]; ok {
-		if m, ok := raw.(map[string]any); ok {
-			extensions = m
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return mcp.NewToolResultError("extensions must be an object"), nil
 		}
+		extensions = m
 	}
 
 	if err := cq.ValidateExtensionKeys(extensions); err != nil {

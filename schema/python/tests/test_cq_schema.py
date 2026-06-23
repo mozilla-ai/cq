@@ -105,6 +105,18 @@ def test_extensions_reject_unnamespaced_keys(bad_key: str) -> None:
         jsonschema.validate(instance=instance, schema=schema)
 
 
+def test_extensions_reject_more_than_twenty_keys() -> None:
+    schema = cq_schema.load_schema("knowledge_unit")
+    instance = {
+        "id": "ku_00000000000000000000000000000099",
+        "domains": ["test"],
+        "insight": {"summary": "s", "detail": "d", "action": "a"},
+        "extensions": {f"ns:key{i}": i for i in range(21)},
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+
 def test_extensions_accept_namespaced_keys() -> None:
     schema = cq_schema.load_schema("knowledge_unit")
     instance = {

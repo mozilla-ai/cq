@@ -234,6 +234,27 @@ func TestHandlePropose(t *testing.T) {
 		require.Contains(t, result.Content[0].(mcp.TextContent).Text, "namespace:key")
 	})
 
+	t.Run("rejects non-object extensions argument", func(t *testing.T) {
+		t.Parallel()
+
+		s := New(&mockClient{}, "test")
+		result, err := s.HandlePropose(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "propose",
+				Arguments: map[string]any{
+					"summary":    "s",
+					"detail":     "d",
+					"action":     "a",
+					"domains":    []any{"api"},
+					"extensions": []any{"not", "an", "object"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		require.Contains(t, result.Content[0].(mcp.TextContent).Text, "extensions must be an object")
+	})
+
 	t.Run("empty domains slice yields distinct message", func(t *testing.T) {
 		t.Parallel()
 
