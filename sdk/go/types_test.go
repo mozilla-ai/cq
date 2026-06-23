@@ -117,6 +117,7 @@ func TestKnowledgeUnitJSONSchemaFieldCoverage(t *testing.T) {
 		Tier:         Local,
 		CreatedBy:    "agent",
 		SupersededBy: "ku_abcdef01234567890123456789abcdef",
+		Extensions:   map[string]any{"cq:severity": "high"},
 		Flags:        []Flag{{Reason: Stale, Timestamp: &now}},
 	}
 
