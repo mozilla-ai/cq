@@ -162,6 +162,54 @@ func TestPropose(t *testing.T) {
 	require.InDelta(t, 0.5, ku.Evidence.Confidence, 0.001)
 }
 
+func TestProposeWithExtensions(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	ext := map[string]any{
+		"cq:severity": "high",
+		"cq:category": "rate-limiting",
+	}
+	ku, err := c.Propose(ctx, ProposeParams{
+		Summary: "Rate limit", Detail: "429.", Action: "Retry.",
+		Domains: []string{"api"}, Extensions: ext,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ext, ku.Extensions)
+
+	qr, err := c.Query(ctx, QueryParams{Domains: []string{"api"}})
+	require.NoError(t, err)
+	require.Len(t, qr.Units, 1)
+	require.Equal(t, "high", qr.Units[0].Extensions["cq:severity"])
+	require.Equal(t, "rate-limiting", qr.Units[0].Extensions["cq:category"])
+}
+
+func TestProposeRejectsInvalidExtensionKeys(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Propose(context.Background(), ProposeParams{
+		Summary: "S", Detail: "D.", Action: "A.", Domains: []string{"test"},
+		Extensions: map[string]any{"bad-key": "value"},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "namespace:key")
+}
+
+func TestProposeWithoutExtensionsOmitsField(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	ku, err := c.Propose(ctx, ProposeParams{
+		Summary: "No ext", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+	require.Nil(t, ku.Extensions)
+
+	data, err := json.Marshal(ku)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "extensions")
+}
+
 func TestConfirm(t *testing.T) {
 	c := newTestClient(t)
 	ctx := context.Background()

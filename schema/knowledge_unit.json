@@ -36,6 +36,7 @@
       "pattern": "^ku_[0-9a-f]{32}$",
       "description": "ID of the replacing knowledge unit, if any."
     },
+    "extensions": { "$ref": "#/$defs/Extensions" },
     "flags": {
       "type": "array",
       "items": { "$ref": "#/$defs/Flag" },
@@ -44,6 +45,15 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "Extensions": {
+      "type": "object",
+      "description": "Implementation-specific fields. Not portable across implementations; consumers MUST ignore unknown keys and MUST NOT rely on their presence. Keys MUST use namespace:key format with a lowercase implementation slug.",
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9_-]*:\\S+$": true
+      },
+      "additionalProperties": false,
+      "maxProperties": 20
+    },
     "Tier": {
       "type": "string",
       "enum": ["local", "private", "public"],

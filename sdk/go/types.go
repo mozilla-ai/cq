@@ -46,16 +46,17 @@ type Insight struct {
 
 // KnowledgeUnit is a single piece of agent knowledge.
 type KnowledgeUnit struct {
-	ID           string   `json:"id"`
-	Version      int32    `json:"version"`
-	Domains      []string `json:"domains"`
-	Insight      Insight  `json:"insight"`
-	Context      Context  `json:"context"`
-	Evidence     Evidence `json:"evidence"`
-	Tier         Tier     `json:"tier"`
-	CreatedBy    string   `json:"created_by"`
-	SupersededBy string   `json:"superseded_by,omitempty"`
-	Flags        []Flag   `json:"flags"`
+	ID           string         `json:"id"`
+	Version      int32          `json:"version"`
+	Domains      []string       `json:"domains"`
+	Insight      Insight        `json:"insight"`
+	Context      Context        `json:"context"`
+	Evidence     Evidence       `json:"evidence"`
+	Tier         Tier           `json:"tier"`
+	CreatedBy    string         `json:"created_by"`
+	SupersededBy string         `json:"superseded_by,omitempty"`
+	Extensions   map[string]any `json:"extensions,omitempty"`
+	Flags        []Flag         `json:"flags"`
 }
 
 // ProposeParams describes a new knowledge unit to create.
@@ -64,10 +65,11 @@ type ProposeParams struct {
 	Detail     string
 	Action     string
 	Domains    []string
-	Languages  []string // Optional.
-	Frameworks []string // Optional.
-	Pattern    string   // Optional.
-	CreatedBy  string   // Optional.
+	Languages  []string       // Optional.
+	Frameworks []string       // Optional.
+	Pattern    string         // Optional.
+	CreatedBy  string         // Optional.
+	Extensions map[string]any // Optional.
 }
 
 // QueryParams configures a knowledge unit search.

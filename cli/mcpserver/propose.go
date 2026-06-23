@@ -41,6 +41,13 @@ func ProposeTool() mcp.Tool {
 			mcp.WithStringItems(),
 		),
 		mcp.WithString("pattern", mcp.Description("Pattern name.")),
+		mcp.WithObject(
+			"extensions",
+			mcp.Description(
+				"Implementation-specific fields. Keys MUST use namespace:key format (e.g., myimpl:severity).",
+			),
+			func(schema map[string]any) { schema["additionalProperties"] = true },
+		),
 	)
 }
 
@@ -66,6 +73,19 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 		return mcp.NewToolResultError("domains must contain at least one tag"), nil
 	}
 
+	var extensions map[string]any
+	if raw, ok := req.GetArguments()["extensions"]; ok {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return mcp.NewToolResultError("extensions must be an object"), nil
+		}
+		extensions = m
+	}
+
+	if err := cq.ValidateExtensionKeys(extensions); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	params := cq.ProposeParams{
 		Summary:    summary,
 		Detail:     detail,
@@ -74,6 +94,7 @@ func (s *Server) HandlePropose(ctx context.Context, req mcp.CallToolRequest) (*m
 		Languages:  req.GetStringSlice("languages", nil),
 		Frameworks: req.GetStringSlice("frameworks", nil),
 		Pattern:    req.GetString("pattern", ""),
+		Extensions: extensions,
 	}
 
 	result, err := s.client.Propose(ctx, params)

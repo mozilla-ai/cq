@@ -1,5 +1,7 @@
 """Pydantic schemas for /knowledge routes."""
 
+from typing import Any
+
 from cq.models import Context, FlagReason, Insight, KnowledgeUnit
 from pydantic import BaseModel, Field
 
@@ -26,6 +28,7 @@ class ProposeRequest(BaseModel):
     domains: list[str] = Field(min_length=1)
     insight: Insight
     context: Context = Field(default_factory=Context)
+    extensions: dict[str, Any] | None = None
     created_by: str = ""
 
 

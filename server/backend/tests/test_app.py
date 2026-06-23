@@ -131,6 +131,17 @@ class TestPropose:
         assert resp.status_code == 201
         assert resp.json()["domains"] == ["api", "databases"]
 
+    def test_propose_with_extensions(self, client: TestClient) -> None:
+        payload = _propose_payload(extensions={"impl:severity": "high"})
+        resp = client.post("/api/v1/knowledge", json=payload)
+        assert resp.status_code == 201
+        assert resp.json()["extensions"] == {"impl:severity": "high"}
+
+    def test_propose_rejects_unnamespaced_extension_keys(self, client: TestClient) -> None:
+        payload = _propose_payload(extensions={"bad-key": "value"})
+        resp = client.post("/api/v1/knowledge", json=payload)
+        assert resp.status_code == 422
+
 
 class TestQuery:
     def _insert_unit(self, client: TestClient, **overrides: Any) -> dict[str, Any]:

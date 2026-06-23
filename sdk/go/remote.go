@@ -180,6 +180,9 @@ func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (Knowledge
 		},
 		"created_by": ku.CreatedBy,
 	}
+	if len(ku.Extensions) > 0 {
+		body["extensions"] = ku.Extensions
+	}
 
 	proposeURL, err := r.url(ctx, "/knowledge")
 	if err != nil {

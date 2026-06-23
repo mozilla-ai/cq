@@ -287,6 +287,10 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 		return KnowledgeUnit{}, err
 	}
 
+	if err := ValidateExtensionKeys(params.Extensions); err != nil {
+		return KnowledgeUnit{}, err
+	}
+
 	ku := KnowledgeUnit{
 		ID:      GenerateID(),
 		Version: defaultKnowledgeUnitVersion,
@@ -305,8 +309,9 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 			Confidence:    defaultEvidenceConfidence,
 			Confirmations: defaultEvidenceConfirmations,
 		},
-		Tier:      Local,
-		CreatedBy: params.CreatedBy,
+		Tier:       Local,
+		CreatedBy:  params.CreatedBy,
+		Extensions: params.Extensions,
 	}
 
 	var remoteErr error

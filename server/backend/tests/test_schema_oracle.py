@@ -39,6 +39,18 @@ def test_full_knowledge_unit_validates_against_canonical_schema() -> None:
     jsonschema.validate(instance=payload, schema=schema)
 
 
+def test_knowledge_unit_with_extensions_validates_against_canonical_schema() -> None:
+    unit = create_knowledge_unit(
+        domains=["api"],
+        insight=Insight(summary="s", detail="d", action="a"),
+        extensions={"impl:severity": "high"},
+    )
+    schema = cq_schema.load_schema("knowledge_unit")
+    payload = json.loads(unit.model_dump_json(exclude_none=True))
+    jsonschema.validate(instance=payload, schema=schema)
+    assert payload["extensions"] == {"impl:severity": "high"}
+
+
 def test_minimal_knowledge_unit_validates_against_canonical_schema() -> None:
     unit = create_knowledge_unit(
         domains=["databases"],

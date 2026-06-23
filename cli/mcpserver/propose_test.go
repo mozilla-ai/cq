@@ -51,6 +51,36 @@ func TestHandlePropose(t *testing.T) {
 		require.Equal(t, "ku_0123456789abcdef0123456789abcdef", ku.ID)
 	})
 
+	t.Run("passes extensions through to propose params", func(t *testing.T) {
+		t.Parallel()
+
+		var got cq.ProposeParams
+		s := New(&mockClient{
+			proposeFn: func(_ context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error) {
+				got = params
+				return cq.KnowledgeUnit{ID: "ku_0123456789abcdef0123456789abcdef"}, nil
+			},
+		}, "test")
+
+		result, err := s.HandlePropose(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "propose",
+				Arguments: map[string]any{
+					"summary": "s",
+					"detail":  "d",
+					"action":  "a",
+					"domains": []any{"api"},
+					"extensions": map[string]any{
+						"cq:severity": "high",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.Equal(t, map[string]any{"cq:severity": "high"}, got.Extensions)
+	})
+
 	t.Run("errors when required fields are missing", func(t *testing.T) {
 		t.Parallel()
 
@@ -179,6 +209,50 @@ func TestHandlePropose(t *testing.T) {
 		require.Contains(t, text, "warning: stored locally after remote failure")
 		require.Contains(t, text, "remote API rejected request (401): Invalid API key")
 		require.Contains(t, text, "ku_fedcba9876543210fedcba9876543210")
+	})
+
+	t.Run("rejects invalid extension keys with tool error", func(t *testing.T) {
+		t.Parallel()
+
+		s := New(&mockClient{}, "test")
+		result, err := s.HandlePropose(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "propose",
+				Arguments: map[string]any{
+					"summary": "s",
+					"detail":  "d",
+					"action":  "a",
+					"domains": []any{"api"},
+					"extensions": map[string]any{
+						"bad-key": "value",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		require.Contains(t, result.Content[0].(mcp.TextContent).Text, "namespace:key")
+	})
+
+	t.Run("rejects non-object extensions argument", func(t *testing.T) {
+		t.Parallel()
+
+		s := New(&mockClient{}, "test")
+		result, err := s.HandlePropose(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "propose",
+				Arguments: map[string]any{
+					"summary":    "s",
+					"detail":     "d",
+					"action":     "a",
+					"domains":    []any{"api"},
+					"extensions": []any{"not", "an", "object"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		require.Contains(t, result.Content[0].(mcp.TextContent).Text, "extensions must be an object")
 	})
 
 	t.Run("empty domains slice yields distinct message", func(t *testing.T) {

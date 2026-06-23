@@ -5,7 +5,7 @@ from typing import Annotated
 from cq.models import KnowledgeUnit
 from fastapi import APIRouter, Query, status
 
-from ...exceptions import InvalidDomainError, KnowledgeUnitNotFoundError, ServiceError
+from ...exceptions import InvalidDomainError, KnowledgeUnitNotFoundError, ServiceError, ValidationError
 from ...models.knowledge import FlagRequest, KnowledgeUnitList, ProposeRequest, StatsResponse
 from ..deps import APIKeyAuthDep, KnowledgeServiceDep
 
@@ -17,6 +17,7 @@ def knowledge_exception_mappings() -> dict[type[ServiceError], int]:
     return {
         InvalidDomainError: status.HTTP_422_UNPROCESSABLE_CONTENT,
         KnowledgeUnitNotFoundError: status.HTTP_404_NOT_FOUND,
+        ValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     }
 
 
@@ -60,6 +61,7 @@ async def propose_unit(
         domains=request.domains,
         insight=request.insight,
         context=request.context,
+        extensions=request.extensions,
         created_by=username,
     )
 
