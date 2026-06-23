@@ -93,14 +93,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCS_TAG: ${{ steps.tag.outputs.tag }}
-          COMMIT_SHA: ${{ github.sha }}
         run: |
           REPO="${GITHUB_REPOSITORY}"
-          COMMIT_MSG="docs: update GitBook documentation from ${DOCS_TAG} (${COMMIT_SHA})"
+          SOURCE_SHA=$(git rev-parse HEAD)
+          COMMIT_MSG="docs: update GitBook documentation from ${DOCS_TAG} (${SOURCE_SHA})"
 
           PARENT_SHA=""
           PARENT_TREE=""
-          if REF_DATA=$(gh api "repos/${REPO}/git/refs/heads/gitbook-docs" 2>/dev/null); then
+          if REF_DATA=$(gh api "repos/${REPO}/git/ref/heads/gitbook-docs" 2>/dev/null); then
             PARENT_SHA=$(echo "$REF_DATA" | jq -r '.object.sha')
             PARENT_TREE=$(gh api "repos/${REPO}/git/commits/${PARENT_SHA}" --jq '.tree.sha')
           fi
