@@ -139,6 +139,17 @@ def test_minimal_store_stats_validates_against_canonical_schema() -> None:
     _stats_validator().validate(payload)
 
 
+def test_knowledge_unit_field_coverage() -> None:
+    """Every KnowledgeUnit field must appear in the canonical schema and vice versa."""
+    schema = cq_schema.load_schema("knowledge_unit")
+    schema_props = set(schema["properties"])
+    model_fields = set(KnowledgeUnit.model_fields)
+    missing = model_fields - schema_props
+    assert not missing, f"KnowledgeUnit fields missing from knowledge_unit.json: {missing}"
+    extra = schema_props - model_fields
+    assert not extra, f"knowledge_unit.json properties not present in KnowledgeUnit: {extra}"
+
+
 def test_store_stats_field_coverage() -> None:
     """Every StoreStats field must appear in the canonical stats schema."""
     schema = cq_schema.load_schema("stats")

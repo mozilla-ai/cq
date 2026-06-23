@@ -62,25 +62,11 @@ wheels = [
 
 [[package]]
 name = "cq-schema"
-version = "0.0.0.dev0"
-source = { editable = "../../schema/python" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "jsonschema", specifier = ">=4.23.0" },
-    { name = "pre-commit", specifier = ">=4.5.1" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "ruff", specifier = ">=0.15.8" },
-]
-lint = [
-    { name = "pre-commit", specifier = ">=4.5.1" },
-    { name = "ruff", specifier = ">=0.15.8" },
-]
-tests = [
-    { name = "jsonschema", specifier = ">=4.23.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/e7/decbad3d55a393cc0b73fc708d8892d28daa3ad823dec473be80bdb15a86/cq_schema-0.2.0.tar.gz", hash = "sha256:b12d07f3ccad3ef8e2a5798a15101e2b6fd4712c9bd5ec5289c8379fff910ded", size = 8673, upload-time = "2026-06-23T13:33:26.052Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/3c/be36a9a5cf2e4174823430f42145647ec04ef3cde2b5ebdb1a7baa425caa/cq_schema-0.2.0-py3-none-any.whl", hash = "sha256:5e7484f1b2545ca500b91a6bb414f69498d4fbbc58f715e9ea5a33551dd12448", size = 11097, upload-time = "2026-06-23T13:33:24.763Z" },
 ]
 
 [[package]]
@@ -111,7 +97,7 @@ tests = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cq-schema", editable = "../../schema/python" },
+    { name = "cq-schema", specifier = ">=0.2.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.12.5" },
 ]
