@@ -4,6 +4,7 @@ import re
 import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -11,6 +12,7 @@ from ._util import _as_list
 
 _KU_ID_PREFIX = "ku_"
 _KU_ID_PATTERN = re.compile(r"^ku_[0-9a-f]{32}$")
+_EXTENSION_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*:\S+$")
 
 
 class Tier(StrEnum):
@@ -102,6 +104,7 @@ class KnowledgeUnit(BaseModel):
     tier: Tier = Tier.LOCAL
     created_by: str = ""
     superseded_by: str | None = None
+    extensions: dict[str, Any] | None = None
     flags: list[Flag] = Field(default_factory=list)
 
     @field_validator("id")
@@ -120,6 +123,17 @@ class KnowledgeUnit(BaseModel):
             raise ValueError(f"superseded_by must match {_KU_ID_PATTERN.pattern}, got: {v!r}")
         return v
 
+    @field_validator("extensions")
+    @classmethod
+    def _validate_extension_keys(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Enforce namespace:key format on extension keys."""
+        if v is None:
+            return v
+        bad = [k for k in v if not _EXTENSION_KEY_PATTERN.match(k)]
+        if bad:
+            raise ValueError(f"extension keys must match namespace:key format, got: {bad}")
+        return v
+
 
 def _generate_ku_id() -> str:
     """Generate a prefixed UUID for knowledge unit identification."""
@@ -131,6 +145,7 @@ def create_knowledge_unit(
     domains: list[str],
     insight: Insight,
     context: Context | None = None,
+    extensions: dict[str, Any] | None = None,
     tier: Tier = Tier.LOCAL,
     created_by: str = "",
 ) -> KnowledgeUnit:
@@ -141,6 +156,7 @@ def create_knowledge_unit(
         domains=domains,
         insight=insight,
         context=context or Context(),
+        extensions=extensions,
         tier=tier,
         created_by=created_by,
     )

@@ -69,6 +69,52 @@ def test_scoring_values_validates_against_scoring_schema() -> None:
 def test_knowledge_unit_fixtures_validate() -> None:
     schema = cq_schema.load_schema("knowledge_unit")
     fixtures_dir = Path(__file__).resolve().parent.parent.parent / "fixtures"
-    for fixture_name in ("valid-unit.json", "minimal-unit.json", "flagged-unit.json", "duplicate-flag.json"):
+    for fixture_name in (
+        "valid-unit.json",
+        "minimal-unit.json",
+        "flagged-unit.json",
+        "duplicate-flag.json",
+        "extensions-unit.json",
+    ):
         instance = json.loads((fixtures_dir / fixture_name).read_text(encoding="utf-8"))
         jsonschema.validate(instance=instance, schema=schema)
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    [
+        "no-namespace",
+        ":missing-slug",
+        "MixedCase:key",
+        "",
+        "impl: space-value",
+        "impl:has space",
+        "impl:\ttab-value",
+        "impl: ",
+    ],
+)
+def test_extensions_reject_unnamespaced_keys(bad_key: str) -> None:
+    schema = cq_schema.load_schema("knowledge_unit")
+    instance = {
+        "id": "ku_00000000000000000000000000000099",
+        "domains": ["test"],
+        "insight": {"summary": "s", "detail": "d", "action": "a"},
+        "extensions": {bad_key: "value"},
+    }
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=instance, schema=schema)
+
+
+def test_extensions_accept_namespaced_keys() -> None:
+    schema = cq_schema.load_schema("knowledge_unit")
+    instance = {
+        "id": "ku_00000000000000000000000000000099",
+        "domains": ["test"],
+        "insight": {"summary": "s", "detail": "d", "action": "a"},
+        "extensions": {
+            "impl:key": "string-value",
+            "my-impl:nested": {"a": 1},
+            "x0:flag": True,
+        },
+    }
+    jsonschema.validate(instance=instance, schema=schema)

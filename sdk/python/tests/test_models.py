@@ -239,6 +239,55 @@ class TestFlagModel:
         assert FlagReason.DUPLICATE == "duplicate"
 
 
+class TestExtensionKeyValidation:
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "impl:key",
+            "cq:severity",
+            "my-impl:nested-key",
+            "a:b",
+            "abc_def:ghi",
+            "tool123:config",
+            "impl:key.with.dots",
+            "ns:UPPER-value",
+        ],
+    )
+    def test_accepts_valid_extension_keys(self, key):
+        unit = _make_unit(extensions={key: "v"})
+        assert key in unit.extensions
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "no-namespace",
+            ":missing-slug",
+            "MixedCase:key",
+            "",
+            "UPPER:key",
+            "-starts-with-dash:key",
+            "_starts-with-underscore:key",
+            "impl:",
+            " space:key",
+            "impl: space-value",
+            "impl:has space",
+            "impl:\ttab-value",
+            "impl: ",
+        ],
+    )
+    def test_rejects_invalid_extension_keys(self, key):
+        with pytest.raises(ValidationError):
+            _make_unit(extensions={key: "v"})
+
+    def test_accepts_none_extensions(self):
+        unit = _make_unit()
+        assert unit.extensions is None
+
+    def test_accepts_empty_extensions(self):
+        unit = _make_unit(extensions={})
+        assert unit.extensions == {}
+
+
 class TestTierEnum:
     def test_tier_values(self):
         assert Tier.LOCAL == "local"

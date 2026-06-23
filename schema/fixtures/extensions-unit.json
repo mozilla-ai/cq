@@ -1,0 +1,28 @@
+{
+  "id": "ku_00000000000000000000000000000004",
+  "version": 1,
+  "domains": ["api", "error-handling"],
+  "insight": {
+    "summary": "Rate limiter returns 429 with Retry-After header",
+    "detail": "The Retry-After value is in seconds, not milliseconds.",
+    "action": "Parse Retry-After as integer seconds and sleep accordingly."
+  },
+  "context": {
+    "languages": ["go"],
+    "frameworks": [],
+    "pattern": "api-integration"
+  },
+  "evidence": {
+    "confidence": 0.8,
+    "confirmations": 4,
+    "first_observed": "2026-01-10T08:00:00Z",
+    "last_confirmed": "2026-04-15T16:30:00Z"
+  },
+  "tier": "private",
+  "created_by": "agent:cq-review",
+  "extensions": {
+    "cq:severity": "high",
+    "cq:category": "rate-limiting"
+  },
+  "flags": []
+}

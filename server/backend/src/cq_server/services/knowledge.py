@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from cq.models import Context, FlagReason, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 from cq.scoring import apply_confirmation, apply_flag
+from pydantic import ValidationError as PydanticValidationError
 
-from ..exceptions import InvalidDomainError, KnowledgeUnitNotFoundError
+from ..exceptions import InvalidDomainError, KnowledgeUnitNotFoundError, ValidationError
 from ..models.knowledge import StatsResponse
 from ..repositories import KnowledgeRepository, normalize_domains
 
@@ -49,6 +52,7 @@ class KnowledgeService:
         domains: list[str],
         insight: Insight,
         context: Context,
+        extensions: dict[str, Any] | None = None,
         created_by: str,
     ) -> KnowledgeUnit:
         """Create + persist a new knowledge unit owned by ``created_by``.
@@ -62,13 +66,17 @@ class KnowledgeService:
         normalized = normalize_domains(domains)
         if not normalized:
             raise InvalidDomainError()
-        unit = create_knowledge_unit(
-            domains=normalized,
-            insight=insight,
-            context=context,
-            tier=Tier.PRIVATE,
-            created_by=created_by,
-        )
+        try:
+            unit = create_knowledge_unit(
+                domains=normalized,
+                insight=insight,
+                context=context,
+                extensions=extensions,
+                tier=Tier.PRIVATE,
+                created_by=created_by,
+            )
+        except PydanticValidationError as exc:
+            raise ValidationError(str(exc)) from exc
         await self._knowledge.insert(unit)
         return unit
 
