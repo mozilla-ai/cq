@@ -32,7 +32,7 @@ func (s *inMemoryStore) All() ([]KnowledgeUnit, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return nil, errClosed
+		return nil, ErrStoreClosed
 	}
 
 	units := make([]KnowledgeUnit, 0, len(s.order))
@@ -60,7 +60,7 @@ func (s *inMemoryStore) Delete(id string) error {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return errClosed
+		return ErrStoreClosed
 	}
 
 	if _, ok := s.units[id]; !ok {
@@ -81,10 +81,10 @@ func (s *inMemoryStore) Insert(ku KnowledgeUnit) error {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return errClosed
+		return ErrStoreClosed
 	}
 
-	domains := normalizeDomains(ku.Domains)
+	domains := NormalizeDomains(ku.Domains)
 	if len(domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}
@@ -114,7 +114,7 @@ func (s *inMemoryStore) Query(params QueryParams) (StoreQueryResult, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return StoreQueryResult{}, errClosed
+		return StoreQueryResult{}, ErrStoreClosed
 	}
 
 	if len(norm.domains) == 0 {
@@ -147,7 +147,7 @@ func (s *inMemoryStore) Stats(recentLimit int) (StoreStats, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return StoreStats{}, errClosed
+		return StoreStats{}, ErrStoreClosed
 	}
 
 	if recentLimit < 0 {
@@ -195,7 +195,7 @@ func (s *inMemoryStore) Unit(id string) (*KnowledgeUnit, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return nil, errClosed
+		return nil, ErrStoreClosed
 	}
 
 	ku, ok := s.units[id]
@@ -214,10 +214,10 @@ func (s *inMemoryStore) Update(ku KnowledgeUnit) error {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return errClosed
+		return ErrStoreClosed
 	}
 
-	domains := normalizeDomains(ku.Domains)
+	domains := NormalizeDomains(ku.Domains)
 	if len(domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}

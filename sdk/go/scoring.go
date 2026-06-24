@@ -17,9 +17,9 @@ import (
 // this helper does not reject negative values (it treats them as zero).
 // Stores call this so ranking stays shared rather than duplicated per backend.
 func RankCandidates(candidates []KnowledgeUnit, params QueryParams) []KnowledgeUnit {
-	domains := normalizeDomains(params.Domains)
-	languages := normalizeDomains(params.Languages)
-	frameworks := normalizeDomains(params.Frameworks)
+	domains := NormalizeDomains(params.Domains)
+	languages := NormalizeDomains(params.Languages)
+	frameworks := NormalizeDomains(params.Frameworks)
 	pattern := strings.ToLower(strings.TrimSpace(params.Pattern))
 
 	limit := params.Limit

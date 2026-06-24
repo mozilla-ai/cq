@@ -94,22 +94,22 @@ func TestClose(t *testing.T) {
 		_ = s.Close()
 
 		ku := newFakeKU(t, []string{"testing"})
-		require.ErrorIs(t, s.Insert(ku), errClosed)
+		require.ErrorIs(t, s.Insert(ku), ErrStoreClosed)
 
 		_, err = s.Unit("any")
-		require.ErrorIs(t, err, errClosed)
+		require.ErrorIs(t, err, ErrStoreClosed)
 
 		_, err = s.All()
-		require.ErrorIs(t, err, errClosed)
+		require.ErrorIs(t, err, ErrStoreClosed)
 
-		require.ErrorIs(t, s.Delete("any"), errClosed)
-		require.ErrorIs(t, s.Update(ku), errClosed)
+		require.ErrorIs(t, s.Delete("any"), ErrStoreClosed)
+		require.ErrorIs(t, s.Update(ku), ErrStoreClosed)
 
 		_, err = s.Query(QueryParams{Domains: []string{"testing"}, Limit: 10})
-		require.ErrorIs(t, err, errClosed)
+		require.ErrorIs(t, err, ErrStoreClosed)
 
 		_, err = s.Stats(5)
-		require.ErrorIs(t, err, errClosed)
+		require.ErrorIs(t, err, ErrStoreClosed)
 	})
 }
 

@@ -94,7 +94,7 @@ func (s *sqliteStore) All() ([]KnowledgeUnit, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return nil, errClosed
+		return nil, ErrStoreClosed
 	}
 
 	rows, err := s.db.Query("SELECT data FROM knowledge_units")
@@ -145,7 +145,7 @@ func (s *sqliteStore) Delete(unitID string) error {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return errClosed
+		return ErrStoreClosed
 	}
 
 	tx, err := s.db.Begin()
@@ -181,10 +181,10 @@ func (s *sqliteStore) Insert(ku KnowledgeUnit) error {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return errClosed
+		return ErrStoreClosed
 	}
 
-	domains := normalizeDomains(ku.Domains)
+	domains := NormalizeDomains(ku.Domains)
 	if len(domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}
@@ -230,7 +230,7 @@ func (s *sqliteStore) Query(params QueryParams) (StoreQueryResult, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return StoreQueryResult{}, errClosed
+		return StoreQueryResult{}, ErrStoreClosed
 	}
 
 	// No domains means no results.
@@ -329,7 +329,7 @@ func (s *sqliteStore) Stats(recentLimit int) (StoreStats, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return StoreStats{}, errClosed
+		return StoreStats{}, ErrStoreClosed
 	}
 
 	if recentLimit < 0 {
@@ -432,7 +432,7 @@ func (s *sqliteStore) Unit(id string) (*KnowledgeUnit, error) {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return nil, errClosed
+		return nil, ErrStoreClosed
 	}
 
 	var data string
@@ -458,10 +458,10 @@ func (s *sqliteStore) Update(ku KnowledgeUnit) error {
 	defer s.mu.Unlock()
 
 	if s.closed {
-		return errClosed
+		return ErrStoreClosed
 	}
 
-	domains := normalizeDomains(ku.Domains)
+	domains := NormalizeDomains(ku.Domains)
 	if len(domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}

@@ -40,8 +40,8 @@ var confidenceBuckets = map[string]float64{
 	"0.7-1.0": math.Inf(1),
 }
 
-// errClosed is returned when an operation is attempted on a closed store.
-var errClosed = errors.New("store is closed")
+// ErrStoreClosed is returned when an operation is attempted on a closed store.
+var ErrStoreClosed = errors.New("store is closed")
 
 // Store is the local persistence provider interface for the cq SDK.
 // Implementations own all storage concerns (full-text search, dialect SQL,
@@ -82,6 +82,25 @@ type Store interface {
 	Close() error
 }
 
+// NormalizedQuery holds query parameters after normalization and bounds checks,
+// for use by external store adapters.
+type NormalizedQuery struct {
+	// Domains are the lowercased, deduplicated domain tags to match.
+	Domains []string
+
+	// Languages are the normalized language filters.
+	Languages []string
+
+	// Frameworks are the normalized framework filters.
+	Frameworks []string
+
+	// Pattern is the normalized pattern filter, empty when unset.
+	Pattern string
+
+	// Limit is the maximum number of ranked results to return.
+	Limit int
+}
+
 // StoreQueryResult holds the ranked units a Store query produced alongside any
 // non-fatal warnings (for example a backend that could not run full-text for a
 // given query).
@@ -113,6 +132,16 @@ type normalizedQuery struct {
 	limit int
 }
 
+// ConfidenceBucketBound returns the exclusive upper bound for a canonical
+// confidence bucket label.
+func ConfidenceBucketBound(label string) (float64, error) {
+	bound, ok := confidenceBuckets[label]
+	if !ok {
+		return 0, fmt.Errorf("unknown confidence bucket label: %s", label)
+	}
+	return bound, nil
+}
+
 // ConfidenceBucketLabels returns the canonical confidence-distribution bucket
 // labels in ascending order by upper bound. Display and bucketing code should
 // use this rather than hardcoding labels, so order and spelling stay tied to
@@ -129,10 +158,48 @@ func ConfidenceBucketLabels() []string {
 	return labels
 }
 
+// NormalizeDomains lowercases, trims whitespace, drops empties, and deduplicates preserving order.
+func NormalizeDomains(domains []string) []string {
+	seen := make(map[string]struct{}, len(domains))
+	result := make([]string, 0, len(domains))
+
+	for _, d := range domains {
+		normalized := strings.ToLower(strings.TrimSpace(d))
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+
+	return result
+}
+
+// NormalizeQueryParams validates and normalizes query parameters for use by
+// external store adapters. It returns a NormalizedQuery with lowercased,
+// deduplicated tags and a validated limit.
+func NormalizeQueryParams(params QueryParams) (NormalizedQuery, error) {
+	nq, err := normalizeQueryParams(params)
+	if err != nil {
+		return NormalizedQuery{}, err
+	}
+	return NormalizedQuery{
+		Domains:    nq.domains,
+		Languages:  nq.languages,
+		Frameworks: nq.frameworks,
+		Pattern:    nq.pattern,
+		Limit:      nq.limit,
+	}, nil
+}
+
 // StoreFromURL resolves a connection string to a Store.
 // A sqlite:///<path> or sqlite:<path> URL selects the built-in SQLite store.
-// A postgresql:// or postgres:// URL is not handled by the core SDK and
-// returns an error naming the optional Postgres adapter module to install.
+// A postgresql:// or postgres:// URL requires the separate adapter at
+// github.com/mozilla-ai/cq/sdk/go/stores/postgres; construct it with
+// postgres.New and pass via WithStore.
 // Any other scheme returns an error.
 //
 // NOTE: it returns the Store interface rather than a concrete type because the
@@ -155,7 +222,7 @@ func StoreFromURL(connURL string) (Store, error) {
 		return newSQLiteStore(path)
 	case "postgresql", "postgres":
 		return nil, fmt.Errorf(
-			"postgres store requires the optional adapter module github.com/mozilla-ai/cq/sdk/go/stores/postgres, which is not yet available",
+			"postgres requires the adapter at github.com/mozilla-ai/cq/sdk/go/stores/postgres; use postgres.New and pass via WithStore",
 		)
 	case "":
 		return nil, fmt.Errorf("store URL must include a scheme, for example sqlite:///path/to/local.db")
@@ -164,42 +231,22 @@ func StoreFromURL(connURL string) (Store, error) {
 	}
 }
 
-// normalizeDomains lowercases, trims whitespace, drops empties, and deduplicates preserving order.
-func normalizeDomains(domains []string) []string {
-	seen := make(map[string]struct{}, len(domains))
-	result := make([]string, 0, len(domains))
-
-	for _, d := range domains {
-		normalized := strings.ToLower(strings.TrimSpace(d))
-		if normalized == "" {
-			continue
-		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		result = append(result, normalized)
-	}
-
-	return result
-}
-
 // normalizeQueryParams validates and normalizes query parameters against the
 // store-level bounds, returning an error when a bound is exceeded.
 // Tags are lowercased, trimmed, deduplicated, and order-stable; a zero limit
 // defaults to defaultStoreQueryLimit; a negative limit errors.
 func normalizeQueryParams(params QueryParams) (normalizedQuery, error) {
-	domains := normalizeDomains(params.Domains)
+	domains := NormalizeDomains(params.Domains)
 	if len(domains) > maxQueryDomains {
 		return normalizedQuery{}, fmt.Errorf("maximum number of domains reached")
 	}
 
-	languages := normalizeDomains(params.Languages)
+	languages := NormalizeDomains(params.Languages)
 	if len(languages) > maxQueryLanguages {
 		return normalizedQuery{}, fmt.Errorf("maximum number of languages reached")
 	}
 
-	frameworks := normalizeDomains(params.Frameworks)
+	frameworks := NormalizeDomains(params.Frameworks)
 	if len(frameworks) > maxQueryFrameworks {
 		return normalizedQuery{}, fmt.Errorf("maximum number of frameworks reached")
 	}
