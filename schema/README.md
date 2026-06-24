@@ -1,6 +1,8 @@
 # Schema Reference
 
-*Version: v0.2.0*
+{% hint style="info" %}
+Version: v0.2.0
+{% endhint %}
 
 Canonical [JSON Schema](https://json-schema.org/draft/2020-12/schema) definitions for the cq wire protocol. Every SDK, server, and plugin implementation validates against these schemas; they are the single source of truth for the shapes that cross process and network boundaries.
 

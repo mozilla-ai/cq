@@ -1,6 +1,8 @@
 # cq Go SDK
 
-*Version: v0.12.1*
+{% hint style="info" %}
+Version: v0.12.1
+{% endhint %}
 
 Go SDK for [cq](https://github.com/mozilla-ai/cq) — the shared agent
 knowledge commons. It stores knowledge units locally in SQLite and
