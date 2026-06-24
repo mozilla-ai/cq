@@ -6,7 +6,7 @@ The plugin works with Claude Code, OpenCode, Cursor, Windsurf, and Pi.
 
 ## Installation
 
-Requires: the [cq CLI](../cli/README.md).
+Requires: the [cq CLI](../../cli/README.md).
 
 ```bash
 cq install --target claude
