@@ -1,6 +1,6 @@
 # cq-sdk
 
-{% hint style="info" %}
+{% hint style="info" icon="tag" %}
 Version: 0.16.0
 {% endhint %}
 

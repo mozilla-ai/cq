@@ -1,6 +1,6 @@
 # cq Plugin
 
-{% hint style="info" %}
+{% hint style="info" icon="tag" %}
 Version: 0.13.0
 {% endhint %}
 

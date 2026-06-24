@@ -1,6 +1,6 @@
 # Schema Reference
 
-{% hint style="info" %}
+{% hint style="info" icon="tag" %}
 Version: v0.2.0
 {% endhint %}
 
@@ -238,7 +238,7 @@ Store-level statistics.
 
 **Title:** NodeDiscovery
 
-Discovery document published at `/.well-known/cq-node.json` by a cq node. See the [Node Discovery Protocol](https://github.com/mozilla-ai/cq/tree/docs/v0.1.3/docs/node-discovery-protocol.md) for the full specification.
+Discovery document published at `/.well-known/cq-node.json` by a cq node. See the [Node Discovery Protocol](https://github.com/mozilla-ai/cq/tree/docs/v0.1.4/docs/node-discovery-protocol.md) for the full specification.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|

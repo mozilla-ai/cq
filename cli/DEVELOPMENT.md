@@ -1,6 +1,6 @@
 # Development
 
-{% hint style="info" %}
+{% hint style="info" icon="tag" %}
 Version: v0.14.0
 {% endhint %}
 
