@@ -2,6 +2,7 @@ package cq
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func TestConfidenceBucketBound(t *testing.T) {
 			}
 			require.NoError(t, err)
 			if tc.label == "0.7-1.0" {
-				require.True(t, got > 1e18, "expected +Inf for top bucket")
+				require.True(t, math.IsInf(got, 1), "expected +Inf for top bucket")
 				return
 			}
 			require.InDelta(t, tc.want, got, 0.001)
