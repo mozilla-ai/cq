@@ -14,6 +14,8 @@ if [[ ! -d "$component_dir" ]]; then
   exit 1
 fi
 
+uv sync --project "$component_dir" --group lint --all-extras
+
 git -C "$component_dir" ls-files -z --cached --others --exclude-standard -- \
   '*.py' \
   'pyproject.toml' \
