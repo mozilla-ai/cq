@@ -393,8 +393,7 @@ class TestCreateStore:
         store.close()
 
     def test_postgres_url_attempts_connection(self) -> None:
-        import psycopg
-
+        psycopg = pytest.importorskip("psycopg")
         with pytest.raises(psycopg.OperationalError):
             create_store("postgresql://localhost:1/cq")
 
