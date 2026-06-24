@@ -225,6 +225,18 @@ test-sdk-go:
 test-sdk-python:
 	cd sdk/python && $(MAKE) test
 
+.PHONY: lint-sdk-go-postgres
+lint-sdk-go-postgres:
+	cd sdk/go/stores/postgres && $(MAKE) lint
+
+.PHONY: test-sdk-go-postgres
+test-sdk-go-postgres:
+	cd sdk/go/stores/postgres && $(MAKE) test
+
+.PHONY: test-sdk-python-postgres
+test-sdk-python-postgres:
+	cd sdk/python && uv run --extra postgres pytest tests/test_store_postgres_conformance.py -v
+
 .PHONY: test-server-backend
 test-server-backend: validate-schema
 	cd server/backend && uv run pytest
