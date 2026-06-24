@@ -98,7 +98,7 @@ export function DashboardPage() {
         {[1, 2].map((i) => (
           <div
             key={i}
-            className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 h-40 animate-pulse bg-gray-100 dark:bg-slate-800"
+            className="bg-gray-100 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-800 p-4 h-40 animate-pulse"
           />
         ))}
       </div>

@@ -8,8 +8,12 @@ export function Layout() {
   const location = useLocation()
   const [pendingCount, setPendingCount] = useState(0)
   const [dark, setDark] = useState(() => {
-    const stored = localStorage.getItem("cq-dark-mode")
-    if (stored !== null) return stored === "true"
+    try {
+      const stored = localStorage.getItem("cq-dark-mode")
+      if (stored !== null) return stored === "true"
+    } catch {
+      // localStorage blocked — fall through to system preference
+    }
     return window.matchMedia("(prefers-color-scheme: dark)").matches
   })
   const onDashboard = location.pathname === "/dashboard"
@@ -70,12 +74,12 @@ export function Layout() {
               {username}
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs select-none">{dark ? "🌙" : "☀️"}</span>
+              <span className="text-xs select-none" aria-hidden="true">{dark ? "🌙" : "☀️"}</span>
               <button
                 type="button"
                 role="switch"
                 aria-checked={dark}
-                onClick={() => setDark(!dark)}
+                onClick={() => setDark(prev => !prev)}
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
                   dark
                     ? "bg-indigo-600"
