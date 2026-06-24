@@ -12,6 +12,9 @@ on:
       - sdk/go/go.mod
       - sdk/go/go.sum
       - sdk/go/NOTICE
+      - sdk/go/stores/postgres/go.mod
+      - sdk/go/stores/postgres/go.sum
+      - sdk/go/stores/postgres/NOTICE
   pull_request:
     branches: [main]
     paths:
@@ -23,6 +26,9 @@ on:
       - sdk/go/go.mod
       - sdk/go/go.sum
       - sdk/go/NOTICE
+      - sdk/go/stores/postgres/go.mod
+      - sdk/go/stores/postgres/go.sum
+      - sdk/go/stores/postgres/NOTICE
 
 permissions:
   contents: read
@@ -46,6 +52,14 @@ jobs:
 
       - name: Check SDK NOTICE freshness
         working-directory: sdk/go
+        run: make check-notice
+
+      - name: Check SDK PostgreSQL adapter licenses
+        working-directory: sdk/go/stores/postgres
+        run: make check-licenses
+
+      - name: Check SDK PostgreSQL adapter NOTICE freshness
+        working-directory: sdk/go/stores/postgres
         run: make check-notice
 
       - name: Check CLI licenses

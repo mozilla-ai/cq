@@ -1,0 +1,61 @@
+name: Go SDK PostgreSQL Adapter CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-sdk-go-postgres.yaml
+      - schema/**
+      - sdk/go/*.go
+      - sdk/go/stores/postgres/**
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ci-sdk-go-postgres.yaml
+      - schema/**
+      - sdk/go/*.go
+      - sdk/go/stores/postgres/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: sdk/go/stores/postgres/go.mod
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.10.1
+          working-directory: sdk/go/stores/postgres
+
+      - name: Check licenses
+        working-directory: sdk/go/stores/postgres
+        run: make check-licenses
+
+      - name: Check NOTICE
+        working-directory: sdk/go/stores/postgres
+        run: make check-notice
+
+  test:
+    name: Test
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: sdk/go/stores/postgres/go.mod
+
+      - name: Test
+        working-directory: sdk/go/stores/postgres
+        run: make test
