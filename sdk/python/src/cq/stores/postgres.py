@@ -14,7 +14,7 @@ import psycopg
 import psycopg.sql
 from psycopg.rows import tuple_row
 
-from ..models import KnowledgeUnit
+from ..models import KnowledgeUnit, Tier
 from ..store import (
     _CONFIDENCE_BUCKETS,
     _MAX_QUERY_DOMAINS,
@@ -239,6 +239,7 @@ class PostgresStore:
             domain_counts=domain_counts,
             recent=recent,
             confidence_distribution=buckets,
+            tier_counts={Tier.LOCAL: total},
         )
 
     def close(self) -> None:

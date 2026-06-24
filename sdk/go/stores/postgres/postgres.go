@@ -239,6 +239,7 @@ func (s *Store) Stats(recentLimit int) (cq.StoreStats, error) {
 		DomainCounts:           domainCounts,
 		Recent:                 recent,
 		ConfidenceDistribution: buckets,
+		TierCounts:             map[cq.Tier]int{cq.Local: totalCount},
 	}, nil
 }
 
