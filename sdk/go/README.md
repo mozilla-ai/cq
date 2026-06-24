@@ -78,7 +78,7 @@ The local store is pluggable. The SDK defines a `Store` interface that the `Clie
 The client resolves the local store in this precedence order:
 
 1. **`cq.WithStore`** — inject any `cq.Store` directly.
-2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.StoreFromURL`. Accepted schemes: `sqlite:///abs/path` or `sqlite:path`. For `postgres://` URLs, use the [PostgreSQL adapter](stores/postgres/) with `cq.WithStore`.
+2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.StoreFromURL`. Accepted schemes: `sqlite:///abs/path` or `sqlite:path`. For `postgres://` URLs, use the [PostgreSQL adapter]({{REPO_TREE_URL}}/sdk/go/stores/postgres) with `cq.WithStore`.
 3. **`CQ_LOCAL_DB_PATH` / `cq.WithLocalDBPath`** — path to a SQLite file.
 4. **XDG default** — `$XDG_DATA_HOME/cq/local.db` (typically `~/.local/share/cq/local.db`).
 
@@ -100,7 +100,7 @@ The `cq.Store` interface requires eight methods. Implementations must be safe fo
 #### Built-in implementations
 
 - **SQLite store** (default, unexported) — opens a SQLite file with FTS5 full-text search, WAL journaling, and domain-tag indexing.
-- **[PostgreSQL adapter](stores/postgres/)** — separate module (`github.com/mozilla-ai/cq/sdk/go/stores/postgres`). Connects to a shared PostgreSQL instance for multi-agent knowledge sharing. Domain-tag matching only (no full-text).
+- **[PostgreSQL adapter]({{REPO_TREE_URL}}/sdk/go/stores/postgres)** — separate module (`github.com/mozilla-ai/cq/sdk/go/stores/postgres`). Connects to a shared PostgreSQL instance for multi-agent knowledge sharing. Domain-tag matching only (no full-text).
 - **`NewInMemoryStore()`** — map-backed, no persistence. Useful for tests and as a worked example for custom stores (domain-tag matching only, no full-text).
 
 ```go
