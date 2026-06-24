@@ -7,21 +7,8 @@ export function Layout() {
   const { username, logout } = useAuth()
   const location = useLocation()
   const [pendingCount, setPendingCount] = useState(0)
-  const [dark, setDark] = useState(() => {
-    try {
-      const stored = localStorage.getItem("cq-dark-mode")
-      if (stored !== null) return stored === "true"
-    } catch {
-      // localStorage blocked — fall through to system preference
-    }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-  })
+  const [dark, setDark] = useState(false)
   const onDashboard = location.pathname === "/dashboard"
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark)
-    localStorage.setItem("cq-dark-mode", String(dark))
-  }, [dark])
 
   useEffect(() => {
     if (onDashboard) return
@@ -79,7 +66,14 @@ export function Layout() {
                 type="button"
                 role="switch"
                 aria-checked={dark}
-                onClick={() => setDark(prev => !prev)}
+                onClick={() => {
+                  setDark(prev => {
+                    const next = !prev;
+                    document.documentElement.classList.toggle("dark", next);
+                    localStorage.setItem("cq-dark-mode", String(next));
+                    return next;
+                  });
+                }}
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
                   dark
                     ? "bg-indigo-600"
