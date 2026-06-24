@@ -174,7 +174,7 @@ func (s *Store) Insert(ku cq.KnowledgeUnit) error {
 	// Rollback is a no-op after Commit; the returned error is not actionable.
 	defer func() { _ = tx.Rollback(ctx) }()
 	if _, err := tx.Exec(ctx, sqlInsertUnit, ku.ID, data); err != nil {
-		return fmt.Errorf("unit %s already exists", ku.ID)
+		return fmt.Errorf("inserting unit %s: %w", ku.ID, err)
 	}
 	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
 		return err
