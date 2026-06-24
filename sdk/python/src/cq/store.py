@@ -245,7 +245,9 @@ def create_store(database_url: str | None = None) -> Store:
     if database_url.startswith(("postgresql://", "postgres://")):
         try:
             from .stores.postgres import PostgresStore
-        except ImportError as exc:
+        except ModuleNotFoundError as exc:
+            if exc.name is None or not exc.name.startswith("psycopg"):
+                raise
             raise NotImplementedError(
                 "PostgreSQL support requires psycopg; install the 'cq-sdk[postgres]' extra."
             ) from exc
