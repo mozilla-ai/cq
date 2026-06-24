@@ -11,6 +11,9 @@ dependencies = [
     "pydantic>=2.12.5",
 ]
 
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.3.4,<4"]
+
 [project.urls]
 Homepage = "https://github.com/mozilla-ai/cq"
 Repository = "https://github.com/mozilla-ai/cq"

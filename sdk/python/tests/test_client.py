@@ -392,9 +392,11 @@ class TestCreateStore:
         assert store.db_path == db
         store.close()
 
-    def test_postgres_url_raises_not_implemented_with_install_hint(self) -> None:
-        with pytest.raises(NotImplementedError, match="cq-sdk\\[postgres\\]"):
-            create_store("postgresql://localhost/cq")
+    def test_postgres_url_attempts_connection(self) -> None:
+        import psycopg
+
+        with pytest.raises(psycopg.OperationalError):
+            create_store("postgresql://localhost:1/cq")
 
     def test_unknown_scheme_raises_value_error(self) -> None:
         with pytest.raises(ValueError, match="Unsupported database URL"):

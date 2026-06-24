@@ -242,9 +242,13 @@ def create_store(database_url: str | None = None) -> Store:
             raise ValueError("sqlite store URL must include a file path")
         return SqliteStore(db_path=Path(path))
     if database_url.startswith(("postgresql://", "postgres://")):
-        raise NotImplementedError(
-            "PostgreSQL persistence is not yet available; install the 'cq-sdk[postgres]' extra when it ships."
-        )
+        try:
+            from .stores.postgres import PostgresStore
+        except ImportError as exc:
+            raise NotImplementedError(
+                "PostgreSQL support requires psycopg; install the 'cq-sdk[postgres]' extra."
+            ) from exc
+        return PostgresStore(database_url)
     raise ValueError("Unsupported database URL; expected a 'sqlite:' connection string")
 
 
