@@ -1,6 +1,6 @@
 # cq CLI
 
-*Version: v0.13.0*
+*Version: v0.14.0*
 
 Command-line interface for [cq](https://github.com/mozilla-ai/cq) — the
 shared agent knowledge commons. Also runs as an

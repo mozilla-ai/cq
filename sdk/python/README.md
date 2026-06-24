@@ -1,6 +1,6 @@
 # cq-sdk
 
-*Version: 0.15.1*
+*Version: 0.16.0*
 
 Python SDK for [cq](https://github.com/mozilla-ai/cq) — the shared agent knowledge commons.
 

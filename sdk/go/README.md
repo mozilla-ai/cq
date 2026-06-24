@@ -1,6 +1,6 @@
 # cq Go SDK
 
-*Version: v0.11.1*
+*Version: v0.12.1*
 
 Go SDK for [cq](https://github.com/mozilla-ai/cq) — the shared agent
 knowledge commons. It stores knowledge units locally in SQLite and
@@ -110,7 +110,7 @@ c, err := cq.NewClient(cq.WithStore(cq.NewInMemoryStore()))
 
 #### Bring your own
 
-Implement the `cq.Store` interface and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query` implementation so ranking stays consistent across backends. Verify the implementation against the conformance suite in [`storetest`](https://github.com/mozilla-ai/cq/tree/docs/v0.1.2/sdk/go/storetest):
+Implement the `cq.Store` interface and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query` implementation so ranking stays consistent across backends. Verify the implementation against the conformance suite in [`storetest`](https://github.com/mozilla-ai/cq/tree/docs/v0.1.3/sdk/go/storetest):
 
 ```go
 import "github.com/mozilla-ai/cq/sdk/go/storetest"
@@ -134,7 +134,7 @@ See the [top-level README](../../index.md) for the full description.
 
 Knowledge units are stored as JSON in SQLite. The database schema is shared
 with the [cq Python SDK](../python/README.md) — both SDKs read and write the
-same `local.db` file. The [JSON Schema definitions](https://github.com/mozilla-ai/cq/tree/docs/v0.1.2/schema) are the
+same `local.db` file. The [JSON Schema definitions](https://github.com/mozilla-ai/cq/tree/docs/v0.1.3/schema) are the
 source of truth.
 
 ## Development

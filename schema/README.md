@@ -1,6 +1,6 @@
 # Schema Reference
 
-*Version: v0.1.0*
+*Version: v0.2.0*
 
 Canonical [JSON Schema](https://json-schema.org/draft/2020-12/schema) definitions for the cq wire protocol. Every SDK, server, and plugin implementation validates against these schemas; they are the single source of truth for the shapes that cross process and network boundaries.
 
@@ -236,7 +236,7 @@ Store-level statistics.
 
 **Title:** NodeDiscovery
 
-Discovery document published at `/.well-known/cq-node.json` by a cq node. See the [Node Discovery Protocol](https://github.com/mozilla-ai/cq/tree/docs/v0.1.2/docs/node-discovery-protocol.md) for the full specification.
+Discovery document published at `/.well-known/cq-node.json` by a cq node. See the [Node Discovery Protocol](https://github.com/mozilla-ai/cq/tree/docs/v0.1.3/docs/node-discovery-protocol.md) for the full specification.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
