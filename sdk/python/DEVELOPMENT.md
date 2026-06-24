@@ -1,6 +1,8 @@
 # Development
 
-*Version: 0.16.0*
+{% hint style="info" %}
+Version: 0.16.0
+{% endhint %}
 
 ## Requirements
 

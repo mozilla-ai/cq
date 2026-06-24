@@ -1,6 +1,8 @@
 # cq Plugin
 
-*Version: 0.13.0*
+{% hint style="info" %}
+Version: 0.13.0
+{% endhint %}
 
 Agent plugin for [cq](https://github.com/mozilla-ai/cq) — the shared agent knowledge commons. Bundles the MCP server, the cq protocol skill, and session commands (`/cq:status`, `/cq:reflect`) so your coding agent can query, propose, confirm, and flag knowledge units during normal work.
 
