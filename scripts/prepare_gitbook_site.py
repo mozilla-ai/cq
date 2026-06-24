@@ -226,7 +226,12 @@ def _inject_version_badge(content: str, version: str) -> str:
             j = i + 1
             while j < len(lines) and not lines[j].strip():
                 j += 1
-            lines[j:j] = [f"*Version: {version}*", ""]
+            lines[j:j] = [
+                '{% hint style="info" %}',
+                f"Version: {version}",
+                "{% endhint %}",
+                "",
+            ]
             break
     return "\n".join(lines)
 
