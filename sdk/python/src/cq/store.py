@@ -212,9 +212,10 @@ def create_store(database_url: str | None = None) -> Store:
 
     A ``None`` URL or a ``sqlite:`` URL selects the built-in SqliteStore.
     Accepted SQLite forms are ``sqlite:///<path>`` (absolute) and
-    ``sqlite:<path>``; the path is taken verbatim. A ``postgresql://`` or
-    ``postgres://`` URL is not yet available and raises NotImplementedError
-    naming the optional install. Any other scheme raises ValueError.
+    ``sqlite:<path>``; the path is taken verbatim.
+    A ``postgresql://`` or ``postgres://`` URL selects PostgresStore when
+    the ``cq-sdk[postgres]`` extra is installed.
+    Any other scheme raises ValueError.
 
     Args:
         database_url: The store connection string, or None for the
@@ -224,8 +225,8 @@ def create_store(database_url: str | None = None) -> Store:
         A Store ready for use.
 
     Raises:
-        NotImplementedError: For a PostgreSQL URL; the adapter is not yet
-            available.
+        NotImplementedError: For a PostgreSQL URL when psycopg is not
+            installed.
         ValueError: For an unrecognized scheme.
     """
     if database_url is None:
@@ -249,7 +250,7 @@ def create_store(database_url: str | None = None) -> Store:
                 "PostgreSQL support requires psycopg; install the 'cq-sdk[postgres]' extra."
             ) from exc
         return PostgresStore(database_url)
-    raise ValueError("Unsupported database URL; expected a 'sqlite:' connection string")
+    raise ValueError("Unsupported database URL scheme; expected sqlite: or postgresql:")
 
 
 def rank_candidates(candidates: list[KnowledgeUnit], params: QueryParams) -> list[KnowledgeUnit]:
