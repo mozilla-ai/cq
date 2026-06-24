@@ -8,7 +8,7 @@ with FastAPI's async event loop.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import ArgumentError
 
+from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
+from ..semsearch import load as semsearch_load
 from .config import Settings
 
 
@@ -71,6 +73,8 @@ class Database:
                 future=True,
             )
             event.listen(self._engine, "connect", _apply_sqlite_pragmas)
+            if _SEMSEARCH_ENABLED:
+                event.listen(self._engine, "connect", semsearch_load)
         elif driver == "postgresql+psycopg":
             raise NotImplementedError(
                 "PostgreSQL backend is not implemented yet; the psycopg "
@@ -116,3 +120,37 @@ class Database:
         if self._closed:
             raise RuntimeError("Database is closed")
         return await asyncio.to_thread(fn, *args, **kwargs)
+
+    async def run_clauses_in_transaction(self, clauses: list[tuple[Any, dict[str, Any]]]) -> None:
+        """Execute a list of SQL clauses in a single transaction.
+
+        Parameters:
+            clauses: List of tuples containing (statement, parameters_dict) to execute.
+
+        Raises:
+            RuntimeError: If the database has already been closed.
+        """
+        return await self.run_sync(self.run_clauses_sync, clauses)
+
+    def run_clauses_sync(
+        self,
+        clauses: list[tuple[Any, dict[str, Any]]],
+        *,
+        fetch: bool = False,
+    ) -> Sequence[Any]:
+        """Execute clauses in one transaction and optionally fetch the last result set.
+
+        When ``fetch`` is ``True``, this returns ``fetchall()`` from the final
+        executed statement if it produces rows, otherwise an empty list.
+        """
+        if not clauses:
+            return []
+
+        rows: Sequence[Any] = []
+        with self._engine.begin() as conn:
+            result = None
+            for statement, params in clauses:
+                result = conn.execute(statement, params)
+            if fetch and result is not None and result.returns_rows:
+                rows = result.fetchall()
+        return rows

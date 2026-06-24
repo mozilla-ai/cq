@@ -31,8 +31,10 @@ WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
 
 # Install dependencies first so this layer is cached independently of
-# application code changes.
-RUN uv sync --no-dev --frozen --no-install-project
+# application code changes. The semsearch extra adds sqlite-vec, numpy,
+# and httpx for optional semantic search (enabled at runtime by setting
+# TOKEN_EMBEDDING_URL).
+RUN uv sync --no-dev --frozen --no-install-project --extra semsearch
 
 COPY backend/src/ src/
 # Alembic config + migration scripts must ship in the image; the
@@ -42,7 +44,7 @@ COPY backend/src/ src/
 # raises at container start.
 COPY backend/alembic.ini ./alembic.ini
 COPY backend/alembic/ alembic/
-RUN uv sync --no-dev --frozen
+RUN uv sync --no-dev --frozen --extra semsearch
 
 # Copy the frontend build output into the package's static directory.
 COPY --from=frontend /build/dist src/cq_server/static/
@@ -56,6 +58,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
     CQ_DB_PATH=/data/cq.db \
     CQ_PORT=3000
+
+# Semantic search (optional). Set TOKEN_EMBEDDING_URL to an embeddings
+# endpoint to enable. SEMSEARCH_EMBEDDING_DIM defaults to 768 and must
+# match the model's output dimension.
+ENV TOKEN_EMBEDDING_URL=
+ENV SEMSEARCH_EMBEDDING_DIM=768
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=2 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${CQ_PORT}/health')"

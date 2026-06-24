@@ -20,6 +20,13 @@ dependencies = [
     "psycopg[binary,pool]>=3.3.4,<4",
 ]
 
+[project.optional-dependencies]
+semsearch = [
+    "httpx",
+    "sqlite_vec~=0.1.9",
+    "numpy==2.*",
+]
+
 [project.scripts]
 cq-server = "cq_server.app:main"
 

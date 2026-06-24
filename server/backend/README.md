@@ -71,3 +71,60 @@ The full environment-variable table for self-hosters lives in
 [DEVELOPMENT.md](../../DEVELOPMENT.md#self-hosted-server).
 
 [issue-312]: https://github.com/mozilla-ai/cq/issues/312
+[issue-310]: https://github.com/mozilla-ai/cq/issues/310
+
+## Semantic search
+
+Semantic similarity search is **disabled by default**. It activates only when
+`TOKEN_EMBEDDING_URL` is set *and* the `semsearch` optional extra is installed.
+
+### Installation
+
+```bash
+uv sync --extra semsearch
+# or
+pip install "cq-server[semsearch]"
+```
+
+The extra installs `sqlite-vec`, `numpy`, and `httpx`.
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `TOKEN_EMBEDDING_URL` | to enable | — | Base URL of the [encoderfile](https://github.com/mozilla-ai/encoderfile) embedding service. When this variable is set and the `semsearch` extra is installed, every insert/update writes an embedding row and `query` modulates relevance by cosine distance. |
+| `SEMSEARCH_EMBEDDING_DIM` | no | `768` | Dimensionality of the embedding vectors. **Must match the model served at `TOKEN_EMBEDDING_URL`.** |
+
+### Embedding service contract
+
+The server calls:
+
+```
+POST {TOKEN_EMBEDDING_URL}/predict
+Content-Type: application/json
+
+{"inputs": ["word1", "word2", ...]}
+```
+
+Expected response:
+
+```json
+{
+  "results": [
+    {
+      "embeddings": [
+        {"embedding": [0.1, 0.2, ...]},
+        ...
+      ]
+    }
+  ]
+}
+```
+
+The server averages across all returned embeddings to produce a single vector.
+
+### Disabled-by-default behaviour
+
+When `TOKEN_EMBEDDING_URL` is unset (or the `semsearch` extra is not installed)
+`semsearch.is_enabled()` returns `False` and all semsearch code-paths are
+short-circuited; behaviour matches the non-semsearch baseline exactly.

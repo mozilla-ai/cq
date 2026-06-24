@@ -21,11 +21,22 @@ from cq.models import (
     create_knowledge_unit,
 )
 from cq.scoring import apply_confirmation, apply_flag
+from sqlalchemy.exc import IntegrityError
 
-from .conftest import _RepoBundle
+from .db_helpers import _RepoBundle
 
 
 def _make_insight(**overrides: Any) -> Insight:
+    """
+    Create an Insight with sensible default values, allowing callers to override any fields.
+
+    Parameters:
+        overrides (Any): Keyword arguments corresponding to Insight's initializer fields (e.g., `summary`, `detail`,
+            `action`) that will replace the defaults.
+
+    Returns:
+        Insight: An Insight instance constructed from the default values merged with the provided overrides.
+    """
     defaults = {
         "summary": "Use connection pooling",
         "detail": "Database connections are expensive to create.",
@@ -78,7 +89,7 @@ class TestInsertAndGet:
     async def test_insert_duplicate_raises(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)
-        with pytest.raises(sqlite3.IntegrityError):
+        with pytest.raises(IntegrityError):
             await store.insert(unit)
 
     async def test_returns_none_for_missing_id(self, store: _RepoBundle) -> None:

@@ -7,6 +7,8 @@ services:
       # CQ_DATABASE_URL: ${CQ_DATABASE_URL:-}  # SQLAlchemy URL; wins over CQ_DB_PATH when set.
       CQ_DB_PATH: ${CQ_DB_PATH:-/data/cq.db}
       CQ_PORT: ${CQ_PORT:-3000}
+      TOKEN_EMBEDDING_URL: ${TOKEN_EMBEDDING_URL:-}
+      SEMSEARCH_EMBEDDING_DIM: ${SEMSEARCH_EMBEDDING_DIM:-768}
     ports:
       - "${CQ_PORT:-3000}:${CQ_PORT:-3000}"
     volumes:

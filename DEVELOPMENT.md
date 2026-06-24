@@ -156,6 +156,20 @@ Running the server (see `server/`) requires:
 | `CQ_DATABASE_URL` | No | — | SQLAlchemy URL for the backing database. Currently only `sqlite:///<path>` is supported; `postgresql+psycopg://...` is reserved for the upcoming PostgreSQL backend ([epic #257](https://github.com/mozilla-ai/cq/issues/257)) and rejected at startup. |
 | `CQ_DB_PATH` | No | `/data/cq.db` | Shortcut for SQLite deployments — wrapped as `sqlite:///<path>` internally. Used when `CQ_DATABASE_URL` is unset. |
 | `CQ_PORT` | No | `3000` | HTTP listen port. |
+| `TOKEN_EMBEDDING_URL` | Only for embedding-based queries | - | URL of the embedding encoderfile server. |
+| `SEMSEARCH_EMBEDDING_DIM` | Only for embedding-based queries | - | Embedding dimension of the encoder used. |
+
+To enable embeddings, download a suitable encoderfile, set it up in a serve configuration, and then set the appropriate environment variables before starting the CQ server, as detailed below:
+
+```bash
+curl -L -o modernbert.encoderfile https://huggingface.co/mozilla-ai/embedding-modernbert-encoderfile/resolve/main/modernbert.x86_64-unknown-linux-gnu.encoderfile
+modernbert.encoderfile serve > /dev/null 2>&1 &
+# start the cq server with:
+# TOKEN_EMBEDDING_URL=http://localhost:8080
+# (the default host and port for encoderfiles)
+# SEMSEARCH_EMBEDDING_DIM=768
+# (the embedding dimension for ModernBERT)
+```
 
 API keys are created per user from the web UI: log in, open **API Keys**, give the key a name, choose a TTL, and copy the plaintext token when it is shown. The token is displayed exactly once. Set it as `CQ_API_KEY` on each client (plugin, SDK, CLI) that should authenticate against this server.
 
