@@ -11,7 +11,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "pydantic>=2.0",
-    "pydantic-settings>=2.14.2",
+    "pydantic-settings>=2.14.0",
     "pyjwt>=2.13.0",
     "bcrypt>=4.0",
     "cq-sdk~=0.16.0",
@@ -51,6 +51,13 @@ namespaces = false
 # [tool.setuptools_scm]
 # root = "../.."
 # tag_regex = "^server/(?P<version>.+)$"
+
+[tool.uv]
+exclude-newer = "7 days"
+exclude-newer-package = {
+    cq-schema = "0 days",
+    cq-sdk = "0 days"
+}
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

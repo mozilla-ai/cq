@@ -1,0 +1,3 @@
+# Delay installation of newly published packages by 7 days (10080 minutes).
+# Malware is typically detected within hours, so this window provides protection.
+minimumReleaseAge: 10080

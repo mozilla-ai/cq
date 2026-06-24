@@ -40,5 +40,8 @@ namespaces = false
 [tool.setuptools.package-data]
 "cq_schema" = ["py.typed", "_data/*.json"]
 
+[tool.uv]
+exclude-newer = "7 days"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -61,5 +61,11 @@ namespaces = false
 # root = "../.."
 # tag_regex = "^sdk/python/(?P<version>.+)$"
 
+[tool.uv]
+exclude-newer = "7 days"
+exclude-newer-package = {
+    cq-schema = "0 days"
+}
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
