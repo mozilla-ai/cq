@@ -90,23 +90,67 @@ jobs:
           DOCS_REF: ${{ steps.tag.outputs.tag }}
 
       - name: Deploy to gitbook-docs branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCS_TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          REPO="${GITHUB_REPOSITORY}"
+          SOURCE_SHA=$(git rev-parse HEAD)
+          COMMIT_MSG="docs: update GitBook documentation from ${DOCS_TAG} (${SOURCE_SHA})"
 
-          mv site/ /tmp/gitbook-site/
+          PARENT_SHA=""
+          PARENT_TREE=""
+          REF_ERR=$(mktemp)
+          if REF_DATA=$(gh api "repos/${REPO}/git/ref/heads/gitbook-docs" 2>"$REF_ERR"); then
+            PARENT_SHA=$(echo "$REF_DATA" | jq -r '.object.sha')
+            PARENT_TREE=$(gh api "repos/${REPO}/git/commits/${PARENT_SHA}" --jq '.tree.sha')
+          elif ! grep -q 'HTTP 404' "$REF_ERR"; then
+            cat "$REF_ERR" >&2
+            echo "::error::Failed to read gitbook-docs ref"
+            exit 1
+          fi
+          rm -f "$REF_ERR"
 
-          git fetch origin gitbook-docs || true
-          if git rev-parse --verify origin/gitbook-docs >/dev/null 2>&1; then
-            git checkout gitbook-docs
+          cd site/
+          TREE_ENTRIES="[]"
+          while IFS= read -r -d '' file; do
+            REL_PATH="${file#./}"
+            BLOB_SHA=$(gh api "repos/${REPO}/git/blobs" \
+              -f content="$(base64 -w 0 < "$file")" \
+              -f encoding="base64" \
+              --jq '.sha') || { echo "::error::Failed to create blob for $REL_PATH"; exit 1; }
+            TREE_ENTRIES=$(echo "$TREE_ENTRIES" | jq \
+              --arg path "$REL_PATH" \
+              --arg sha "$BLOB_SHA" \
+              '. + [{"path": $path, "mode": "100644", "type": "blob", "sha": $sha}]')
+          done < <(find . -type f -print0)
+
+          TREE_SHA=$(jq -n --argjson tree "$TREE_ENTRIES" '{"tree": $tree}' | \
+            gh api "repos/${REPO}/git/trees" --input - --jq '.sha')
+
+          if [ -n "${PARENT_TREE}" ] && [ "${TREE_SHA}" = "${PARENT_TREE}" ]; then
+            echo "No changes to deploy"
+            exit 0
+          fi
+
+          DEPLOY_SHA=$(jq -n \
+            --arg message "$COMMIT_MSG" \
+            --arg tree "$TREE_SHA" \
+            --arg parent "$PARENT_SHA" \
+            'if $parent == "" then
+              {message: $message, tree: $tree}
+            else
+              {message: $message, tree: $tree, parents: [$parent]}
+            end' | \
+            gh api "repos/${REPO}/git/commits" --input - --jq '.sha')
+
+          if [ -n "$PARENT_SHA" ]; then
+            gh api "repos/${REPO}/git/refs/heads/gitbook-docs" \
+              -X PATCH -f sha="$DEPLOY_SHA" > /dev/null
           else
-            git checkout --orphan gitbook-docs
-            git rm -rf .
+            gh api "repos/${REPO}/git/refs" \
+              -f ref="refs/heads/gitbook-docs" \
+              -f sha="$DEPLOY_SHA" > /dev/null
           fi
 
-          rsync -a --delete --exclude='.git' /tmp/gitbook-site/ .
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "docs: update GitBook documentation from ${{ github.sha }}"
-            git push origin gitbook-docs
-          fi
+          echo "Deployed commit ${DEPLOY_SHA}"
