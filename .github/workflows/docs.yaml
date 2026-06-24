@@ -100,10 +100,16 @@ jobs:
 
           PARENT_SHA=""
           PARENT_TREE=""
-          if REF_DATA=$(gh api "repos/${REPO}/git/ref/heads/gitbook-docs" 2>/dev/null); then
+          REF_ERR=$(mktemp)
+          if REF_DATA=$(gh api "repos/${REPO}/git/ref/heads/gitbook-docs" 2>"$REF_ERR"); then
             PARENT_SHA=$(echo "$REF_DATA" | jq -r '.object.sha')
             PARENT_TREE=$(gh api "repos/${REPO}/git/commits/${PARENT_SHA}" --jq '.tree.sha')
+          elif ! grep -q 'HTTP 404' "$REF_ERR"; then
+            cat "$REF_ERR" >&2
+            echo "::error::Failed to read gitbook-docs ref"
+            exit 1
           fi
+          rm -f "$REF_ERR"
 
           cd site/
           TREE_ENTRIES="[]"
