@@ -227,7 +227,7 @@ def _inject_version_badge(content: str, version: str) -> str:
             while j < len(lines) and not lines[j].strip():
                 j += 1
             lines[j:j] = [
-                '{% hint style="info" %}',
+                '{% hint style="info" icon="tag" %}',
                 f"Version: {version}",
                 "{% endhint %}",
                 "",

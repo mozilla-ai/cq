@@ -8,6 +8,7 @@ on:
       - "docs/**"
       - "**/*.md"
       - "scripts/prepare_gitbook_site.py"
+      - "scripts/test_prepare_gitbook_site.py"
       - "scripts/check_docs.py"
       - ".gitbook.yaml"
       - ".gitbook-branch-readme.md"
@@ -37,6 +38,12 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run script tests
+        run: pytest scripts/test_prepare_gitbook_site.py -v
 
       - name: Check documentation links
         run: python scripts/check_docs.py
