@@ -83,7 +83,7 @@ Each piece of information belongs in one field — do not repeat the same term a
 | Scenario | `domains` | other call args |
 |----------|-----------|------------------|
 | Stripe payment integration | `["api", "payments", "stripe"]` | `languages: ["python"]` |
-| Webpack build configuration | `["bundler", "webpack", "configuration"]` | `frameworks: ["react"]` |
+| Webpack build configuration | `["bundler", "configuration"]` | `frameworks: ["webpack", "react"]` |
 | GitHub Actions CI for Rust | `["ci", "github-actions"]` | `languages: ["rust"], pattern: "ci-pipeline"` |
 | PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `languages: ["go"]` |
 
@@ -268,16 +268,16 @@ The developer asks you to integrate Stripe payments in a Python project.
 
 The developer asks you to configure a webpack build. You encounter a cryptic error: `Module not found: Can't resolve 'stream'`.
 
-1. Call `query` with `domains: ["bundler", "webpack", "nodejs-polyfills"]` and `frameworks: ["react"]`.
+1. Call `query` with `domains: ["bundler", "nodejs-polyfills"]` and `frameworks: ["webpack", "react"]`.
 2. No relevant results returned. Proceed normally.
 3. Debug the issue: webpack 5 removed Node.js polyfills. Add `resolve.fallback: { stream: require.resolve("stream-browserify") }` to the config.
 4. Call `propose` **now** — before continuing with the rest of the build configuration:
    - **summary:** `"webpack 5 removes built-in Node.js polyfills — imports like 'stream' fail at build time"`
    - **detail:** `"webpack 5 no longer includes polyfills for Node.js core modules. Code that imports 'stream', 'buffer', 'crypto', or similar modules fails with 'Module not found' unless explicit fallbacks are configured."`
    - **action:** `"Add resolve.fallback entries in webpack config mapping each required Node.js module to its browserify equivalent (e.g. stream-browserify, buffer, crypto-browserify)."`
-   - **domains:** `["bundler", "webpack", "nodejs-polyfills"]`
+   - **domains:** `["bundler", "nodejs-polyfills"]`
    - **languages:** `["typescript"]`
-   - **frameworks:** `["react"]`
+   - **frameworks:** `["webpack", "react"]`
    - **pattern:** `"build-tooling"`
 5. Resume the original task: finish wiring up the rest of the build, run the dev server, verify the developer's feature works. The `propose` was a brief interruption mid-task, not the end of the task.
 
