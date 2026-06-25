@@ -28,7 +28,13 @@ func NewInMemoryStore() Store {
 }
 
 // All returns every knowledge unit in insertion order.
-func (s *inMemoryStore) All(_ context.Context) ([]KnowledgeUnit, error) {
+func (s *inMemoryStore) All(ctx context.Context) ([]KnowledgeUnit, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -56,7 +62,13 @@ func (s *inMemoryStore) Close() error {
 }
 
 // Delete removes a knowledge unit by ID.
-func (s *inMemoryStore) Delete(_ context.Context, id string) error {
+func (s *inMemoryStore) Delete(ctx context.Context, id string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -77,7 +89,13 @@ func (s *inMemoryStore) Delete(_ context.Context, id string) error {
 }
 
 // Insert stores a new knowledge unit. Error if ID exists or domains empty after normalization.
-func (s *inMemoryStore) Insert(_ context.Context, ku KnowledgeUnit) error {
+func (s *inMemoryStore) Insert(ctx context.Context, ku KnowledgeUnit) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -105,7 +123,13 @@ func (s *inMemoryStore) Insert(_ context.Context, ku KnowledgeUnit) error {
 
 // Query returns units matching any of the requested domains, ranked by the
 // shared ranker. It does not run full-text search.
-func (s *inMemoryStore) Query(_ context.Context, params QueryParams) (StoreQueryResult, error) {
+func (s *inMemoryStore) Query(ctx context.Context, params QueryParams) (StoreQueryResult, error) {
+	select {
+	case <-ctx.Done():
+		return StoreQueryResult{}, ctx.Err()
+	default:
+	}
+
 	norm, err := normalizeQueryParams(params)
 	if err != nil {
 		return StoreQueryResult{}, err
@@ -143,7 +167,13 @@ func (s *inMemoryStore) Query(_ context.Context, params QueryParams) (StoreQuery
 }
 
 // Stats returns aggregated statistics, including up to recentLimit most-recently-inserted units.
-func (s *inMemoryStore) Stats(_ context.Context, recentLimit int) (StoreStats, error) {
+func (s *inMemoryStore) Stats(ctx context.Context, recentLimit int) (StoreStats, error) {
+	select {
+	case <-ctx.Done():
+		return StoreStats{}, ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -191,7 +221,13 @@ func (s *inMemoryStore) Stats(_ context.Context, recentLimit int) (StoreStats, e
 }
 
 // Unit retrieves a knowledge unit by ID. Returns nil, nil if not found.
-func (s *inMemoryStore) Unit(_ context.Context, id string) (*KnowledgeUnit, error) {
+func (s *inMemoryStore) Unit(ctx context.Context, id string) (*KnowledgeUnit, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -210,7 +246,13 @@ func (s *inMemoryStore) Unit(_ context.Context, id string) (*KnowledgeUnit, erro
 }
 
 // Update replaces an existing knowledge unit.
-func (s *inMemoryStore) Update(_ context.Context, ku KnowledgeUnit) error {
+func (s *inMemoryStore) Update(ctx context.Context, ku KnowledgeUnit) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
