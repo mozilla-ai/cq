@@ -491,16 +491,12 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	return stats, nil
 }
 
-// operationContext ensures client operations consistently respect request timeout.
+// operationContext bounds an operation by the client timeout. The returned
+// context expires at the sooner of the caller's deadline and c.timeout, so
+// c.timeout is an upper bound, never an extension. A non-positive c.timeout
+// imposes no client-side cap.
+// NOTE: ctx must be non-nil.
 func (c *Client) operationContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if _, hasDeadline := ctx.Deadline(); hasDeadline {
-		return ctx, func() {}
-	}
-
 	if c.timeout <= 0 {
 		return ctx, func() {}
 	}

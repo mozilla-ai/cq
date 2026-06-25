@@ -121,7 +121,8 @@ func WithStore(s Store) ClientOption {
 	}
 }
 
-// WithTimeout overrides the default HTTP request timeout.
+// WithTimeout sets the maximum duration of a client operation. It is an upper
+// bound: when the caller's context has an earlier deadline, that deadline wins.
 func WithTimeout(d time.Duration) ClientOption {
 	return func(c *clientConfig) error {
 		if d <= 0 {
