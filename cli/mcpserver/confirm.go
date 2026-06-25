@@ -14,10 +14,14 @@ import (
 // ConfirmTool returns the MCP tool definition for confirm.
 func ConfirmTool() mcp.Tool {
 	return mcp.NewTool("confirm",
-		mcp.WithDescription("Confirm a knowledge unit proved correct, boosting its confidence score."),
+		mcp.WithDescription(
+			"Strengthen a knowledge unit that proved correct during your task. "+
+				"Call after you followed queried guidance and it resolved or avoided the described issue, "+
+				"or after you independently verified the described behavior still exists.",
+		),
 		mcp.WithString("unit_id",
 			mcp.Required(),
-			mcp.Description("ID of the knowledge unit to confirm."),
+			mcp.Description("ID of the knowledge unit to confirm (returned by query)."),
 		),
 	)
 }

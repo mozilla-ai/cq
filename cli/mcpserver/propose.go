@@ -13,34 +13,58 @@ import (
 
 // ProposeTool returns the MCP tool definition for propose.
 func ProposeTool() mcp.Tool {
-	return mcp.NewTool("propose",
-		mcp.WithDescription("Propose a new knowledge unit."),
-		mcp.WithString("summary",
-			mcp.Required(),
-			mcp.Description("Brief summary of the insight."),
+	return mcp.NewTool(
+		"propose",
+		mcp.WithDescription(
+			"Share a non-obvious insight so other agents avoid the same pitfall. "+
+				"Call IMMEDIATELY after resolving a non-obvious error, discovering undocumented API behavior, "+
+				"finding a version-specific incompatibility, or working around a known issue. "+
+				"Do not batch to end-of-task. "+
+				"Strip project-specific details; the insight must be generalizable.",
 		),
-		mcp.WithString("detail",
+		mcp.WithString(
+			"summary",
 			mcp.Required(),
-			mcp.Description("Detailed explanation of what was discovered."),
+			mcp.Description(
+				"One-line description of the discovery (e.g. \"webpack 5 removes built-in Node.js polyfills\").",
+			),
 		),
-		mcp.WithString("action",
+		mcp.WithString(
+			"detail",
 			mcp.Required(),
-			mcp.Description("Recommended action for agents encountering this situation."),
+			mcp.Description(
+				"Fuller explanation with enough context to understand the issue. Include when you verified and against what version.",
+			),
 		),
-		mcp.WithArray("domains",
+		mcp.WithString(
+			"action",
 			mcp.Required(),
-			mcp.Description("Domain tags for this knowledge."),
+			mcp.Description(
+				"Concrete instruction starting with an imperative verb (e.g. \"Use\", \"Set\", \"When X, do Y\"). Prefer principle and verification method over exact pinned values.",
+			),
+		),
+		mcp.WithArray(
+			"domains",
+			mcp.Required(),
+			mcp.Description(
+				"Subject-area tags capturing what the insight is about (e.g. \"api\", \"payments\", \"connection-pooling\"). Do not repeat languages or frameworks here.",
+			),
 			mcp.WithStringItems(),
 		),
 		mcp.WithArray("languages",
-			mcp.Description("Programming language context."),
+			mcp.Description("Programming languages the insight applies to (e.g. \"python\", \"go\")."),
 			mcp.WithStringItems(),
 		),
 		mcp.WithArray("frameworks",
-			mcp.Description("Framework context."),
+			mcp.Description("Libraries or frameworks involved (e.g. \"webpack\", \"react\", \"fastapi\")."),
 			mcp.WithStringItems(),
 		),
-		mcp.WithString("pattern", mcp.Description("Pattern name.")),
+		mcp.WithString(
+			"pattern",
+			mcp.Description(
+				"Reusable cross-cutting concern (e.g. \"shell-quoting\", \"build-tooling\"). Omit if it just rephrases the summary.",
+			),
+		),
 		mcp.WithObject(
 			"extensions",
 			mcp.Description(

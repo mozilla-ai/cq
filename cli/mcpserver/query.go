@@ -20,26 +20,41 @@ const (
 func QueryTool() mcp.Tool {
 	return mcp.NewTool("query",
 		mcp.WithDescription(
-			"Search for relevant knowledge units by domain tags.",
+			"Search for known gotchas, workarounds, and version-specific quirks before acting. "+
+				"Call when starting a task in unfamiliar territory, encountering an error, or setting up CI/CD or infrastructure. "+
+				"Returns knowledge units with confidence scores and recommended actions. "+
+				"Skip for routine edits to code you are already working in this session.",
 		),
-		mcp.WithArray("domains",
+		mcp.WithArray(
+			"domains",
 			mcp.Required(),
-			mcp.Description("Domain tags to search."),
+			mcp.Description(
+				"Subject-area tags capturing what the query is about (e.g. \"api\", \"payments\", \"connection-pooling\"). Use 2-3 specific tags.",
+			),
 			mcp.WithStringItems(),
 		),
-		mcp.WithArray("languages",
-			mcp.Description("Filter by programming languages."),
+		mcp.WithArray(
+			"languages",
+			mcp.Description(
+				"Programming languages the query applies to (e.g. \"python\", \"go\"). Do not repeat in domains.",
+			),
 			mcp.WithStringItems(),
 		),
-		mcp.WithArray("frameworks",
-			mcp.Description("Filter by frameworks."),
+		mcp.WithArray(
+			"frameworks",
+			mcp.Description(
+				"Libraries or frameworks involved (e.g. \"webpack\", \"react\", \"fastapi\"). Do not repeat in domains.",
+			),
 			mcp.WithStringItems(),
 		),
-		mcp.WithString("pattern",
-			mcp.Description("Filter by pattern."),
+		mcp.WithString(
+			"pattern",
+			mcp.Description(
+				"Cross-cutting concern useful as a search axis independent of specific technology (e.g. \"shell-quoting\", \"ci-pipeline\").",
+			),
 		),
 		mcp.WithNumber("limit",
-			mcp.Description("Maximum results to return (default 5, max 50)."),
+			mcp.Description("Maximum results to return (default 5, max 50). Increase for broad exploratory queries."),
 		),
 	)
 }

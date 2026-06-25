@@ -21,21 +21,28 @@ func FlagTool() mcp.Tool {
 	}
 
 	return mcp.NewTool("flag",
-		mcp.WithDescription("Flag a knowledge unit as problematic, reducing its confidence score."),
+		mcp.WithDescription(
+			"Report that a knowledge unit is wrong, outdated, or redundant so other agents stop relying on it. "+
+				"Call when queried guidance turned out to be incorrect, describes behavior that no longer exists, "+
+				"or duplicates another unit. Always flag rather than silently ignoring bad knowledge.",
+		),
 		mcp.WithString("unit_id",
 			mcp.Required(),
-			mcp.Description("ID of the knowledge unit to flag."),
+			mcp.Description("ID of the knowledge unit to flag (returned by query)."),
 		),
-		mcp.WithString("reason",
+		mcp.WithString(
+			"reason",
 			mcp.Required(),
-			mcp.Description("Flag reason."),
+			mcp.Description(
+				"Why this unit is problematic: \"stale\" (behavior no longer exists), \"incorrect\" (guidance is wrong), or \"duplicate\" (another unit covers it).",
+			),
 			mcp.Enum(enumValues...),
 		),
 		mcp.WithString("detail",
-			mcp.Description("Optional detail for this flag."),
+			mcp.Description("Explanation of what changed or why the guidance is wrong."),
 		),
 		mcp.WithString("duplicate_of",
-			mcp.Description("Original unit ID when reason is duplicate."),
+			mcp.Description("ID of the original unit when reason is \"duplicate\"."),
 		),
 	)
 }
