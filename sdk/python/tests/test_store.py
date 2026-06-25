@@ -3,7 +3,6 @@
 import json
 import sqlite3
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +10,6 @@ import pytest
 
 from cq.models import (
     Context,
-    Evidence,
     FlagReason,
     Insight,
     KnowledgeUnit,
@@ -831,38 +829,15 @@ class TestStats:
         result = store.stats()
         assert result.domain_counts == {"api": 2, "databases": 2, "payments": 1}
 
-    def test_recent_ordered_by_last_confirmed_descending(self, store: LocalStore):
-        now = datetime.now(UTC)
-        old_unit = _make_unit(
-            domains=["api"],
-            context=Context(languages=["python"]),
-        )
-        old_unit = old_unit.model_copy(
-            update={
-                "evidence": Evidence(
-                    first_observed=now - timedelta(days=10),
-                    last_confirmed=now - timedelta(days=10),
-                ),
-            },
-        )
-        new_unit = _make_unit(
-            domains=["api"],
-            context=Context(languages=["go"]),
-        )
-        new_unit = new_unit.model_copy(
-            update={
-                "evidence": Evidence(
-                    first_observed=now - timedelta(days=1),
-                    last_confirmed=now - timedelta(days=1),
-                ),
-            },
-        )
-        store.insert(old_unit)
-        store.insert(new_unit)
+    def test_recent_ordered_by_insertion_order_descending(self, store: LocalStore):
+        first = _make_unit(domains=["api"], context=Context(languages=["python"]))
+        second = _make_unit(domains=["api"], context=Context(languages=["go"]))
+        store.insert(first)
+        store.insert(second)
         result = store.stats()
         assert len(result.recent) == 2
-        assert result.recent[0].id == new_unit.id
-        assert result.recent[1].id == old_unit.id
+        assert result.recent[0].id == second.id
+        assert result.recent[1].id == first.id
 
     def test_recent_respects_limit(self, store: LocalStore):
         for _ in range(10):

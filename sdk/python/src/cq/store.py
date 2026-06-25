@@ -81,6 +81,7 @@ class StoreStats(BaseModel):
 
     total_count: int
     domain_counts: dict[str, int] = Field(default_factory=dict)
+    # Most recently added units from the local store.
     recent: list[KnowledgeUnit] = Field(default_factory=list)
     # Covers the local store plus any private/org units a configured remote
     # reports; it excludes the public commons. Keyed by the canonical bucket
@@ -627,16 +628,15 @@ class SqliteStore:
             domain_rows = self._conn.execute(
                 "SELECT domain, COUNT(*) AS cnt FROM knowledge_unit_domains GROUP BY domain ORDER BY cnt DESC"
             ).fetchall()
+            recent_rows = self._conn.execute(
+                "SELECT data FROM knowledge_units ORDER BY rowid DESC LIMIT ?",
+                (recent_limit,),
+            ).fetchall()
             all_rows = self._conn.execute("SELECT data FROM knowledge_units").fetchall()
 
         domain_counts = {row[0]: row[1] for row in domain_rows}
+        recent = [KnowledgeUnit.model_validate_json(row[0]) for row in recent_rows]
         units = [KnowledgeUnit.model_validate_json(row[0]) for row in all_rows]
-
-        units.sort(
-            key=lambda u: u.evidence.last_confirmed or _EPOCH_UTC,
-            reverse=True,
-        )
-        recent = units[:recent_limit]
 
         buckets = {label: 0 for _, label in _CONFIDENCE_BUCKETS}
         for unit in units:
