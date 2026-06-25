@@ -70,7 +70,11 @@ export function Layout() {
                   setDark(prev => {
                     const next = !prev;
                     document.documentElement.classList.toggle("dark", next);
-                    localStorage.setItem("cq-dark-mode", String(next));
+                    try {
+                      localStorage.setItem("cq-dark-mode", String(next));
+                    } catch {
+                      // localStorage blocked (privacy mode, embedded context)
+                    }
                     return next;
                   });
                 }}
