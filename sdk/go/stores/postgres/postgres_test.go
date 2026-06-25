@@ -6,9 +6,11 @@ import (
 	"testing"
 	"time"
 
-	cq "github.com/mozilla-ai/cq/sdk/go"
-	"github.com/mozilla-ai/cq/sdk/go/stores/postgres"
 	"github.com/stretchr/testify/require"
+
+	cq "github.com/mozilla-ai/cq/sdk/go"
+
+	"github.com/mozilla-ai/cq/sdk/go/stores/postgres"
 )
 
 func TestNew(t *testing.T) {
@@ -43,6 +45,17 @@ func TestNew(t *testing.T) {
 			require.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
+}
+
+func TestNewRespectsCancelledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := postgres.New(ctx, "postgres://localhost:1/nonexistent")
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestMarshalUnmarshalRoundTrip(t *testing.T) {
@@ -174,4 +187,3 @@ func TestUnmarshalInvalidJSON(t *testing.T) {
 		})
 	}
 }
-
