@@ -98,7 +98,7 @@ func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, 
 	}
 
 	if !ku.Tier.IsRemote() {
-		stored, err := c.store.Unit(ku.ID)
+		stored, err := c.store.Unit(ctx, ku.ID)
 		if err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("reading knowledge unit: %w", err)
 		}
@@ -108,7 +108,7 @@ func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, 
 		}
 
 		updated := applyConfirmation(*stored)
-		if err := c.store.Update(updated); err != nil {
+		if err := c.store.Update(ctx, updated); err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("updating knowledge unit: %w", err)
 		}
 
@@ -145,7 +145,7 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 		return DrainResult{}, fmt.Errorf("no remote API configured")
 	}
 
-	units, err := c.store.All()
+	units, err := c.store.All(ctx)
 	if err != nil {
 		return DrainResult{}, fmt.Errorf("reading local units: %w", err)
 	}
@@ -169,7 +169,7 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 			continue
 		}
 
-		if err := c.store.Delete(ku.ID); err != nil {
+		if err := c.store.Delete(ctx, ku.ID); err != nil {
 			result.Warnings = append(result.Warnings, fmt.Errorf("deleting local %s: %w", ku.ID, err))
 
 			continue
@@ -189,7 +189,7 @@ func (c *Client) DrainableCount(ctx context.Context) (int, error) {
 	default:
 	}
 
-	units, err := c.store.All()
+	units, err := c.store.All(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("reading local units: %w", err)
 	}
@@ -233,7 +233,7 @@ func (c *Client) Flag(
 	}
 
 	if !ku.Tier.IsRemote() {
-		stored, err := c.store.Unit(ku.ID)
+		stored, err := c.store.Unit(ctx, ku.ID)
 		if err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("reading knowledge unit: %w", err)
 		}
@@ -243,7 +243,7 @@ func (c *Client) Flag(
 		}
 
 		updated := applyFlag(*stored, reason, cfg)
-		if err := c.store.Update(updated); err != nil {
+		if err := c.store.Update(ctx, updated); err != nil {
 			return KnowledgeUnit{}, fmt.Errorf("updating knowledge unit: %w", err)
 		}
 
@@ -335,7 +335,7 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	ku.Evidence.FirstObserved = &now
 	ku.Evidence.LastConfirmed = &now
 
-	if err := c.store.Insert(ku); err != nil {
+	if err := c.store.Insert(ctx, ku); err != nil {
 		insertErr := fmt.Errorf("inserting knowledge unit: %w", err)
 		if remoteErr != nil {
 			return KnowledgeUnit{}, fmt.Errorf(
@@ -375,7 +375,7 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 	storeParams := params
 	storeParams.Limit = limit
 
-	storeResult, err := c.store.Query(storeParams)
+	storeResult, err := c.store.Query(ctx, storeParams)
 	if err != nil {
 		return QueryResult{}, fmt.Errorf("querying store: %w", err)
 	}
@@ -426,7 +426,7 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 		return StoreStats{}, err
 	}
 
-	stats, err := c.store.Stats(defaultRecentLimit)
+	stats, err := c.store.Stats(ctx, defaultRecentLimit)
 	if err != nil {
 		return StoreStats{}, fmt.Errorf("reading store stats: %w", err)
 	}

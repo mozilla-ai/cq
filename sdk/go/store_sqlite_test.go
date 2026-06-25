@@ -1,6 +1,7 @@
 package cq
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"path/filepath"
@@ -94,21 +95,21 @@ func TestClose(t *testing.T) {
 		_ = s.Close()
 
 		ku := newFakeKU(t, []string{"testing"})
-		require.ErrorIs(t, s.Insert(ku), ErrStoreClosed)
+		require.ErrorIs(t, s.Insert(context.Background(), ku), ErrStoreClosed)
 
-		_, err = s.Unit("any")
+		_, err = s.Unit(context.Background(), "any")
 		require.ErrorIs(t, err, ErrStoreClosed)
 
-		_, err = s.All()
+		_, err = s.All(context.Background())
 		require.ErrorIs(t, err, ErrStoreClosed)
 
-		require.ErrorIs(t, s.Delete("any"), ErrStoreClosed)
-		require.ErrorIs(t, s.Update(ku), ErrStoreClosed)
+		require.ErrorIs(t, s.Delete(context.Background(), "any"), ErrStoreClosed)
+		require.ErrorIs(t, s.Update(context.Background(), ku), ErrStoreClosed)
 
-		_, err = s.Query(QueryParams{Domains: []string{"testing"}, Limit: 10})
+		_, err = s.Query(context.Background(), QueryParams{Domains: []string{"testing"}, Limit: 10})
 		require.ErrorIs(t, err, ErrStoreClosed)
 
-		_, err = s.Stats(5)
+		_, err = s.Stats(context.Background(), 5)
 		require.ErrorIs(t, err, ErrStoreClosed)
 	})
 }
@@ -121,9 +122,9 @@ func TestInsert(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"databases"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Equal(t, ku.ID, got.ID)
@@ -134,8 +135,8 @@ func TestInsert(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"databases"})
-		require.NoError(t, s.Insert(ku))
-		require.Error(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
+		require.Error(t, s.Insert(context.Background(), ku))
 	})
 
 	t.Run("rejects empty domains", func(t *testing.T) {
@@ -143,7 +144,7 @@ func TestInsert(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, nil)
-		require.Error(t, s.Insert(ku))
+		require.Error(t, s.Insert(context.Background(), ku))
 	})
 
 	t.Run("rejects whitespace-only domains", func(t *testing.T) {
@@ -151,7 +152,7 @@ func TestInsert(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"  ", "\t", ""})
-		require.Error(t, s.Insert(ku))
+		require.Error(t, s.Insert(context.Background(), ku))
 	})
 }
 
@@ -162,7 +163,7 @@ func TestUnit(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		got, err := s.Unit("ku_nonexistent")
+		got, err := s.Unit(context.Background(), "ku_nonexistent")
 		require.NoError(t, err)
 		require.Nil(t, got)
 	})
@@ -198,9 +199,9 @@ func TestUnit(t *testing.T) {
 			},
 		}
 
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		require.NoError(t, err)
 		require.Equal(t, ku.ID, got.ID)
 		require.Equal(t, ku.Domains, got.Domains)
@@ -226,7 +227,7 @@ func TestAll(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		all, err := s.All()
+		all, err := s.All(context.Background())
 		require.NoError(t, err)
 		require.Empty(t, all)
 	})
@@ -237,10 +238,10 @@ func TestAll(t *testing.T) {
 
 		ku1 := newFakeKU(t, []string{"api"})
 		ku2 := newFakeKU(t, []string{"databases"})
-		require.NoError(t, s.Insert(ku1))
-		require.NoError(t, s.Insert(ku2))
+		require.NoError(t, s.Insert(context.Background(), ku1))
+		require.NoError(t, s.Insert(context.Background(), ku2))
 
-		all, err := s.All()
+		all, err := s.All(context.Background())
 		require.NoError(t, err)
 		require.Len(t, all, 2)
 
@@ -258,11 +259,11 @@ func TestDelete(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		require.NoError(t, s.Delete(ku.ID))
+		require.NoError(t, s.Delete(context.Background(), ku.ID))
 
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		require.NoError(t, err)
 		require.Nil(t, got)
 	})
@@ -271,7 +272,7 @@ func TestDelete(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		require.Error(t, s.Delete("ku_nonexistent"))
+		require.Error(t, s.Delete(context.Background(), "ku_nonexistent"))
 	})
 
 	t.Run("domain rows cascaded", func(t *testing.T) {
@@ -279,11 +280,14 @@ func TestDelete(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"unique-domain-for-cascade"})
-		require.NoError(t, s.Insert(ku))
-		require.NoError(t, s.Delete(ku.ID))
+		require.NoError(t, s.Insert(context.Background(), ku))
+		require.NoError(t, s.Delete(context.Background(), ku.ID))
 
 		// Verify domain is no longer queryable.
-		results, err := s.Query(QueryParams{Domains: []string{"unique-domain-for-cascade"}, Limit: 10})
+		results, err := s.Query(
+			context.Background(),
+			QueryParams{Domains: []string{"unique-domain-for-cascade"}, Limit: 10},
+		)
 		require.NoError(t, err)
 		require.Empty(t, results.KUs)
 	})
@@ -297,16 +301,16 @@ func TestUpdate(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
 		ku.Insight = Insight{
 			Summary: "updated summary",
 			Detail:  "updated detail",
 			Action:  "updated action",
 		}
-		require.NoError(t, s.Update(ku))
+		require.NoError(t, s.Update(context.Background(), ku))
 
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		require.NoError(t, err)
 		require.Equal(t, "updated summary", got.Insight.Summary)
 	})
@@ -316,7 +320,7 @@ func TestUpdate(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.Error(t, s.Update(ku))
+		require.Error(t, s.Update(context.Background(), ku))
 	})
 
 	t.Run("rejects empty domains", func(t *testing.T) {
@@ -324,10 +328,10 @@ func TestUpdate(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
 		ku.Domains = nil
-		require.Error(t, s.Update(ku))
+		require.Error(t, s.Update(context.Background(), ku))
 	})
 
 	t.Run("refreshes domain tags", func(t *testing.T) {
@@ -335,18 +339,18 @@ func TestUpdate(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"old-domain"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
 		ku.Domains = []string{"new-domain"}
-		require.NoError(t, s.Update(ku))
+		require.NoError(t, s.Update(context.Background(), ku))
 
 		// Old domain should no longer match.
-		results, err := s.Query(QueryParams{Domains: []string{"old-domain"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"old-domain"}, Limit: 10})
 		require.NoError(t, err)
 		require.Empty(t, results.KUs)
 
 		// New domain should match.
-		results, err = s.Query(QueryParams{Domains: []string{"new-domain"}, Limit: 10})
+		results, err = s.Query(context.Background(), QueryParams{Domains: []string{"new-domain"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 		require.Equal(t, ku.ID, results.KUs[0].ID)
@@ -361,9 +365,9 @@ func TestDomainNormalization(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"API", "Databases"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{"api"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"api"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 	})
@@ -373,9 +377,9 @@ func TestDomainNormalization(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{"API"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"API"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 	})
@@ -385,9 +389,9 @@ func TestDomainNormalization(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api", "API", "Api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		stats, err := s.Stats(0)
+		stats, err := s.Stats(context.Background(), 0)
 		require.NoError(t, err)
 		// Only one domain "api" should exist.
 		require.Equal(t, 1, stats.DomainCounts["api"])
@@ -402,9 +406,9 @@ func TestQuery(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{"api"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"api"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 		require.Equal(t, ku.ID, results.KUs[0].ID)
@@ -415,9 +419,9 @@ func TestQuery(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{"databases"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"databases"}, Limit: 10})
 		require.NoError(t, err)
 		require.Empty(t, results.KUs)
 	})
@@ -426,7 +430,7 @@ func TestQuery(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		results, err := s.Query(QueryParams{Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Limit: 10})
 		require.NoError(t, err)
 		require.Empty(t, results.KUs)
 	})
@@ -436,9 +440,9 @@ func TestQuery(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{"api"}, Limit: 0})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"api"}, Limit: 0})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 	})
@@ -447,7 +451,7 @@ func TestQuery(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		_, err := s.Query(QueryParams{Domains: []string{"api"}, Limit: -1})
+		_, err := s.Query(context.Background(), QueryParams{Domains: []string{"api"}, Limit: -1})
 		require.Error(t, err)
 	})
 
@@ -462,7 +466,7 @@ func TestQuery(t *testing.T) {
 			domains = append(domains, fmt.Sprintf("domain%d", i))
 		}
 
-		_, err := s.Query(QueryParams{Domains: domains, Limit: 10})
+		_, err := s.Query(context.Background(), QueryParams{Domains: domains, Limit: 10})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "maximum number of domains")
 	})
@@ -473,10 +477,10 @@ func TestQuery(t *testing.T) {
 
 		for i := 0; i < 5; i++ {
 			ku := newFakeKU(t, []string{"api"})
-			require.NoError(t, s.Insert(ku))
+			require.NoError(t, s.Insert(context.Background(), ku))
 		}
 
-		results, err := s.Query(QueryParams{Domains: []string{"api"}, Limit: 3})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"api"}, Limit: 3})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 3)
 	})
@@ -488,13 +492,13 @@ func TestQuery(t *testing.T) {
 		// Unit with two matching domains should rank higher.
 		kuBetter := newFakeKU(t, []string{"api", "payments"})
 		kuBetter.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuBetter))
+		require.NoError(t, s.Insert(context.Background(), kuBetter))
 
 		kuWorse := newFakeKU(t, []string{"api"})
 		kuWorse.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuWorse))
+		require.NoError(t, s.Insert(context.Background(), kuWorse))
 
-		results, err := s.Query(QueryParams{Domains: []string{"api", "payments"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"api", "payments"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 2)
 		require.Equal(t, kuBetter.ID, results.KUs[0].ID)
@@ -507,14 +511,17 @@ func TestQuery(t *testing.T) {
 		kuGo := newFakeKU(t, []string{"api"})
 		kuGo.Context = Context{Languages: []string{"go"}}
 		kuGo.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuGo))
+		require.NoError(t, s.Insert(context.Background(), kuGo))
 
 		kuPython := newFakeKU(t, []string{"api"})
 		kuPython.Context = Context{Languages: []string{"python"}}
 		kuPython.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuPython))
+		require.NoError(t, s.Insert(context.Background(), kuPython))
 
-		results, err := s.Query(QueryParams{Domains: []string{"api"}, Languages: []string{"go"}, Limit: 10})
+		results, err := s.Query(
+			context.Background(),
+			QueryParams{Domains: []string{"api"}, Languages: []string{"go"}, Limit: 10},
+		)
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 2)
 		require.Equal(t, kuGo.ID, results.KUs[0].ID)
@@ -527,15 +534,15 @@ func TestQuery(t *testing.T) {
 		kuMatch := newFakeKU(t, []string{"api"})
 		kuMatch.Context = Context{Languages: []string{"python"}}
 		kuMatch.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuMatch))
+		require.NoError(t, s.Insert(context.Background(), kuMatch))
 
 		kuNoMatch := newFakeKU(t, []string{"api"})
 		kuNoMatch.Context = Context{Languages: []string{"rust"}}
 		kuNoMatch.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuNoMatch))
+		require.NoError(t, s.Insert(context.Background(), kuNoMatch))
 
 		// Querying with multiple languages; "python" overlaps with kuMatch.
-		results, err := s.Query(QueryParams{
+		results, err := s.Query(context.Background(), QueryParams{
 			Domains:   []string{"api"},
 			Languages: []string{"python", "go"},
 			Limit:     10,
@@ -552,15 +559,15 @@ func TestQuery(t *testing.T) {
 		kuMatch := newFakeKU(t, []string{"api"})
 		kuMatch.Context = Context{Frameworks: []string{"grpc"}}
 		kuMatch.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuMatch))
+		require.NoError(t, s.Insert(context.Background(), kuMatch))
 
 		kuNoMatch := newFakeKU(t, []string{"api"})
 		kuNoMatch.Context = Context{Frameworks: []string{"django"}}
 		kuNoMatch.Evidence.Confidence = 0.8
-		require.NoError(t, s.Insert(kuNoMatch))
+		require.NoError(t, s.Insert(context.Background(), kuNoMatch))
 
 		// Querying with multiple frameworks; "grpc" overlaps with kuMatch.
-		results, err := s.Query(QueryParams{
+		results, err := s.Query(context.Background(), QueryParams{
 			Domains:    []string{"api"},
 			Frameworks: []string{"grpc", "http"},
 			Limit:      10,
@@ -576,13 +583,13 @@ func TestQuery(t *testing.T) {
 
 		kuHigh := newFakeKU(t, []string{"api"})
 		kuHigh.Evidence.Confidence = 0.9
-		require.NoError(t, s.Insert(kuHigh))
+		require.NoError(t, s.Insert(context.Background(), kuHigh))
 
 		kuLow := newFakeKU(t, []string{"api"})
 		kuLow.Evidence.Confidence = 0.3
-		require.NoError(t, s.Insert(kuLow))
+		require.NoError(t, s.Insert(context.Background(), kuLow))
 
-		results, err := s.Query(QueryParams{Domains: []string{"api"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"api"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 2)
 		require.Equal(t, kuHigh.ID, results.KUs[0].ID)
@@ -602,10 +609,10 @@ func TestFTS(t *testing.T) {
 			Detail:  "some detail",
 			Action:  "some action",
 		}
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
 		// Query with a domain that matches the summary text via FTS.
-		results, err := s.Query(QueryParams{Domains: []string{"retries"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"retries"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 		require.Equal(t, ku.ID, results.KUs[0].ID)
@@ -621,9 +628,9 @@ func TestFTS(t *testing.T) {
 			Detail:  "Exponential backoff prevents thundering herd problems",
 			Action:  "some action",
 		}
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{"exponential"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"exponential"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 		require.Equal(t, ku.ID, results.KUs[0].ID)
@@ -639,10 +646,10 @@ func TestFTS(t *testing.T) {
 			Detail:  "detail",
 			Action:  "action",
 		}
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
 		// "retries" matches both domain and FTS but should appear only once.
-		results, err := s.Query(QueryParams{Domains: []string{"retries"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"retries"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 	})
@@ -657,23 +664,23 @@ func TestFTS(t *testing.T) {
 			Detail:  "original detail",
 			Action:  "original action",
 		}
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
 		ku.Insight = Insight{
 			Summary: "completely new unique-fts-keyword summary",
 			Detail:  "updated detail",
 			Action:  "updated action",
 		}
-		require.NoError(t, s.Update(ku))
+		require.NoError(t, s.Update(context.Background(), ku))
 
 		// FTS should find the updated text.
-		results, err := s.Query(QueryParams{Domains: []string{"unique-fts-keyword"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"unique-fts-keyword"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 		require.Equal(t, ku.ID, results.KUs[0].ID)
 
 		// FTS should not find the old text.
-		results, err = s.Query(QueryParams{Domains: []string{"original"}, Limit: 10})
+		results, err = s.Query(context.Background(), QueryParams{Domains: []string{"original"}, Limit: 10})
 		require.NoError(t, err)
 		require.Empty(t, results.KUs)
 	})
@@ -683,9 +690,12 @@ func TestFTS(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"safe-domain"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{`bad"domain`, "safe-domain"}, Limit: 10})
+		results, err := s.Query(
+			context.Background(),
+			QueryParams{Domains: []string{`bad"domain`, "safe-domain"}, Limit: 10},
+		)
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 	})
@@ -695,9 +705,12 @@ func TestFTS(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"safe-domain"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{`") OR (id:`, "safe-domain"}, Limit: 10})
+		results, err := s.Query(
+			context.Background(),
+			QueryParams{Domains: []string{`") OR (id:`, "safe-domain"}, Limit: 10},
+		)
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 	})
@@ -707,9 +720,9 @@ func TestFTS(t *testing.T) {
 		s := newTestStore(t)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
-		results, err := s.Query(QueryParams{Domains: []string{""}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{""}, Limit: 10})
 		require.NoError(t, err)
 		require.Empty(t, results.KUs)
 	})
@@ -722,7 +735,7 @@ func TestStats(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		stats, err := s.Stats(5)
+		stats, err := s.Stats(context.Background(), 5)
 		require.NoError(t, err)
 		require.Equal(t, 0, stats.TotalCount)
 		require.Empty(t, stats.DomainCounts)
@@ -733,10 +746,10 @@ func TestStats(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		require.NoError(t, s.Insert(newFakeKU(t, []string{"api"})))
-		require.NoError(t, s.Insert(newFakeKU(t, []string{"databases"})))
+		require.NoError(t, s.Insert(context.Background(), newFakeKU(t, []string{"api"})))
+		require.NoError(t, s.Insert(context.Background(), newFakeKU(t, []string{"databases"})))
 
-		stats, err := s.Stats(10)
+		stats, err := s.Stats(context.Background(), 10)
 		require.NoError(t, err)
 		require.Equal(t, 2, stats.TotalCount)
 	})
@@ -745,10 +758,10 @@ func TestStats(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		require.NoError(t, s.Insert(newFakeKU(t, []string{"api", "payments"})))
-		require.NoError(t, s.Insert(newFakeKU(t, []string{"api", "databases"})))
+		require.NoError(t, s.Insert(context.Background(), newFakeKU(t, []string{"api", "payments"})))
+		require.NoError(t, s.Insert(context.Background(), newFakeKU(t, []string{"api", "databases"})))
 
-		stats, err := s.Stats(10)
+		stats, err := s.Stats(context.Background(), 10)
 		require.NoError(t, err)
 		require.Equal(t, 2, stats.DomainCounts["api"])
 		require.Equal(t, 1, stats.DomainCounts["payments"])
@@ -760,10 +773,10 @@ func TestStats(t *testing.T) {
 		s := newTestStore(t)
 
 		for i := 0; i < 5; i++ {
-			require.NoError(t, s.Insert(newFakeKU(t, []string{"api"})))
+			require.NoError(t, s.Insert(context.Background(), newFakeKU(t, []string{"api"})))
 		}
 
-		stats, err := s.Stats(3)
+		stats, err := s.Stats(context.Background(), 3)
 		require.NoError(t, err)
 		require.Len(t, stats.Recent, 3)
 	})
@@ -772,7 +785,7 @@ func TestStats(t *testing.T) {
 		t.Parallel()
 		s := newTestStore(t)
 
-		_, err := s.Stats(-1)
+		_, err := s.Stats(context.Background(), -1)
 		require.Error(t, err)
 	})
 
@@ -785,10 +798,10 @@ func TestStats(t *testing.T) {
 		for _, conf := range []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.95} {
 			ku := newFakeKU(t, []string{"api"})
 			ku.Evidence.Confidence = conf
-			require.NoError(t, s.Insert(ku))
+			require.NoError(t, s.Insert(context.Background(), ku))
 		}
 
-		stats, err := s.Stats(10)
+		stats, err := s.Stats(context.Background(), 10)
 		require.NoError(t, err)
 		require.Equal(t, 2, stats.ConfidenceDistribution["0.0-0.3"]) // 0.1, 0.2
 		require.Equal(t, 2, stats.ConfidenceDistribution["0.3-0.5"]) // 0.3, 0.4
@@ -806,28 +819,28 @@ func TestEndToEnd(t *testing.T) {
 
 		ku := newFakeKU(t, []string{"api", "payments"})
 		ku.Evidence.Confidence = 0.6
-		require.NoError(t, s.Insert(ku))
+		require.NoError(t, s.Insert(context.Background(), ku))
 
 		// Confirm the unit.
 		confirmed := applyConfirmation(ku)
-		require.NoError(t, s.Update(confirmed))
+		require.NoError(t, s.Update(context.Background(), confirmed))
 
 		// Verify confidence increased.
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		require.NoError(t, err)
 		require.Greater(t, got.Evidence.Confidence, 0.6)
 
 		// Query should find it.
-		results, err := s.Query(QueryParams{Domains: []string{"api", "payments"}, Limit: 10})
+		results, err := s.Query(context.Background(), QueryParams{Domains: []string{"api", "payments"}, Limit: 10})
 		require.NoError(t, err)
 		require.Len(t, results.KUs, 1)
 		require.Equal(t, ku.ID, results.KUs[0].ID)
 
 		// Flag the unit.
 		flagged := applyFlag(*got, Stale, flagConfig{})
-		require.NoError(t, s.Update(flagged))
+		require.NoError(t, s.Update(context.Background(), flagged))
 
-		got, err = s.Unit(ku.ID)
+		got, err = s.Unit(context.Background(), ku.ID)
 		require.NoError(t, err)
 		require.Len(t, got.Flags, 1)
 		require.Equal(t, Stale, got.Flags[0].Reason)
@@ -841,14 +854,14 @@ func TestEndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		ku := newFakeKU(t, []string{"api"})
-		require.NoError(t, s1.Insert(ku))
+		require.NoError(t, s1.Insert(context.Background(), ku))
 		_ = s1.Close()
 
 		s2, err := newSQLiteStore(dbPath)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = s2.Close() })
 
-		got, err := s2.Unit(ku.ID)
+		got, err := s2.Unit(context.Background(), ku.ID)
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Equal(t, ku.ID, got.ID)

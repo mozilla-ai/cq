@@ -1,6 +1,7 @@
 package cq
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -27,7 +28,7 @@ func NewInMemoryStore() Store {
 }
 
 // All returns every knowledge unit in insertion order.
-func (s *inMemoryStore) All() ([]KnowledgeUnit, error) {
+func (s *inMemoryStore) All(_ context.Context) ([]KnowledgeUnit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -55,7 +56,7 @@ func (s *inMemoryStore) Close() error {
 }
 
 // Delete removes a knowledge unit by ID.
-func (s *inMemoryStore) Delete(id string) error {
+func (s *inMemoryStore) Delete(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -76,7 +77,7 @@ func (s *inMemoryStore) Delete(id string) error {
 }
 
 // Insert stores a new knowledge unit. Error if ID exists or domains empty after normalization.
-func (s *inMemoryStore) Insert(ku KnowledgeUnit) error {
+func (s *inMemoryStore) Insert(_ context.Context, ku KnowledgeUnit) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -104,7 +105,7 @@ func (s *inMemoryStore) Insert(ku KnowledgeUnit) error {
 
 // Query returns units matching any of the requested domains, ranked by the
 // shared ranker. It does not run full-text search.
-func (s *inMemoryStore) Query(params QueryParams) (StoreQueryResult, error) {
+func (s *inMemoryStore) Query(_ context.Context, params QueryParams) (StoreQueryResult, error) {
 	norm, err := normalizeQueryParams(params)
 	if err != nil {
 		return StoreQueryResult{}, err
@@ -142,7 +143,7 @@ func (s *inMemoryStore) Query(params QueryParams) (StoreQueryResult, error) {
 }
 
 // Stats returns aggregated statistics, including up to recentLimit most-recently-inserted units.
-func (s *inMemoryStore) Stats(recentLimit int) (StoreStats, error) {
+func (s *inMemoryStore) Stats(_ context.Context, recentLimit int) (StoreStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -190,7 +191,7 @@ func (s *inMemoryStore) Stats(recentLimit int) (StoreStats, error) {
 }
 
 // Unit retrieves a knowledge unit by ID. Returns nil, nil if not found.
-func (s *inMemoryStore) Unit(id string) (*KnowledgeUnit, error) {
+func (s *inMemoryStore) Unit(_ context.Context, id string) (*KnowledgeUnit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -209,7 +210,7 @@ func (s *inMemoryStore) Unit(id string) (*KnowledgeUnit, error) {
 }
 
 // Update replaces an existing knowledge unit.
-func (s *inMemoryStore) Update(ku KnowledgeUnit) error {
+func (s *inMemoryStore) Update(_ context.Context, ku KnowledgeUnit) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

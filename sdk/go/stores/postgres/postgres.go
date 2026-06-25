@@ -109,13 +109,13 @@ func New(connString string) (*Store, error) {
 }
 
 // All returns every knowledge unit in the store.
-func (s *Store) All() ([]cq.KnowledgeUnit, error) {
+func (s *Store) All(ctx context.Context) ([]cq.KnowledgeUnit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil, cq.ErrStoreClosed
 	}
-	return s.scanUnits(context.Background(), sqlSelectAll)
+	return s.scanUnits(ctx, sqlSelectAll)
 }
 
 // Close releases the connection pool. Safe to call more than once.
@@ -132,13 +132,13 @@ func (s *Store) Close() error {
 
 // Delete removes the knowledge unit with the given ID.
 // Returns an error if no unit with that ID exists.
-func (s *Store) Delete(id string) error {
+func (s *Store) Delete(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return cq.ErrStoreClosed
 	}
-	ct, err := s.pool.Exec(context.Background(), sqlDeleteUnit, id)
+	ct, err := s.pool.Exec(ctx, sqlDeleteUnit, id)
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func (s *Store) Delete(id string) error {
 // Insert stores a new knowledge unit.
 // Domains are normalized before storage.
 // Returns an error on duplicate ID or empty domains after normalization.
-func (s *Store) Insert(ku cq.KnowledgeUnit) error {
+func (s *Store) Insert(ctx context.Context, ku cq.KnowledgeUnit) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -166,7 +166,6 @@ func (s *Store) Insert(ku cq.KnowledgeUnit) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -184,7 +183,7 @@ func (s *Store) Insert(ku cq.KnowledgeUnit) error {
 
 // Query returns knowledge units whose domain tags overlap with the query,
 // ranked by relevance and confidence, truncated to the limit.
-func (s *Store) Query(params cq.QueryParams) (cq.StoreQueryResult, error) {
+func (s *Store) Query(ctx context.Context, params cq.QueryParams) (cq.StoreQueryResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -197,7 +196,7 @@ func (s *Store) Query(params cq.QueryParams) (cq.StoreQueryResult, error) {
 	if len(nq.Domains) == 0 {
 		return cq.StoreQueryResult{}, nil
 	}
-	candidates, err := s.scanUnits(context.Background(), sqlQueryByDomains, nq.Domains)
+	candidates, err := s.scanUnits(ctx, sqlQueryByDomains, nq.Domains)
 	if err != nil {
 		return cq.StoreQueryResult{}, err
 	}
@@ -208,7 +207,7 @@ func (s *Store) Query(params cq.QueryParams) (cq.StoreQueryResult, error) {
 // Stats returns aggregated store statistics including unit counts per domain,
 // the most recently inserted units, and confidence distribution across the
 // canonical buckets.
-func (s *Store) Stats(recentLimit int) (cq.StoreStats, error) {
+func (s *Store) Stats(ctx context.Context, recentLimit int) (cq.StoreStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -217,7 +216,6 @@ func (s *Store) Stats(recentLimit int) (cq.StoreStats, error) {
 	if recentLimit < 0 {
 		return cq.StoreStats{}, fmt.Errorf("recent limit must be non-negative: %d", recentLimit)
 	}
-	ctx := context.Background()
 	totalCount, err := s.countUnits(ctx)
 	if err != nil {
 		return cq.StoreStats{}, err
@@ -244,14 +242,14 @@ func (s *Store) Stats(recentLimit int) (cq.StoreStats, error) {
 }
 
 // Unit returns the knowledge unit with the given ID, or nil when absent.
-func (s *Store) Unit(id string) (*cq.KnowledgeUnit, error) {
+func (s *Store) Unit(ctx context.Context, id string) (*cq.KnowledgeUnit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil, cq.ErrStoreClosed
 	}
 	var data []byte
-	err := s.pool.QueryRow(context.Background(), sqlSelectByID, id).Scan(&data)
+	err := s.pool.QueryRow(ctx, sqlSelectByID, id).Scan(&data)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -268,7 +266,7 @@ func (s *Store) Unit(id string) (*cq.KnowledgeUnit, error) {
 // Update replaces an existing knowledge unit.
 // Domains are re-normalized and the domain index is rebuilt.
 // Returns an error if no unit with that ID exists.
-func (s *Store) Update(ku cq.KnowledgeUnit) error {
+func (s *Store) Update(ctx context.Context, ku cq.KnowledgeUnit) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -283,7 +281,6 @@ func (s *Store) Update(ku cq.KnowledgeUnit) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err

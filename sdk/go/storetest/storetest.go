@@ -10,6 +10,7 @@
 package storetest
 
 import (
+	"context"
 	"testing"
 
 	cq "github.com/mozilla-ai/cq/sdk/go"
@@ -27,9 +28,9 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		t.Cleanup(func() { _ = s.Close() })
 
 		ku := newKU("ku_00000000000000000000000000000001", []string{"api"}, 0.8)
-		noErr(t, s.Insert(ku))
+		noErr(t, s.Insert(context.Background(), ku))
 
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		noErr(t, err)
 		if got == nil {
 			t.Fatal("Get returned nil for an inserted unit")
@@ -46,7 +47,7 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		s := newStore()
 		t.Cleanup(func() { _ = s.Close() })
 
-		got, err := s.Unit("ku_0000000000000000000000000000dead")
+		got, err := s.Unit(context.Background(), "ku_0000000000000000000000000000dead")
 		noErr(t, err)
 		if got != nil {
 			t.Fatalf("Get for a missing ID = %+v, want nil", got)
@@ -58,8 +59,8 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		t.Cleanup(func() { _ = s.Close() })
 
 		ku := newKU("ku_00000000000000000000000000000002", []string{"api"}, 0.5)
-		noErr(t, s.Insert(ku))
-		wantErr(t, s.Insert(ku), "duplicate Insert")
+		noErr(t, s.Insert(context.Background(), ku))
+		wantErr(t, s.Insert(context.Background(), ku), "duplicate Insert")
 	})
 
 	t.Run("insert rejects empty domains", func(t *testing.T) {
@@ -67,7 +68,7 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		t.Cleanup(func() { _ = s.Close() })
 
 		ku := newKU("ku_00000000000000000000000000000003", []string{"  ", ""}, 0.5)
-		wantErr(t, s.Insert(ku), "Insert with empty domains")
+		wantErr(t, s.Insert(context.Background(), ku), "Insert with empty domains")
 	})
 
 	t.Run("update existing persists", func(t *testing.T) {
@@ -75,12 +76,12 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		t.Cleanup(func() { _ = s.Close() })
 
 		ku := newKU("ku_00000000000000000000000000000004", []string{"api"}, 0.5)
-		noErr(t, s.Insert(ku))
+		noErr(t, s.Insert(context.Background(), ku))
 
 		ku.Insight.Summary = "updated summary"
-		noErr(t, s.Update(ku))
+		noErr(t, s.Update(context.Background(), ku))
 
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		noErr(t, err)
 		if got.Insight.Summary != "updated summary" {
 			t.Fatalf("summary after Update = %s, want updated summary", got.Insight.Summary)
@@ -92,7 +93,7 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		t.Cleanup(func() { _ = s.Close() })
 
 		ku := newKU("ku_00000000000000000000000000000005", []string{"api"}, 0.5)
-		wantErr(t, s.Update(ku), "Update of a missing unit")
+		wantErr(t, s.Update(context.Background(), ku), "Update of a missing unit")
 	})
 
 	t.Run("delete existing then missing", func(t *testing.T) {
@@ -100,17 +101,17 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		t.Cleanup(func() { _ = s.Close() })
 
 		ku := newKU("ku_00000000000000000000000000000006", []string{"api"}, 0.5)
-		noErr(t, s.Insert(ku))
+		noErr(t, s.Insert(context.Background(), ku))
 
-		noErr(t, s.Delete(ku.ID))
+		noErr(t, s.Delete(context.Background(), ku.ID))
 
-		got, err := s.Unit(ku.ID)
+		got, err := s.Unit(context.Background(), ku.ID)
 		noErr(t, err)
 		if got != nil {
 			t.Fatalf("Get after Delete = %+v, want nil", got)
 		}
 
-		wantErr(t, s.Delete(ku.ID), "Delete of a missing unit")
+		wantErr(t, s.Delete(context.Background(), ku.ID), "Delete of a missing unit")
 	})
 
 	t.Run("all returns inserted units", func(t *testing.T) {
@@ -119,10 +120,10 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 
 		ku1 := newKU("ku_00000000000000000000000000000007", []string{"api"}, 0.5)
 		ku2 := newKU("ku_00000000000000000000000000000008", []string{"db"}, 0.5)
-		noErr(t, s.Insert(ku1))
-		noErr(t, s.Insert(ku2))
+		noErr(t, s.Insert(context.Background(), ku1))
+		noErr(t, s.Insert(context.Background(), ku2))
 
-		all, err := s.All()
+		all, err := s.All(context.Background())
 		noErr(t, err)
 		if len(all) != 2 {
 			t.Fatalf("All returned %d units, want 2", len(all))
@@ -143,12 +144,12 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 
 		// Two matching domains and high confidence ranks first.
 		better := newKU("ku_00000000000000000000000000000009", []string{"api", "payments"}, 0.9)
-		noErr(t, s.Insert(better))
+		noErr(t, s.Insert(context.Background(), better))
 
 		worse := newKU("ku_0000000000000000000000000000000a", []string{"api"}, 0.3)
-		noErr(t, s.Insert(worse))
+		noErr(t, s.Insert(context.Background(), worse))
 
-		res, err := s.Query(cq.QueryParams{Domains: []string{"api", "payments"}, Limit: 10})
+		res, err := s.Query(context.Background(), cq.QueryParams{Domains: []string{"api", "payments"}, Limit: 10})
 		noErr(t, err)
 		if len(res.KUs) != 2 {
 			t.Fatalf("Query returned %d units, want 2", len(res.KUs))
@@ -168,10 +169,10 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 			"ku_0000000000000000000000000000000d",
 		} {
 			ku := newKU(id, []string{"api"}, 0.5+float64(i)*0.1)
-			noErr(t, s.Insert(ku))
+			noErr(t, s.Insert(context.Background(), ku))
 		}
 
-		res, err := s.Query(cq.QueryParams{Domains: []string{"api"}, Limit: 2})
+		res, err := s.Query(context.Background(), cq.QueryParams{Domains: []string{"api"}, Limit: 2})
 		noErr(t, err)
 		if len(res.KUs) != 2 {
 			t.Fatalf("Query with Limit 2 returned %d units, want 2", len(res.KUs))
@@ -183,9 +184,9 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		t.Cleanup(func() { _ = s.Close() })
 
 		ku := newKU("ku_0000000000000000000000000000000e", []string{"unique-domain"}, 0.5)
-		noErr(t, s.Insert(ku))
+		noErr(t, s.Insert(context.Background(), ku))
 
-		res, err := s.Query(cq.QueryParams{Domains: []string{"unique-domain"}, Limit: 10})
+		res, err := s.Query(context.Background(), cq.QueryParams{Domains: []string{"unique-domain"}, Limit: 10})
 		noErr(t, err)
 		if len(res.KUs) != 1 {
 			t.Fatalf("Query returned %d units, want 1", len(res.KUs))
@@ -194,7 +195,7 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 			t.Fatalf("matched ID = %s, want %s", res.KUs[0].ID, ku.ID)
 		}
 
-		none, err := s.Query(cq.QueryParams{Domains: []string{"no-such-domain"}, Limit: 10})
+		none, err := s.Query(context.Background(), cq.QueryParams{Domains: []string{"no-such-domain"}, Limit: 10})
 		noErr(t, err)
 		if len(none.KUs) != 0 {
 			t.Fatalf("Query for an absent domain returned %d units, want 0", len(none.KUs))
@@ -214,17 +215,17 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 			"ku_00000000000000000000000000000035",
 			"ku_00000000000000000000000000000036",
 		} {
-			noErr(t, s.Insert(newKU(id, []string{"api"}, 0.5+float64(i)*0.01)))
+			noErr(t, s.Insert(context.Background(), newKU(id, []string{"api"}, 0.5+float64(i)*0.01)))
 		}
 
 		// A zero limit means "unset": the store falls back to its default (5).
-		res, err := s.Query(cq.QueryParams{Domains: []string{"api"}, Limit: 0})
+		res, err := s.Query(context.Background(), cq.QueryParams{Domains: []string{"api"}, Limit: 0})
 		noErr(t, err)
 		if len(res.KUs) != 5 {
 			t.Fatalf("Query with Limit 0 returned %d units, want default 5", len(res.KUs))
 		}
 
-		_, err = s.Query(cq.QueryParams{Domains: []string{"api"}, Limit: -1})
+		_, err = s.Query(context.Background(), cq.QueryParams{Domains: []string{"api"}, Limit: -1})
 		wantErr(t, err, "Query with a negative limit")
 	})
 
@@ -246,10 +247,10 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		}
 		for i, conf := range confidences {
 			ku := newKU(ids[i], []string{"api"}, conf)
-			noErr(t, s.Insert(ku))
+			noErr(t, s.Insert(context.Background(), ku))
 		}
 
-		stats, err := s.Stats(3)
+		stats, err := s.Stats(context.Background(), 3)
 		noErr(t, err)
 		if stats.TotalCount != len(confidences) {
 			t.Fatalf("TotalCount = %d, want %d", stats.TotalCount, len(confidences))
@@ -272,7 +273,7 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		s := newStore()
 		t.Cleanup(func() { _ = s.Close() })
 
-		_, err := s.Stats(-1)
+		_, err := s.Stats(context.Background(), -1)
 		wantErr(t, err, "Stats with a negative recent limit")
 	})
 
@@ -283,20 +284,20 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 		noErr(t, s.Close())
 
 		ku := newKU("ku_00000000000000000000000000000020", []string{"api"}, 0.5)
-		wantErr(t, s.Insert(ku), "Insert after Close")
-		wantErr(t, s.Update(ku), "Update after Close")
-		wantErr(t, s.Delete(ku.ID), "Delete after Close")
+		wantErr(t, s.Insert(context.Background(), ku), "Insert after Close")
+		wantErr(t, s.Update(context.Background(), ku), "Update after Close")
+		wantErr(t, s.Delete(context.Background(), ku.ID), "Delete after Close")
 
-		_, err := s.Unit(ku.ID)
+		_, err := s.Unit(context.Background(), ku.ID)
 		wantErr(t, err, "Get after Close")
 
-		_, err = s.All()
+		_, err = s.All(context.Background())
 		wantErr(t, err, "All after Close")
 
-		_, err = s.Query(cq.QueryParams{Domains: []string{"api"}, Limit: 10})
+		_, err = s.Query(context.Background(), cq.QueryParams{Domains: []string{"api"}, Limit: 10})
 		wantErr(t, err, "Query after Close")
 
-		_, err = s.Stats(5)
+		_, err = s.Stats(context.Background(), 5)
 		wantErr(t, err, "Stats after Close")
 	})
 }

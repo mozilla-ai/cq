@@ -1,6 +1,9 @@
 package cq
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 // TestInMemoryStoreMatchesDomainsOnly verifies the in-memory store selects
 // candidates by domain tag and does not consult full-text: a term that appears
@@ -21,11 +24,11 @@ func TestInMemoryStoreMatchesDomainsOnly(t *testing.T) {
 		Evidence: Evidence{Confidence: 0.7, Confirmations: 1},
 		Tier:     Local,
 	}
-	if err := s.Insert(ku); err != nil {
+	if err := s.Insert(context.Background(), ku); err != nil {
 		t.Fatalf("Insert: %s", err)
 	}
 
-	got, err := s.Query(QueryParams{Domains: []string{"api"}, Limit: 5})
+	got, err := s.Query(context.Background(), QueryParams{Domains: []string{"api"}, Limit: 5})
 	if err != nil {
 		t.Fatalf("Query by domain: %s", err)
 	}
@@ -35,7 +38,7 @@ func TestInMemoryStoreMatchesDomainsOnly(t *testing.T) {
 
 	// "payments" appears only in the summary, never as a domain; the
 	// full-text-free store must not surface it.
-	none, err := s.Query(QueryParams{Domains: []string{"payments"}, Limit: 5})
+	none, err := s.Query(context.Background(), QueryParams{Domains: []string{"payments"}, Limit: 5})
 	if err != nil {
 		t.Fatalf("Query by summary term: %s", err)
 	}

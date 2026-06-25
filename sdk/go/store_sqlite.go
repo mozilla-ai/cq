@@ -1,6 +1,7 @@
 package cq
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -89,7 +90,7 @@ func newSQLiteStore(dbPath string) (*sqliteStore, error) {
 }
 
 // All returns every knowledge unit in the store.
-func (s *sqliteStore) All() ([]KnowledgeUnit, error) {
+func (s *sqliteStore) All(ctx context.Context) ([]KnowledgeUnit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -97,7 +98,7 @@ func (s *sqliteStore) All() ([]KnowledgeUnit, error) {
 		return nil, ErrStoreClosed
 	}
 
-	rows, err := s.db.Query("SELECT data FROM knowledge_units")
+	rows, err := s.db.QueryContext(ctx, "SELECT data FROM knowledge_units")
 	if err != nil {
 		return nil, fmt.Errorf("querying all units: %w", err)
 	}
@@ -140,7 +141,7 @@ func (s *sqliteStore) Close() error {
 }
 
 // Delete removes a knowledge unit by ID.
-func (s *sqliteStore) Delete(unitID string) error {
+func (s *sqliteStore) Delete(ctx context.Context, unitID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -148,18 +149,17 @@ func (s *sqliteStore) Delete(unitID string) error {
 		return ErrStoreClosed
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Delete FTS entry first; virtual tables don't support CASCADE.
-	if _, err := tx.Exec("DELETE FROM knowledge_units_fts WHERE id = ?", unitID); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM knowledge_units_fts WHERE id = ?", unitID); err != nil {
 		return fmt.Errorf("deleting FTS entry: %w", err)
 	}
 
-	res, err := tx.Exec("DELETE FROM knowledge_units WHERE id = ?", unitID)
+	res, err := tx.ExecContext(ctx, "DELETE FROM knowledge_units WHERE id = ?", unitID)
 	if err != nil {
 		return fmt.Errorf("deleting unit: %w", err)
 	}
@@ -176,7 +176,7 @@ func (s *sqliteStore) Delete(unitID string) error {
 }
 
 // Insert stores a knowledge unit. Error if ID exists or domains empty after normalization.
-func (s *sqliteStore) Insert(ku KnowledgeUnit) error {
+func (s *sqliteStore) Insert(ctx context.Context, ku KnowledgeUnit) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -198,21 +198,26 @@ func (s *sqliteStore) Insert(ku KnowledgeUnit) error {
 		return fmt.Errorf("marshalling unit: %w", err)
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.Exec("INSERT INTO knowledge_units (id, data) VALUES (?, ?)", ku.ID, string(data)); err != nil {
+	if _, err := tx.ExecContext(
+		ctx,
+		"INSERT INTO knowledge_units (id, data) VALUES (?, ?)",
+		ku.ID,
+		string(data),
+	); err != nil {
 		return fmt.Errorf("inserting unit: %w", err)
 	}
 
-	if err := insertDomains(tx, ku.ID, domains); err != nil {
+	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
 		return err
 	}
 
-	if err := insertFTS(tx, stored); err != nil {
+	if err := insertFTS(ctx, tx, stored); err != nil {
 		return err
 	}
 
@@ -220,7 +225,7 @@ func (s *sqliteStore) Insert(ku KnowledgeUnit) error {
 }
 
 // Query searches by domain with FTS and relevance ranking.
-func (s *sqliteStore) Query(params QueryParams) (StoreQueryResult, error) {
+func (s *sqliteStore) Query(ctx context.Context, params QueryParams) (StoreQueryResult, error) {
 	norm, err := normalizeQueryParams(params)
 	if err != nil {
 		return StoreQueryResult{}, err
@@ -253,7 +258,7 @@ func (s *sqliteStore) Query(params QueryParams) (StoreQueryResult, error) {
 		"JOIN knowledge_unit_domains d ON k.id = d.unit_id " +
 		"WHERE d.domain IN (" + strings.Join(placeholders, ",") + ")"
 
-	rows, err := s.db.Query(domainQuery, args...)
+	rows, err := s.db.QueryContext(ctx, domainQuery, args...)
 	if err != nil {
 		return StoreQueryResult{}, fmt.Errorf("querying by domain: %w", err)
 	}
@@ -279,7 +284,7 @@ func (s *sqliteStore) Query(params QueryParams) (StoreQueryResult, error) {
 
 	matchExpr := buildFTSMatchExpr(domains)
 	if matchExpr != "" {
-		ftsRows, ftsErr := s.db.Query(
+		ftsRows, ftsErr := s.db.QueryContext(ctx,
 			"SELECT k.data FROM knowledge_units k "+
 				"JOIN knowledge_units_fts f ON k.id = f.id "+
 				"WHERE knowledge_units_fts MATCH ?",
@@ -324,7 +329,7 @@ func (s *sqliteStore) Query(params QueryParams) (StoreQueryResult, error) {
 }
 
 // Stats returns aggregated store statistics.
-func (s *sqliteStore) Stats(recentLimit int) (StoreStats, error) {
+func (s *sqliteStore) Stats(ctx context.Context, recentLimit int) (StoreStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -337,12 +342,12 @@ func (s *sqliteStore) Stats(recentLimit int) (StoreStats, error) {
 	}
 
 	var totalCount int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM knowledge_units").Scan(&totalCount); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM knowledge_units").Scan(&totalCount); err != nil {
 		return StoreStats{}, fmt.Errorf("counting units: %w", err)
 	}
 
 	domainCounts := make(map[string]int)
-	domainRows, err := s.db.Query("SELECT domain, COUNT(*) FROM knowledge_unit_domains GROUP BY domain")
+	domainRows, err := s.db.QueryContext(ctx, "SELECT domain, COUNT(*) FROM knowledge_unit_domains GROUP BY domain")
 	if err != nil {
 		return StoreStats{}, fmt.Errorf("querying domain counts: %w", err)
 	}
@@ -361,7 +366,11 @@ func (s *sqliteStore) Stats(recentLimit int) (StoreStats, error) {
 	}
 
 	// Fetch recent units ordered by rowid descending (insertion order).
-	recentRows, err := s.db.Query("SELECT data FROM knowledge_units ORDER BY rowid DESC LIMIT ?", recentLimit)
+	recentRows, err := s.db.QueryContext(
+		ctx,
+		"SELECT data FROM knowledge_units ORDER BY rowid DESC LIMIT ?",
+		recentLimit,
+	)
 	if err != nil {
 		return StoreStats{}, fmt.Errorf("querying recent units: %w", err)
 	}
@@ -391,7 +400,7 @@ func (s *sqliteStore) Stats(recentLimit int) (StoreStats, error) {
 		buckets[label] = 0
 	}
 
-	allRows, err := s.db.Query("SELECT data FROM knowledge_units")
+	allRows, err := s.db.QueryContext(ctx, "SELECT data FROM knowledge_units")
 	if err != nil {
 		return StoreStats{}, fmt.Errorf("querying for confidence distribution: %w", err)
 	}
@@ -427,7 +436,7 @@ func (s *sqliteStore) Stats(recentLimit int) (StoreStats, error) {
 }
 
 // Unit retrieves a knowledge unit by ID. Returns nil, nil if not found.
-func (s *sqliteStore) Unit(id string) (*KnowledgeUnit, error) {
+func (s *sqliteStore) Unit(ctx context.Context, id string) (*KnowledgeUnit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -436,7 +445,7 @@ func (s *sqliteStore) Unit(id string) (*KnowledgeUnit, error) {
 	}
 
 	var data string
-	err := s.db.QueryRow("SELECT data FROM knowledge_units WHERE id = ?", id).Scan(&data)
+	err := s.db.QueryRowContext(ctx, "SELECT data FROM knowledge_units WHERE id = ?", id).Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -453,7 +462,7 @@ func (s *sqliteStore) Unit(id string) (*KnowledgeUnit, error) {
 }
 
 // Update replaces an existing knowledge unit.
-func (s *sqliteStore) Update(ku KnowledgeUnit) error {
+func (s *sqliteStore) Update(ctx context.Context, ku KnowledgeUnit) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -474,13 +483,13 @@ func (s *sqliteStore) Update(ku KnowledgeUnit) error {
 		return fmt.Errorf("marshalling unit: %w", err)
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	res, err := tx.Exec("UPDATE knowledge_units SET data = ? WHERE id = ?", string(data), ku.ID)
+	res, err := tx.ExecContext(ctx, "UPDATE knowledge_units SET data = ? WHERE id = ?", string(data), ku.ID)
 	if err != nil {
 		return fmt.Errorf("updating unit: %w", err)
 	}
@@ -494,18 +503,18 @@ func (s *sqliteStore) Update(ku KnowledgeUnit) error {
 	}
 
 	// Replace domain rows.
-	if _, err := tx.Exec("DELETE FROM knowledge_unit_domains WHERE unit_id = ?", ku.ID); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM knowledge_unit_domains WHERE unit_id = ?", ku.ID); err != nil {
 		return fmt.Errorf("clearing domains: %w", err)
 	}
-	if err := insertDomains(tx, ku.ID, domains); err != nil {
+	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
 		return err
 	}
 
 	// Replace FTS entry.
-	if _, err := tx.Exec("DELETE FROM knowledge_units_fts WHERE id = ?", ku.ID); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM knowledge_units_fts WHERE id = ?", ku.ID); err != nil {
 		return fmt.Errorf("clearing FTS entry: %w", err)
 	}
-	if err := insertFTS(tx, stored); err != nil {
+	if err := insertFTS(ctx, tx, stored); err != nil {
 		return err
 	}
 
@@ -547,15 +556,15 @@ func ensureMetadata(db *sql.DB) error {
 }
 
 // insertDomains writes domain rows for a unit within an existing transaction.
-func insertDomains(tx *sql.Tx, unitID string, domains []string) error {
-	stmt, err := tx.Prepare("INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)")
+func insertDomains(ctx context.Context, tx *sql.Tx, unitID string, domains []string) error {
+	stmt, err := tx.PrepareContext(ctx, "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)")
 	if err != nil {
 		return fmt.Errorf("preparing domain insert: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
 
 	for _, d := range domains {
-		if _, err := stmt.Exec(unitID, d); err != nil {
+		if _, err := stmt.ExecContext(ctx, unitID, d); err != nil {
 			return fmt.Errorf("inserting domain %q: %w", d, err)
 		}
 	}
@@ -564,8 +573,8 @@ func insertDomains(tx *sql.Tx, unitID string, domains []string) error {
 }
 
 // insertFTS writes an FTS entry for a unit within an existing transaction.
-func insertFTS(tx *sql.Tx, ku KnowledgeUnit) error {
-	_, err := tx.Exec(
+func insertFTS(ctx context.Context, tx *sql.Tx, ku KnowledgeUnit) error {
+	_, err := tx.ExecContext(ctx,
 		"INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)",
 		ku.ID,
 		ku.Insight.Summary,

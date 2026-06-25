@@ -2,6 +2,7 @@ package cq
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -50,32 +51,32 @@ var ErrStoreClosed = errors.New("store is closed")
 // NOTE: implementations must be safe for concurrent use.
 type Store interface {
 	// Unit returns the knowledge unit with the given ID, or nil when absent.
-	Unit(id string) (*KnowledgeUnit, error)
+	Unit(ctx context.Context, id string) (*KnowledgeUnit, error)
 
 	// All returns every knowledge unit in the store.
-	All() ([]KnowledgeUnit, error)
+	All(ctx context.Context) ([]KnowledgeUnit, error)
 
 	// Insert stores a new knowledge unit.
 	// NOTE: implementations must reject a duplicate ID and a unit whose
 	// domains are empty after normalization.
-	Insert(ku KnowledgeUnit) error
+	Insert(ctx context.Context, ku KnowledgeUnit) error
 
 	// Update replaces an existing knowledge unit.
 	// NOTE: implementations must error when the ID is absent and reject a
 	// unit whose domains are empty after normalization.
-	Update(ku KnowledgeUnit) error
+	Update(ctx context.Context, ku KnowledgeUnit) error
 
 	// Delete removes the knowledge unit with the given ID.
 	// NOTE: implementations must error when the ID is absent.
-	Delete(id string) error
+	Delete(ctx context.Context, id string) error
 
 	// Query returns knowledge units matching the parameters, ranked by
 	// relevance and confidence and truncated to the limit.
-	Query(params QueryParams) (StoreQueryResult, error)
+	Query(ctx context.Context, params QueryParams) (StoreQueryResult, error)
 
 	// Stats returns aggregated store statistics, including up to recentLimit
 	// most-recently-inserted units.
-	Stats(recentLimit int) (StoreStats, error)
+	Stats(ctx context.Context, recentLimit int) (StoreStats, error)
 
 	// Close releases the resources held by the store.
 	// NOTE: implementations must be safe to call more than once.
