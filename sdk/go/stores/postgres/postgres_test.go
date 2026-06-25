@@ -1,6 +1,7 @@
 package postgres_test
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestNew(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := postgres.New(tc.connString)
+			_, err := postgres.New(context.Background(), tc.connString)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.wantErr)
 		})

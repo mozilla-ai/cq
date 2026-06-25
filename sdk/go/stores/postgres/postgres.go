@@ -2,7 +2,7 @@
 //
 // Construct with New and pass to the client via cq.WithStore:
 //
-//	store, err := postgres.New("postgres://localhost/cq")
+//	store, err := postgres.New(ctx, "postgres://localhost/cq")
 //	client, err := cq.NewClient(cq.WithStore(store))
 package postgres
 
@@ -84,7 +84,7 @@ type Store struct {
 // The connection string must be a valid PostgreSQL URL or DSN.
 // New validates the string, connects, pings the server, and ensures the
 // schema exists before returning.
-func New(connString string) (*Store, error) {
+func New(ctx context.Context, connString string) (*Store, error) {
 	if connString == "" {
 		return nil, fmt.Errorf("connection string must not be empty")
 	}
@@ -92,16 +92,16 @@ func New(connString string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid connection string: %w", err)
 	}
-	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating connection pool: %w", err)
 	}
-	if err := pool.Ping(context.Background()); err != nil {
+	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("connecting to server: %w", err)
 	}
 	s := &Store{pool: pool}
-	if err := s.ensureSchema(); err != nil {
+	if err := s.ensureSchema(ctx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("ensuring schema: %w", err)
 	}
@@ -342,12 +342,11 @@ func (s *Store) countUnits(ctx context.Context) (int, error) {
 // ensureSchema creates the tables and indexes if they do not exist, then
 // stamps the writer metadata so cross-SDK diagnostics can identify the
 // last SDK that wrote to the database.
-func (s *Store) ensureSchema() error {
-	ctx := context.Background()
+func (s *Store) ensureSchema(ctx context.Context) error {
 	if _, err := s.pool.Exec(ctx, schemaDDL); err != nil {
 		return err
 	}
-	return s.stampWriter()
+	return s.stampWriter(ctx)
 }
 
 // queryDomainCounts returns the number of knowledge units per domain tag.
@@ -394,8 +393,7 @@ func (s *Store) scanUnits(ctx context.Context, sql string, args ...any) ([]cq.Kn
 
 // stampWriter records the SDK version and timestamp in the metadata table
 // so operators can identify which SDK last modified the database.
-func (s *Store) stampWriter() error {
-	ctx := context.Background()
+func (s *Store) stampWriter(ctx context.Context) error {
 	tag := fmt.Sprintf(writerTagFmt, runtime.Version())
 	now := time.Now().UTC().Format(time.RFC3339)
 	batch := &pgx.Batch{}
