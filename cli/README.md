@@ -1,7 +1,7 @@
 # cq CLI
 
 {% hint style="info" icon="tag" %}
-Version: v0.14.0
+Version: v0.15.0
 {% endhint %}
 
 Command-line interface for [cq](https://github.com/mozilla-ai/cq) — the

@@ -1,7 +1,7 @@
 # cq-sdk
 
 {% hint style="info" icon="tag" %}
-Version: 0.16.0
+Version: 0.17.0
 {% endhint %}
 
 Python SDK for [cq](https://github.com/mozilla-ai/cq) — the shared agent knowledge commons.
@@ -79,7 +79,7 @@ The local store is pluggable. The SDK defines a `Store` runtime-checkable Protoc
 The client resolves the local store in this precedence order:
 
 1. **`store=` argument** — inject any `cq.Store` directly.
-2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.create_store`. Accepted schemes: `sqlite:///abs/path` or `sqlite:path`. A `postgresql://` URL raises `NotImplementedError` naming the planned `cq-sdk[postgres]` extra.
+2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.create_store`. Accepted schemes: `sqlite:///abs/path`, `sqlite:path`, and `postgresql://` (requires the `cq-sdk[postgres]` extra).
 3. **`local_db_path=` argument / `CQ_LOCAL_DB_PATH` env var** — path to a SQLite file.
 4. **XDG default** — `$XDG_DATA_HOME/cq/local.db` (typically `~/.local/share/cq/local.db`).
 
@@ -101,12 +101,32 @@ The `cq.Store` Protocol requires eight methods. Implementations must be safe for
 #### Built-in implementations
 
 - **`SqliteStore`** — the default. Opens a SQLite file with FTS5 full-text search, WAL journaling, and domain-tag indexing.
+- **`PostgresStore`** — requires `cq-sdk[postgres]`. Connects to a shared PostgreSQL instance for multi-agent knowledge sharing. Domain-tag matching only (no full-text). Install with `uv add cq-sdk[postgres]` or `pip install cq-sdk[postgres]`.
 - **`InMemoryStore`** — map-backed, no persistence. Useful for tests and as a worked example for custom stores (domain-tag matching only, no full-text).
 
 ```python
 from cq import Client, InMemoryStore
 
 client = Client(store=InMemoryStore())
+```
+
+PostgreSQL via `CQ_LOCAL_DATABASE_URL`:
+
+```python
+import os
+os.environ["CQ_LOCAL_DATABASE_URL"] = "postgres://user:pass@localhost:5432/cq"
+
+client = Client()  # Resolves to PostgresStore automatically.
+```
+
+Or inject directly:
+
+```python
+from cq import Client
+from cq.stores.postgres import PostgresStore
+
+store = PostgresStore("postgres://user:pass@localhost:5432/cq")
+client = Client(store=store)
 ```
 
 #### Bring your own
