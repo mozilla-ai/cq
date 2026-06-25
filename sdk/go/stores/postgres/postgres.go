@@ -17,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
@@ -25,6 +26,10 @@ const (
 	keyLastWriter  = "last_writer"
 	writerTagFmt   = "cq-go-sdk/postgres go/%s"
 )
+
+// rollbackTimeout bounds the deferred rollback cleanup so it cannot block
+// indefinitely on an unresponsive server.
+const rollbackTimeout = 5 * time.Second
 
 const schemaDDL = `
 CREATE TABLE IF NOT EXISTS knowledge_units (
@@ -170,8 +175,7 @@ func (s *Store) Insert(ctx context.Context, ku cq.KnowledgeUnit) error {
 	if err != nil {
 		return err
 	}
-	// Rollback is a no-op after Commit; the returned error is not actionable.
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer rollback(tx)
 	if _, err := tx.Exec(ctx, sqlInsertUnit, ku.ID, data); err != nil {
 		return fmt.Errorf("inserting unit %s: %w", ku.ID, err)
 	}
@@ -285,8 +289,7 @@ func (s *Store) Update(ctx context.Context, ku cq.KnowledgeUnit) error {
 	if err != nil {
 		return err
 	}
-	// Rollback is a no-op after Commit; the returned error is not actionable.
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer rollback(tx)
 	ct, err := tx.Exec(ctx, sqlUpdateUnit, data, ku.ID)
 	if err != nil {
 		return err
@@ -410,6 +413,16 @@ func insertDomains(ctx context.Context, tx pgx.Tx, unitID string, domains []stri
 		}
 	}
 	return nil
+}
+
+// rollback discards tx using a context independent of the caller's, so cleanup
+// runs even after the caller cancels — otherwise a cancelled rollback churns
+// the pooled connection instead of releasing it. No-op after a successful
+// Commit; the returned error is not actionable.
+func rollback(tx pgx.Tx) {
+	ctx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+	defer cancel()
+	_ = tx.Rollback(ctx)
 }
 
 // marshal serializes a KnowledgeUnit to JSON for JSONB storage.
