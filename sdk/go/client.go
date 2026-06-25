@@ -93,8 +93,10 @@ func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, 
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
-	if err := ctx.Err(); err != nil {
-		return KnowledgeUnit{}, err
+	select {
+	case <-ctx.Done():
+		return KnowledgeUnit{}, ctx.Err()
+	default:
 	}
 
 	if !ku.Tier.IsRemote() {
@@ -137,8 +139,10 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
-	if err := ctx.Err(); err != nil {
-		return DrainResult{}, err
+	select {
+	case <-ctx.Done():
+		return DrainResult{}, ctx.Err()
+	default:
 	}
 
 	if c.remote == nil {
@@ -183,6 +187,9 @@ func (c *Client) Drain(ctx context.Context) (DrainResult, error) {
 
 // DrainableCount returns the number of local units that Drain would push.
 func (c *Client) DrainableCount(ctx context.Context) (int, error) {
+	ctx, cancel := c.operationContext(ctx)
+	defer cancel()
+
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
@@ -216,8 +223,10 @@ func (c *Client) Flag(
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
-	if err := ctx.Err(); err != nil {
-		return KnowledgeUnit{}, err
+	select {
+	case <-ctx.Done():
+		return KnowledgeUnit{}, ctx.Err()
+	default:
 	}
 
 	cfg := resolveFlagConfig(opts)
@@ -283,8 +292,10 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
-	if err := ctx.Err(); err != nil {
-		return KnowledgeUnit{}, err
+	select {
+	case <-ctx.Done():
+		return KnowledgeUnit{}, ctx.Err()
+	default:
 	}
 
 	if err := ValidateExtensionKeys(params.Extensions); err != nil {
@@ -359,8 +370,10 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
-	if err := ctx.Err(); err != nil {
-		return QueryResult{}, err
+	select {
+	case <-ctx.Done():
+		return QueryResult{}, ctx.Err()
+	default:
 	}
 
 	limit := params.Limit
@@ -422,8 +435,10 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 	ctx, cancel := c.operationContext(ctx)
 	defer cancel()
 
-	if err := ctx.Err(); err != nil {
-		return StoreStats{}, err
+	select {
+	case <-ctx.Done():
+		return StoreStats{}, ctx.Err()
+	default:
 	}
 
 	stats, err := c.store.Stats(ctx, defaultRecentLimit)
@@ -431,8 +446,10 @@ func (c *Client) Status(ctx context.Context) (StoreStats, error) {
 		return StoreStats{}, fmt.Errorf("reading store stats: %w", err)
 	}
 
-	if err := ctx.Err(); err != nil {
-		return StoreStats{}, err
+	select {
+	case <-ctx.Done():
+		return StoreStats{}, ctx.Err()
+	default:
 	}
 
 	stats.TierCounts = map[Tier]int{Local: stats.TotalCount}
