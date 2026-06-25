@@ -108,7 +108,7 @@ type StoreStats struct {
 	// with any units a configured remote reports.
 	DomainCounts map[string]int `json:"domain_counts"`
 
-	// Recent holds the most recently confirmed units from the local store.
+	// Recent holds the most recently added units from the local store.
 	Recent []KnowledgeUnit `json:"recent"`
 
 	// ConfidenceDistribution covers the local store plus any private/org
