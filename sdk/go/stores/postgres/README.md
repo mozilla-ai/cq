@@ -17,11 +17,13 @@ core SDK.
 
 ```go
 import (
+    "context"
+
     cq "github.com/mozilla-ai/cq/sdk/go"
     "github.com/mozilla-ai/cq/sdk/go/stores/postgres"
 )
 
-store, err := postgres.New("postgres://user:pass@localhost:5432/cq")
+store, err := postgres.New(context.Background(), "postgres://user:pass@localhost:5432/cq")
 if err != nil {
     log.Fatal(err)
 }
