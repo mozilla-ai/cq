@@ -65,7 +65,7 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tag.outputs.tag }}
 
@@ -175,7 +175,7 @@ jobs:
         run: gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --repo "$GITHUB_REPOSITORY"
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tag.outputs.tag }}
           sparse-checkout: build/brew
