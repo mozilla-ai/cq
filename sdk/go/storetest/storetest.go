@@ -11,6 +11,7 @@ package storetest
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	cq "github.com/mozilla-ai/cq/sdk/go"
@@ -266,6 +267,22 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 			if stats.ConfidenceDistribution[label] != want {
 				t.Fatalf("ConfidenceDistribution[%s] = %d, want %d", label, stats.ConfidenceDistribution[label], want)
 			}
+		}
+		wantTiers := map[cq.Tier]int{cq.Local: len(confidences)}
+		if !maps.Equal(stats.TierCounts, wantTiers) {
+			t.Fatalf("TierCounts = %v, want %v", stats.TierCounts, wantTiers)
+		}
+	})
+
+	t.Run("stats reports local tier on an empty store", func(t *testing.T) {
+		s := newStore()
+		t.Cleanup(func() { _ = s.Close() })
+
+		stats, err := s.Stats(context.Background(), 5)
+		noErr(t, err)
+		wantTiers := map[cq.Tier]int{cq.Local: 0}
+		if !maps.Equal(stats.TierCounts, wantTiers) {
+			t.Fatalf("TierCounts = %v, want %v", stats.TierCounts, wantTiers)
 		}
 	})
 

@@ -217,6 +217,7 @@ func (s *inMemoryStore) Stats(ctx context.Context, recentLimit int) (StoreStats,
 		DomainCounts:           domainCounts,
 		Recent:                 recent,
 		ConfidenceDistribution: buckets,
+		TierCounts:             map[Tier]int{Local: len(s.order)},
 	}, nil
 }
 

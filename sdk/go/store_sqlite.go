@@ -452,6 +452,7 @@ func (s *sqliteStore) Stats(ctx context.Context, recentLimit int) (StoreStats, e
 		DomainCounts:           domainCounts,
 		Recent:                 recent,
 		ConfidenceDistribution: buckets,
+		TierCounts:             map[Tier]int{Local: totalCount},
 	}, nil
 }
 

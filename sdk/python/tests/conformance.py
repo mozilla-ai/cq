@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from cq.models import Context, Evidence, Insight, KnowledgeUnit, create_knowledge_unit
+from cq.models import Context, Evidence, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 from cq.scoring import apply_confirmation
 from cq.store import (
     _MAX_QUERY_FRAMEWORKS,
@@ -264,6 +264,7 @@ def _assert_stats_aggregates(make_store: StoreFactory) -> None:
             "0.5-0.7": 0,
             "0.7-1.0": 0,
         }
+        assert empty.tier_counts == {Tier.LOCAL: 0}
 
         now = datetime.now(UTC)
         old_when = now - timedelta(days=10)
@@ -282,6 +283,7 @@ def _assert_stats_aggregates(make_store: StoreFactory) -> None:
         assert stats.domain_counts == {"api": 2, "databases": 1, "payments": 1}
         assert [u.id for u in stats.recent] == [newer.id, older.id]
         assert stats.confidence_distribution["0.5-0.7"] == 2
+        assert stats.tier_counts == {Tier.LOCAL: 2}
 
         with pytest.raises(ValueError, match="recent_limit must be non-negative"):
             store.stats(recent_limit=-1)

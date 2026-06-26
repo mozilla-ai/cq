@@ -675,6 +675,7 @@ class SqliteStore:
             domain_counts=domain_counts,
             recent=recent,
             confidence_distribution=buckets,
+            tier_counts={Tier.LOCAL: total},
         )
 
 

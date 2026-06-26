@@ -11,7 +11,7 @@ not an advertised capability.
 
 import threading
 
-from ..models import KnowledgeUnit
+from ..models import KnowledgeUnit, Tier
 from ..store import (
     _CONFIDENCE_BUCKETS,
     _EPOCH_UTC,
@@ -198,4 +198,5 @@ class InMemoryStore:
             domain_counts=domain_counts,
             recent=recent,
             confidence_distribution=buckets,
+            tier_counts={Tier.LOCAL: len(units)},
         )
