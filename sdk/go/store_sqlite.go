@@ -53,6 +53,12 @@ const (
 	keyLastWriteAt = "last_write_at"
 )
 
+// execer runs a single SQL statement, whether against a database handle
+// directly or within an open transaction.
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 // sqliteStore is a SQLite-backed Store implementation.
 type sqliteStore struct {
 	mu     sync.Mutex
@@ -172,6 +178,10 @@ func (s *sqliteStore) Delete(ctx context.Context, unitID string) error {
 		return fmt.Errorf("unit %q not found", unitID)
 	}
 
+	if err := stampWriter(tx); err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
@@ -218,6 +228,10 @@ func (s *sqliteStore) Insert(ctx context.Context, ku KnowledgeUnit) error {
 	}
 
 	if err := insertFTS(ctx, tx, stored); err != nil {
+		return err
+	}
+
+	if err := stampWriter(tx); err != nil {
 		return err
 	}
 
@@ -518,6 +532,10 @@ func (s *sqliteStore) Update(ctx context.Context, ku KnowledgeUnit) error {
 		return err
 	}
 
+	if err := stampWriter(tx); err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
@@ -593,14 +611,14 @@ func marshalUnit(ku KnowledgeUnit) ([]byte, error) {
 }
 
 // stampWriter updates the last_writer and last_write_at metadata.
-func stampWriter(db *sql.DB) error {
+func stampWriter(e execer) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	tag := writerTag()
 	for _, kv := range [][2]string{
 		{keyLastWriter, tag},
 		{keyLastWriteAt, now},
 	} {
-		if _, err := db.Exec(
+		if _, err := e.Exec(
 			"INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
 			kv[0], kv[1],
 		); err != nil {

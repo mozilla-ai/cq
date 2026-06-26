@@ -890,3 +890,49 @@ func TestWriterStamp(t *testing.T) {
 	require.NoError(t, db.QueryRow("SELECT value FROM metadata WHERE key = ?", keyLastWriteAt).Scan(&lastWriteAt))
 	require.NotEmpty(t, lastWriteAt)
 }
+
+func TestWriterStampUpdatedOnMutation(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := newSQLiteStore(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = s.Close() }()
+
+	db, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	readTimestamp := func() string {
+		var v string
+		require.NoError(t, db.QueryRow("SELECT value FROM metadata WHERE key = ?", keyLastWriteAt).Scan(&v))
+		return v
+	}
+
+	ku := newFakeKU(t, []string{"testing"})
+
+	// Overwrite the timestamp to a known old value so we can detect change.
+	_, err = db.Exec("UPDATE metadata SET value = '2000-01-01T00:00:00Z' WHERE key = ?", keyLastWriteAt)
+	require.NoError(t, err)
+	require.Equal(t, "2000-01-01T00:00:00Z", readTimestamp())
+
+	// Insert should refresh the stamp.
+	require.NoError(t, s.Insert(context.Background(), ku))
+	ts := readTimestamp()
+	require.NotEqual(t, "2000-01-01T00:00:00Z", ts)
+
+	// Reset and verify Update refreshes.
+	_, err = db.Exec("UPDATE metadata SET value = '2000-01-01T00:00:00Z' WHERE key = ?", keyLastWriteAt)
+	require.NoError(t, err)
+	ku.Insight.Summary = "updated"
+	require.NoError(t, s.Update(context.Background(), ku))
+	ts = readTimestamp()
+	require.NotEqual(t, "2000-01-01T00:00:00Z", ts)
+
+	// Reset and verify Delete refreshes.
+	_, err = db.Exec("UPDATE metadata SET value = '2000-01-01T00:00:00Z' WHERE key = ?", keyLastWriteAt)
+	require.NoError(t, err)
+	require.NoError(t, s.Delete(context.Background(), ku.ID))
+	ts = readTimestamp()
+	require.NotEqual(t, "2000-01-01T00:00:00Z", ts)
+}
