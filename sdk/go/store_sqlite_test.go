@@ -903,36 +903,41 @@ func TestWriterStampUpdatedOnMutation(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	readTimestamp := func() string {
+	const sentinel = "2000-01-01T00:00:00Z"
+
+	readMetadata := func(key string) string {
 		var v string
-		require.NoError(t, db.QueryRow("SELECT value FROM metadata WHERE key = ?", keyLastWriteAt).Scan(&v))
+		require.NoError(t, db.QueryRow("SELECT value FROM metadata WHERE key = ?", key).Scan(&v))
 		return v
+	}
+
+	// Overwrite both writer keys with a sentinel so we can detect a restamp.
+	staleBothKeys := func() {
+		for _, key := range []string{keyLastWriter, keyLastWriteAt} {
+			_, err := db.Exec("UPDATE metadata SET value = ? WHERE key = ?", sentinel, key)
+			require.NoError(t, err)
+			require.Equal(t, sentinel, readMetadata(key))
+		}
+	}
+
+	// requireRestamped asserts both writer keys moved off the sentinel.
+	requireRestamped := func() {
+		require.NotEqual(t, sentinel, readMetadata(keyLastWriter))
+		require.NotEqual(t, sentinel, readMetadata(keyLastWriteAt))
 	}
 
 	ku := newFakeKU(t, []string{"testing"})
 
-	// Overwrite the timestamp to a known old value so we can detect change.
-	_, err = db.Exec("UPDATE metadata SET value = '2000-01-01T00:00:00Z' WHERE key = ?", keyLastWriteAt)
-	require.NoError(t, err)
-	require.Equal(t, "2000-01-01T00:00:00Z", readTimestamp())
-
-	// Insert should refresh the stamp.
+	staleBothKeys()
 	require.NoError(t, s.Insert(context.Background(), ku))
-	ts := readTimestamp()
-	require.NotEqual(t, "2000-01-01T00:00:00Z", ts)
+	requireRestamped()
 
-	// Reset and verify Update refreshes.
-	_, err = db.Exec("UPDATE metadata SET value = '2000-01-01T00:00:00Z' WHERE key = ?", keyLastWriteAt)
-	require.NoError(t, err)
+	staleBothKeys()
 	ku.Insight.Summary = "updated"
 	require.NoError(t, s.Update(context.Background(), ku))
-	ts = readTimestamp()
-	require.NotEqual(t, "2000-01-01T00:00:00Z", ts)
+	requireRestamped()
 
-	// Reset and verify Delete refreshes.
-	_, err = db.Exec("UPDATE metadata SET value = '2000-01-01T00:00:00Z' WHERE key = ?", keyLastWriteAt)
-	require.NoError(t, err)
+	staleBothKeys()
 	require.NoError(t, s.Delete(context.Background(), ku.ID))
-	ts = readTimestamp()
-	require.NotEqual(t, "2000-01-01T00:00:00Z", ts)
+	requireRestamped()
 }

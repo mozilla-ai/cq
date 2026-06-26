@@ -56,7 +56,7 @@ const (
 // execer runs a single SQL statement, whether against a database handle
 // directly or within an open transaction.
 type execer interface {
-	Exec(query string, args ...any) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 // sqliteStore is a SQLite-backed Store implementation.
@@ -87,7 +87,13 @@ func newSQLiteStore(dbPath string) (*sqliteStore, error) {
 		return nil, fmt.Errorf("applying schema: %w", err)
 	}
 
-	if err := ensureMetadata(db); err != nil {
+	if _, err := db.Exec(metadataDDL); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("creating metadata table: %w", err)
+	}
+
+	// Construction has no caller context; stamp with a background context.
+	if err := stampWriter(context.Background(), db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -178,7 +184,7 @@ func (s *sqliteStore) Delete(ctx context.Context, unitID string) error {
 		return fmt.Errorf("unit %q not found", unitID)
 	}
 
-	if err := stampWriter(tx); err != nil {
+	if err := stampWriter(ctx, tx); err != nil {
 		return err
 	}
 
@@ -231,7 +237,7 @@ func (s *sqliteStore) Insert(ctx context.Context, ku KnowledgeUnit) error {
 		return err
 	}
 
-	if err := stampWriter(tx); err != nil {
+	if err := stampWriter(ctx, tx); err != nil {
 		return err
 	}
 
@@ -532,7 +538,7 @@ func (s *sqliteStore) Update(ctx context.Context, ku KnowledgeUnit) error {
 		return err
 	}
 
-	if err := stampWriter(tx); err != nil {
+	if err := stampWriter(ctx, tx); err != nil {
 		return err
 	}
 
@@ -562,15 +568,6 @@ func applyPragmas(db *sql.DB) error {
 	}
 
 	return nil
-}
-
-// ensureMetadata creates the metadata table and stamps the writer.
-func ensureMetadata(db *sql.DB) error {
-	if _, err := db.Exec(metadataDDL); err != nil {
-		return fmt.Errorf("creating metadata table: %w", err)
-	}
-
-	return stampWriter(db)
 }
 
 // insertDomains writes domain rows for a unit within an existing transaction.
@@ -611,14 +608,15 @@ func marshalUnit(ku KnowledgeUnit) ([]byte, error) {
 }
 
 // stampWriter updates the last_writer and last_write_at metadata.
-func stampWriter(e execer) error {
+func stampWriter(ctx context.Context, e execer) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	tag := writerTag()
 	for _, kv := range [][2]string{
 		{keyLastWriter, tag},
 		{keyLastWriteAt, now},
 	} {
-		if _, err := e.Exec(
+		if _, err := e.ExecContext(
+			ctx,
 			"INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
 			kv[0], kv[1],
 		); err != nil {
