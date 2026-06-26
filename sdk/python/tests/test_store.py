@@ -1099,6 +1099,24 @@ class TestGoCompatibility:
         assert data["flags"][0]["reason"] == "stale"
 
 
+_WRITER_STAMP_SENTINEL = "2000-01-01T00:00:00"
+
+
+def _stale_writer_keys(store: LocalStore) -> None:
+    """Overwrite both writer-metadata keys with a sentinel so a restamp is detectable."""
+    for key in ("last_writer", "last_write_at"):
+        store._conn.execute("UPDATE metadata SET value = ? WHERE key = ?", (_WRITER_STAMP_SENTINEL, key))
+    store._conn.commit()
+
+
+def _assert_writer_restamped(store: LocalStore) -> None:
+    """Assert both writer-metadata keys moved off the sentinel."""
+    for key in ("last_writer", "last_write_at"):
+        row = store._conn.execute("SELECT value FROM metadata WHERE key = ?", (key,)).fetchone()
+        assert row is not None
+        assert row[0] != _WRITER_STAMP_SENTINEL
+
+
 class TestMetadata:
     """Tests for the metadata table."""
 
@@ -1122,3 +1140,22 @@ class TestMetadata:
         s1.close()
         s2 = LocalStore(db_path=db_path)
         s2.close()
+
+    def test_insert_refreshes_writer_stamp(self, store: LocalStore) -> None:
+        _stale_writer_keys(store)
+        store.insert(_make_unit())
+        _assert_writer_restamped(store)
+
+    def test_update_refreshes_writer_stamp(self, store: LocalStore) -> None:
+        unit = _make_unit()
+        store.insert(unit)
+        _stale_writer_keys(store)
+        store.update(unit.model_copy(update={"insight": _make_insight(summary="changed")}))
+        _assert_writer_restamped(store)
+
+    def test_delete_refreshes_writer_stamp(self, store: LocalStore) -> None:
+        unit = _make_unit()
+        store.insert(unit)
+        _stale_writer_keys(store)
+        store.delete(unit.id)
+        _assert_writer_restamped(store)

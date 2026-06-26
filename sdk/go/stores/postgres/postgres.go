@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	cq "github.com/mozilla-ai/cq/sdk/go"
@@ -76,6 +77,12 @@ const (
 		INSERT INTO metadata (key, value) VALUES ($1, $2)
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`
 )
+
+// execer runs a single SQL statement, whether against the connection pool
+// directly or within an open transaction.
+type execer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
 
 // Store is a PostgreSQL-backed implementation of cq.Store.
 // All methods are safe for concurrent use.
@@ -143,14 +150,22 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	if s.closed {
 		return cq.ErrStoreClosed
 	}
-	ct, err := s.pool.Exec(ctx, sqlDeleteUnit, id)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer rollback(tx)
+	ct, err := tx.Exec(ctx, sqlDeleteUnit, id)
+	if err != nil {
+		return fmt.Errorf("deleting unit: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return fmt.Errorf("unit %s not found", id)
 	}
-	return nil
+	if err := stampWriter(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // Insert stores a new knowledge unit.
@@ -180,6 +195,9 @@ func (s *Store) Insert(ctx context.Context, ku cq.KnowledgeUnit) error {
 		return fmt.Errorf("inserting unit %s: %w", ku.ID, err)
 	}
 	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
+		return err
+	}
+	if err := stampWriter(ctx, tx); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -303,6 +321,9 @@ func (s *Store) Update(ctx context.Context, ku cq.KnowledgeUnit) error {
 	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
 		return err
 	}
+	if err := stampWriter(ctx, tx); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
@@ -349,7 +370,7 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 	if _, err := s.pool.Exec(ctx, schemaDDL); err != nil {
 		return err
 	}
-	return s.stampWriter(ctx)
+	return stampWriter(ctx, s.pool)
 }
 
 // queryDomainCounts returns the number of knowledge units per domain tag.
@@ -396,13 +417,16 @@ func (s *Store) scanUnits(ctx context.Context, sql string, args ...any) ([]cq.Kn
 
 // stampWriter records the SDK version and timestamp in the metadata table
 // so operators can identify which SDK last modified the database.
-func (s *Store) stampWriter(ctx context.Context) error {
+func stampWriter(ctx context.Context, e execer) error {
 	tag := fmt.Sprintf(writerTagFmt, runtime.Version())
 	now := time.Now().UTC().Format(time.RFC3339)
-	batch := &pgx.Batch{}
-	batch.Queue(sqlUpsertMetadata, keyLastWriter, tag)
-	batch.Queue(sqlUpsertMetadata, keyLastWriteAt, now)
-	return s.pool.SendBatch(ctx, batch).Close()
+	if _, err := e.Exec(ctx, sqlUpsertMetadata, keyLastWriter, tag); err != nil {
+		return fmt.Errorf("writing writer metadata: %w", err)
+	}
+	if _, err := e.Exec(ctx, sqlUpsertMetadata, keyLastWriteAt, now); err != nil {
+		return fmt.Errorf("writing timestamp metadata: %w", err)
+	}
+	return nil
 }
 
 // insertDomains writes domain tag rows for a unit within an existing transaction.

@@ -138,6 +138,7 @@ class PostgresStore:
                 with self._conn.transaction():
                     self._conn.execute(_SQL_INSERT_UNIT, (unit.id, data))
                     self._insert_domains(unit.id, domains)
+                    self._stamp_writer()
             except psycopg.errors.UniqueViolation as exc:
                 raise DuplicateUnitError(f"Knowledge unit already exists: {unit.id}") from exc
 
@@ -163,6 +164,7 @@ class PostgresStore:
                     raise KeyError(f"Knowledge unit not found: {unit.id}")
                 self._conn.execute(_SQL_DELETE_DOMAINS, (unit.id,))
                 self._insert_domains(unit.id, domains)
+                self._stamp_writer()
 
     def delete(self, unit_id: str) -> None:
         """Remove a knowledge unit by ID.
@@ -172,9 +174,11 @@ class PostgresStore:
         """
         with self._lock:
             self._check_open()
-            cur = self._conn.execute(_SQL_DELETE_UNIT, (unit_id,))
-            if cur.rowcount == 0:
-                raise KeyError(f"Knowledge unit not found: {unit_id}")
+            with self._conn.transaction():
+                cur = self._conn.execute(_SQL_DELETE_UNIT, (unit_id,))
+                if cur.rowcount == 0:
+                    raise KeyError(f"Knowledge unit not found: {unit_id}")
+                self._stamp_writer()
 
     def query(self, params: QueryParams) -> StoreQueryResult:
         """Search for knowledge units by domain tags with relevance ranking.

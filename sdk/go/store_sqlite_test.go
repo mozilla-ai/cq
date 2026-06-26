@@ -890,3 +890,54 @@ func TestWriterStamp(t *testing.T) {
 	require.NoError(t, db.QueryRow("SELECT value FROM metadata WHERE key = ?", keyLastWriteAt).Scan(&lastWriteAt))
 	require.NotEmpty(t, lastWriteAt)
 }
+
+func TestWriterStampUpdatedOnMutation(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := newSQLiteStore(dbPath)
+	require.NoError(t, err)
+	defer func() { _ = s.Close() }()
+
+	db, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	const sentinel = "2000-01-01T00:00:00Z"
+
+	readMetadata := func(key string) string {
+		var v string
+		require.NoError(t, db.QueryRow("SELECT value FROM metadata WHERE key = ?", key).Scan(&v))
+		return v
+	}
+
+	// Overwrite both writer keys with a sentinel so we can detect a restamp.
+	staleBothKeys := func() {
+		for _, key := range []string{keyLastWriter, keyLastWriteAt} {
+			_, err := db.Exec("UPDATE metadata SET value = ? WHERE key = ?", sentinel, key)
+			require.NoError(t, err)
+			require.Equal(t, sentinel, readMetadata(key))
+		}
+	}
+
+	// requireRestamped asserts both writer keys moved off the sentinel.
+	requireRestamped := func() {
+		require.NotEqual(t, sentinel, readMetadata(keyLastWriter))
+		require.NotEqual(t, sentinel, readMetadata(keyLastWriteAt))
+	}
+
+	ku := newFakeKU(t, []string{"testing"})
+
+	staleBothKeys()
+	require.NoError(t, s.Insert(context.Background(), ku))
+	requireRestamped()
+
+	staleBothKeys()
+	ku.Insight.Summary = "updated"
+	require.NoError(t, s.Update(context.Background(), ku))
+	requireRestamped()
+
+	staleBothKeys()
+	require.NoError(t, s.Delete(context.Background(), ku.ID))
+	requireRestamped()
+}
