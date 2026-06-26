@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -327,31 +329,27 @@ func (s *Store) Update(ctx context.Context, ku cq.KnowledgeUnit) error {
 	return tx.Commit(ctx)
 }
 
-// computeConfidenceBuckets loads all units and distributes them across the
-// canonical confidence buckets shared with the server and other SDKs.
+// computeConfidenceBuckets returns the count of units in each canonical
+// confidence bucket.
 func (s *Store) computeConfidenceBuckets(ctx context.Context) (map[string]int, error) {
-	units, err := s.scanUnits(ctx, sqlSelectAll)
-	if err != nil {
-		return nil, err
-	}
 	buckets := map[string]int{}
 	for _, label := range cq.ConfidenceBucketLabels() {
 		buckets[label] = 0
 	}
-	for _, ku := range units {
-		for _, label := range cq.ConfidenceBucketLabels() {
-			bound, err := cq.ConfidenceBucketBound(label)
-			if err != nil {
-				return nil, err
-			}
-			if ku.Evidence.Confidence >= bound {
-				continue
-			}
-			buckets[label]++
-			break
-		}
+	rows, err := s.pool.Query(ctx, buildConfidenceSQL())
+	if err != nil {
+		return nil, err
 	}
-	return buckets, nil
+	defer rows.Close()
+	for rows.Next() {
+		var bucket string
+		var cnt int
+		if err := rows.Scan(&bucket, &cnt); err != nil {
+			return nil, err
+		}
+		buckets[bucket] = cnt
+	}
+	return buckets, rows.Err()
 }
 
 // countUnits returns the total number of knowledge units in the store.
@@ -413,6 +411,29 @@ func (s *Store) scanUnits(ctx context.Context, sql string, args ...any) ([]cq.Kn
 		units = append(units, ku)
 	}
 	return units, rows.Err()
+}
+
+// buildConfidenceSQL renders the bucketing query from the canonical bucket
+// definitions so the CASE thresholds stay in lockstep with the SDK constants.
+// Exactly one label carries an infinite upper bound; it becomes the ELSE arm.
+func buildConfidenceSQL() string {
+	labels := cq.ConfidenceBucketLabels()
+	var whens []string
+	for _, label := range labels {
+		bound, err := cq.ConfidenceBucketBound(label)
+		if err != nil {
+			panic(fmt.Sprintf("confidence bucket %q has no upper bound: %v", label, err))
+		}
+		if math.IsInf(bound, 1) {
+			whens = append(whens, fmt.Sprintf("ELSE '%s'", label))
+		} else {
+			whens = append(whens, fmt.Sprintf("WHEN confidence < %g THEN '%s'", bound, label))
+		}
+	}
+	return "SELECT CASE " + strings.Join(whens, " ") + " END AS bucket, COUNT(*) AS cnt " +
+		"FROM (SELECT COALESCE((data->'evidence'->>'confidence')::float, 0.5) " +
+		"AS confidence FROM knowledge_units) sub " +
+		"GROUP BY bucket"
 }
 
 // stampWriter records the SDK version and timestamp in the metadata table
