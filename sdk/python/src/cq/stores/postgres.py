@@ -8,7 +8,7 @@ search is not yet implemented (the SPI degrades gracefully).
 import sys
 import threading
 from datetime import UTC, datetime
-from typing import Any, LiteralString
+from typing import Any, LiteralString, cast
 
 import psycopg
 import psycopg.sql
@@ -77,6 +77,36 @@ _SQL_UPSERT_METADATA = """
     INSERT INTO metadata (key, value) VALUES (%s, %s)
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
 """
+
+
+def _build_confidence_sql() -> str:
+    """Build a SQL query that buckets confidence scores server-side.
+
+    Generated from ``_CONFIDENCE_BUCKETS`` so the thresholds stay
+    single-sourced and cannot drift between the Python constants and
+    the SQL CASE expression.
+    """
+    whens: list[str] = []
+    else_count = 0
+    for threshold, label in _CONFIDENCE_BUCKETS:
+        if threshold == float("inf"):
+            else_count += 1
+            whens.append(f"ELSE '{label}'")
+        else:
+            whens.append(f"WHEN confidence < {threshold} THEN '{label}'")
+    if else_count != 1:
+        raise ValueError(f"confidence buckets must have exactly one infinite upper bound, got {else_count}")
+    case_expr = " ".join(whens)
+    return (
+        f"SELECT CASE {case_expr} END AS bucket, COUNT(*) AS cnt "
+        "FROM (SELECT COALESCE((data->'evidence'->>'confidence')::float, 0.5) "
+        "AS confidence FROM knowledge_units) sub "
+        "GROUP BY bucket"
+    )
+
+
+# Safe: built entirely from the hard-coded _CONFIDENCE_BUCKETS constant.
+_SQL_CONFIDENCE_DISTRIBUTION: LiteralString = cast(LiteralString, _build_confidence_sql())
 
 
 class PostgresStore:
@@ -268,16 +298,11 @@ class PostgresStore:
             raise RuntimeError("store is closed")
 
     def _compute_confidence_buckets(self) -> dict[str, int]:
-        """Distribute all units across the canonical confidence buckets."""
-        units = self._scan_units(_SQL_SELECT_ALL)
+        """Return the count of units in each canonical confidence bucket."""
         buckets: dict[str, int] = {label: 0 for _, label in _CONFIDENCE_BUCKETS}
-        for unit in units:
-            c = unit.evidence.confidence
-            for threshold, label in _CONFIDENCE_BUCKETS:
-                if c >= threshold:
-                    continue
-                buckets[label] += 1
-                break
+        rows = self._conn.execute(_SQL_CONFIDENCE_DISTRIBUTION).fetchall()
+        for bucket, cnt in rows:
+            buckets[bucket] = cnt
         return buckets
 
     def _count_units(self) -> int:
