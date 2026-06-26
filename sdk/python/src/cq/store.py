@@ -16,6 +16,8 @@ import logging
 import os
 import sqlite3
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
@@ -390,6 +392,33 @@ class SqliteStore:
         if self._closed:
             raise RuntimeError("store is closed")
 
+    @contextmanager
+    def _locked(self) -> Iterator[None]:
+        """Hold the connection lock for the block and assert the store is open.
+
+        NOTE: self._lock is a non-reentrant threading.Lock, so this must
+        not be entered while the current thread already holds the lock
+        (including from within _transact, which builds on it) or the thread
+        will self-deadlock.
+        """
+        with self._lock:
+            self._check_open()
+            yield
+
+    @contextmanager
+    def _transact(self) -> Iterator[sqlite3.Connection]:
+        """Run a write transaction under the connection lock, yielding the connection.
+
+        Composes _locked() with the connection's own transaction context:
+        the body commits on success and rolls back on exception, and the
+        lock is released either way. The lock is acquired exactly once, via
+        _locked().
+        NOTE: self._lock is non-reentrant; do not nest _transact() or
+        _locked() inside the yielded block.
+        """
+        with self._locked(), self._conn:
+            yield self._conn
+
     def close(self) -> None:
         """Close the underlying database connection."""
         with self._lock:
@@ -428,31 +457,28 @@ class SqliteStore:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json(exclude_none=True)
-        with self._lock:
-            self._check_open()
-            try:
-                with self._conn:
-                    self._conn.execute(
-                        "INSERT INTO knowledge_units (id, data) VALUES (?, ?)",
-                        (unit.id, data),
-                    )
-                    self._conn.executemany(
-                        "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
-                        [(unit.id, d) for d in domains],
-                    )
-                    fts_sql = "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)"
-                    self._conn.execute(
-                        fts_sql,
-                        (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
-                    )
-                    self._stamp_writer()
-            except sqlite3.IntegrityError as exc:
-                raise DuplicateUnitError(f"Knowledge unit already exists: {unit.id}") from exc
+        try:
+            with self._transact() as conn:
+                conn.execute(
+                    "INSERT INTO knowledge_units (id, data) VALUES (?, ?)",
+                    (unit.id, data),
+                )
+                conn.executemany(
+                    "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
+                    [(unit.id, d) for d in domains],
+                )
+                fts_sql = "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)"
+                conn.execute(
+                    fts_sql,
+                    (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
+                )
+                self._stamp_writer()
+        except sqlite3.IntegrityError as exc:
+            raise DuplicateUnitError(f"Knowledge unit already exists: {unit.id}") from exc
 
     def get(self, unit_id: str) -> KnowledgeUnit | None:
         """Retrieve a knowledge unit by ID, or None if not found."""
-        with self._lock:
-            self._check_open()
+        with self._locked():
             row = self._conn.execute(
                 "SELECT data FROM knowledge_units WHERE id = ?",
                 (unit_id,),
@@ -463,8 +489,7 @@ class SqliteStore:
 
     def all(self) -> list[KnowledgeUnit]:
         """Return every knowledge unit in the store."""
-        with self._lock:
-            self._check_open()
+        with self._locked():
             rows = self._conn.execute("SELECT data FROM knowledge_units").fetchall()
         return [KnowledgeUnit.model_validate_json(row[0]) for row in rows]
 
@@ -474,22 +499,20 @@ class SqliteStore:
         Raises:
             KeyError: If no unit with the given ID exists.
         """
-        with self._lock:
-            self._check_open()
-            with self._conn:
-                # Delete FTS first (virtual tables have no CASCADE).
-                # Domain rows are handled by ON DELETE CASCADE.
-                self._conn.execute(
-                    "DELETE FROM knowledge_units_fts WHERE id = ?",
-                    (unit_id,),
-                )
-                cursor = self._conn.execute(
-                    "DELETE FROM knowledge_units WHERE id = ?",
-                    (unit_id,),
-                )
-                if cursor.rowcount == 0:
-                    raise KeyError(f"Knowledge unit not found: {unit_id}")
-                self._stamp_writer()
+        with self._transact() as conn:
+            # Delete FTS first (virtual tables have no CASCADE).
+            # Domain rows are handled by ON DELETE CASCADE.
+            conn.execute(
+                "DELETE FROM knowledge_units_fts WHERE id = ?",
+                (unit_id,),
+            )
+            cursor = conn.execute(
+                "DELETE FROM knowledge_units WHERE id = ?",
+                (unit_id,),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Knowledge unit not found: {unit_id}")
+            self._stamp_writer()
 
     def update(self, unit: KnowledgeUnit) -> None:
         """Replace an existing knowledge unit in the store.
@@ -503,33 +526,31 @@ class SqliteStore:
             raise ValueError("At least one non-empty domain is required")
         unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json(exclude_none=True)
-        with self._lock:
-            self._check_open()
-            with self._conn:
-                cursor = self._conn.execute(
-                    "UPDATE knowledge_units SET data = ? WHERE id = ?",
-                    (data, unit.id),
-                )
-                if cursor.rowcount == 0:
-                    raise KeyError(f"Knowledge unit not found: {unit.id}")
-                self._conn.execute(
-                    "DELETE FROM knowledge_unit_domains WHERE unit_id = ?",
-                    (unit.id,),
-                )
-                self._conn.executemany(
-                    "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
-                    [(unit.id, d) for d in domains],
-                )
-                self._conn.execute(
-                    "DELETE FROM knowledge_units_fts WHERE id = ?",
-                    (unit.id,),
-                )
-                fts_sql = "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)"
-                self._conn.execute(
-                    fts_sql,
-                    (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
-                )
-                self._stamp_writer()
+        with self._transact() as conn:
+            cursor = conn.execute(
+                "UPDATE knowledge_units SET data = ? WHERE id = ?",
+                (data, unit.id),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Knowledge unit not found: {unit.id}")
+            conn.execute(
+                "DELETE FROM knowledge_unit_domains WHERE unit_id = ?",
+                (unit.id,),
+            )
+            conn.executemany(
+                "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
+                [(unit.id, d) for d in domains],
+            )
+            conn.execute(
+                "DELETE FROM knowledge_units_fts WHERE id = ?",
+                (unit.id,),
+            )
+            fts_sql = "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)"
+            conn.execute(
+                fts_sql,
+                (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
+            )
+            self._stamp_writer()
 
     def query(self, params: QueryParams) -> StoreQueryResult:
         """Search for knowledge units by domain tags with relevance ranking.
@@ -590,8 +611,7 @@ class SqliteStore:
             WHERE knowledge_units_fts MATCH ?
         """
         warnings: list[str] = []
-        with self._lock:
-            self._check_open()
+        with self._locked():
             rows = self._conn.execute(sql, normalized).fetchall()
             fts_rows: list[tuple[Any, ...]] = []
             if fts_terms:
@@ -629,8 +649,7 @@ class SqliteStore:
         if recent_limit < 0:
             raise ValueError("recent_limit must be non-negative")
 
-        with self._lock:
-            self._check_open()
+        with self._locked():
             total = self._conn.execute("SELECT COUNT(*) FROM knowledge_units").fetchone()[0]
             domain_rows = self._conn.execute(
                 "SELECT domain, COUNT(*) AS cnt FROM knowledge_unit_domains GROUP BY domain ORDER BY cnt DESC"

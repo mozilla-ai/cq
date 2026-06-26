@@ -265,6 +265,61 @@ class TestContextManager:
             _query(s, ["databases"])
 
 
+class TestLockTransactionContextManagers:
+    """Tests for the _locked() and _transact() helpers.
+
+    These cover both the commit/lock-release path and the
+    rollback/lock-release path, and confirm the store stays usable after
+    an exception unwinds a transaction.
+    """
+
+    def test_locked_releases_lock_on_normal_exit(self, store: LocalStore) -> None:
+        with store._locked():
+            pass
+        assert store._lock.acquire(blocking=False)
+        store._lock.release()
+
+    def test_locked_releases_lock_on_exception(self, store: LocalStore) -> None:
+        with pytest.raises(RuntimeError, match="boom"), store._locked():
+            raise RuntimeError("boom")
+        assert store._lock.acquire(blocking=False)
+        store._lock.release()
+
+    def test_locked_raises_when_closed(self, tmp_path: Path) -> None:
+        s = LocalStore(db_path=tmp_path / "test.db")
+        s.close()
+        with pytest.raises(RuntimeError, match="store is closed"), s._locked():
+            pass
+
+    def test_transact_commits_on_success(self, store: LocalStore) -> None:
+        with store._transact() as conn:
+            conn.execute(
+                "INSERT INTO metadata (key, value) VALUES (?, ?)",
+                ("cm_commit", "persisted"),
+            )
+        row = store._conn.execute("SELECT value FROM metadata WHERE key = ?", ("cm_commit",)).fetchone()
+        assert row is not None
+        assert row[0] == "persisted"
+        assert store._lock.acquire(blocking=False)
+        store._lock.release()
+
+    def test_transact_rolls_back_on_exception(self, store: LocalStore) -> None:
+        with pytest.raises(RuntimeError, match="boom"), store._transact() as conn:
+            conn.execute(
+                "INSERT INTO metadata (key, value) VALUES (?, ?)",
+                ("cm_rollback", "should-not-persist"),
+            )
+            raise RuntimeError("boom")
+        row = store._conn.execute("SELECT value FROM metadata WHERE key = ?", ("cm_rollback",)).fetchone()
+        assert row is None
+        # Lock released and store still usable for a subsequent write.
+        assert store._lock.acquire(blocking=False)
+        store._lock.release()
+        unit = _make_unit()
+        store.insert(unit)
+        assert store.get(unit.id) == unit
+
+
 class TestInsert:
     def test_insert_and_retrieve(self, store: LocalStore):
         unit = _make_unit()
