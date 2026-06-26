@@ -358,10 +358,15 @@ class SqliteStore:
         self._conn.executescript(_SCHEMA_SQL)
         self._conn.executescript(_FTS_SCHEMA_SQL)
         self._conn.executescript(_METADATA_SQL)
-        self._stamp_writer()
+        with self._conn:
+            self._stamp_writer()
 
     def _stamp_writer(self) -> None:
-        """Record this SDK as the last writer for cross-SDK diagnostics."""
+        """Record this SDK as the last writer for cross-SDK diagnostics.
+
+        NOTE: callers must ensure this runs inside a transaction (either an
+        explicit ``with self._conn:`` block or as part of an existing one).
+        """
         import importlib.metadata
         import sys
 
@@ -379,7 +384,6 @@ class SqliteStore:
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
             ("last_write_at", now),
         )
-        self._conn.commit()
 
     def _check_open(self) -> None:
         """Raise if the store has been closed."""
@@ -441,6 +445,7 @@ class SqliteStore:
                         fts_sql,
                         (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
                     )
+                    self._stamp_writer()
             except sqlite3.IntegrityError as exc:
                 raise DuplicateUnitError(f"Knowledge unit already exists: {unit.id}") from exc
 
@@ -484,6 +489,7 @@ class SqliteStore:
                 )
                 if cursor.rowcount == 0:
                     raise KeyError(f"Knowledge unit not found: {unit_id}")
+                self._stamp_writer()
 
     def update(self, unit: KnowledgeUnit) -> None:
         """Replace an existing knowledge unit in the store.
@@ -523,6 +529,7 @@ class SqliteStore:
                     fts_sql,
                     (unit.id, unit.insight.summary, unit.insight.detail, unit.insight.action),
                 )
+                self._stamp_writer()
 
     def query(self, params: QueryParams) -> StoreQueryResult:
         """Search for knowledge units by domain tags with relevance ranking.

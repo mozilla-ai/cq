@@ -1122,3 +1122,32 @@ class TestMetadata:
         s1.close()
         s2 = LocalStore(db_path=db_path)
         s2.close()
+
+    def test_insert_refreshes_writer_stamp(self, store: LocalStore) -> None:
+        store._conn.execute("UPDATE metadata SET value = '2000-01-01T00:00:00' WHERE key = 'last_write_at'")
+        store._conn.commit()
+        store.insert(_make_unit())
+        row = store._conn.execute("SELECT value FROM metadata WHERE key = 'last_write_at'").fetchone()
+        assert row is not None
+        assert row[0] != "2000-01-01T00:00:00"
+
+    def test_update_refreshes_writer_stamp(self, store: LocalStore) -> None:
+        unit = _make_unit()
+        store.insert(unit)
+        store._conn.execute("UPDATE metadata SET value = '2000-01-01T00:00:00' WHERE key = 'last_write_at'")
+        store._conn.commit()
+        updated = unit.model_copy(update={"insight": _make_insight(summary="changed")})
+        store.update(updated)
+        row = store._conn.execute("SELECT value FROM metadata WHERE key = 'last_write_at'").fetchone()
+        assert row is not None
+        assert row[0] != "2000-01-01T00:00:00"
+
+    def test_delete_refreshes_writer_stamp(self, store: LocalStore) -> None:
+        unit = _make_unit()
+        store.insert(unit)
+        store._conn.execute("UPDATE metadata SET value = '2000-01-01T00:00:00' WHERE key = 'last_write_at'")
+        store._conn.commit()
+        store.delete(unit.id)
+        row = store._conn.execute("SELECT value FROM metadata WHERE key = 'last_write_at'").fetchone()
+        assert row is not None
+        assert row[0] != "2000-01-01T00:00:00"
