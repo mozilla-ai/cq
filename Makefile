@@ -161,7 +161,7 @@ lint-schema-python: sync-schema
 lint-schema: lint-schema-go lint-schema-python
 
 .PHONY: lint-sdk-go
-lint-sdk-go: check-prompts-sync-sdk-go
+lint-sdk-go: check-prompts-sync-sdk-go lint-sdk-go-postgres
 	cd sdk/go && $(MAKE) lint
 
 .PHONY: lint-sdk-python
@@ -218,11 +218,11 @@ test-schema-python:
 test-schema: test-schema-go test-schema-python
 
 .PHONY: test-sdk-go
-test-sdk-go:
+test-sdk-go: test-sdk-go-postgres
 	cd sdk/go && $(MAKE) test
 
 .PHONY: test-sdk-python
-test-sdk-python:
+test-sdk-python: test-sdk-python-postgres
 	cd sdk/python && $(MAKE) test
 
 .PHONY: lint-sdk-go-postgres
