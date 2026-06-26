@@ -419,16 +419,21 @@ func (s *Store) scanUnits(ctx context.Context, sql string, args ...any) ([]cq.Kn
 func buildConfidenceSQL() string {
 	labels := cq.ConfidenceBucketLabels()
 	var whens []string
+	elseCount := 0
 	for _, label := range labels {
 		bound, err := cq.ConfidenceBucketBound(label)
 		if err != nil {
 			panic(fmt.Sprintf("confidence bucket %q has no upper bound: %v", label, err))
 		}
 		if math.IsInf(bound, 1) {
+			elseCount++
 			whens = append(whens, fmt.Sprintf("ELSE '%s'", label))
 		} else {
 			whens = append(whens, fmt.Sprintf("WHEN confidence < %g THEN '%s'", bound, label))
 		}
+	}
+	if elseCount != 1 {
+		panic(fmt.Sprintf("confidence buckets must have exactly one infinite upper bound, got %d", elseCount))
 	}
 	return "SELECT CASE " + strings.Join(whens, " ") + " END AS bucket, COUNT(*) AS cnt " +
 		"FROM (SELECT COALESCE((data->'evidence'->>'confidence')::float, 0.5) " +

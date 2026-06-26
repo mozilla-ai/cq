@@ -87,11 +87,15 @@ def _build_confidence_sql() -> str:
     the SQL CASE expression.
     """
     whens: list[str] = []
+    else_count = 0
     for threshold, label in _CONFIDENCE_BUCKETS:
         if threshold == float("inf"):
+            else_count += 1
             whens.append(f"ELSE '{label}'")
         else:
             whens.append(f"WHEN confidence < {threshold} THEN '{label}'")
+    if else_count != 1:
+        raise ValueError(f"confidence buckets must have exactly one infinite upper bound, got {else_count}")
     case_expr = " ".join(whens)
     return (
         f"SELECT CASE {case_expr} END AS bucket, COUNT(*) AS cnt "

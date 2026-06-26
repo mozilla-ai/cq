@@ -45,4 +45,5 @@ func TestBuildConfidenceSQLTracksBuckets(t *testing.T) {
 	}
 
 	require.Equal(t, len(cq.ConfidenceBucketLabels()), strings.Count(sql, "THEN ")+strings.Count(sql, "ELSE "))
+	require.Equal(t, 1, strings.Count(sql, "ELSE "))
 }

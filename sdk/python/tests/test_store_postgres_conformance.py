@@ -60,3 +60,4 @@ class TestConfidenceSQL:
 
         arms = _SQL_CONFIDENCE_DISTRIBUTION.count("THEN ") + _SQL_CONFIDENCE_DISTRIBUTION.count("ELSE ")
         assert arms == len(_CONFIDENCE_BUCKETS)
+        assert _SQL_CONFIDENCE_DISTRIBUTION.count("ELSE ") == 1
