@@ -7,7 +7,9 @@ export function Layout() {
   const { username, logout } = useAuth()
   const location = useLocation()
   const [pendingCount, setPendingCount] = useState(0)
-  const [dark, setDark] = useState(false)
+  const [dark, setDark] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  )
   const onDashboard = location.pathname === "/dashboard"
 
   useEffect(() => {
