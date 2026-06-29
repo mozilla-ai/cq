@@ -16,9 +16,9 @@ import {
 } from "../components/FilteredListModal"
 import { KnowledgeUnitModal } from "../components/KnowledgeUnitModal"
 import { StatusBadge } from "../components/StatusBadge"
+import { useIsDark } from "../hooks/useIsDark"
 import type { ReviewStatsResponse } from "../types"
 import { timeAgo } from "../utils"
-import { useIsDark } from "../hooks/useIsDark"
 
 const CONFIDENCE_COLORS: Record<string, string> = {
   "0.0-0.3": "bg-red-200",
@@ -26,7 +26,6 @@ const CONFIDENCE_COLORS: Record<string, string> = {
   "0.6-0.8": "bg-green-200",
   "0.8-1.0": "bg-green-400",
 }
-
 
 export function DashboardPage() {
   const { setPendingCount } = useOutletContext<{
@@ -267,7 +266,9 @@ export function DashboardPage() {
                       fontSize: "12px",
                     }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 11, color: chartColors.legend }} />
+                  <Legend
+                    wrapperStyle={{ fontSize: 11, color: chartColors.legend }}
+                  />
                   <Line
                     type="monotone"
                     dataKey="proposed"
