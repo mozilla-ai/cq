@@ -1,7 +1,7 @@
 # cq Go SDK
 
 {% hint style="info" icon="tag" %}
-Version: v0.13.0
+Version: v0.14.0
 {% endhint %}
 
 Go SDK for [cq](https://github.com/mozilla-ai/cq) — the shared agent
@@ -82,7 +82,7 @@ The local store is pluggable. The SDK defines a `Store` interface that the `Clie
 The client resolves the local store in this precedence order:
 
 1. **`cq.WithStore`** — inject any `cq.Store` directly.
-2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.StoreFromURL`. Accepted schemes: `sqlite:///abs/path` or `sqlite:path`. For `postgres://` URLs, use the [PostgreSQL adapter](https://github.com/mozilla-ai/cq/tree/docs/v0.1.5/sdk/go/stores/postgres) with `cq.WithStore`.
+2. **`CQ_LOCAL_DATABASE_URL`** — a connection-string URL resolved by `cq.StoreFromURL`. Accepted schemes: `sqlite:///abs/path` or `sqlite:path`. For `postgres://` URLs, use the [PostgreSQL adapter](https://github.com/mozilla-ai/cq/tree/docs/v0.1.6/sdk/go/stores/postgres) with `cq.WithStore`.
 3. **`CQ_LOCAL_DB_PATH` / `cq.WithLocalDBPath`** — path to a SQLite file.
 4. **XDG default** — `$XDG_DATA_HOME/cq/local.db` (typically `~/.local/share/cq/local.db`).
 
@@ -104,7 +104,7 @@ The `cq.Store` interface requires eight methods. Implementations must be safe fo
 #### Built-in implementations
 
 - **SQLite store** (default, unexported) — opens a SQLite file with FTS5 full-text search, WAL journaling, and domain-tag indexing.
-- **[PostgreSQL adapter](https://github.com/mozilla-ai/cq/tree/docs/v0.1.5/sdk/go/stores/postgres)** — separate module (`github.com/mozilla-ai/cq/sdk/go/stores/postgres`). Connects to a shared PostgreSQL instance for multi-agent knowledge sharing. Domain-tag matching only (no full-text).
+- **[PostgreSQL adapter](https://github.com/mozilla-ai/cq/tree/docs/v0.1.6/sdk/go/stores/postgres)** — separate module (`github.com/mozilla-ai/cq/sdk/go/stores/postgres`). Connects to a shared PostgreSQL instance for multi-agent knowledge sharing. Domain-tag matching only (no full-text).
 - **`NewInMemoryStore()`** — map-backed, no persistence. Useful for tests and as a worked example for custom stores (domain-tag matching only, no full-text).
 
 ```go
@@ -116,13 +116,13 @@ PostgreSQL:
 ```go
 import "github.com/mozilla-ai/cq/sdk/go/stores/postgres"
 
-store, err := postgres.New("postgres://user:pass@localhost:5432/cq")
+store, err := postgres.New(context.Background(), "postgres://user:pass@localhost:5432/cq")
 c, err := cq.NewClient(cq.WithStore(store))
 ```
 
 #### Bring your own
 
-Implement the `cq.Store` interface and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query` implementation so ranking stays consistent across backends. Verify the implementation against the conformance suite in [`storetest`](https://github.com/mozilla-ai/cq/tree/docs/v0.1.5/sdk/go/storetest):
+Implement the `cq.Store` interface and inject it with `cq.WithStore`. Reuse the shared ranker `cq.RankCandidates` from your `Query` implementation so ranking stays consistent across backends. Verify the implementation against the conformance suite in [`storetest`](https://github.com/mozilla-ai/cq/tree/docs/v0.1.6/sdk/go/storetest):
 
 ```go
 import "github.com/mozilla-ai/cq/sdk/go/storetest"
@@ -146,7 +146,7 @@ See the [top-level README](../../index.md) for the full description.
 
 Knowledge units are stored as JSON in SQLite. The database schema is shared
 with the [cq Python SDK](../python/README.md) — both SDKs read and write the
-same `local.db` file. The [JSON Schema definitions](https://github.com/mozilla-ai/cq/tree/docs/v0.1.5/schema) are the
+same `local.db` file. The [JSON Schema definitions](https://github.com/mozilla-ai/cq/tree/docs/v0.1.6/schema) are the
 source of truth.
 
 ## Development

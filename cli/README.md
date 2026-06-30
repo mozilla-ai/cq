@@ -1,7 +1,7 @@
 # cq CLI
 
 {% hint style="info" icon="tag" %}
-Version: v0.15.0
+Version: v0.15.1
 {% endhint %}
 
 Command-line interface for [cq](https://github.com/mozilla-ai/cq) — the
@@ -26,6 +26,14 @@ git clone https://github.com/mozilla-ai/cq.git
 cd cq/cli
 make build
 ```
+
+> **Homebrew tap trust:** `mozilla-ai/tap` is a third-party tap, and Homebrew will require explicit [tap trust](https://docs.brew.sh/Tap-Trust) for non-official taps from versions 5.2.0 and 6.0.0 onwards. Installing by the fully-qualified cask name (`mozilla-ai/tap/cq`, as above) trusts only the `cq` cask, so that command keeps working without extra steps. If you prefer to tap first and install by short name, trust the cask explicitly:
+>
+> ```bash
+> brew tap mozilla-ai/tap
+> brew trust --cask mozilla-ai/tap/cq
+> brew install --cask cq
+> ```
 
 ## Usage
 
