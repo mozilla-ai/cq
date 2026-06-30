@@ -184,16 +184,16 @@ wheels = [
 
 [[package]]
 name = "cq-sdk"
-version = "0.17.0"
+version = "0.18.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cq-schema" },
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/11/deb2c0322d1f3aaca2437f244db1bcfc102d22eecf633788e58d5316d53f/cq_sdk-0.17.0.tar.gz", hash = "sha256:15fb79695edcc6c3faf118638c4b44966816a3c008b00ed69f12017a3eb6a7f5", size = 80768, upload-time = "2026-06-25T13:11:28.555Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/9e/cd2589765ba65c81f00dc0e398b406a773b0929281e3ac1ed952056ae819/cq_sdk-0.18.0.tar.gz", hash = "sha256:845e23edac26830dc09310c450a5ed46cfef6b73e4802f00f82524f8e26d63da", size = 82851, upload-time = "2026-06-30T16:22:14.171Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/f6/2cf697ff6e40336c158b357ba89e0807e6a24862da81258264b8b5935627/cq_sdk-0.17.0-py3-none-any.whl", hash = "sha256:a17c9a531d5f68e1992cde6b258d5952bdff3feeb610c82ee462cbee256b32f7", size = 57072, upload-time = "2026-06-25T13:11:27.038Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/e6/fec6ab7ca0d246f6ef324d2aa5cdfaf796b05c837ba90ef18bee3c8b609e/cq_sdk-0.18.0-py3-none-any.whl", hash = "sha256:19dda0ba7a2a8d8b497311241da2c1974ec6ffcafb7465f6ad64441053d22fd8", size = 57948, upload-time = "2026-06-30T16:22:13.019Z" },
 ]
 
 [[package]]
@@ -244,7 +244,7 @@ tests = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.4,<2" },
     { name = "bcrypt", specifier = ">=4.0" },
-    { name = "cq-sdk", specifier = "~=0.17.0" },
+    { name = "cq-sdk", specifier = "~=0.18.0" },
     { name = "fastapi" },
     { name = "httpx", marker = "extra == 'semsearch'" },
     { name = "numpy", marker = "extra == 'semsearch'", specifier = "==2.*" },
