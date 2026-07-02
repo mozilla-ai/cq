@@ -4,6 +4,8 @@
 
 ## Guides
 
+* [Installation](install.md)
+* [Quickstart](quickstart.md)
 * [Architecture](architecture.md)
 * [Development](DEVELOPMENT.md)
 
