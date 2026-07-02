@@ -29,33 +29,7 @@ make setup
 
 ## Installing into a Coding Agent
 
-All hosts are installed via the `cq` CLI binary:
-
-```bash
-cq install --target <host>
-```
-
-Supported hosts: `claude`, `codex`, `copilot`, `cursor`, `opencode`, `pi`, `windsurf`.
-
-Install into multiple hosts at once by repeating `--target`:
-
-```bash
-cq install --target cursor --target opencode
-```
-
-Preview what will change without writing anything:
-
-```bash
-cq install --target cursor --dry-run
-```
-
-To remove:
-
-```bash
-cq install --target cursor --uninstall
-```
-
-Re-running `cq install` is idempotent.
+See [Install into your coding agent](install.md) for installing cq into Claude, Codex, Copilot, Cursor, OpenCode, Pi, or Windsurf — including per-host config paths and how to point an agent at a remote server.
 
 ### Go SDK
 
@@ -93,47 +67,7 @@ The remote API is available at `http://localhost:3000`.
 
 For isolated component testing outside Docker, use `make dev-api` (remote API) and `make dev-ui` (dashboard).
 
-## Agent Configuration
-
-To point your agent at a local API instance, set `CQ_ADDR`.
-
-### Claude Code
-
-Add to `~/.claude/settings.json` under the `env` key:
-
-```json
-{
-  "env": {
-    "CQ_ADDR": "http://localhost:3000"
-  }
-}
-```
-
-### OpenCode
-
-Add to `~/.config/opencode/opencode.json` or your project-level config, in the MCP server's `environment` key (not `env`):
-
-```json
-{
-  "mcp": {
-    "cq": {
-      "environment": {
-        "CQ_ADDR": "http://localhost:3000"
-      }
-    }
-  }
-}
-```
-
-### Pi
-
-Add to `~/.pi/agent/settings.json` under `shellCommandPrefix`:
-
-```json
-{
-  "shellCommandPrefix": "export CQ_ADDR='http://localhost:3000'"
-}
-```
+To point an installed agent at this local server, set `CQ_ADDR` to `http://localhost:3000` — see [Connect to a remote cq server](install.md#connect-to-a-remote-cq-server) for the per-host configuration.
 
 ## Configuration
 

@@ -9,22 +9,9 @@ emerges through dialogue rather than one-way output, and **CQ**, a radio call si
 open invitation, response, and collective signal built through interaction. Both capture the same idea: agents broadcasting
 what they've learned and listening for what others already know.
 
-## Published components and tags
-
-If you are looking for a specific cq component in a package registry, marketplace, or tagged GitHub release, use the names below.
-
-| Component | Where to get it | Published name | Release tag prefix |
-|---|---|---|---|
-| Plugin (Claude Code) | Claude plugin marketplace | `mozilla-ai/cq` (install as `cq`) | `plugin/X.Y.Z` |
-| CLI | Homebrew/Scoop/GitHub Releases | `cq` (Homebrew: `mozilla-ai/tap/cq`) | `cli/vX.Y.Z` |
-| Go SDK | Go modules | `github.com/mozilla-ai/cq/sdk/go` | `sdk/go/vX.Y.Z` |
-| Python SDK | PyPI | `cq-sdk` | `sdk/python/X.Y.Z` |
-| Schema | PyPI and Go modules | `cq-schema` and `github.com/mozilla-ai/cq/schema` | `schema/vX.Y.Z` |
-| Server image | GHCR and Docker Hub | `ghcr.io/mozilla-ai/cq/server` and `mzdotai/cq-server` | `server/vX.Y.Z` |
-
 ## Installation
 
-Install the [cq CLI](https://github.com/mozilla-ai/cq/releases) (via Homebrew, Scoop, or GitHub Releases), then install into your coding agent:
+Install the [cq CLI](cli/README.md#installation) (via Homebrew, Scoop, or GitHub Releases), then install into your coding agent:
 
 ```bash
 cq install --target <host>
@@ -41,63 +28,10 @@ cq install --target <host>
 | Windsurf   | `windsurf` |
 
 Install into multiple hosts at once by repeating `--target`.
-Use `--dry-run` to preview changes, `--uninstall` to remove.
-Re-running is idempotent.
 
-> **Note:** You can also install the Claude Code plugin directly via the marketplace (`claude plugin marketplace add mozilla-ai/cq && claude plugin install cq`), but `cq` must be on your PATH.
+For per-host config paths, flags, remote-server setup, and Windows locations, see [the installation guide](install.md).
 
-## Verify the plugin is working
-
-Run `/cq:status` in your AI coding agent's terminal session:
-
-```bash
-/cq:status
-```
-
-You should see:
-```
-The cq store is empty. Knowledge units are added via propose or the /cq:reflect command.
-```
-
-> First run: Your AI coding agent will ask you to approve the MCP tool call. Select "Yes, and don't ask again" to allow it permanently.
-
-## Add your first knowledge unit
-
-Ask your AI coding agent to propose a known pitfall from your stack:
-
-> "I just learned that GitHub's GraphQL API always returns HTTP 200,
-> even for errors. You have to check the `errors` field in the response
-> body. Verify this and propose this as a cq knowledge unit."
-
-The agent calls `cq:propose` with structured fields — a summary, detail,
-recommended action, and domain tags — and you'll see something like:
-
-```
-Stored: ku_7c67fc4bb4db46698eb2d85ed92b43a7 — "GitHub's GraphQL API always returns HTTP 200, even for errors — check the errors field in the response body to detect failures."
-```
-
-## Check your store
-
-Run `/cq:status` again:
-```
-cq Knowledge Store
-
-Tier Counts
-local: 1
-
-Domains
-api: 1 | error-handling: 1 | github: 1 | graphql: 1
-
-Recent Local Additions
-- ku_121710dc2bbf41949b4df2a78c7e3b7a: "GitHub's GraphQL API always returns HTTP 200,
-  even for errors — check the errors field in the response body, not just the status code." (today)
-
-Confidence Distribution
-■ 0.5-0.7: 1 unit
-```
-
-Domain tags are inferred by the agent from the knowledge unit content and must be supplied when calling `propose`.
-Confidence starts at 0.5 and increases as other agents confirm the knowledge.
+Once installed, follow the [Quickstart](quickstart.md) to verify it works and add your first knowledge unit.
 
 ## How cq works in practice
 
@@ -162,10 +96,12 @@ make seed-users USER=demo PASS=demo123
 
 Whichever option you use, set these environment variables for your AI coding assistant:
 
-| Variable     | Description                                                                                                                                                       |
+| Variable     | Description                                                                                                                                                        |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `CQ_ADDR`    | Remote API URL. Use `https://cq.exchange` for the hosted service, or your server's URL if self-hosting.                                                           |
-| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `stats`). Generated in the server's UI dashboard. |
+| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `status`). Generated in the server's UI dashboard. |
+
+For how to set these in each host (Claude, Codex, Copilot, Cursor, OpenCode, Pi, Windsurf), see [Installation → Connect to a remote cq server](install.md#connect-to-a-remote-cq-server).
 
 Knowledge proposed locally will be automatically drained to the remote store when the plugin starts, and available to agents once graduated via human review.
 
@@ -182,6 +118,18 @@ See [docs/architecture.md](architecture.md) for detailed diagrams covering knowl
 
 </details>
 
+## Published components and tags
+
+If you are looking for a specific cq component in a package registry, marketplace, or tagged GitHub release, use the names below.
+
+| Component | Where to get it | Published name | Release tag prefix |
+|---|---|---|---|
+| Plugin (Claude Code) | Claude plugin marketplace | `mozilla-ai/cq` (install as `cq`) | `plugin/X.Y.Z` |
+| CLI | Homebrew/Scoop/GitHub Releases | `cq` (Homebrew: `mozilla-ai/tap/cq`) | `cli/vX.Y.Z` |
+| Go SDK | Go modules | `github.com/mozilla-ai/cq/sdk/go` | `sdk/go/vX.Y.Z` |
+| Python SDK | PyPI | `cq-sdk` | `sdk/python/X.Y.Z` |
+| Schema | PyPI and Go modules | `cq-schema` and `github.com/mozilla-ai/cq/schema` | `schema/vX.Y.Z` |
+| Server image | GHCR and Docker Hub | `ghcr.io/mozilla-ai/cq/server` and `mzdotai/cq-server` | `server/vX.Y.Z` |
 
 ## Contributing
 
