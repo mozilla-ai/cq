@@ -1,10 +1,11 @@
 """Shared SQLAlchemy Core query helpers for portable cq server queries.
 
 Centralises every SQL statement that is portable between SQLite and
-PostgreSQL. Concrete ``Store`` implementations (``SqliteStore``,
-``PostgresStore``) compose these helpers for the boring queries while
-keeping dialect-specific code (PRAGMAs, advisory locks, vector search,
-full-text search) inside their own classes.
+PostgreSQL. The repository classes in this package compose these helpers
+for the boring queries. The few statements that diverge by dialect are
+kept as ``{"sqlite": ..., "postgresql": ...}`` dicts (here and in the
+repos) and resolved once from ``engine.dialect.name`` in each repo's
+``__init__`` — there is no per-dialect ``Store`` class.
 
 The module is pure: no engine, no connection, no metadata. Statements are
 either:
@@ -88,7 +89,7 @@ SELECT_APPROVED_DATA: TextClause = text("SELECT data FROM knowledge_units WHERE 
 # is re-sorted in Python by ``COALESCE(reviewed_at, created_at)`` and then
 # truncated, so over-fetching keeps the truncation honest when many KUs
 # have been reviewed since the most recent one was created. See
-# ``SqliteStore.recent_activity``.
+# ``ReviewRepository.recent_activity``.
 SELECT_RECENT_ACTIVITY: TextClause = text(
     "SELECT id, data, status, reviewed_by, reviewed_at "
     "FROM knowledge_units "
@@ -105,9 +106,11 @@ SELECT_RECENT_ACTIVITY: TextClause = text(
 #   * SQLite parses the ISO string natively with `date(<textcol>)`, which
 #     returns a 'YYYY-MM-DD' string.
 #   * PostgreSQL has no `date(text)` overload, so we cast the TEXT column to
-#     `timestamptz` then to `date`, and finally `::text` so the day key comes
-#     back as the same 'YYYY-MM-DD' string SQLite yields (bare `::date` would
-#     surface as a Python `datetime.date`, breaking the caller's string keys).
+#     `timestamptz` then format it with `to_char(..., 'YYYY-MM-DD')` so the day
+#     key comes back as the same 'YYYY-MM-DD' string SQLite yields. `to_char`
+#     is used rather than `::date::text` because the latter formats per session
+#     `DateStyle` (e.g. '01.07.2026' under `German`), which would break the
+#     caller's `strptime(day, "%Y-%m-%d")`; `to_char` is DateStyle-independent.
 #     The engine is pinned to UTC (see `core.db.Database`) so the truncation
 #     matches SQLite's UTC ISO strings. Phase 3 (#317) migrates PG timestamps
 #     to `TIMESTAMP WITH TIME ZONE` and removes the cast. The `>= :cutoff` half
@@ -115,14 +118,19 @@ SELECT_RECENT_ACTIVITY: TextClause = text(
 
 
 def _daily(column: str, status_clause: str) -> dict[str, TextClause]:
-    """Build the dialect-keyed daily-count query for one timestamp column."""
+    """Build the dialect-keyed daily-count query for one timestamp column.
+
+    ``column`` and ``status_clause`` are interpolated into the SQL text, so
+    callers must pass only trusted literal column names / clauses (they do:
+    the three module-level constants below are the only call sites).
+    """
     return {
         "sqlite": text(
             f"SELECT date({column}) AS day, COUNT(*) AS cnt "
             f"FROM knowledge_units WHERE {status_clause}{column} >= :cutoff GROUP BY day"
         ),
         "postgresql": text(
-            f"SELECT ({column}::timestamptz)::date::text AS day, COUNT(*) AS cnt "
+            f"SELECT to_char(({column}::timestamptz), 'YYYY-MM-DD') AS day, COUNT(*) AS cnt "
             f"FROM knowledge_units WHERE {status_clause}{column} >= :cutoff GROUP BY day"
         ),
     }
@@ -132,7 +140,7 @@ SELECT_PROPOSED_DAILY: dict[str, TextClause] = _daily("created_at", "")
 SELECT_APPROVED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'approved' AND ")
 SELECT_REJECTED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'rejected' AND ")
 
-# Variable IN-list for ``SqliteStore.query``. Bind ``:domains`` to the list
+# Variable IN-list for ``KnowledgeRepository.query``. Bind ``:domains`` to the list
 # of normalised domain strings; SQLAlchemy expands it at execute time.
 # Empty list: SQLAlchemy 2.0 rewrites ``IN ()`` to a no-rows subquery
 # (``IN (SELECT 1 FROM (SELECT 1) WHERE 1!=1)``) and the helper returns
@@ -149,13 +157,13 @@ SELECT_QUERY_UNITS: TextClause = text(
 
 
 def select_list_units(*, domain: str | None, status: str | None, apply_limit: bool) -> TextClause:
-    """Build the SELECT for ``SqliteStore.list_units``.
+    """Build the SELECT for ``ReviewRepository.list_units``.
 
     Pure SQL builder — does no normalization, the caller owns it. WHERE
     conditions on ``status`` and ``domain`` are inlined only when the
     argument is non-``None``; an empty or whitespace-only string is
     treated as a *real* filter value and binds literally (returning zero
-    rows). To mirror ``SqliteStore.list_units``, callers must (a) pass
+    rows). To mirror ``ReviewRepository.list_units``, callers must (a) pass
     ``None`` when the user-supplied filter is empty/whitespace, and (b)
     run ``domain`` through ``normalize_domains`` (lowercase + strip)
     first. ``apply_limit`` controls whether SQL-side ``LIMIT`` is
