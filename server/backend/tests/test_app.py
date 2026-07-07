@@ -568,15 +568,6 @@ class TestDatabaseUrlBoot:
         assert winning.exists()
         assert not losing.exists()
 
-    def test_postgres_url_fails_fast_with_guidance(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("CQ_JWT_SECRET", "test-secret-please-ignore-len")
-        monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
-        monkeypatch.setenv("CQ_DATABASE_URL", "postgresql+psycopg://u:p@h/d")
-        with pytest.raises(NotImplementedError) as exc, TestClient(app):
-            pass
-        message = str(exc.value)
-        assert "#312" in message
-
 
 class TestApiKeyEnforcement:
     def test_propose_without_key_is_rejected(self, enforced_client: TestClient) -> None:

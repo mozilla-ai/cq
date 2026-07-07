@@ -50,12 +50,12 @@ class Database:
     def __init__(self, settings: Settings) -> None:
         """Build the engine from ``settings`` and register dialect hooks.
 
-        SQLite URLs get a live engine with cq's required PRAGMAs.
-        The canonical ``postgresql+psycopg://`` URL raises
-        ``NotImplementedError`` until the Phase 2 implementation lands
-        (#312). Other PostgreSQL driver suffixes are rejected with a
-        message naming the canonical driver. Anything else raises
-        ``ValueError``.
+        SQLite URLs get a live engine with cq's required PRAGMAs. The
+        canonical ``postgresql+psycopg://`` URL gets a UTC-pinned engine
+        with env-configurable pool sizing (and fails fast if semantic
+        search is enabled, which has no PG backend yet). Other PostgreSQL
+        driver suffixes are rejected with a message naming the canonical
+        driver. Anything else raises ``ValueError``.
         """
         url = settings.resolved_database_url
         try:
@@ -76,9 +76,22 @@ class Database:
             if _SEMSEARCH_ENABLED:
                 event.listen(self._engine, "connect", semsearch_load)
         elif driver == "postgresql+psycopg":
-            raise NotImplementedError(
-                "PostgreSQL backend is not implemented yet; the psycopg "
-                "v3-backed implementation lands in epic #257 (issue #312)."
+            if _SEMSEARCH_ENABLED:
+                # semsearch runs sqlite-vec SQL; it has no PG implementation
+                # yet (pgvector is a later stage). Fail fast rather than blow
+                # up on the first insert. See #312 item 4.
+                raise RuntimeError(
+                    "semantic search is not yet supported on the PostgreSQL backend; "
+                    "unset TOKEN_EMBEDDING_URL to run cq against PostgreSQL."
+                )
+            self._engine = create_engine(
+                url,
+                # Force UTC so ``(col::timestamptz)::date`` truncates in UTC,
+                # matching SQLite's ``date()`` on ISO strings.
+                connect_args={"options": "-c timezone=utc"},
+                pool_size=settings.db_pool_size,
+                max_overflow=settings.db_max_overflow,
+                future=True,
             )
         elif driver == "postgresql" or driver.startswith("postgresql+"):
             raise NotImplementedError(

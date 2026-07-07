@@ -28,20 +28,35 @@ from ._queries import (
 # distinct unless deliberately unified. COALESCE to 0.5 mirrors the
 # Evidence.confidence default that model-parsing applied, so a row whose JSON
 # omits the field buckets identically instead of falling to the catch-all.
-# SQLite-specific (`json_extract`), so it lives here rather than in the portable
-# `_queries` module; the backend is SQLite-only (see `core.db.Database`).
-_SELECT_CONFIDENCE_DISTRIBUTION: TextClause = text(
-    "SELECT "
-    "CASE "
-    "WHEN confidence < 0.3 THEN '0.0-0.3' "
-    "WHEN confidence < 0.6 THEN '0.3-0.6' "
-    "WHEN confidence < 0.8 THEN '0.6-0.8' "
-    "ELSE '0.8-1.0' "
-    "END AS bucket, COUNT(*) AS cnt "
-    "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
-    "FROM knowledge_units WHERE status = 'approved') "
-    "GROUP BY bucket"
-)
+# Dialect-keyed: SQLite reads the JSON blob with `json_extract`; PostgreSQL
+# casts the TEXT column to `jsonb` and extracts with `#>>` (and must alias the
+# derived subquery `AS sub`). Resolved once per repo from the engine dialect.
+_SELECT_CONFIDENCE_DISTRIBUTION: dict[str, TextClause] = {
+    "sqlite": text(
+        "SELECT "
+        "CASE "
+        "WHEN confidence < 0.3 THEN '0.0-0.3' "
+        "WHEN confidence < 0.6 THEN '0.3-0.6' "
+        "WHEN confidence < 0.8 THEN '0.6-0.8' "
+        "ELSE '0.8-1.0' "
+        "END AS bucket, COUNT(*) AS cnt "
+        "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
+        "FROM knowledge_units WHERE status = 'approved') "
+        "GROUP BY bucket"
+    ),
+    "postgresql": text(
+        "SELECT "
+        "CASE "
+        "WHEN confidence < 0.3 THEN '0.0-0.3' "
+        "WHEN confidence < 0.6 THEN '0.3-0.6' "
+        "WHEN confidence < 0.8 THEN '0.6-0.8' "
+        "ELSE '0.8-1.0' "
+        "END AS bucket, COUNT(*) AS cnt "
+        "FROM (SELECT COALESCE((data::jsonb #>> '{evidence,confidence}')::numeric, 0.5) AS confidence "
+        "FROM knowledge_units WHERE status = 'approved') AS sub "
+        "GROUP BY bucket"
+    ),
+}
 
 
 class ReviewRepository:
@@ -50,6 +65,11 @@ class ReviewRepository:
     def __init__(self, db: Database) -> None:
         """Wire the repository to the shared ``Database``."""
         self._db = db
+        dialect = db.engine.dialect.name
+        self._confidence_distribution_stmt = _SELECT_CONFIDENCE_DISTRIBUTION[dialect]
+        self._proposed_daily_stmt = SELECT_PROPOSED_DAILY[dialect]
+        self._approved_daily_stmt = SELECT_APPROVED_DAILY[dialect]
+        self._rejected_daily_stmt = SELECT_REJECTED_DAILY[dialect]
 
     async def confidence_distribution(self) -> dict[str, int]:
         """Return approved-unit counts grouped into four confidence buckets."""
@@ -109,7 +129,7 @@ class ReviewRepository:
         # rows for buckets that have at least one approved unit.
         buckets = {"0.0-0.3": 0, "0.3-0.6": 0, "0.6-0.8": 0, "0.8-1.0": 0}
         with self._db.engine.connect() as conn:
-            rows = conn.execute(_SELECT_CONFIDENCE_DISTRIBUTION).fetchall()
+            rows = conn.execute(self._confidence_distribution_stmt).fetchall()
         for label, count in rows:
             buckets[label] = count
         return buckets
@@ -121,10 +141,11 @@ class ReviewRepository:
 
     def _daily_counts_sync(self, *, days: int) -> list[dict[str, Any]]:
         cutoff = (datetime.now(UTC) - timedelta(days=days)).date().isoformat()
+        params = {"cutoff": cutoff}
         with self._db.engine.connect() as conn:
-            proposed = {row[0]: row[1] for row in conn.execute(SELECT_PROPOSED_DAILY, {"cutoff": cutoff}).fetchall()}
-            approved = {row[0]: row[1] for row in conn.execute(SELECT_APPROVED_DAILY, {"cutoff": cutoff}).fetchall()}
-            rejected = {row[0]: row[1] for row in conn.execute(SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()}
+            proposed = {row[0]: row[1] for row in conn.execute(self._proposed_daily_stmt, params).fetchall()}
+            approved = {row[0]: row[1] for row in conn.execute(self._approved_daily_stmt, params).fetchall()}
+            rejected = {row[0]: row[1] for row in conn.execute(self._rejected_daily_stmt, params).fetchall()}
         all_dates = set(proposed) | set(approved) | set(rejected)
         if not all_dates:
             return []

@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     database_url: str | None = None
     db_path: Path = Path(_DEFAULT_SQLITE_PATH)
 
+    # PostgreSQL connection pool knobs (ignored by the SQLite backend).
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+
     # HTTP listener.
     port: int = 3000
 
