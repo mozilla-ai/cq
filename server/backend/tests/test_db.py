@@ -20,6 +20,7 @@ class TestPostgresUrlDispatch:
     def test_psycopg_url_builds_postgres_engine(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # ``create_engine`` is lazy — no connection is opened here, so this
         # runs without a live PostgreSQL.
+        monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", False)
         settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")
         db = Database(settings)
         try:
@@ -48,6 +49,7 @@ class TestPostgresUrlDispatch:
         assert "postgresql+psycopg://" in message
 
     def test_pool_knobs_honoured_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", False)
         monkeypatch.setenv("CQ_DB_POOL_SIZE", "7")
         monkeypatch.setenv("CQ_DB_MAX_OVERFLOW", "3")
         settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")
