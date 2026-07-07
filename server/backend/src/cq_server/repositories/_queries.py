@@ -20,13 +20,11 @@ Callers bind named parameters at execute time. Out of scope here:
 PRAGMAs, ``pg_advisory_lock``, vector (sqlite-vec / pgvector), full-text
 (FTS5 / ``tsvector``). Those live in their respective concrete stores.
 
-``daily_counts`` filters by a Python-computed ``:cutoff`` ISO date string
-(the SQLite-specific ``date('now', '-N days')`` form was removed per RFC
-#275), but the day-truncation half is dialect-specific: PostgreSQL has no
+``daily_counts`` filters by a Python-computed ``:cutoff`` ISO date string,
+but the day-truncation half is dialect-specific: PostgreSQL has no
 ``date(text)`` overload, so the daily-count helpers below are keyed by
 dialect (``date(<textcol>)`` on SQLite; ``to_char(<textcol>::timestamptz,
-'YYYY-MM-DD')`` on PostgreSQL). See ``_daily`` for detail. Phase 3 (#317)
-migrates PG timestamps to ``TIMESTAMP WITH TIME ZONE`` and can retire the cast.
+'YYYY-MM-DD')`` on PostgreSQL). See ``_daily`` for detail.
 """
 
 from __future__ import annotations
@@ -97,12 +95,10 @@ SELECT_RECENT_ACTIVITY: TextClause = text(
 )
 
 # `daily_counts()` — three queries that filter by a Python-computed date
-# string. The SQLite-specific `date('now', ?)` form is removed per RFC #275;
-# callers compute
+# string; callers compute
 # `cutoff = (datetime.now(UTC) - timedelta(days=...)).date().isoformat()`.
 #
-# Dialect-keyed and NON-PORTABLE. These run against a TEXT timestamp column
-# through Phase 2:
+# Dialect-keyed and NON-PORTABLE. These run against a TEXT timestamp column:
 #   * SQLite parses the ISO string natively with `date(<textcol>)`, which
 #     returns a 'YYYY-MM-DD' string.
 #   * PostgreSQL has no `date(text)` overload, so we cast the TEXT column to
@@ -112,8 +108,7 @@ SELECT_RECENT_ACTIVITY: TextClause = text(
 #     `DateStyle` (e.g. '01.07.2026' under `German`), which would break the
 #     caller's `strptime(day, "%Y-%m-%d")`; `to_char` is DateStyle-independent.
 #     The engine is pinned to UTC (see `core.db.Database`) so the truncation
-#     matches SQLite's UTC ISO strings. Phase 3 (#317) migrates PG timestamps
-#     to `TIMESTAMP WITH TIME ZONE` and removes the cast. The `>= :cutoff` half
+#     matches SQLite's UTC ISO strings. The `>= :cutoff` half
 #     is portable (Python-computed ISO string) either way.
 
 
