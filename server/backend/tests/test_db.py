@@ -22,7 +22,10 @@ class TestPostgresUrlDispatch:
         # runs without a live PostgreSQL.
         settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")
         db = Database(settings)
-        assert db.engine.dialect.name == "postgresql"
+        try:
+            assert db.engine.dialect.name == "postgresql"
+        finally:
+            db.engine.dispose()
 
     @pytest.mark.parametrize(
         "url",
@@ -39,20 +42,25 @@ class TestPostgresUrlDispatch:
         with pytest.raises(NotImplementedError) as exc:
             Database(settings)
         message = str(exc.value)
-        assert "#312" in message
         # The message must steer to the canonical driver, not just echo
-        # the URL.  "use postgresql+psycopg://" is unique to the
+        # the URL.  "use ... postgresql+psycopg://" is unique to the
         # non-canonical branch — it won't match a psycopg2 URL repr.
-        assert "use postgresql+psycopg://" in message
+        assert "postgresql+psycopg://" in message
 
     def test_pool_knobs_honoured_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CQ_DB_POOL_SIZE", "7")
         monkeypatch.setenv("CQ_DB_MAX_OVERFLOW", "3")
         settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")
         db = Database(settings)
-        pool = db.engine.pool
-        assert pool.size() == 7
-        assert pool._max_overflow == 3
+        try:
+            pool = db.engine.pool
+            assert pool.size() == 7
+            # ``_max_overflow`` is a private QueuePool attr; SQLAlchemy exposes
+            # no public getter for it, and asserting it without a live PG means
+            # we can't observe it via a checked-out connection.
+            assert pool._max_overflow == 3
+        finally:
+            db.engine.dispose()
 
     def test_semsearch_enabled_on_postgres_fails_fast(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", True)

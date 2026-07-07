@@ -144,6 +144,11 @@ def pg_url() -> Iterator[str]:
     tests still run on a bare machine (see #312 DoD). Migrations run once
     against the fresh container; per-test isolation is handled by
     ``pg_repos`` truncating between tests.
+
+    Not safe under ``pytest-xdist``: the container is shared session-wide,
+    so a ``pg_repos`` TRUNCATE in one worker would clobber another worker's
+    in-flight data. Give each xdist worker its own container before enabling
+    parallel PG runs.
     """
     testcontainers = pytest.importorskip("testcontainers.postgres")
     try:

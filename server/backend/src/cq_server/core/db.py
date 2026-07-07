@@ -96,8 +96,7 @@ class Database:
         elif driver == "postgresql" or driver.startswith("postgresql+"):
             raise NotImplementedError(
                 f"PostgreSQL driver {driver!r} is not supported; "
-                "use postgresql+psycopg:// once the PostgreSQL backend "
-                "implementation lands in epic #257 (issue #312)."
+                "use the canonical postgresql+psycopg:// driver instead."
             )
         else:
             raise ValueError(f"Unsupported database URL scheme: {driver!r}")
