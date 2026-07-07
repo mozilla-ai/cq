@@ -86,11 +86,12 @@ class Database:
                 )
             self._engine = create_engine(
                 url,
-                # Force UTC so ``(col::timestamptz)::date`` truncates in UTC,
+                # Force UTC so ``to_char(col::timestamptz, ...)`` renders in UTC,
                 # matching SQLite's ``date()`` on ISO strings.
-                connect_args={"options": "-c timezone=utc"},
+                connect_args={"options": "-c timezone=utc", "connect_timeout": 10},
                 pool_size=settings.db_pool_size,
                 max_overflow=settings.db_max_overflow,
+                pool_pre_ping=True,
                 future=True,
             )
         elif driver == "postgresql" or driver.startswith("postgresql+"):
