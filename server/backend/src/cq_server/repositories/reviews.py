@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from cq.models import KnowledgeUnit
-from sqlalchemy.sql.expression import TextClause, text
 
 from ..core.db import Database
 from ._queries import (
@@ -19,44 +18,20 @@ from ._queries import (
     SELECT_REJECTED_DAILY,
     SELECT_REVIEW_STATUS_BY_ID,
     UPDATE_REVIEW_STATUS,
+    confidence_distribution_sql,
     select_list_units,
 )
 
-# Bucket approved units by their persisted confidence in SQL rather than
-# parsing every unit into a model to read one float. The review dashboard uses
-# different bucket boundaries (0.3/0.6/0.8) than the knowledge stats; keep them
-# distinct unless deliberately unified. COALESCE to 0.5 mirrors the
-# Evidence.confidence default that model-parsing applied, so a row whose JSON
-# omits the field buckets identically instead of falling to the catch-all.
-# Dialect-keyed: SQLite reads the JSON blob with `json_extract`; PostgreSQL
-# casts the TEXT column to `jsonb` and extracts with `#>>` (and must alias the
-# derived subquery `AS sub`). Resolved once per repo from the engine dialect.
-_SELECT_CONFIDENCE_DISTRIBUTION: dict[str, TextClause] = {
-    "sqlite": text(
-        "SELECT "
-        "CASE "
-        "WHEN confidence < 0.3 THEN '0.0-0.3' "
-        "WHEN confidence < 0.6 THEN '0.3-0.6' "
-        "WHEN confidence < 0.8 THEN '0.6-0.8' "
-        "ELSE '0.8-1.0' "
-        "END AS bucket, COUNT(*) AS cnt "
-        "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
-        "FROM knowledge_units WHERE status = 'approved') "
-        "GROUP BY bucket"
-    ),
-    "postgresql": text(
-        "SELECT "
-        "CASE "
-        "WHEN confidence < 0.3 THEN '0.0-0.3' "
-        "WHEN confidence < 0.6 THEN '0.3-0.6' "
-        "WHEN confidence < 0.8 THEN '0.6-0.8' "
-        "ELSE '0.8-1.0' "
-        "END AS bucket, COUNT(*) AS cnt "
-        "FROM (SELECT COALESCE((data::jsonb #>> '{evidence,confidence}')::numeric, 0.5) AS confidence "
-        "FROM knowledge_units WHERE status = 'approved') AS sub "
-        "GROUP BY bucket"
-    ),
-}
+# The review dashboard uses different bucket boundaries (0.3/0.6/0.8) than the
+# knowledge stats; keep them distinct unless deliberately unified. Each entry is
+# `(exclusive upper bound, label)` low-to-high, last entry's `inf` bound is the
+# catch-all. Single source for both the SQL and the result dict's key set.
+_CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
+    (0.3, "0.0-0.3"),
+    (0.6, "0.3-0.6"),
+    (0.8, "0.6-0.8"),
+    (float("inf"), "0.8-1.0"),
+]
 
 
 class ReviewRepository:
@@ -66,7 +41,7 @@ class ReviewRepository:
         """Wire the repository to the shared ``Database``."""
         self._db = db
         dialect = db.engine.dialect.name
-        self._confidence_distribution_stmt = _SELECT_CONFIDENCE_DISTRIBUTION[dialect]
+        self._confidence_distribution_stmt = confidence_distribution_sql(_CONFIDENCE_BUCKETS, dialect)
         self._proposed_daily_stmt = SELECT_PROPOSED_DAILY[dialect]
         self._approved_daily_stmt = SELECT_APPROVED_DAILY[dialect]
         self._rejected_daily_stmt = SELECT_REJECTED_DAILY[dialect]
@@ -127,7 +102,7 @@ class ReviewRepository:
     def _confidence_distribution_sync(self) -> dict[str, int]:
         # Seed every bucket so absent labels report 0; the SQL only returns
         # rows for buckets that have at least one approved unit.
-        buckets = {"0.0-0.3": 0, "0.3-0.6": 0, "0.6-0.8": 0, "0.8-1.0": 0}
+        buckets = {label: 0 for _, label in _CONFIDENCE_BUCKETS}
         with self._db.engine.connect() as conn:
             rows = conn.execute(self._confidence_distribution_stmt).fetchall()
         for label, count in rows:

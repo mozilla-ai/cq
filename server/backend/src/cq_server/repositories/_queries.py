@@ -140,6 +140,35 @@ SELECT_PROPOSED_DAILY: dict[str, TextClause] = _daily("created_at", "")
 SELECT_APPROVED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'approved' AND ")
 SELECT_REJECTED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'rejected' AND ")
 
+
+def confidence_distribution_sql(buckets: list[tuple[float, str]], dialect: str) -> TextClause:
+    """Build the approved-unit confidence-distribution query for one dialect.
+
+    ``buckets`` is ``(exclusive upper bound, label)`` ordered low-to-high; the
+    last entry is the ``inf`` catch-all (its bound is ignored, its label is the
+    ``ELSE``). The bounds/labels are interpolated into the SQL, so callers must
+    pass only the trusted literal bucket list defined in the repo.
+
+    COALESCE to 0.5 mirrors the ``Evidence.confidence`` default, so a row whose
+    JSON omits the field buckets identically instead of hitting the catch-all.
+    SQLite reads the JSON blob with ``json_extract``; PostgreSQL casts the TEXT
+    column to ``jsonb``, extracts with ``#>>``, and must alias the derived
+    subquery (``AS sub``) — PG rejects an unnamed FROM-subquery.
+    """
+    extract = {
+        "sqlite": "json_extract(data, '$.evidence.confidence')",
+        "postgresql": "(data::jsonb #>> '{evidence,confidence}')::numeric",
+    }[dialect]
+    alias = " AS sub" if dialect == "postgresql" else ""
+    whens = " ".join(f"WHEN confidence < {bound} THEN '{label}'" for bound, label in buckets[:-1])
+    return text(
+        f"SELECT CASE {whens} ELSE '{buckets[-1][1]}' END AS bucket, COUNT(*) AS cnt "
+        f"FROM (SELECT COALESCE({extract}, 0.5) AS confidence "
+        f"FROM knowledge_units WHERE status = 'approved'){alias} "
+        "GROUP BY bucket"
+    )
+
+
 # Variable IN-list for ``KnowledgeRepository.query``. Bind ``:domains`` to the list
 # of normalised domain strings; SQLAlchemy expands it at execute time.
 # Empty list: SQLAlchemy 2.0 rewrites ``IN ()`` to a no-rows subquery

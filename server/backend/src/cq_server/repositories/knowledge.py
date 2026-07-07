@@ -9,7 +9,6 @@ from typing import Any
 from cq.models import KnowledgeUnit
 from cq.scoring import calculate_relevance
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql.expression import TextClause, text
 
 from ..core.db import Database
 from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
@@ -29,6 +28,7 @@ from ._queries import (
     SELECT_QUERY_UNITS,
     SELECT_TOTAL_COUNT,
     UPDATE_UNIT_DATA,
+    confidence_distribution_sql,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,41 +43,10 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
     (float("inf"), "0.7-1.0"),
 ]
 
-# Bucket approved units by their persisted confidence in SQL rather than
-# parsing every unit into a model to read one float. The CASE thresholds must
-# stay in lockstep with `_CONFIDENCE_BUCKETS` above. COALESCE to 0.5 mirrors
-# the Evidence.confidence default that model-parsing applied, so a row whose
-# JSON omits the field buckets identically instead of falling to the catch-all.
-# Dialect-keyed: SQLite reads the JSON blob with `json_extract`; PostgreSQL
-# casts the TEXT column to `jsonb` and extracts with `#>>`. The derived
-# subquery MUST be aliased on PG (`AS sub`) — Postgres rejects an unnamed
-# FROM-subquery. Resolved once per repo from the engine dialect in `__init__`.
-_SELECT_CONFIDENCE_DISTRIBUTION: dict[str, TextClause] = {
-    "sqlite": text(
-        "SELECT "
-        "CASE "
-        "WHEN confidence < 0.3 THEN '0.0-0.3' "
-        "WHEN confidence < 0.5 THEN '0.3-0.5' "
-        "WHEN confidence < 0.7 THEN '0.5-0.7' "
-        "ELSE '0.7-1.0' "
-        "END AS bucket, COUNT(*) AS cnt "
-        "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
-        "FROM knowledge_units WHERE status = 'approved') "
-        "GROUP BY bucket"
-    ),
-    "postgresql": text(
-        "SELECT "
-        "CASE "
-        "WHEN confidence < 0.3 THEN '0.0-0.3' "
-        "WHEN confidence < 0.5 THEN '0.3-0.5' "
-        "WHEN confidence < 0.7 THEN '0.5-0.7' "
-        "ELSE '0.7-1.0' "
-        "END AS bucket, COUNT(*) AS cnt "
-        "FROM (SELECT COALESCE((data::jsonb #>> '{evidence,confidence}')::numeric, 0.5) AS confidence "
-        "FROM knowledge_units WHERE status = 'approved') AS sub "
-        "GROUP BY bucket"
-    ),
-}
+# Bucket approved units by their persisted confidence in SQL (built from the
+# single `_CONFIDENCE_BUCKETS` source above) rather than parsing every unit
+# into a model to read one float. See `confidence_distribution_sql` for the
+# dialect handling; resolved once per repo from the engine dialect in `__init__`.
 
 
 class KnowledgeRepository:
@@ -86,7 +55,7 @@ class KnowledgeRepository:
     def __init__(self, db: Database) -> None:
         """Wire the repository to the shared ``Database``."""
         self._db = db
-        self._confidence_distribution_stmt = _SELECT_CONFIDENCE_DISTRIBUTION[db.engine.dialect.name]
+        self._confidence_distribution_stmt = confidence_distribution_sql(_CONFIDENCE_BUCKETS, db.engine.dialect.name)
 
     async def count(self) -> int:
         """Return the total number of stored units across all review statuses."""
