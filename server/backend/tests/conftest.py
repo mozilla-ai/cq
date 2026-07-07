@@ -165,8 +165,12 @@ def pg_url() -> Iterator[str]:
 
 
 @pytest_asyncio.fixture
-async def pg_repos(pg_url: str) -> AsyncIterator[_RepoBundle]:
+async def pg_repos(pg_url: str, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[_RepoBundle]:
     """Yield repositories wired to the PostgreSQL container, cleaned per test."""
+    # These tests don't exercise semantic search; disable it so the PG suite
+    # runs even when CI sets TOKEN_EMBEDDING_URL (which would otherwise trip
+    # Database's semsearch-on-PG fail-fast guard).
+    monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", False)
     db = Database(_build_pg_settings(pg_url))
     with db.engine.begin() as conn:
         conn.execute(text("TRUNCATE knowledge_units, knowledge_unit_domains, api_keys, users RESTART IDENTITY CASCADE"))
