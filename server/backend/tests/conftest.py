@@ -11,15 +11,17 @@ the old ``Store`` while delegating to the new repositories.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import text
 
 from cq_server.core.config import Settings
 from cq_server.core.db import Database
+from cq_server.migrations import run_migrations
 from cq_server.repositories import (
     APIKeyRepository,
     KnowledgeRepository,
@@ -56,6 +58,15 @@ def _build_settings(db_path: Path) -> Settings:
         api_key_pepper="test-pepper",  # pragma: allowlist secret
         database_url=f"sqlite:///{db_path}",
         db_path=db_path,
+    )
+
+
+def _build_pg_settings(url: str) -> Settings:
+    """Create a Settings instance pointed at the PostgreSQL container URL."""
+    return Settings(  # type: ignore[call-arg]
+        jwt_secret="test-jwt-secret",  # pragma: allowlist secret
+        api_key_pepper="test-pepper",  # pragma: allowlist secret
+        database_url=url,
     )
 
 
@@ -123,6 +134,42 @@ async def reviews_repo(repos: _RepoBundle) -> ReviewRepository:
         ReviewRepository: The review repository instance from the provided bundle.
     """
     return repos.reviews
+
+
+@pytest.fixture(scope="session")
+def pg_url() -> Iterator[str]:
+    """Start a session-scoped PostgreSQL container and yield its psycopg URL.
+
+    Skips the whole PG suite when Docker is unavailable so the SQLite
+    tests still run on a bare machine (see #312 DoD). Migrations run once
+    against the fresh container; per-test isolation is handled by
+    ``pg_repos`` truncating between tests.
+    """
+    testcontainers = pytest.importorskip("testcontainers.postgres")
+    try:
+        container = testcontainers.PostgresContainer("postgres:16-alpine", driver="psycopg")
+        container.start()
+    except Exception as exc:  # noqa: BLE001 — Docker missing/unreachable
+        pytest.skip(f"PostgreSQL container unavailable: {exc}")
+    try:
+        url = container.get_connection_url()
+        run_migrations(url)
+        yield url
+    finally:
+        container.stop()
+
+
+@pytest_asyncio.fixture
+async def pg_repos(pg_url: str) -> AsyncIterator[_RepoBundle]:
+    """Yield repositories wired to the PostgreSQL container, cleaned per test."""
+    db = Database(_build_pg_settings(pg_url))
+    with db.engine.begin() as conn:
+        conn.execute(text("TRUNCATE knowledge_units, knowledge_unit_domains, api_keys, users RESTART IDENTITY CASCADE"))
+    bundle = _RepoBundle(db)
+    try:
+        yield bundle
+    finally:
+        await bundle.close()
 
 
 @pytest_asyncio.fixture

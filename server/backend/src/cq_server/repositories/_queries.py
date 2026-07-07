@@ -19,20 +19,13 @@ Callers bind named parameters at execute time. Out of scope here:
 PRAGMAs, ``pg_advisory_lock``, vector (sqlite-vec / pgvector), full-text
 (FTS5 / ``tsvector``). Those live in their respective concrete stores.
 
-``daily_counts`` is portable when the date cutoff is computed in Python
-and passed in as a ``:cutoff`` ISO date string; the SQLite-specific
-``date('now', '-N days')`` form has been removed here per RFC #275.
-
-Load-bearing assumption — ``date(reviewed_at)`` / ``date(created_at)`` in
-the daily-count helpers below: these run against ``TEXT`` columns through
-Phase 2. SQLite's ``date()`` parses ISO strings natively. PostgreSQL has
-no ``date(text)`` overload, but with the default ``DateStyle=ISO`` it
-implicit-casts ISO-8601-with-offset strings to ``timestamptz`` before
-applying the built-in ``date(timestamp)`` function. Operators running PG
-under a non-default ``DateStyle`` may see this fail. Phase 3 (#317)
-removes this dependency by migrating PG timestamps to
-``TIMESTAMP WITH TIME ZONE``; SQLite continues to store ISO strings.
-After #317 the same SQL is portable through two distinct mechanisms.
+``daily_counts`` filters by a Python-computed ``:cutoff`` ISO date string
+(the SQLite-specific ``date('now', '-N days')`` form was removed per RFC
+#275), but the day-truncation half is dialect-specific: PostgreSQL has no
+``date(text)`` overload, so the daily-count helpers below are keyed by
+dialect (``date(<textcol>)`` on SQLite; ``(<textcol>::timestamptz)::date``
+on PostgreSQL). See ``_daily`` for detail. Phase 3 (#317) migrates PG
+timestamps to ``TIMESTAMP WITH TIME ZONE`` and can retire the cast.
 """
 
 from __future__ import annotations
@@ -106,22 +99,38 @@ SELECT_RECENT_ACTIVITY: TextClause = text(
 # string. The SQLite-specific `date('now', ?)` form is removed per RFC #275;
 # callers compute
 # `cutoff = (datetime.now(UTC) - timedelta(days=...)).date().isoformat()`.
+#
+# Dialect-keyed and NON-PORTABLE. These run against a TEXT timestamp column
+# through Phase 2:
+#   * SQLite parses the ISO string natively with `date(<textcol>)`, which
+#     returns a 'YYYY-MM-DD' string.
+#   * PostgreSQL has no `date(text)` overload, so we cast the TEXT column to
+#     `timestamptz` then to `date`, and finally `::text` so the day key comes
+#     back as the same 'YYYY-MM-DD' string SQLite yields (bare `::date` would
+#     surface as a Python `datetime.date`, breaking the caller's string keys).
+#     The engine is pinned to UTC (see `core.db.Database`) so the truncation
+#     matches SQLite's UTC ISO strings. Phase 3 (#317) migrates PG timestamps
+#     to `TIMESTAMP WITH TIME ZONE` and removes the cast. The `>= :cutoff` half
+#     is portable (Python-computed ISO string) either way.
 
-SELECT_PROPOSED_DAILY: TextClause = text(
-    "SELECT date(created_at) AS day, COUNT(*) AS cnt FROM knowledge_units WHERE created_at >= :cutoff GROUP BY day"
-)
 
-SELECT_APPROVED_DAILY: TextClause = text(
-    "SELECT date(reviewed_at) AS day, COUNT(*) AS cnt "
-    "FROM knowledge_units "
-    "WHERE status = 'approved' AND reviewed_at >= :cutoff GROUP BY day"
-)
+def _daily(column: str, status_clause: str) -> dict[str, TextClause]:
+    """Build the dialect-keyed daily-count query for one timestamp column."""
+    return {
+        "sqlite": text(
+            f"SELECT date({column}) AS day, COUNT(*) AS cnt "
+            f"FROM knowledge_units WHERE {status_clause}{column} >= :cutoff GROUP BY day"
+        ),
+        "postgresql": text(
+            f"SELECT ({column}::timestamptz)::date::text AS day, COUNT(*) AS cnt "
+            f"FROM knowledge_units WHERE {status_clause}{column} >= :cutoff GROUP BY day"
+        ),
+    }
 
-SELECT_REJECTED_DAILY: TextClause = text(
-    "SELECT date(reviewed_at) AS day, COUNT(*) AS cnt "
-    "FROM knowledge_units "
-    "WHERE status = 'rejected' AND reviewed_at >= :cutoff GROUP BY day"
-)
+
+SELECT_PROPOSED_DAILY: dict[str, TextClause] = _daily("created_at", "")
+SELECT_APPROVED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'approved' AND ")
+SELECT_REJECTED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'rejected' AND ")
 
 # Variable IN-list for ``SqliteStore.query``. Bind ``:domains`` to the list
 # of normalised domain strings; SQLAlchemy expands it at execute time.
