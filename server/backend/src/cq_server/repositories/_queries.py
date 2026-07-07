@@ -24,9 +24,9 @@ PRAGMAs, ``pg_advisory_lock``, vector (sqlite-vec / pgvector), full-text
 (the SQLite-specific ``date('now', '-N days')`` form was removed per RFC
 #275), but the day-truncation half is dialect-specific: PostgreSQL has no
 ``date(text)`` overload, so the daily-count helpers below are keyed by
-dialect (``date(<textcol>)`` on SQLite; ``(<textcol>::timestamptz)::date``
-on PostgreSQL). See ``_daily`` for detail. Phase 3 (#317) migrates PG
-timestamps to ``TIMESTAMP WITH TIME ZONE`` and can retire the cast.
+dialect (``date(<textcol>)`` on SQLite; ``to_char(<textcol>::timestamptz,
+'YYYY-MM-DD')`` on PostgreSQL). See ``_daily`` for detail. Phase 3 (#317)
+migrates PG timestamps to ``TIMESTAMP WITH TIME ZONE`` and can retire the cast.
 """
 
 from __future__ import annotations
