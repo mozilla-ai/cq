@@ -169,8 +169,11 @@ async def pg_repos(pg_url: str, monkeypatch: pytest.MonkeyPatch) -> AsyncIterato
     """Yield repositories wired to the PostgreSQL container, cleaned per test."""
     # These tests don't exercise semantic search; disable it so the PG suite
     # runs even when CI sets TOKEN_EMBEDDING_URL (which would otherwise trip
-    # Database's semsearch-on-PG fail-fast guard).
+    # Database's semsearch-on-PG fail-fast guard *and* make the insert/query
+    # paths run sqlite-vec SQL against PG). Each module imported its own
+    # ``_SEMSEARCH_ENABLED`` binding, so both must be patched.
     monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", False)
+    monkeypatch.setattr("cq_server.repositories.knowledge._SEMSEARCH_ENABLED", False)
     db = Database(_build_pg_settings(pg_url))
     with db.engine.begin() as conn:
         conn.execute(text("TRUNCATE knowledge_units, knowledge_unit_domains, api_keys, users RESTART IDENTITY CASCADE"))
