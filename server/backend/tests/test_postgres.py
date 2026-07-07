@@ -61,7 +61,7 @@ async def test_pg_reviews_confidence_distribution(pg_repos: _RepoBundle) -> None
 
 async def test_pg_daily_counts(pg_repos: _RepoBundle) -> None:
     # One proposed+approved unit today; daily_counts must aggregate it by day
-    # via the ``(created_at::timestamptz)::date`` PG cast, not ``date(text)``.
+    # via ``to_char(created_at::timestamptz, 'YYYY-MM-DD')``, not ``date(text)``.
     await _insert_and_approve(pg_repos)
     rows = await pg_repos.daily_counts(days=7)
     today = datetime.now(UTC).date().isoformat()
