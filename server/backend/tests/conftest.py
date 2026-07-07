@@ -11,6 +11,7 @@ the old ``Store`` while delegating to the new repositories.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from types import SimpleNamespace
@@ -140,10 +141,10 @@ async def reviews_repo(repos: _RepoBundle) -> ReviewRepository:
 def pg_url() -> Iterator[str]:
     """Start a session-scoped PostgreSQL container and yield its psycopg URL.
 
-    Skips the whole PG suite when Docker is unavailable so the SQLite
-    tests still run on a bare machine (see #312 DoD). Migrations run once
-    against the fresh container; per-test isolation is handled by
-    ``pg_repos`` truncating between tests.
+    When Docker is unavailable the PG suite skips locally but fails in CI
+    (see the except branch below). Migrations run once against the fresh
+    container; per-test isolation is handled by ``pg_repos`` truncating
+    between tests.
 
     Not safe under ``pytest-xdist``: the container is shared session-wide,
     so a ``pg_repos`` TRUNCATE in one worker would clobber another worker's
@@ -155,6 +156,9 @@ def pg_url() -> Iterator[str]:
         container = testcontainers.PostgresContainer("postgres:16-alpine", driver="psycopg")
         container.start()
     except Exception as exc:  # noqa: BLE001 — Docker missing/unreachable
+        # CI has Docker, so an unavailable container is broken infra, not an opt-out.
+        if os.getenv("CI"):
+            pytest.fail(f"PostgreSQL container unavailable in CI: {exc}")
         pytest.skip(f"PostgreSQL container unavailable: {exc}")
     try:
         url = container.get_connection_url()

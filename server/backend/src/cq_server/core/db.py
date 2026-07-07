@@ -78,8 +78,7 @@ class Database:
         elif driver == "postgresql+psycopg":
             if _SEMSEARCH_ENABLED:
                 # semsearch runs sqlite-vec SQL; it has no PG implementation
-                # yet (pgvector is a later stage). Fail fast rather than blow
-                # up on the first insert. See #312 item 4.
+                # yet. Fail fast rather than blow up on the first insert.
                 raise RuntimeError(
                     "semantic search is not yet supported on the PostgreSQL backend; "
                     "unset TOKEN_EMBEDDING_URL to run cq against PostgreSQL."

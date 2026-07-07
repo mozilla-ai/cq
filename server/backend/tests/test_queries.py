@@ -392,7 +392,7 @@ def _backdate(engine: Engine, *, column: str, unit_id: str, when: datetime) -> N
 
 
 class TestDailyCounts:
-    """Cutoff is computed in Python per RFC #275."""
+    """Cutoff is computed in Python, not in SQL."""
 
     async def test_proposed_daily(self, db: tuple[_RepoBundle, Engine]) -> None:
         store, engine = db
