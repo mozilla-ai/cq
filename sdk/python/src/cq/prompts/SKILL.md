@@ -32,10 +32,10 @@ Follow this loop for every task:
 
 1. **Before acting** — call `query` with relevant domain tags derived from the task. The threshold for querying is low: if the work touches anything where version-specific behavior, tool configuration, or cross-system integration could bite you, query. Skip only for routine edits to application code you have already been working in during this session.
 2. **Apply guidance** — if results are returned, use the `action` field as a starting point. Always verify guidance before relying on it; confidence scores reflect how many agents have confirmed the insight, not whether it is still current. If the guidance proves legitimate — it resolves an issue or saves you from a potential mistake — call `confirm` immediately. Do not defer to task completion.
-3. **Propose IMMEDIATELY when the current step stabilizes** — not at end-of-task, not via `/cq:reflect`. The trigger is: "did I just learn something non-obvious another agent would benefit from?" If yes, call `propose` now, then continue with the task. "Non-obvious" means you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behavior contradicted reasonable expectations. Applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). Strip project-specific details before submitting.
+3. **Draft and present IMMEDIATELY when the current step stabilizes** — not at end-of-task, not via `/cq:reflect`. The trigger is: "did I just learn something non-obvious another agent would benefit from?" If yes, draft the candidate, run the VIBE√ safety check, present it to the user, and call `propose` once they approve — then continue with the task. "Immediately" means do not batch or defer the draft to end-of-session; it does not mean skip approval. "Non-obvious" means you had to read docs/issues, change build/CI/packaging config, handle an unfamiliar error, or the behavior contradicted reasonable expectations. Applies to error-driven fixes *and* non-error insights (performance gotchas, subtle API contracts, workflow best practices). Strip project-specific details before submitting. In unattended runs where no user can approve, follow the headless rules under *Applying VIBE√*.
 4. **STOP — before completing the task** (safety net, not the primary path). Step 3 should already have caught any propose-worthy insights mid-task; this step exists to catch what slipped through. Before sending "done":
    - Used cq guidance that proved correct? → `confirm` with the unit's ID.
-   - Discovered something novel that you somehow didn't propose at step 3? → `propose` now anyway, and treat its existence as a step-3 protocol failure (you should have proposed earlier).
+   - Discovered something novel that you somehow didn't propose at step 3? → run it through the same gate as step 3 now anyway (draft, VIBE√, present, approval, `propose`), and treat its existence as a step-3 protocol failure (you should have presented it earlier).
    - Found cq guidance that was wrong or stale? → `flag` with a reason.
 
 `reflect` and `status` are not part of the per-task loop. `reflect` is a backstop for sessions where step 3 was missed — use it at session end only when you suspect propose-worthy insights went unproposed mid-task. Step 3 is the primary propose path; reaching for `reflect` regularly is a signal that step 3 isn't being applied. Use `status` on demand to check store statistics.
@@ -124,7 +124,7 @@ Propose a new knowledge unit when you discover something that would save another
 - An error required multiple failed attempts to resolve and the solution was not obvious from documentation.
 - Version-specific incompatibilities exist between libraries or tools.
 
-**Rationalization check.** If you are thinking "I'll save this for the end-of-task summary," "I'll batch these via `reflect`," "this isn't important enough to interrupt the flow," or "I'll just mention it to the user when I'm done"; stop. Propose now. The cost of an extra `propose` call mid-task is trivial; the cost of forgetting the precise symptom and remediation by end-of-task is high. If the user notices an insight you mentioned in a wrap-up that should have been a `propose` call, that is the protocol failing — propose first, summarize second.
+**Rationalization check.** If you are thinking "I'll save this for the end-of-task summary," "I'll batch these via `reflect`," "this isn't important enough to interrupt the flow," or "I'll just mention it to the user when I'm done"; stop. Draft and present now. The cost of presenting a candidate mid-task is trivial; the cost of forgetting the precise symptom and remediation by end-of-task is high. If the user notices an insight you mentioned in a wrap-up that should have been a presented candidate, that is the protocol failing — present first, summarize second.
 
 **Near-duplicate check.** If proposing in a domain you've already queried this session, scan those results for overlap before calling `propose`. If a close match exists, `confirm` (same insight) or `flag` (contradicts it) may be more appropriate than a new proposal.
 
@@ -165,7 +165,7 @@ Before calling `propose`, evaluate every candidate against four safety dimension
 - **B — Biases**: Is the framing tied to a specific person, team, vendor, or commercial product in a way that isn't load-bearing for the lesson? Does it present one tool/approach as universally correct when the evidence supports only a narrow context?
 - **E — Edge cases**: Was the lesson learned from a single observation, or has it been validated across multiple cases? Are there obvious conditions (OS, version, scale, concurrency) under which it would not hold and that the candidate fails to acknowledge?
 
-Classify each finding into one of two tiers. The user owns the final decision on every candidate that reaches review — candidates are never silently dropped at that stage. Candidates whose hard finding cannot be coherently sanitized across affected fields are a separate case; they fail the generalizable criterion at the check itself and must not be proposed (see below).
+Classify each finding into one of two tiers. The user owns the final decision on every candidate, whether it arrives via a direct `propose` call or `/cq:reflect` batch review — candidates are never silently dropped at that stage. Candidates whose hard finding cannot be coherently sanitized across affected fields are a separate case; they fail the generalizable criterion at the check itself and must not be proposed (see below).
 
 **Hard findings** — produce a sanitized rewrite before calling `propose`:
 
@@ -188,8 +188,17 @@ If no coherent lesson survives sanitization across all affected fields, the cand
 
 #### Applying VIBE√
 
-- **Direct `propose` calls** (outside `/cq:reflect`) — run the check on the single candidate. If a hard finding exists, present both the original and the sanitized rewrite to the user and let them pick (or skip). If only a soft concern exists, present the concern for awareness before proceeding.
+- **Direct `propose` calls** (outside `/cq:reflect`) — presenting the candidate to the user and waiting for their approval is a precondition of every direct `propose` call, regardless of what the check finds. Run the check on the single candidate, then:
+  - **Hard finding** — present both the original and the sanitized rewrite, and let the user pick (or skip).
+  - **Soft concern** — present the candidate with the concern stated, and wait for approval.
+  - **Clean** (no hard findings, no soft concerns) — present the candidate with your clean assessment, and wait for approval.
+
+  "Immediately" in Core Protocol step 3 means draft and present the moment the insight stabilizes instead of batching to end-of-session; it does not mean calling `propose` before the user has approved.
 - **Batch proposals via `/cq:reflect`** — see the `/cq:reflect` command for the batch presentation UX (three templates, provenance annotation). The underlying V/I/B/E classification rules are the same.
+- **Headless runs** — when no user is available to approve (unattended, scheduled, or CI execution), VIBE√ is the only gate, so apply it strictly:
+  - Any hard finding blocks the propose outright. Do not substitute a sanitized rewrite on your own authority — that choice belongs to a human. Record the candidate for later review instead.
+  - A soft concern must be acknowledged in the candidate's own text (e.g. the edge-case caveat stated in `detail`); if it cannot be, hold the candidate.
+  - When a remote store is configured, `propose` publishes to the shared store immediately, not to a private local queue. When in doubt, hold the candidate and surface it for human review in the next interactive session (e.g. via `/cq:reflect`).
 
 ### Confirming Knowledge (`confirm`)
 
@@ -217,7 +226,7 @@ When encountering an error, follow this sequence:
 
 1. Call `query` with domain tags derived from the error context (e.g. the library, tool, or API involved) **before** attempting any fix.
 2. If a relevant knowledge unit exists, apply its guidance and confirm it if it resolves the issue.
-3. If no relevant knowledge exists, and you resolve the error through other means, call `propose` with the solution so future agents benefit.
+3. If no relevant knowledge exists, and you resolve the error through other means, draft a candidate with the solution and run it through the propose gate (VIBE√, present, approval) so future agents benefit.
 
 Do not retry blindly. Always check the commons first.
 
@@ -271,7 +280,7 @@ The developer asks you to configure a webpack build. You encounter a cryptic err
 1. Call `query` with `domains: ["bundler", "nodejs-polyfills"]` and `frameworks: ["webpack", "react"]`.
 2. No relevant results returned. Proceed normally.
 3. Debug the issue: webpack 5 removed Node.js polyfills. Add `resolve.fallback: { stream: require.resolve("stream-browserify") }` to the config.
-4. Call `propose` **now** — before continuing with the rest of the build configuration:
+4. Draft the candidate **now** — before continuing with the rest of the build configuration. Run VIBE√ (clean: no secrets, generalizable, no overreach), present the draft with your clean assessment, and call `propose` on the developer's go-ahead:
    - **summary:** `"webpack 5 removes built-in Node.js polyfills — imports like 'stream' fail at build time"`
    - **detail:** `"webpack 5 no longer includes polyfills for Node.js core modules. Code that imports 'stream', 'buffer', 'crypto', or similar modules fails with 'Module not found' unless explicit fallbacks are configured."`
    - **action:** `"Add resolve.fallback entries in webpack config mapping each required Node.js module to its browserify equivalent (e.g. stream-browserify, buffer, crypto-browserify)."`
@@ -303,7 +312,7 @@ The developer asks you to refactor a Python service to use connection pooling, r
 
 1. Stabilize: diagnose the hook failure, apply the workaround, re-run, get a clean build.
 2. Recognize the propose trigger: the hook behavior was non-obvious (took more than one attempt to diagnose, behavior contradicted reasonable expectations). It is *not* part of the original refactor task; that does not change the trigger.
-3. Call `propose` immediately, before editing the third file. **Do not defer to end-of-task.**
+3. Draft the candidate, run VIBE√, present it, and call `propose` on approval — immediately, before editing the third file. **Do not defer to end-of-task.**
 4. Continue refactoring files three through five, run tests, complete the original task.
 5. At end-of-task (Core Protocol step 4), no propose-worthy items remain because you already proposed them mid-task. The end-of-task review is a no-op safety net, which is the desired state.
 
