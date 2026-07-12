@@ -139,27 +139,31 @@ async def reviews_repo(repos: _RepoBundle) -> ReviewRepository:
 
 @pytest.fixture(scope="session")
 def pg_url() -> Iterator[str]:
-    """Start a session-scoped PostgreSQL container and yield its psycopg URL.
+    """Yield a PostgreSQL psycopg URL for the PG suite, migrated once per session.
 
-    When Docker is unavailable the PG suite skips locally but fails in CI
-    (see the except branch below). Migrations run once against the fresh
-    container; per-test isolation is handled by ``pg_repos`` truncating
-    between tests.
+    If ``CQ_TEST_DATABASE_URL`` is set, use it and do no provisioning here —
+    this is how CI (a ``services:`` Postgres) and any ``make`` target hand us a
+    ready database, keeping infra setup out of the test code. Otherwise spin a
+    session-scoped testcontainer so local runs work with just Docker present,
+    skipping cleanly when Docker is unavailable.
 
-    Not safe under ``pytest-xdist``: the container is shared session-wide,
-    so a ``pg_repos`` TRUNCATE in one worker would clobber another worker's
-    in-flight data. Give each xdist worker its own container before enabling
-    parallel PG runs.
+    Per-test isolation is handled by ``pg_repos`` truncating between tests.
+    Not safe under ``pytest-xdist``: the database is shared session-wide, so a
+    ``pg_repos`` TRUNCATE in one worker would clobber another worker's in-flight
+    data. Give each xdist worker its own database before enabling parallel runs.
     """
+    injected = os.getenv("CQ_TEST_DATABASE_URL")
+    if injected:
+        run_migrations(injected)
+        yield injected
+        return
+
     testcontainers = pytest.importorskip("testcontainers.postgres")
     try:
         container = testcontainers.PostgresContainer("postgres:16-alpine", driver="psycopg")
         container.start()
     except Exception as exc:  # noqa: BLE001 — Docker missing/unreachable
-        # CI has Docker, so an unavailable container is broken infra, not an opt-out.
-        if os.getenv("CI"):
-            pytest.fail(f"PostgreSQL container unavailable in CI: {exc}")
-        pytest.skip(f"PostgreSQL container unavailable: {exc}")
+        pytest.skip(f"PostgreSQL unavailable (set CQ_TEST_DATABASE_URL or start Docker): {exc}")
     try:
         url = container.get_connection_url()
         run_migrations(url)
