@@ -26,6 +26,7 @@ A single unit of shared agent knowledge. This is the core data type; other schem
 | `tier` | `"local"` \| `"private"` \| `"public"` | no | Storage tier. |
 | `created_by` | string | no | Identifier of the agent or user that created this unit. |
 | `superseded_by` | string (`ku_<32 hex>`) | no | ID of the replacing knowledge unit, if any. |
+| `extensions` | Extensions | no | Implementation-specific namespaced fields; not portable across implementations. |
 | `flags` | Flag[] | no | Recorded flags against this unit. |
 
 #### Defined types
@@ -45,6 +46,10 @@ A single unit of shared agent knowledge. This is the core data type; other schem
 | `languages` | string[] | no | Programming languages. |
 | `frameworks` | string[] | no | Frameworks. |
 | `pattern` | string | no | Reusable cross-cutting pattern. |
+
+**Extensions** — implementation-specific fields carried under namespaced keys.
+
+Keys MUST use `namespace:key` format with a lowercase implementation slug. Consumers MUST ignore unknown keys and MUST NOT rely on their presence. Producers SHOULD only include keys they have actually set, and SHOULD NOT emit a key with a null or empty placeholder to represent an absent value. The canonical schema limits the object to 20 keys.
 
 **Evidence** — confidence and confirmation metrics.
 
@@ -92,6 +97,7 @@ Request to propose a new knowledge unit.
 | `domains` | string[] (>= 1) | yes | At least one domain is required. |
 | `insight` | Insight | yes | Tripartite insight (defined in knowledge_unit.json). |
 | `context` | Context | no | Language, framework, and pattern context. |
+| `extensions` | Extensions | no | Implementation-specific namespaced fields (defined in knowledge_unit.json). |
 | `created_by` | string | no | Identifier of the proposing agent or user. |
 
 ---
