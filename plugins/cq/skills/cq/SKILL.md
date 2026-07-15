@@ -77,7 +77,7 @@ Each piece of information belongs in one field — do not repeat the same term a
 |-------|-----------------|---------|
 | `domains` | Subject area — what the insight is *about* (tools, protocols, concepts, layers). Avoid terms that describe the insight *type* (`"gotchas"`, `"tips"`, `"pitfalls"`) rather than its subject. | `"find"`, `"ci"`, `"http"`, `"connection-pooling"` |
 | `languages` | Programming languages the insight applies to or was observed in. Do not repeat in `domains`. | `"python"`, `"rust"`, `"go"` |
-| `frameworks` | Libraries or frameworks involved. Do not repeat in `domains`. | `"fastapi"`, `"react"`, `"pydantic"` |
+| `frameworks` | Libraries, frameworks, runtimes, or execution platforms the insight applies to. Do not repeat the same value in `domains`. | `"fastapi"`, `"pydantic"`, `"cloudflare-workers"`, `"macos"` |
 | `pattern` | A reusable cross-cutting concern, useful as a search axis independent of specific technology. Omit if it just rephrases the summary. | `"revocation-semantics"`, `"shell-quoting"` |
 
 | Scenario | `domains` | other call args |
@@ -87,7 +87,9 @@ Each piece of information belongs in one field — do not repeat the same term a
 | GitHub Actions CI for Rust | `["ci", "github-actions"]` | `languages: ["rust"], pattern: "ci-pipeline"` |
 | PostgreSQL connection pooling | `["database", "postgresql", "connection-pooling"]` | `languages: ["go"]` |
 
-When an insight applies across a family of tools or runtimes (e.g. all POSIX shells), include both a generic tag (`"shell"`, `"posix"`) and the specific one where it was observed (`"bash"`, `"zsh"`). Do not drop either.
+Tag where an insight applies, not merely where it was observed. Do not add repository or branch names simply because the work happened there; generalize that context into portable `domains` instead.
+
+When an insight applies across a family of tools or runtimes, keep both levels without duplicating identical values: put the generic subject in `domains` and the applicable runtimes or platforms in `frameworks`. For example, use `domains: ["shell", "posix"]` with `frameworks: ["bash", "zsh"]`. Do not drop either level of applicability.
 
 Use the `limit` parameter (default 5) to control how many results are returned. For broad exploratory queries, increase the limit.
 
