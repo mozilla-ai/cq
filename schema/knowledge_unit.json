@@ -47,7 +47,7 @@
   "$defs": {
     "Extensions": {
       "type": "object",
-      "description": "Implementation-specific fields. Not portable across implementations; consumers MUST ignore unknown keys and MUST NOT rely on their presence. Keys MUST use namespace:key format with a lowercase implementation slug.",
+      "description": "Implementation-specific fields. Not portable across implementations; consumers MUST ignore unknown keys and MUST NOT rely on their presence. Keys MUST use namespace:key format with a lowercase implementation slug. Producers SHOULD only include keys they have actually set, and SHOULD NOT emit a key with a null or empty placeholder to represent an absent value, so that key-presence within a namespace is meaningful. This recommendation applies to producers and does not weaken the consumer-side rule above.",
       "patternProperties": {
         "^[a-z0-9][a-z0-9_-]*:\\S+$": true
       },
