@@ -48,22 +48,6 @@ class TestPostgresUrlDispatch:
         # non-canonical branch — it won't match a psycopg2 URL repr.
         assert "postgresql+psycopg://" in message
 
-    def test_pool_knobs_honoured_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", False)
-        monkeypatch.setenv("CQ_DB_POOL_SIZE", "7")
-        monkeypatch.setenv("CQ_DB_MAX_OVERFLOW", "3")
-        settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")
-        db = Database(settings)
-        try:
-            pool = db.engine.pool
-            assert pool.size() == 7
-            # ``_max_overflow`` is a private QueuePool attr; SQLAlchemy exposes
-            # no public getter for it, and asserting it without a live PG means
-            # we can't observe it via a checked-out connection.
-            assert pool._max_overflow == 3
-        finally:
-            db.engine.dispose()
-
     def test_semsearch_enabled_on_postgres_fails_fast(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", True)
         settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")

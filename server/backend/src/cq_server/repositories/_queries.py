@@ -29,8 +29,35 @@ dialect (``date(<textcol>)`` on SQLite; ``to_char(<textcol>::timestamptz,
 
 from __future__ import annotations
 
+from typing import Literal
+
 from sqlalchemy import bindparam
 from sqlalchemy.sql.expression import TextClause, text
+
+# The closed set of SQL dialects cq's queries support. Modelled as a type so the
+# dialect-keyed dicts and builders below are exhaustive by construction rather
+# than "safe because these are the only values we pass".
+Dialect = Literal["sqlite", "postgresql"]
+
+
+def resolve_dialect(name: str) -> Dialect:
+    """Validate a raw ``engine.dialect.name`` into the supported :data:`Dialect`.
+
+    Called once per repository (from ``__init__``) so an unknown backend fails
+    here with a domain-phrased error instead of surfacing as a bare ``KeyError``
+    from a dialect-keyed lookup deep in an aggregation query.
+    """
+    if name == "sqlite":
+        return "sqlite"
+    if name == "postgresql":
+        return "postgresql"
+    raise ValueError(f"Unsupported SQL dialect {name!r}; cq's queries support only 'sqlite' and 'postgresql'.")
+
+
+def _sql_str_literal(value: str) -> str:
+    """Escape ``value`` for safe interpolation inside a single-quoted SQL literal."""
+    return value.replace("'", "''")
+
 
 # --- knowledge_units --------------------------------------------------------
 
@@ -112,12 +139,12 @@ SELECT_RECENT_ACTIVITY: TextClause = text(
 #     is portable (Python-computed ISO string) either way.
 
 
-def _daily(column: str, status_clause: str) -> dict[str, TextClause]:
+def _daily(column: Literal["created_at", "reviewed_at"], status_clause: str) -> dict[Dialect, TextClause]:
     """Build the dialect-keyed daily-count query for one timestamp column.
 
-    ``column`` and ``status_clause`` are interpolated into the SQL text, so
-    callers must pass only trusted literal column names / clauses (they do:
-    the three module-level constants below are the only call sites).
+    NOTE: ``status_clause`` is interpolated into the SQL text unescaped; callers
+    must pass only trusted literal column names/clauses, never user input.
+    ``column`` is type-constrained to the two timestamp columns.
     """
     return {
         "sqlite": text(
@@ -131,18 +158,22 @@ def _daily(column: str, status_clause: str) -> dict[str, TextClause]:
     }
 
 
-SELECT_PROPOSED_DAILY: dict[str, TextClause] = _daily("created_at", "")
-SELECT_APPROVED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'approved' AND ")
-SELECT_REJECTED_DAILY: dict[str, TextClause] = _daily("reviewed_at", "status = 'rejected' AND ")
+SELECT_PROPOSED_DAILY: dict[Dialect, TextClause] = _daily("created_at", "")
+SELECT_APPROVED_DAILY: dict[Dialect, TextClause] = _daily("reviewed_at", "status = 'approved' AND ")
+SELECT_REJECTED_DAILY: dict[Dialect, TextClause] = _daily("reviewed_at", "status = 'rejected' AND ")
 
 
-def confidence_distribution_sql(buckets: list[tuple[float, str]], dialect: str) -> TextClause:
+def confidence_distribution_sql(buckets: list[tuple[float, str]], dialect: Dialect) -> TextClause:
     """Build the approved-unit confidence-distribution query for one dialect.
 
     ``buckets`` is ``(exclusive upper bound, label)`` ordered low-to-high; the
     last entry is the ``inf`` catch-all (its bound is ignored, its label is the
-    ``ELSE``). The bounds/labels are interpolated into the SQL, so callers must
-    pass only the trusted literal bucket list defined in the repo.
+    ``ELSE``).
+
+    NOTE: bucket labels are interpolated into single-quoted SQL literals; they
+    are escaped via ``_sql_str_literal`` so a stray quote can't break out, but
+    the numeric bounds are interpolated unescaped and callers must keep passing
+    trusted literals there.
 
     COALESCE to 0.5 mirrors the ``Evidence.confidence`` default, so a row whose
     JSON omits the field buckets identically instead of hitting the catch-all.
@@ -155,9 +186,9 @@ def confidence_distribution_sql(buckets: list[tuple[float, str]], dialect: str) 
         "postgresql": "(data::jsonb #>> '{evidence,confidence}')::numeric",
     }[dialect]
     alias = " AS sub" if dialect == "postgresql" else ""
-    whens = " ".join(f"WHEN confidence < {bound} THEN '{label}'" for bound, label in buckets[:-1])
+    whens = " ".join(f"WHEN confidence < {bound} THEN '{_sql_str_literal(label)}'" for bound, label in buckets[:-1])
     return text(
-        f"SELECT CASE {whens} ELSE '{buckets[-1][1]}' END AS bucket, COUNT(*) AS cnt "
+        f"SELECT CASE {whens} ELSE '{_sql_str_literal(buckets[-1][1])}' END AS bucket, COUNT(*) AS cnt "
         f"FROM (SELECT COALESCE({extract}, 0.5) AS confidence "
         f"FROM knowledge_units WHERE status = 'approved'){alias} "
         "GROUP BY bucket"
