@@ -5,7 +5,7 @@ PostgreSQL. The repository classes in this package compose these helpers
 for the boring queries. The few statements that diverge by dialect are
 kept as ``{"sqlite": ..., "postgresql": ...}`` dicts (here and in the
 repos) and resolved once from ``engine.dialect.name`` in each repo's
-``__init__`` — there is no per-dialect ``Store`` class.
+``__init__``.
 
 The module is pure: no engine, no connection, no metadata. Statements are
 either:
@@ -18,13 +18,10 @@ either:
 
 Callers bind named parameters at execute time. Out of scope here:
 PRAGMAs, ``pg_advisory_lock``, vector (sqlite-vec / pgvector), full-text
-(FTS5 / ``tsvector``). Those live in their respective concrete stores.
+(FTS5 / ``tsvector``).
 
-``daily_counts`` filters by a Python-computed ``:cutoff`` ISO date string,
-but the day-truncation half is dialect-specific: PostgreSQL has no
-``date(text)`` overload, so the daily-count helpers below are keyed by
-dialect (``date(<textcol>)`` on SQLite; ``to_char(<textcol>::timestamptz,
-'YYYY-MM-DD')`` on PostgreSQL). See ``_daily`` for detail.
+``daily_counts`` day-truncation is dialect-specific; see ``_daily`` and the
+comment above it.
 """
 
 from __future__ import annotations
@@ -35,8 +32,7 @@ from sqlalchemy import bindparam
 from sqlalchemy.sql.expression import TextClause, text
 
 # The closed set of SQL dialects cq's queries support. Modelled as a type so the
-# dialect-keyed dicts and builders below are exhaustive by construction rather
-# than "safe because these are the only values we pass".
+# dialect-keyed dicts and builders below are exhaustive by construction.
 Dialect = Literal["sqlite", "postgresql"]
 
 
@@ -143,8 +139,8 @@ def _daily(column: Literal["created_at", "reviewed_at"], status_clause: str) -> 
     """Build the dialect-keyed daily-count query for one timestamp column.
 
     NOTE: ``status_clause`` is interpolated into the SQL text unescaped; callers
-    must pass only trusted literal column names/clauses, never user input.
-    ``column`` is type-constrained to the two timestamp columns.
+    must pass only a trusted literal clause here, never user input. ``column`` is
+    type-constrained to the two timestamp columns.
     """
     return {
         "sqlite": text(
