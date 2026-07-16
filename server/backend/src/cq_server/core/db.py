@@ -52,8 +52,8 @@ class Database:
 
         SQLite URLs get a live engine with cq's required PRAGMAs. The
         canonical ``postgresql+psycopg://`` URL gets a UTC-pinned engine
-        with env-configurable pool sizing (and fails fast if semantic
-        search is enabled, which has no PG backend yet). Other PostgreSQL
+        (and fails fast if semantic search is enabled, which has no PG
+        backend yet). Other PostgreSQL
         driver suffixes are rejected with a message naming the canonical
         driver. Anything else raises ``ValueError``.
         """
@@ -88,8 +88,6 @@ class Database:
                 # Force UTC so ``to_char(col::timestamptz, ...)`` renders in UTC,
                 # matching SQLite's ``date()`` on ISO strings.
                 connect_args={"options": "-c timezone=utc", "connect_timeout": 10},
-                pool_size=settings.db_pool_size,
-                max_overflow=settings.db_max_overflow,
                 pool_pre_ping=True,
                 future=True,
             )

@@ -159,10 +159,15 @@ def pg_url() -> Iterator[str]:
         return
 
     testcontainers = pytest.importorskip("testcontainers.postgres")
+    from docker.errors import DockerException  # docker is a testcontainers dependency
+
     try:
         container = testcontainers.PostgresContainer("postgres:16-alpine", driver="psycopg")
         container.start()
-    except Exception as exc:  # noqa: BLE001 — Docker missing/unreachable
+    except DockerException as exc:
+        # Skip only when the Docker daemon itself is unreachable; other errors
+        # (image pull, port conflict, OOM) surface as real failures rather than
+        # a green suite that silently ran nothing.
         pytest.skip(f"PostgreSQL unavailable (set CQ_TEST_DATABASE_URL or start Docker): {exc}")
     try:
         url = container.get_connection_url()

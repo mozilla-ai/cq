@@ -29,6 +29,7 @@ from ._queries import (
     SELECT_TOTAL_COUNT,
     UPDATE_UNIT_DATA,
     confidence_distribution_sql,
+    resolve_dialect,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,8 @@ class KnowledgeRepository:
     def __init__(self, db: Database) -> None:
         """Wire the repository to the shared ``Database``."""
         self._db = db
-        self._confidence_distribution_stmt = confidence_distribution_sql(_CONFIDENCE_BUCKETS, db.engine.dialect.name)
+        dialect = resolve_dialect(db.engine.dialect.name)
+        self._confidence_distribution_stmt = confidence_distribution_sql(_CONFIDENCE_BUCKETS, dialect)
 
     async def count(self) -> int:
         """Return the total number of stored units across all review statuses."""

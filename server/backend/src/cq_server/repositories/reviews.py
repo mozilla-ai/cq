@@ -19,6 +19,7 @@ from ._queries import (
     SELECT_REVIEW_STATUS_BY_ID,
     UPDATE_REVIEW_STATUS,
     confidence_distribution_sql,
+    resolve_dialect,
     select_list_units,
 )
 
@@ -40,7 +41,7 @@ class ReviewRepository:
     def __init__(self, db: Database) -> None:
         """Wire the repository to the shared ``Database``."""
         self._db = db
-        dialect = db.engine.dialect.name
+        dialect = resolve_dialect(db.engine.dialect.name)
         self._confidence_distribution_stmt = confidence_distribution_sql(_CONFIDENCE_BUCKETS, dialect)
         self._proposed_daily_stmt = SELECT_PROPOSED_DAILY[dialect]
         self._approved_daily_stmt = SELECT_APPROVED_DAILY[dialect]
