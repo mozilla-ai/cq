@@ -11,15 +11,18 @@ the old ``Store`` while delegating to the new repositories.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+import os
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import text
 
 from cq_server.core.config import Settings
 from cq_server.core.db import Database
+from cq_server.migrations import run_migrations
 from cq_server.repositories import (
     APIKeyRepository,
     KnowledgeRepository,
@@ -56,6 +59,15 @@ def _build_settings(db_path: Path) -> Settings:
         api_key_pepper="test-pepper",  # pragma: allowlist secret
         database_url=f"sqlite:///{db_path}",
         db_path=db_path,
+    )
+
+
+def _build_pg_settings(url: str) -> Settings:
+    """Create a Settings instance pointed at the PostgreSQL container URL."""
+    return Settings(  # type: ignore[call-arg]
+        jwt_secret="test-jwt-secret",  # pragma: allowlist secret
+        api_key_pepper="test-pepper",  # pragma: allowlist secret
+        database_url=url,
     )
 
 
@@ -123,6 +135,66 @@ async def reviews_repo(repos: _RepoBundle) -> ReviewRepository:
         ReviewRepository: The review repository instance from the provided bundle.
     """
     return repos.reviews
+
+
+@pytest.fixture(scope="session")
+def pg_url() -> Iterator[str]:
+    """Yield a PostgreSQL psycopg URL for the PG suite, migrated once per session.
+
+    If ``CQ_TEST_DATABASE_URL`` is set, use it and do no provisioning here —
+    this is how CI (a ``services:`` Postgres) and any ``make`` target hand us a
+    ready database, keeping infra setup out of the test code. Otherwise spin a
+    session-scoped testcontainer so local runs work with just Docker present,
+    skipping cleanly when Docker is unavailable.
+
+    Per-test isolation is handled by ``pg_repos`` truncating between tests.
+    Not safe under ``pytest-xdist``: the database is shared session-wide, so a
+    ``pg_repos`` TRUNCATE in one worker would clobber another worker's in-flight
+    data. Give each xdist worker its own database before enabling parallel runs.
+    """
+    injected = os.getenv("CQ_TEST_DATABASE_URL")
+    if injected:
+        run_migrations(injected)
+        yield injected
+        return
+
+    testcontainers = pytest.importorskip("testcontainers.postgres")
+    from docker.errors import DockerException  # docker is a testcontainers dependency
+
+    try:
+        container = testcontainers.PostgresContainer("postgres:16-alpine", driver="psycopg")
+        container.start()
+    except DockerException as exc:
+        # Skip only when the Docker daemon itself is unreachable; other errors
+        # (image pull, port conflict, OOM) surface as real failures rather than
+        # a green suite that silently ran nothing.
+        pytest.skip(f"PostgreSQL unavailable (set CQ_TEST_DATABASE_URL or start Docker): {exc}")
+    try:
+        url = container.get_connection_url()
+        run_migrations(url)
+        yield url
+    finally:
+        container.stop()
+
+
+@pytest_asyncio.fixture
+async def pg_repos(pg_url: str, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[_RepoBundle]:
+    """Yield repositories wired to the PostgreSQL container, cleaned per test."""
+    # These tests don't exercise semantic search; disable it so the PG suite
+    # runs even when CI sets TOKEN_EMBEDDING_URL (which would otherwise trip
+    # Database's semsearch-on-PG fail-fast guard *and* make the insert/query
+    # paths run sqlite-vec SQL against PG). Each module imported its own
+    # ``_SEMSEARCH_ENABLED`` binding, so both must be patched.
+    monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", False)
+    monkeypatch.setattr("cq_server.repositories.knowledge._SEMSEARCH_ENABLED", False)
+    db = Database(_build_pg_settings(pg_url))
+    with db.engine.begin() as conn:
+        conn.execute(text("TRUNCATE knowledge_units, knowledge_unit_domains, api_keys, users RESTART IDENTITY CASCADE"))
+    bundle = _RepoBundle(db)
+    try:
+        yield bundle
+    finally:
+        await bundle.close()
 
 
 @pytest_asyncio.fixture

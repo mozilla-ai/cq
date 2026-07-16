@@ -392,7 +392,7 @@ def _backdate(engine: Engine, *, column: str, unit_id: str, when: datetime) -> N
 
 
 class TestDailyCounts:
-    """Cutoff is computed in Python per RFC #275."""
+    """Cutoff is computed in Python, not in SQL."""
 
     async def test_proposed_daily(self, db: tuple[_RepoBundle, Engine]) -> None:
         store, engine = db
@@ -404,7 +404,7 @@ class TestDailyCounts:
         _backdate(engine, column="created_at", unit_id=u_old.id, when=now - timedelta(days=60))
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
-            rows = conn.execute(q.SELECT_PROPOSED_DAILY, {"cutoff": cutoff}).fetchall()
+            rows = conn.execute(q.SELECT_PROPOSED_DAILY["sqlite"], {"cutoff": cutoff}).fetchall()
         # u_old is older than the cutoff and excluded.
         assert sum(row[1] for row in rows) == 1
 
@@ -416,7 +416,7 @@ class TestDailyCounts:
         await store.set_review_status(u.id, "approved", "rev")
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
-            rows = conn.execute(q.SELECT_APPROVED_DAILY, {"cutoff": cutoff}).fetchall()
+            rows = conn.execute(q.SELECT_APPROVED_DAILY["sqlite"], {"cutoff": cutoff}).fetchall()
         assert sum(row[1] for row in rows) == 1
 
     async def test_rejected_daily_excludes_old(self, db: tuple[_RepoBundle, Engine]) -> None:
@@ -428,7 +428,7 @@ class TestDailyCounts:
         _backdate(engine, column="reviewed_at", unit_id=u.id, when=now - timedelta(days=60))
         cutoff = (now - timedelta(days=30)).date().isoformat()
         with engine.connect() as conn:
-            rows = conn.execute(q.SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()
+            rows = conn.execute(q.SELECT_REJECTED_DAILY["sqlite"], {"cutoff": cutoff}).fetchall()
         assert rows == []
 
     async def test_daily_helpers_match_store(self, db: tuple[_RepoBundle, Engine]) -> None:
@@ -460,9 +460,9 @@ class TestDailyCounts:
         days = 30
         cutoff = (now - timedelta(days=days)).date().isoformat()
         with engine.connect() as conn:
-            proposed_rows = conn.execute(q.SELECT_PROPOSED_DAILY, {"cutoff": cutoff}).fetchall()
-            approved_rows = conn.execute(q.SELECT_APPROVED_DAILY, {"cutoff": cutoff}).fetchall()
-            rejected_rows = conn.execute(q.SELECT_REJECTED_DAILY, {"cutoff": cutoff}).fetchall()
+            proposed_rows = conn.execute(q.SELECT_PROPOSED_DAILY["sqlite"], {"cutoff": cutoff}).fetchall()
+            approved_rows = conn.execute(q.SELECT_APPROVED_DAILY["sqlite"], {"cutoff": cutoff}).fetchall()
+            rejected_rows = conn.execute(q.SELECT_REJECTED_DAILY["sqlite"], {"cutoff": cutoff}).fetchall()
         proposed = {row[0]: row[1] for row in proposed_rows}
         approved = {row[0]: row[1] for row in approved_rows}
         rejected = {row[0]: row[1] for row in rejected_rows}

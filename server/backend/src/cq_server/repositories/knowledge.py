@@ -9,7 +9,6 @@ from typing import Any
 from cq.models import KnowledgeUnit
 from cq.scoring import calculate_relevance
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql.expression import TextClause, text
 
 from ..core.db import Database
 from ..semsearch import _ENABLED as _SEMSEARCH_ENABLED
@@ -29,6 +28,8 @@ from ._queries import (
     SELECT_QUERY_UNITS,
     SELECT_TOTAL_COUNT,
     UPDATE_UNIT_DATA,
+    confidence_distribution_sql,
+    resolve_dialect,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,25 +44,10 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
     (float("inf"), "0.7-1.0"),
 ]
 
-# Bucket approved units by their persisted confidence in SQL rather than
-# parsing every unit into a model to read one float. The CASE thresholds must
-# stay in lockstep with `_CONFIDENCE_BUCKETS` above. COALESCE to 0.5 mirrors
-# the Evidence.confidence default that model-parsing applied, so a row whose
-# JSON omits the field buckets identically instead of falling to the catch-all.
-# SQLite-specific (`json_extract`), so it lives here rather than in the portable
-# `_queries` module; the backend is SQLite-only (see `core.db.Database`).
-_SELECT_CONFIDENCE_DISTRIBUTION: TextClause = text(
-    "SELECT "
-    "CASE "
-    "WHEN confidence < 0.3 THEN '0.0-0.3' "
-    "WHEN confidence < 0.5 THEN '0.3-0.5' "
-    "WHEN confidence < 0.7 THEN '0.5-0.7' "
-    "ELSE '0.7-1.0' "
-    "END AS bucket, COUNT(*) AS cnt "
-    "FROM (SELECT COALESCE(json_extract(data, '$.evidence.confidence'), 0.5) AS confidence "
-    "FROM knowledge_units WHERE status = 'approved') "
-    "GROUP BY bucket"
-)
+# Bucket approved units by their persisted confidence in SQL (built from the
+# single `_CONFIDENCE_BUCKETS` source above) rather than parsing every unit
+# into a model to read one float. See `confidence_distribution_sql` for the
+# dialect handling; resolved once per repo from the engine dialect in `__init__`.
 
 
 class KnowledgeRepository:
@@ -70,6 +56,8 @@ class KnowledgeRepository:
     def __init__(self, db: Database) -> None:
         """Wire the repository to the shared ``Database``."""
         self._db = db
+        dialect = resolve_dialect(db.engine.dialect.name)
+        self._confidence_distribution_stmt = confidence_distribution_sql(_CONFIDENCE_BUCKETS, dialect)
 
     async def count(self) -> int:
         """Return the total number of stored units across all review statuses."""
@@ -188,7 +176,7 @@ class KnowledgeRepository:
         # returns rows for buckets that have at least one approved unit.
         buckets = {label: 0 for _, label in _CONFIDENCE_BUCKETS}
         with self._db.engine.connect() as conn:
-            rows = conn.execute(_SELECT_CONFIDENCE_DISTRIBUTION).fetchall()
+            rows = conn.execute(self._confidence_distribution_stmt).fetchall()
         for label, count in rows:
             buckets[label] = count
         return buckets

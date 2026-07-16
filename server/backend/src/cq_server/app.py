@@ -33,12 +33,12 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
     # ``Settings`` raises a ValidationError if either secret is unset, so
     # the lifespan fails fast with a clear message instead of crashing
     # later at first request.
-    # Fields populated from CQ_* env vars; the static type checker can't see that.
-    settings = Settings()  # ty: ignore[missing-argument]
+    settings = Settings()
     # Single URL feeds both the database wrapper and the migration runner,
     # so they can't diverge on which database they target. Build the
-    # ``Database`` first so a Postgres URL surfaces ``NotImplementedError``
-    # (#312) instead of failing inside Alembic with a cryptic driver error.
+    # ``Database`` first so an unsupported URL (bad scheme, non-canonical
+    # PG driver, or semantic-search-on-PG) fails fast here with a clear
+    # message instead of failing inside Alembic with a cryptic driver error.
     database = Database(settings)
     # Close the database if migrations fail — otherwise its engine and
     # SQLite file handle leak across in-process lifespan re-entries

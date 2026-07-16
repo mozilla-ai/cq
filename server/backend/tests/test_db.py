@@ -17,15 +17,16 @@ def _settings_with_url(monkeypatch: pytest.MonkeyPatch, url: str) -> Settings:
 class TestPostgresUrlDispatch:
     """URL dispatch for PostgreSQL drivers in ``Database.__init__``."""
 
-    def test_psycopg_url_raises_not_implemented_with_guidance(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_psycopg_url_builds_postgres_engine(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # ``create_engine`` is lazy — no connection is opened here, so this
+        # runs without a live PostgreSQL.
+        monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", False)
         settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")
-        with pytest.raises(NotImplementedError) as exc:
-            Database(settings)
-        message = str(exc.value)
-        assert "#312" in message
-        # #311 is closing with this change; the message should only
-        # reference the implementation issue.
-        assert "#311" not in message
+        db = Database(settings)
+        try:
+            assert db.engine.dialect.name == "postgresql"
+        finally:
+            db.engine.dispose()
 
     @pytest.mark.parametrize(
         "url",
@@ -42,11 +43,16 @@ class TestPostgresUrlDispatch:
         with pytest.raises(NotImplementedError) as exc:
             Database(settings)
         message = str(exc.value)
-        assert "#312" in message
         # The message must steer to the canonical driver, not just echo
-        # the URL.  "use postgresql+psycopg://" is unique to the
+        # the URL.  "use ... postgresql+psycopg://" is unique to the
         # non-canonical branch — it won't match a psycopg2 URL repr.
-        assert "use postgresql+psycopg://" in message
+        assert "postgresql+psycopg://" in message
+
+    def test_semsearch_enabled_on_postgres_fails_fast(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("cq_server.core.db._SEMSEARCH_ENABLED", True)
+        settings = _settings_with_url(monkeypatch, "postgresql+psycopg://u:p@h/d")
+        with pytest.raises(RuntimeError, match="semantic search is not yet supported on the PostgreSQL backend"):
+            Database(settings)
 
     def test_unsupported_scheme_raises_value_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         settings = _settings_with_url(monkeypatch, "mysql://u:p@h/d")
