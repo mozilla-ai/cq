@@ -32,21 +32,21 @@ repos:
 
       - id: ty-check-schema-python
         name: ty (schema/python)
-        entry: bash -c 'cd schema/python && uvx ty check src/cq_schema --python .venv'
+        entry: bash -c 'cd schema/python && uv run --locked ty check src/cq_schema --python .venv'
         language: system
         pass_filenames: false
         types: [python]
         files: ^schema/python/
       - id: ty-check-sdk-python
         name: ty (sdk/python)
-        entry: bash -c 'cd sdk/python && uvx ty check src/cq --python .venv'
+        entry: bash -c 'cd sdk/python && uv run --locked ty check src/cq --python .venv'
         language: system
         pass_filenames: false
         types: [python]
         files: ^sdk/python/
       - id: ty-check-server-backend
         name: ty (server/backend)
-        entry: bash -c 'cd server/backend && uvx ty check src/cq_server --python .venv'
+        entry: bash -c 'cd server/backend && uv run --locked ty check src/cq_server --python .venv'
         language: system
         pass_filenames: false
         types: [python]
