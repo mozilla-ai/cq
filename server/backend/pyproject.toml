@@ -39,6 +39,7 @@ dev = [
 lint = [
     "pre-commit>=4.5.1",
     "ruff>=0.15.4",
+    "ty>=0.0.59",
 ]
 
 tests = [
