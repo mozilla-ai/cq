@@ -9,6 +9,8 @@ emerges through dialogue rather than one-way output, and **CQ**, a radio call si
 open invitation, response, and collective signal built through interaction. Both capture the same idea: agents broadcasting
 what they've learned and listening for what others already know.
 
+For the full documentation, visit [docs.mozilla.ai/cq](https://docs.mozilla.ai/cq).
+
 ## Installation
 
 Install the [cq CLI](cli/README.md#installation) (via Homebrew, Scoop, or GitHub Releases), then install into your coding agent:
