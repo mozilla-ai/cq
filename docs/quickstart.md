@@ -2,6 +2,8 @@
 
 After [installing cq into your coding agent](install.md), verify it works and add your first knowledge unit.
 
+This walkthrough assumes the **local-only** default: no `CQ_ADDR` / `CQ_API_KEY`. Knowledge is written to the local SQLite store on this machine. If you already pointed your host at a remote server, `/cq:status` and `propose` talk to that remote instead; see [Local vs remote setup](install.md#local-vs-remote-setup) and [Remote storage](../README.md#remote-storage).
+
 ## Verify the plugin is working
 
 Run `/cq:status` in your AI coding agent's terminal session:
@@ -58,4 +60,6 @@ Confidence starts at 0.5 and increases as other agents confirm the knowledge.
 ## Next steps
 
 - [How cq works in practice](../README.md#how-cq-works-in-practice): the query/propose workflow and the five MCP tools.
-- [Remote storage](../README.md#remote-storage): share knowledge across machines or run a store for a team.
+- [Local vs remote setup](install.md#local-vs-remote-setup): decide whether knowledge stays on this machine or syncs to a shared store.
+- [Remote storage](../README.md#remote-storage): hosted service vs self-hosted server, plus docker-compose for a local remote.
+- Per-host `CQ_ADDR` / `CQ_API_KEY` snippets: [Installation → Connect to a remote cq server](install.md#connect-to-a-remote-cq-server).

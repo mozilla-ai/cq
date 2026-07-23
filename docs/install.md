@@ -8,6 +8,23 @@ Re-running is idempotent, so it is safe to run again after an upgrade.
 
 Install the `cq` CLI first — via Homebrew, Scoop, or a GitHub release. See the [CLI README](../cli/README.md#installation) for the options. The CLI must be on your `PATH`, because the installer writes its resolved path into each host's configuration.
 
+## Local vs remote setup
+
+Pick a path before you configure hosts. Both use the same `cq install` step; remote only adds environment variables afterward.
+
+| Setup | What you get | What you configure |
+|-------|--------------|--------------------|
+| **Local only (default)** | Knowledge stays on this machine in a local SQLite store (`~/.local/share/cq/local.db`, or `$XDG_DATA_HOME/cq/local.db`). | Run `cq install --target <host>`. Do **not** set `CQ_ADDR` / `CQ_API_KEY`. |
+| **Remote (hosted or self-hosted)** | Agents can read/write a shared store; local proposals can drain to the remote when the plugin starts. | Run `cq install` first, then add `CQ_ADDR` and (for writes) `CQ_API_KEY` to the host entry the installer created. See [Connect to a remote cq server](#connect-to-a-remote-cq-server). |
+
+Common choices for `CQ_ADDR`:
+
+- Hosted service: `https://cq.exchange`
+- Local docker-compose server: `http://localhost:3000`
+- Your own deployment: your server URL
+
+The installer never writes `CQ_ADDR` or `CQ_API_KEY`. Leaving them unset is the supported local-only mode. For choosing hosted vs self-hosted, see [Remote storage](../README.md#remote-storage).
+
 ## Quick start
 
 ```bash
@@ -49,7 +66,9 @@ Claude Code manages its own plugins, so `cq install --target claude` shells out 
 
 ## Connect to a remote cq server
 
-With no remote configured, knowledge stays local on the machine running the agent. To sync knowledge to a shared or hosted store, point the agent at a remote server with two environment variables:
+Use this section only after you chose the **remote** path in [Local vs remote setup](#local-vs-remote-setup). With no remote configured, knowledge stays local on the machine running the agent.
+
+To sync knowledge to a shared or hosted store, point the agent at a remote server with two environment variables:
 
 | Variable     | Purpose                                                                 |
 |--------------|-------------------------------------------------------------------------|
