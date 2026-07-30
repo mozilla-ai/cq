@@ -38,6 +38,12 @@ def test_load_schema_bytes_matches_load_schema(name: str) -> None:
     assert json.loads(raw) == parsed
 
 
+@pytest.mark.parametrize("name", SCHEMA_NAMES)
+def test_bundled_schema_matches_canonical(name: str) -> None:
+    canonical = Path(__file__).resolve().parent.parent.parent / f"{name}.json"
+    assert cq_schema.load_schema(name) == json.loads(canonical.read_text(encoding="utf-8"))
+
+
 def test_load_schema_missing_raises() -> None:
     with pytest.raises(FileNotFoundError):
         cq_schema.load_schema("does_not_exist")
@@ -81,6 +87,29 @@ def test_schema_limits_match_schema() -> None:
     assert properties["domains"]["maxItems"] == cq_schema.DOMAINS_MAX_ITEMS
     assert context["languages"]["maxItems"] == cq_schema.LANGUAGES_MAX_ITEMS
     assert context["frameworks"]["maxItems"] == cq_schema.FRAMEWORKS_MAX_ITEMS
+
+
+def test_request_schemas_mirror_knowledge_unit_bounds() -> None:
+    ku = cq_schema.load_schema("knowledge_unit")
+    ku_props = ku["properties"]
+    ku_context = ku["$defs"]["Context"]["properties"]
+    ku_flag = ku["$defs"]["Flag"]["properties"]
+
+    for schema_name in ("propose", "query"):
+        domains = cq_schema.load_schema(schema_name)["properties"]["domains"]
+        assert domains["items"]["maxLength"] == ku_props["domains"]["items"]["maxLength"]
+        assert domains["maxItems"] == ku_props["domains"]["maxItems"]
+
+    propose = cq_schema.load_schema("propose")
+    assert propose["properties"]["created_by"]["maxLength"] == ku_props["created_by"]["maxLength"]
+
+    query = cq_schema.load_schema("query")
+    for field in ("languages", "frameworks"):
+        assert query["properties"][field]["items"]["maxLength"] == ku_context[field]["items"]["maxLength"]
+        assert query["properties"][field]["maxItems"] == ku_context[field]["maxItems"]
+
+    flag = cq_schema.load_schema("flag")
+    assert flag["properties"]["detail"]["maxLength"] == ku_flag["detail"]["maxLength"]
 
 
 def test_scoring_values_validates_against_scoring_schema() -> None:
