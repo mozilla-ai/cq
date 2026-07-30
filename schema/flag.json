@@ -14,6 +14,7 @@
     "reason": { "$ref": "knowledge_unit.json#/$defs/FlagReason" },
     "detail": {
       "type": "string",
+      "maxLength": 1000,
       "description": "Optional explanation when flagging. Server-side only; never returned to querying agents."
     },
     "duplicate_of": {

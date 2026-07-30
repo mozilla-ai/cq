@@ -8,8 +8,9 @@
   "properties": {
     "domains": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "maxLength": 64 },
       "minItems": 1,
+      "maxItems": 16,
       "description": "At least one domain is required."
     },
     "insight": { "$ref": "knowledge_unit.json#/$defs/Insight" },
@@ -17,6 +18,7 @@
     "extensions": { "$ref": "knowledge_unit.json#/$defs/Extensions" },
     "created_by": {
       "type": "string",
+      "maxLength": 256,
       "description": "Identifier of the agent or user proposing this unit."
     }
   },

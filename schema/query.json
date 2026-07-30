@@ -8,18 +8,21 @@
   "properties": {
     "domains": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "maxLength": 64 },
       "minItems": 1,
+      "maxItems": 16,
       "description": "At least one domain is required."
     },
     "languages": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "maxLength": 64 },
+      "maxItems": 16,
       "description": "Filter by programming languages."
     },
     "frameworks": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "maxLength": 64 },
+      "maxItems": 16,
       "description": "Filter by frameworks."
     },
     "limit": {

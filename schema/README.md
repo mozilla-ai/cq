@@ -19,12 +19,12 @@ A single unit of shared agent knowledge. This is the core data type; other schem
 |-------|------|----------|-------------|
 | `id` | string (`ku_<32 hex>`) | yes | Prefixed UUID. |
 | `version` | integer (>= 1) | no | Schema version; server assumes 1 when unset. |
-| `domains` | string[] (>= 1) | yes | At least one domain tag is required. |
+| `domains` | string[] (>= 1, <= 16 items, <= 64 chars each) | yes | At least one domain tag is required. |
 | `insight` | Insight | yes | Tripartite insight: what happened, why it matters, what to do. |
 | `context` | Context | no | Language, framework, and pattern context. |
 | `evidence` | Evidence | no | Confidence and confirmation metrics. |
 | `tier` | `"local"` \| `"private"` \| `"public"` | no | Storage tier. |
-| `created_by` | string | no | Identifier of the agent or user that created this unit. |
+| `created_by` | string (<= 256 chars) | no | Identifier of the agent or user that created this unit. |
 | `superseded_by` | string (`ku_<32 hex>`) | no | ID of the replacing knowledge unit, if any. |
 | `extensions` | Extensions | no | Implementation-specific namespaced fields; not portable across implementations. |
 | `flags` | Flag[] | no | Recorded flags against this unit. |
@@ -35,17 +35,17 @@ A single unit of shared agent knowledge. This is the core data type; other schem
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `summary` | string | yes | What happened. |
-| `detail` | string | yes | Why it matters. |
-| `action` | string | yes | What to do. |
+| `summary` | string (<= 500 chars) | yes | What happened. |
+| `detail` | string (<= 8000 chars) | yes | Why it matters. |
+| `action` | string (<= 2000 chars) | yes | What to do. |
 
 **Context** — language, framework, and pattern metadata.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `languages` | string[] | no | Programming languages. |
-| `frameworks` | string[] | no | Frameworks. |
-| `pattern` | string | no | Reusable cross-cutting pattern. |
+| `languages` | string[] (<= 16 items, <= 64 chars each) | no | Programming languages. |
+| `frameworks` | string[] (<= 16 items, <= 64 chars each) | no | Frameworks. |
+| `pattern` | string (<= 200 chars) | no | Reusable cross-cutting pattern. |
 
 **Extensions** — implementation-specific fields carried under namespaced keys, not portable across implementations. See the `Extensions` definition in `knowledge_unit.json` for the normative producer and consumer rules.
 
@@ -64,7 +64,7 @@ A single unit of shared agent knowledge. This is the core data type; other schem
 |-------|------|----------|-------------|
 | `reason` | `"stale"` \| `"incorrect"` \| `"duplicate"` | yes | Why the unit was flagged. |
 | `timestamp` | date-time | no | When the flag was recorded. |
-| `detail` | string | no | Optional explanation. Server-side only; never returned to querying agents. |
+| `detail` | string (<= 1000 chars) | no | Optional explanation. Server-side only; never returned to querying agents. |
 | `duplicate_of` | string (`ku_<32 hex>`) | conditional | Required when reason is `duplicate`. |
 
 ---
@@ -77,9 +77,9 @@ Query parameters for searching knowledge units.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `domains` | string[] (>= 1) | yes | At least one domain is required. |
-| `languages` | string[] | no | Filter by programming languages. |
-| `frameworks` | string[] | no | Filter by frameworks. |
+| `domains` | string[] (>= 1, <= 16 items, <= 64 chars each) | yes | At least one domain is required. |
+| `languages` | string[] (<= 16 items, <= 64 chars each) | no | Filter by programming languages. |
+| `frameworks` | string[] (<= 16 items, <= 64 chars each) | no | Filter by frameworks. |
 | `limit` | integer (1 -- 50) | no | Maximum results; default 5, server caps at 50. |
 
 ---
@@ -92,11 +92,11 @@ Request to propose a new knowledge unit.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `domains` | string[] (>= 1) | yes | At least one domain is required. |
+| `domains` | string[] (>= 1, <= 16 items, <= 64 chars each) | yes | At least one domain is required. |
 | `insight` | Insight | yes | Tripartite insight (defined in knowledge_unit.json). |
 | `context` | Context | no | Language, framework, and pattern context. |
 | `extensions` | Extensions | no | Implementation-specific namespaced fields (defined in knowledge_unit.json). |
-| `created_by` | string | no | Identifier of the proposing agent or user. |
+| `created_by` | string (<= 256 chars) | no | Identifier of the proposing agent or user. |
 
 ---
 
@@ -122,7 +122,7 @@ Request to flag a knowledge unit.
 |-------|------|----------|-------------|
 | `unit_id` | string (`ku_<32 hex>`) | yes | ID of the knowledge unit to flag. |
 | `reason` | `"stale"` \| `"incorrect"` \| `"duplicate"` | yes | Why the unit is being flagged. |
-| `detail` | string | no | Optional explanation. Server-side only; never returned to querying agents. |
+| `detail` | string (<= 1000 chars) | no | Optional explanation. Server-side only; never returned to querying agents. |
 | `duplicate_of` | string (`ku_<32 hex>`) | conditional | Required when reason is `duplicate`. |
 
 ---

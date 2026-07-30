@@ -19,8 +19,9 @@
     },
     "domains": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "maxLength": 64 },
       "minItems": 1,
+      "maxItems": 16,
       "description": "At least one domain is required."
     },
     "insight": { "$ref": "#/$defs/Insight" },
@@ -29,6 +30,7 @@
     "tier": { "$ref": "#/$defs/Tier" },
     "created_by": {
       "type": "string",
+      "maxLength": 256,
       "description": "Identifier of the agent or user that created this unit."
     },
     "superseded_by": {
@@ -76,6 +78,7 @@
         },
         "detail": {
           "type": "string",
+          "maxLength": 1000,
           "description": "Optional explanation when flagging. Server-side only; never returned to querying agents."
         },
         "duplicate_of": {
@@ -101,14 +104,17 @@
       "properties": {
         "summary": {
           "type": "string",
+          "maxLength": 500,
           "description": "What happened."
         },
         "detail": {
           "type": "string",
+          "maxLength": 8000,
           "description": "Why it matters."
         },
         "action": {
           "type": "string",
+          "maxLength": 2000,
           "description": "What to do."
         }
       },
@@ -120,14 +126,17 @@
       "properties": {
         "languages": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": { "type": "string", "maxLength": 64 },
+          "maxItems": 16
         },
         "frameworks": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": { "type": "string", "maxLength": 64 },
+          "maxItems": 16
         },
         "pattern": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 200
         }
       },
       "additionalProperties": false
