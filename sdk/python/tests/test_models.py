@@ -348,11 +348,23 @@ class TestFieldLimits:
         with pytest.raises(ValidationError):
             build(limit + 1)
 
-    def test_length_error_reports_field_limit_and_length(self) -> None:
-        over = DETAIL_MAX_LENGTH + 1
+    @pytest.mark.parametrize(
+        ("field", "limit", "build"),
+        [
+            ("summary", SUMMARY_MAX_LENGTH, lambda v: Insight(summary=v, detail="d", action="a")),
+            ("pattern", PATTERN_MAX_LENGTH, lambda v: Context(pattern=v)),
+            ("domains", DOMAIN_MAX_LENGTH, lambda v: _make_unit(domains=[v])),
+            ("created_by", CREATED_BY_MAX_LENGTH, lambda v: _make_unit(created_by=v)),
+            ("detail", FLAG_DETAIL_MAX_LENGTH, lambda v: Flag(reason=FlagReason.STALE, detail=v)),
+        ],
+    )
+    def test_error_message_names_field_limit_and_length(
+        self, field: str, limit: int, build: Callable[[str], object]
+    ) -> None:
+        over = limit + 1
         with pytest.raises(ValidationError) as exc:
-            Insight(summary="s", detail="x" * over, action="a")
+            build("x" * over)
         message = str(exc.value)
-        assert "detail" in message
-        assert str(DETAIL_MAX_LENGTH) in message
+        assert field in message
+        assert str(limit) in message
         assert str(over) in message
