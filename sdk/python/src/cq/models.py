@@ -4,15 +4,52 @@ import re
 import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from cq_schema import (
+    ACTION_MAX_LENGTH,
+    CREATED_BY_MAX_LENGTH,
+    DETAIL_MAX_LENGTH,
+    DOMAIN_MAX_LENGTH,
+    DOMAINS_MAX_ITEMS,
+    FLAG_DETAIL_MAX_LENGTH,
+    FRAMEWORK_MAX_LENGTH,
+    FRAMEWORKS_MAX_ITEMS,
+    LANGUAGE_MAX_LENGTH,
+    LANGUAGES_MAX_ITEMS,
+    PATTERN_MAX_LENGTH,
+    SUMMARY_MAX_LENGTH,
+)
+from pydantic import AfterValidator, BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from ._util import _as_list
 
 _KU_ID_PREFIX = "ku_"
 _KU_ID_PATTERN = re.compile(r"^ku_[0-9a-f]{32}$")
 _EXTENSION_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*:\S+$")
+
+
+def _max_length(limit: int) -> AfterValidator:
+    """Return a validator rejecting strings longer than limit, naming the field, limit, and actual length."""
+
+    def _validate(value: str, info: ValidationInfo) -> str:
+        if len(value) > limit:
+            name = info.field_name or "value"
+            raise ValueError(f"{name} must be at most {limit} characters, got {len(value)}")
+        return value
+
+    return AfterValidator(_validate)
+
+
+_Summary = Annotated[str, _max_length(SUMMARY_MAX_LENGTH)]
+_Detail = Annotated[str, _max_length(DETAIL_MAX_LENGTH)]
+_Action = Annotated[str, _max_length(ACTION_MAX_LENGTH)]
+_Domain = Annotated[str, _max_length(DOMAIN_MAX_LENGTH)]
+_Language = Annotated[str, _max_length(LANGUAGE_MAX_LENGTH)]
+_Framework = Annotated[str, _max_length(FRAMEWORK_MAX_LENGTH)]
+_Pattern = Annotated[str, _max_length(PATTERN_MAX_LENGTH)]
+_CreatedBy = Annotated[str, _max_length(CREATED_BY_MAX_LENGTH)]
+_FlagDetail = Annotated[str, _max_length(FLAG_DETAIL_MAX_LENGTH)]
 
 
 class Tier(StrEnum):
@@ -39,7 +76,7 @@ class Flag(BaseModel):
 
     reason: FlagReason
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    detail: str | None = None
+    detail: _FlagDetail | None = None
     duplicate_of: str | None = None
 
     @model_validator(mode="after")
@@ -53,17 +90,17 @@ class Flag(BaseModel):
 class Insight(BaseModel):
     """Tripartite insight: summary, detail, and recommended action."""
 
-    summary: str
-    detail: str
-    action: str
+    summary: _Summary
+    detail: _Detail
+    action: _Action
 
 
 class Context(BaseModel):
     """Language, framework, and pattern context for a knowledge unit."""
 
-    languages: list[str] = Field(default_factory=list)
-    frameworks: list[str] = Field(default_factory=list)
-    pattern: str = ""
+    languages: list[_Language] = Field(default_factory=list, max_length=LANGUAGES_MAX_ITEMS)
+    frameworks: list[_Framework] = Field(default_factory=list, max_length=FRAMEWORKS_MAX_ITEMS)
+    pattern: _Pattern = ""
 
 
 class Evidence(BaseModel):
@@ -97,12 +134,12 @@ class KnowledgeUnit(BaseModel):
 
     id: str
     version: int = 1
-    domains: list[str] = Field(min_length=1)
+    domains: list[_Domain] = Field(min_length=1, max_length=DOMAINS_MAX_ITEMS)
     insight: Insight
     context: Context = Field(default_factory=Context)
     evidence: Evidence = Field(default_factory=Evidence)
     tier: Tier = Tier.LOCAL
-    created_by: str = ""
+    created_by: _CreatedBy = ""
     superseded_by: str | None = None
     extensions: dict[str, Any] | None = None
     flags: list[Flag] = Field(default_factory=list)
