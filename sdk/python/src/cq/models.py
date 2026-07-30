@@ -1,4 +1,11 @@
-"""Pydantic models for cq knowledge units."""
+"""Pydantic models for cq knowledge units.
+
+Every model validates on construction (and on ``model_validate``); invalid
+input raises ``pydantic.ValidationError`` — for example a free-text field over
+its maximum length, an array over its item cap, or a malformed id or extension
+key. Each failure in ``error.errors()`` carries the field location, a message,
+and the offending input.
+"""
 
 import re
 import uuid
@@ -186,7 +193,24 @@ def create_knowledge_unit(
     tier: Tier = Tier.LOCAL,
     created_by: str = "",
 ) -> KnowledgeUnit:
-    """Create a new knowledge unit with an auto-generated ID."""
+    """Create a new knowledge unit with an auto-generated ID.
+
+    Args:
+        domains: Domain tags for the unit; at least one is required.
+        insight: The tripartite insight (summary, detail, action).
+        context: Optional language, framework, and pattern context.
+        extensions: Optional implementation-specific namespaced fields.
+        tier: Storage tier; defaults to local.
+        created_by: Identifier of the creating agent or user.
+
+    Returns:
+        The validated knowledge unit.
+
+    Raises:
+        pydantic.ValidationError: If a field violates the schema, such as a
+            free-text field exceeding its maximum length, an array exceeding
+            its item cap, or a malformed extension key.
+    """
     domains = _as_list(domains)
     return KnowledgeUnit(
         id=_generate_ku_id(),
