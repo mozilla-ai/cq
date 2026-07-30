@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import jsonschema
@@ -58,6 +59,28 @@ def test_scoring_constants_match_values_file() -> None:
     assert confidence["flag_penalty"] == cq_schema.FLAG_PENALTY
     assert confidence["ceiling"] == cq_schema.CONFIDENCE_CEILING
     assert confidence["floor"] == cq_schema.CONFIDENCE_FLOOR
+
+
+def test_schema_limits_match_schema() -> None:
+    schema = cq_schema.load_schema("knowledge_unit")
+    properties = schema["properties"]
+    defs = schema["$defs"]
+    insight = defs["Insight"]["properties"]
+    context = defs["Context"]["properties"]
+    flag = defs["Flag"]["properties"]
+
+    assert insight["summary"]["maxLength"] == cq_schema.SUMMARY_MAX_LENGTH
+    assert insight["detail"]["maxLength"] == cq_schema.DETAIL_MAX_LENGTH
+    assert insight["action"]["maxLength"] == cq_schema.ACTION_MAX_LENGTH
+    assert properties["domains"]["items"]["maxLength"] == cq_schema.DOMAIN_MAX_LENGTH
+    assert properties["created_by"]["maxLength"] == cq_schema.CREATED_BY_MAX_LENGTH
+    assert context["pattern"]["maxLength"] == cq_schema.PATTERN_MAX_LENGTH
+    assert context["languages"]["items"]["maxLength"] == cq_schema.LANGUAGE_MAX_LENGTH
+    assert context["frameworks"]["items"]["maxLength"] == cq_schema.FRAMEWORK_MAX_LENGTH
+    assert flag["detail"]["maxLength"] == cq_schema.FLAG_DETAIL_MAX_LENGTH
+    assert properties["domains"]["maxItems"] == cq_schema.DOMAINS_MAX_ITEMS
+    assert context["languages"]["maxItems"] == cq_schema.LANGUAGES_MAX_ITEMS
+    assert context["frameworks"]["maxItems"] == cq_schema.FRAMEWORKS_MAX_ITEMS
 
 
 def test_scoring_values_validates_against_scoring_schema() -> None:
@@ -130,3 +153,106 @@ def test_extensions_accept_namespaced_keys() -> None:
         },
     }
     jsonschema.validate(instance=instance, schema=schema)
+
+
+_VALID_ID = "ku_00000000000000000000000000000099"
+
+
+def _unit(**fields: object) -> dict[str, object]:
+    instance: dict[str, object] = {
+        "id": _VALID_ID,
+        "domains": ["d"],
+        "insight": {"summary": "s", "detail": "d", "action": "a"},
+    }
+    instance.update(fields)
+    return instance
+
+
+def _unit_with_summary(value: str) -> dict[str, object]:
+    return _unit(insight={"summary": value, "detail": "d", "action": "a"})
+
+
+def _unit_with_detail(value: str) -> dict[str, object]:
+    return _unit(insight={"summary": "s", "detail": value, "action": "a"})
+
+
+def _unit_with_action(value: str) -> dict[str, object]:
+    return _unit(insight={"summary": "s", "detail": "d", "action": value})
+
+
+def _unit_with_domain(value: str) -> dict[str, object]:
+    return _unit(domains=[value])
+
+
+def _unit_with_created_by(value: str) -> dict[str, object]:
+    return _unit(created_by=value)
+
+
+def _unit_with_pattern(value: str) -> dict[str, object]:
+    return _unit(context={"pattern": value})
+
+
+def _unit_with_language(value: str) -> dict[str, object]:
+    return _unit(context={"languages": [value]})
+
+
+def _unit_with_framework(value: str) -> dict[str, object]:
+    return _unit(context={"frameworks": [value]})
+
+
+def _unit_with_flag_detail(value: str) -> dict[str, object]:
+    return _unit(flags=[{"reason": "stale", "detail": value}])
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "build"),
+    [
+        ("SUMMARY_MAX_LENGTH", _unit_with_summary),
+        ("DETAIL_MAX_LENGTH", _unit_with_detail),
+        ("ACTION_MAX_LENGTH", _unit_with_action),
+        ("DOMAIN_MAX_LENGTH", _unit_with_domain),
+        ("CREATED_BY_MAX_LENGTH", _unit_with_created_by),
+        ("PATTERN_MAX_LENGTH", _unit_with_pattern),
+        ("LANGUAGE_MAX_LENGTH", _unit_with_language),
+        ("FRAMEWORK_MAX_LENGTH", _unit_with_framework),
+        ("FLAG_DETAIL_MAX_LENGTH", _unit_with_flag_detail),
+    ],
+)
+def test_free_text_field_enforces_max_length(limit_name: str, build: Callable[[str], dict[str, object]]) -> None:
+    schema = cq_schema.load_schema("knowledge_unit")
+    limit = getattr(cq_schema, limit_name)
+
+    jsonschema.validate(instance=build("x" * limit), schema=schema)
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=build("x" * (limit + 1)), schema=schema)
+
+
+def _unit_with_domains(count: int) -> dict[str, object]:
+    return _unit(domains=["d"] * count)
+
+
+def _unit_with_languages(count: int) -> dict[str, object]:
+    return _unit(context={"languages": ["l"] * count})
+
+
+def _unit_with_frameworks(count: int) -> dict[str, object]:
+    return _unit(context={"frameworks": ["f"] * count})
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "build"),
+    [
+        ("DOMAINS_MAX_ITEMS", _unit_with_domains),
+        ("LANGUAGES_MAX_ITEMS", _unit_with_languages),
+        ("FRAMEWORKS_MAX_ITEMS", _unit_with_frameworks),
+    ],
+)
+def test_array_field_enforces_max_items(limit_name: str, build: Callable[[int], dict[str, object]]) -> None:
+    schema = cq_schema.load_schema("knowledge_unit")
+    limit = getattr(cq_schema, limit_name)
+
+    jsonschema.validate(instance=build(limit), schema=schema)
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=build(limit + 1), schema=schema)
