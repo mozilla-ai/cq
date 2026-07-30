@@ -9,6 +9,7 @@ changes shape, the canonical schema validation will fail here.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import cq_schema
@@ -159,3 +160,52 @@ def test_store_stats_field_coverage() -> None:
     assert not missing, f"StoreStats fields missing from stats.json: {missing}"
     extra = schema_props - model_fields
     assert not extra, f"stats.json properties not present in StoreStats: {extra}"
+
+
+def _collect_bounds(node: object, path: tuple[object, ...] = ()) -> Iterator[tuple[tuple[object, ...], object]]:
+    """Yield the (path, value) of every maxLength and maxItems in a JSON Schema tree."""
+    if isinstance(node, dict):
+        for keyword in ("maxLength", "maxItems"):
+            if keyword in node:
+                yield (*path, keyword), node[keyword]
+        for key, child in node.items():
+            yield from _collect_bounds(child, (*path, key))
+    elif isinstance(node, list):
+        for index, child in enumerate(node):
+            yield from _collect_bounds(child, (*path, index))
+
+
+def _resolve(node: object, key: object) -> object:
+    """Return node[key], descending through the anyOf wrapper Pydantic emits for optional fields."""
+    if not isinstance(node, dict):
+        raise TypeError(f"cannot navigate into {type(node).__name__}")
+    if key not in node and "anyOf" in node:
+        for branch in node["anyOf"]:
+            if isinstance(branch, dict) and key in branch:
+                return branch[key]
+    return node[key]
+
+
+def _at(node: object, path: tuple[object, ...]) -> object:
+    for key in path:
+        node = _resolve(node, key)
+    return node
+
+
+def test_sdk_model_schema_matches_canonical_bounds() -> None:
+    """Every maxLength/maxItems in knowledge_unit.json is mirrored by the SDK model schema.
+
+    Fails if a ceiling diverges or if the canonical schema adds a bounded field the
+    models do not declare, so limits cannot drift and a new field cannot be missed.
+    """
+    canonical = cq_schema.load_schema("knowledge_unit")
+    sdk_schema = KnowledgeUnit.model_json_schema()
+    bounds = list(_collect_bounds(canonical))
+    assert bounds, "canonical knowledge_unit.json declares no bounds"
+    for path, expected in bounds:
+        try:
+            actual = _at(sdk_schema, path)
+        except (KeyError, TypeError):
+            actual = None
+        location = "/".join(str(key) for key in path)
+        assert actual == expected, f"SDK model schema at {location} is {actual!r}, canonical is {expected}"
