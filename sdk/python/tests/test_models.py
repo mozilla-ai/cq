@@ -50,16 +50,19 @@ def _make_unit(**overrides: object) -> KnowledgeUnit:
     return create_knowledge_unit(**defaults)
 
 
+# The first element is the field token the actionable error message must name; it drives both the
+# accept/reject enforcement tests and the error-message content test, so every constrained string is
+# covered once. List-item fields carry the list's plural name because that is what the message reports.
 _LENGTH_CASES = [
     ("summary", SUMMARY_MAX_LENGTH, lambda v: Insight(summary=v, detail="d", action="a")),
     ("detail", DETAIL_MAX_LENGTH, lambda v: Insight(summary="s", detail=v, action="a")),
     ("action", ACTION_MAX_LENGTH, lambda v: Insight(summary="s", detail="d", action=v)),
     ("pattern", PATTERN_MAX_LENGTH, lambda v: Context(pattern=v)),
-    ("language", LANGUAGE_MAX_LENGTH, lambda v: Context(languages=[v])),
-    ("framework", FRAMEWORK_MAX_LENGTH, lambda v: Context(frameworks=[v])),
-    ("domain", DOMAIN_MAX_LENGTH, lambda v: _make_unit(domains=[v])),
+    ("languages", LANGUAGE_MAX_LENGTH, lambda v: Context(languages=[v])),
+    ("frameworks", FRAMEWORK_MAX_LENGTH, lambda v: Context(frameworks=[v])),
+    ("domains", DOMAIN_MAX_LENGTH, lambda v: _make_unit(domains=[v])),
     ("created_by", CREATED_BY_MAX_LENGTH, lambda v: _make_unit(created_by=v)),
-    ("flag_detail", FLAG_DETAIL_MAX_LENGTH, lambda v: Flag(reason=FlagReason.STALE, detail=v)),
+    ("detail", FLAG_DETAIL_MAX_LENGTH, lambda v: Flag(reason=FlagReason.STALE, detail=v)),
 ]
 
 _ITEMS_CASES = [
@@ -330,34 +333,25 @@ class TestTierEnum:
 
 
 class TestFieldLimits:
-    @pytest.mark.parametrize(("name", "limit", "build"), _LENGTH_CASES)
-    def test_accepts_at_max_length(self, name: str, limit: int, build: Callable[[str], object]) -> None:
+    @pytest.mark.parametrize(("field", "limit", "build"), _LENGTH_CASES)
+    def test_accepts_at_max_length(self, field: str, limit: int, build: Callable[[str], object]) -> None:
         build("x" * limit)
 
-    @pytest.mark.parametrize(("name", "limit", "build"), _LENGTH_CASES)
-    def test_rejects_over_max_length(self, name: str, limit: int, build: Callable[[str], object]) -> None:
+    @pytest.mark.parametrize(("field", "limit", "build"), _LENGTH_CASES)
+    def test_rejects_over_max_length(self, field: str, limit: int, build: Callable[[str], object]) -> None:
         with pytest.raises(ValidationError):
             build("x" * (limit + 1))
 
-    @pytest.mark.parametrize(("name", "limit", "build"), _ITEMS_CASES)
-    def test_accepts_at_max_items(self, name: str, limit: int, build: Callable[[int], object]) -> None:
+    @pytest.mark.parametrize(("field", "limit", "build"), _ITEMS_CASES)
+    def test_accepts_at_max_items(self, field: str, limit: int, build: Callable[[int], object]) -> None:
         build(limit)
 
-    @pytest.mark.parametrize(("name", "limit", "build"), _ITEMS_CASES)
-    def test_rejects_over_max_items(self, name: str, limit: int, build: Callable[[int], object]) -> None:
+    @pytest.mark.parametrize(("field", "limit", "build"), _ITEMS_CASES)
+    def test_rejects_over_max_items(self, field: str, limit: int, build: Callable[[int], object]) -> None:
         with pytest.raises(ValidationError):
             build(limit + 1)
 
-    @pytest.mark.parametrize(
-        ("field", "limit", "build"),
-        [
-            ("summary", SUMMARY_MAX_LENGTH, lambda v: Insight(summary=v, detail="d", action="a")),
-            ("pattern", PATTERN_MAX_LENGTH, lambda v: Context(pattern=v)),
-            ("domains", DOMAIN_MAX_LENGTH, lambda v: _make_unit(domains=[v])),
-            ("created_by", CREATED_BY_MAX_LENGTH, lambda v: _make_unit(created_by=v)),
-            ("detail", FLAG_DETAIL_MAX_LENGTH, lambda v: Flag(reason=FlagReason.STALE, detail=v)),
-        ],
-    )
+    @pytest.mark.parametrize(("field", "limit", "build"), _LENGTH_CASES)
     def test_error_message_names_field_limit_and_length(
         self, field: str, limit: int, build: Callable[[str], object]
     ) -> None:
