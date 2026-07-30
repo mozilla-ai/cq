@@ -89,6 +89,18 @@ def test_schema_limits_match_schema() -> None:
     assert context["frameworks"]["maxItems"] == cq_schema.FRAMEWORKS_MAX_ITEMS
 
 
+def test_length_and_item_limits_are_int() -> None:
+    for name in cq_schema.__all__:
+        if name.endswith(("_MAX_LENGTH", "_MAX_ITEMS")):
+            assert isinstance(getattr(cq_schema, name), int)
+
+
+def test_scoring_constants_are_float() -> None:
+    for name in cq_schema.__all__:
+        if name.isupper() and not name.endswith(("_MAX_LENGTH", "_MAX_ITEMS")):
+            assert isinstance(getattr(cq_schema, name), float)
+
+
 def test_request_schemas_mirror_knowledge_unit_bounds() -> None:
     ku = cq_schema.load_schema("knowledge_unit")
     ku_props = ku["properties"]

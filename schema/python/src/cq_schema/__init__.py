@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from importlib.resources import files
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 __all__ = [
     "ACTION_MAX_LENGTH",
@@ -41,6 +41,33 @@ __all__ = [
     "load_schema",
     "load_schema_bytes",
 ]
+
+if TYPE_CHECKING:
+    # __getattr__ serves these at runtime and must return a single type for
+    # both groups, so it widens to int | float. Declare each constant's
+    # concrete type here so static checkers see the ceilings as int and the
+    # scoring values as float.
+    ACTION_MAX_LENGTH: int
+    CONFIDENCE_CEILING: float
+    CONFIDENCE_FLOOR: float
+    CONFIRMATION_BOOST: float
+    CREATED_BY_MAX_LENGTH: int
+    DETAIL_MAX_LENGTH: int
+    DOMAIN_MAX_LENGTH: int
+    DOMAIN_WEIGHT: float
+    DOMAINS_MAX_ITEMS: int
+    FLAG_DETAIL_MAX_LENGTH: int
+    FLAG_PENALTY: float
+    FRAMEWORK_MAX_LENGTH: int
+    FRAMEWORK_WEIGHT: float
+    FRAMEWORKS_MAX_ITEMS: int
+    INITIAL_CONFIDENCE: float
+    LANGUAGE_MAX_LENGTH: int
+    LANGUAGE_WEIGHT: float
+    LANGUAGES_MAX_ITEMS: int
+    PATTERN_MAX_LENGTH: int
+    PATTERN_WEIGHT: float
+    SUMMARY_MAX_LENGTH: int
 
 _DATA = files("cq_schema") / "_data"
 
