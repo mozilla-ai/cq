@@ -48,15 +48,25 @@ def _max_length(limit: int) -> AfterValidator:
     return AfterValidator(_validate)
 
 
-_Summary = Annotated[str, _max_length(SUMMARY_MAX_LENGTH)]
-_Detail = Annotated[str, _max_length(DETAIL_MAX_LENGTH)]
-_Action = Annotated[str, _max_length(ACTION_MAX_LENGTH)]
-_Domain = Annotated[str, _max_length(DOMAIN_MAX_LENGTH)]
-_Language = Annotated[str, _max_length(LANGUAGE_MAX_LENGTH)]
-_Framework = Annotated[str, _max_length(FRAMEWORK_MAX_LENGTH)]
-_Pattern = Annotated[str, _max_length(PATTERN_MAX_LENGTH)]
-_CreatedBy = Annotated[str, _max_length(CREATED_BY_MAX_LENGTH)]
-_FlagDetail = Annotated[str, _max_length(FLAG_DETAIL_MAX_LENGTH)]
+def _bounded(limit: int) -> tuple[AfterValidator, object]:
+    """Return the metadata pairing an actionable length check with a declared ``maxLength``.
+
+    The ``AfterValidator`` enforces the ceiling with a message naming the field, limit, and length; the
+    ``json_schema_extra`` records the same ceiling in the generated JSON schema without enforcing it (which
+    would short-circuit the message), so the limit stays discoverable and checkable against the canonical schema.
+    """
+    return _max_length(limit), Field(json_schema_extra={"maxLength": limit})
+
+
+_Summary = Annotated[str, *_bounded(SUMMARY_MAX_LENGTH)]
+_Detail = Annotated[str, *_bounded(DETAIL_MAX_LENGTH)]
+_Action = Annotated[str, *_bounded(ACTION_MAX_LENGTH)]
+_Domain = Annotated[str, *_bounded(DOMAIN_MAX_LENGTH)]
+_Language = Annotated[str, *_bounded(LANGUAGE_MAX_LENGTH)]
+_Framework = Annotated[str, *_bounded(FRAMEWORK_MAX_LENGTH)]
+_Pattern = Annotated[str, *_bounded(PATTERN_MAX_LENGTH)]
+_CreatedBy = Annotated[str, *_bounded(CREATED_BY_MAX_LENGTH)]
+_FlagDetail = Annotated[str, *_bounded(FLAG_DETAIL_MAX_LENGTH)]
 
 
 class Tier(StrEnum):
