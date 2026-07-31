@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	cqschema "github.com/mozilla-ai/cq/schema"
+
 	"github.com/mozilla-ai/cq/sdk/go/discovery"
 )
 
@@ -231,6 +233,10 @@ func (c *Client) Flag(
 
 	cfg := resolveFlagConfig(opts)
 
+	if err := validateLength("flag detail", cfg.detail, cqschema.FlagDetailMaxLength()); err != nil {
+		return KnowledgeUnit{}, err
+	}
+
 	if reason == Duplicate && cfg.duplicateOf == "" {
 		return KnowledgeUnit{}, fmt.Errorf("duplicate requires WithDuplicateOf option")
 	}
@@ -299,6 +305,10 @@ func (c *Client) Propose(ctx context.Context, params ProposeParams) (KnowledgeUn
 	}
 
 	if err := ValidateExtensionKeys(params.Extensions); err != nil {
+		return KnowledgeUnit{}, err
+	}
+
+	if err := validateProposeParams(params); err != nil {
 		return KnowledgeUnit{}, err
 	}
 
