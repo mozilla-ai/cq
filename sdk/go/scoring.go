@@ -54,31 +54,6 @@ func RankCandidates(candidates []KnowledgeUnit, params QueryParams) []KnowledgeU
 	return units
 }
 
-// relevance scores how relevant ku is to the given query parameters.
-func (ku KnowledgeUnit) relevance(
-	queryDomains []string,
-	queryLanguages []string,
-	queryFrameworks []string,
-	queryPattern string,
-) float64 {
-	domainScore := jaccardSimilarity(ku.Domains, queryDomains)
-	var languageScore, frameworkScore, patternScore float64
-	if anyMatch(ku.Context.Languages, queryLanguages) {
-		languageScore = 1.0
-	}
-	if anyMatch(ku.Context.Frameworks, queryFrameworks) {
-		frameworkScore = 1.0
-	}
-	if queryPattern != "" && ku.Context.Pattern != "" && strings.EqualFold(queryPattern, ku.Context.Pattern) {
-		patternScore = 1.0
-	}
-	score := cqschema.DomainWeight()*domainScore +
-		cqschema.LanguageWeight()*languageScore +
-		cqschema.FrameworkWeight()*frameworkScore +
-		cqschema.PatternWeight()*patternScore
-	return min(max(score, 0.0), 1.0)
-}
-
 // anyMatch reports whether any element in queries appears in items.
 func anyMatch(items []string, queries []string) bool {
 	if len(queries) == 0 {
@@ -148,4 +123,29 @@ func jaccardSimilarity(a []string, b []string) float64 {
 	}
 	union := len(setA) + len(setB) - intersection
 	return float64(intersection) / float64(union)
+}
+
+// relevance scores how relevant ku is to the given query parameters.
+func (ku KnowledgeUnit) relevance(
+	queryDomains []string,
+	queryLanguages []string,
+	queryFrameworks []string,
+	queryPattern string,
+) float64 {
+	domainScore := jaccardSimilarity(ku.Domains, queryDomains)
+	var languageScore, frameworkScore, patternScore float64
+	if anyMatch(ku.Context.Languages, queryLanguages) {
+		languageScore = 1.0
+	}
+	if anyMatch(ku.Context.Frameworks, queryFrameworks) {
+		frameworkScore = 1.0
+	}
+	if queryPattern != "" && ku.Context.Pattern != "" && strings.EqualFold(queryPattern, ku.Context.Pattern) {
+		patternScore = 1.0
+	}
+	score := cqschema.DomainWeight()*domainScore +
+		cqschema.LanguageWeight()*languageScore +
+		cqschema.FrameworkWeight()*frameworkScore +
+		cqschema.PatternWeight()*patternScore
+	return min(max(score, 0.0), 1.0)
 }
