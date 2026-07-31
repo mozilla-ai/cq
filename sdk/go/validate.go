@@ -38,11 +38,21 @@ func validateLength(field string, value string, limit int) error {
 	return nil
 }
 
-// validateProposeParams rejects any free-text field or tag list on params that
-// exceeds its schema-declared ceiling, collecting every violation so a producer
-// can shorten all of them in one pass. Each ceiling comes from the schema
-// package, never a hardcoded literal, and an over-limit value fails the whole
-// propose rather than being truncated.
+// validateNonEmpty rejects an empty tag list, naming the plural field. It
+// enforces the schema's minItems:1 lower bound, a bare presence check with no
+// ceiling value to source and so no schema accessor.
+func validateNonEmpty(field string, items []string) error {
+	if len(items) == 0 {
+		return fmt.Errorf("%s must not be empty", field)
+	}
+	return nil
+}
+
+// validateProposeParams rejects params that break a schema-declared bound —
+// its required at-least-one-domain lower bound, or any free-text or tag-list
+// ceiling — collecting every violation so a producer can fix them in one pass.
+// Each ceiling comes from the schema package, never a hardcoded literal, and a
+// violating value fails the whole propose rather than being truncated.
 func validateProposeParams(params ProposeParams) error {
 	return errors.Join(
 		validateLength("summary", params.Summary, cqschema.SummaryMaxLength()),
@@ -53,6 +63,7 @@ func validateProposeParams(params ProposeParams) error {
 		validateItemLengths("domain", params.Domains, cqschema.DomainMaxLength()),
 		validateItemLengths("language", params.Languages, cqschema.LanguageMaxLength()),
 		validateItemLengths("framework", params.Frameworks, cqschema.FrameworkMaxLength()),
+		validateNonEmpty("domains", params.Domains),
 		validateCount("domains", params.Domains, cqschema.DomainsMaxItems()),
 		validateCount("languages", params.Languages, cqschema.LanguagesMaxItems()),
 		validateCount("frameworks", params.Frameworks, cqschema.FrameworksMaxItems()),

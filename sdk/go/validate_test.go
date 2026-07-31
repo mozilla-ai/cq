@@ -120,6 +120,27 @@ func TestValidateProposeParamsRejectsOverMaxItems(t *testing.T) {
 	}
 }
 
+// TestValidateProposeParamsRejectsEmptyDomains guards the schema's minItems:1
+// lower bound on domains: a proposal carrying no domain is rejected at the
+// boundary, alongside the ceilings, rather than one layer down in the store.
+func TestValidateProposeParamsRejectsEmptyDomains(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		domains []string
+	}{
+		{"nil", nil},
+		{"empty", []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			params := validParams()
+			params.Domains = tc.domains
+			require.EqualError(t, validateProposeParams(params), "domains must not be empty")
+		})
+	}
+}
+
 // TestValidateProposeParamsCountsRunesNotBytes guards the schema's maxLength
 // semantics: length is measured in Unicode code points, so a multibyte string
 // at the character ceiling is accepted even though its byte length is larger.
