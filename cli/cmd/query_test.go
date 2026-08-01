@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -152,6 +153,28 @@ func TestQueryPrintsRemoteWarningsToStderr(t *testing.T) {
 	stderr := errBuf.String()
 	require.Contains(t, stderr, "warning:")
 	require.Contains(t, stderr, "decoding")
+}
+
+func TestQueryHonorsConfiguredRemoteTimeout(t *testing.T) {
+	testSetup(t)
+	t.Setenv(envVarTimeout, "8")
+	withFakeRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/knowledge" {
+			http.NotFound(w, r)
+			return
+		}
+
+		time.Sleep(cq.DefaultTimeout() + time.Second)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"ku_00000000000000000000000000000001","version":1,"domains":["api"],"insight":{"summary":"slow remote response","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"private","flags":[]}]}`))
+	}))
+
+	query := NewQueryCmd()
+	var out bytes.Buffer
+	query.SetOut(&out)
+	query.SetArgs([]string{"--domain", "api"})
+	require.NoError(t, query.Execute())
+	require.Contains(t, out.String(), "slow remote response")
 }
 
 func TestQueryPatternFlag(t *testing.T) {

@@ -106,7 +106,7 @@ func configDir() (string, error) {
 
 // newCLIClient creates a new SDK client using the persistent flag values.
 func newCLIClient() (*cq.Client, error) {
-	var opts []cq.ClientOption
+	opts := []cq.ClientOption{cq.WithTimeout(cliTimeout())}
 	if flagAddr != "" {
 		opts = append(opts, cq.WithAddr(flagAddr))
 	}
