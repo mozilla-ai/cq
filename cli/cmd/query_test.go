@@ -166,7 +166,11 @@ func TestQueryHonorsConfiguredRemoteTimeout(t *testing.T) {
 
 		time.Sleep(cq.DefaultTimeout() + time.Second)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"ku_00000000000000000000000000000001","version":1,"domains":["api"],"insight":{"summary":"slow remote response","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"private","flags":[]}]}`))
+		_, _ = w.Write(
+			[]byte(
+				`{"data":[{"id":"ku_00000000000000000000000000000001","version":1,"domains":["api"],"insight":{"summary":"slow remote response","detail":"d","action":"a"},"context":{"languages":[],"frameworks":[],"pattern":""},"evidence":{"confidence":0.5,"confirmations":1},"tier":"private","flags":[]}]}`,
+			),
+		)
 	}))
 
 	query := NewQueryCmd()
