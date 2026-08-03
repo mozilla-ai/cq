@@ -158,6 +158,8 @@ Provide all three insight fields:
 - **detail** — Fuller explanation with enough context to understand the issue. Include a timestamp and source where possible.
 - **action** — Concrete instruction on what to do about it. Start with an imperative verb (e.g. `Use`, `Set`, `Replace`, `When X, do Y`). Prefer principle + verification method over exact values.
 
+These are soft targets; the schema also enforces hard ceilings — 500 characters for `summary`, 8000 for `detail`, 2000 for `action` — and an over-limit proposal is rejected, never truncated.
+
 #### VIBE√ safety check
 
 Before calling `propose`, evaluate every candidate against four safety dimensions. This applies to all propose calls — those triggered by `/cq:reflect` and direct proposes made while working on a task.

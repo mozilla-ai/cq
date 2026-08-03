@@ -247,6 +247,14 @@ Discovery document published at `/.well-known/cq-node.json` by a cq node. See th
 | `api_version` | string (`v\d+`) | yes | Protocol version spoken at api_base_url. |
 | `node_name` | string (<= 200 chars) | no | Human-readable display name for this node. |
 
+## Free-text ceilings
+
+The `maxLength` bounds on free-text fields (such as `insight.summary`, `insight.detail`, and `insight.action`) are hard ceilings declared once in the schema files and exposed as constants by the Go and Python packages. They are ceilings, not targets: authoring guidance sets much smaller soft targets, and the ceilings exist only to reject pathological input. Lengths count Unicode code points, not bytes. Implementations must:
+
+- Size length-bounded storage at or above the schema ceilings.
+- Enforce the schema's number exactly, never a private smaller one.
+- Never truncate over-limit input — reject the whole unit with a clear error.
+
 ## Development
 
 The Go module at the schema root embeds all `.json` files and exposes them programmatically. The Python package under `python/` wraps the same files. Both are released independently; see the [top-level development guide](../DEVELOPMENT.md) for details.
