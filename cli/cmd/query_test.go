@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -157,14 +158,24 @@ func TestQueryPrintsRemoteWarningsToStderr(t *testing.T) {
 
 func TestQueryHonorsConfiguredRemoteTimeout(t *testing.T) {
 	testSetup(t)
-	t.Setenv(envVarTimeout, "8")
+
+	// The remote responds slower than the SDK's default HTTP timeout but faster
+	// than the configured CQ_TIMEOUT, so the request only succeeds if CQ_TIMEOUT
+	// is what governs the client. Guard the ordering so a future bump to the SDK
+	// default fails loudly here instead of flaking.
+	const configuredTimeout = 8 * time.Second
+	remoteDelay := cq.DefaultTimeout() + time.Second
+	require.Less(t, remoteDelay, configuredTimeout,
+		"SDK default HTTP timeout grew too close to CQ_TIMEOUT; raise configuredTimeout")
+
+	t.Setenv(envVarTimeout, strconv.Itoa(int(configuredTimeout/time.Second)))
 	withFakeRemote(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/knowledge" {
 			http.NotFound(w, r)
 			return
 		}
 
-		time.Sleep(cq.DefaultTimeout() + time.Second)
+		time.Sleep(remoteDelay)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(
 			[]byte(
