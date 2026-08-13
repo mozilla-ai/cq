@@ -9,7 +9,7 @@ help:
 	@echo "  cq install --target <host> --uninstall        Remove"
 	@echo "  cq install --target <host> --dry-run          Preview changes"
 	@echo ""
-	@echo "  Supported hosts: claude, codex, copilot, cursor, opencode, pi, windsurf"
+	@echo "  Supported hosts: claude, codex, copilot, cursor, devin-desktop, opencode, pi"
 	@echo ""
 	@echo "Development:"
 	@echo "  make setup                  Install all dependencies"

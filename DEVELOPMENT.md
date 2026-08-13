@@ -29,7 +29,7 @@ make setup
 
 ## Installing into a Coding Agent
 
-See [Install into your coding agent](docs/install.md) for installing cq into Claude, Codex, Copilot, Cursor, OpenCode, Pi, or Windsurf — including per-host config paths and how to point an agent at a remote server.
+See [Install into your coding agent](docs/install.md) for installing cq into Claude, Codex, Copilot, Cursor, Devin Desktop, OpenCode, or Pi — including per-host config paths and how to point an agent at a remote server.
 
 ### Go SDK
 
