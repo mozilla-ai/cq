@@ -2,7 +2,7 @@
 
 Agent plugin for [cq](https://github.com/mozilla-ai/cq) — the shared agent knowledge commons. Bundles the MCP server, the cq protocol skill, and session commands (`/cq:status`, `/cq:reflect`) so your coding agent can query, propose, confirm, and flag knowledge units during normal work.
 
-The plugin works with Claude Code, OpenCode, Cursor, Devin Desktop, and Pi.
+The plugin works with Claude Code, Codex, Copilot, Cursor, Devin Desktop, OpenCode, and Pi.
 
 ## Installation
 
