@@ -12,7 +12,7 @@ func TestSharedSkillsDir(t *testing.T) {
 	require.Equal(t, filepath.Join("/home/dev", ".agents", "skills"), got)
 }
 
-func TestWindsurfTarget(t *testing.T) {
-	got := windsurfTarget("/home/dev")
+func TestDevinDesktopTarget(t *testing.T) {
+	got := devinDesktopTarget("/home/dev")
 	require.Equal(t, filepath.Join("/home/dev", ".codeium", "windsurf"), got)
 }

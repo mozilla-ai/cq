@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWindsurfInstallWritesSkillAndMCP(t *testing.T) {
+func TestDevinDesktopInstallWritesSkillAndMCP(t *testing.T) {
 	home := t.TempDir()
-	h := windsurfHost{}
+	h := devinDesktopHost{}
 	ctx := Context{
 		Target:     h.GlobalTarget(home),
 		SkillsDir:  SharedSkillsDir(home),
@@ -29,9 +29,9 @@ func TestWindsurfInstallWritesSkillAndMCP(t *testing.T) {
 	require.Equal(t, []any{"mcp"}, cq["args"])
 }
 
-func TestWindsurfUninstallReverses(t *testing.T) {
+func TestDevinDesktopUninstallReverses(t *testing.T) {
 	home := t.TempDir()
-	h := windsurfHost{}
+	h := devinDesktopHost{}
 	ctx := Context{Target: h.GlobalTarget(home), SkillsDir: SharedSkillsDir(home), BinaryPath: "/opt/homebrew/bin/cq"}
 	_, err := h.Install(ctx)
 	require.NoError(t, err)
@@ -42,15 +42,15 @@ func TestWindsurfUninstallReverses(t *testing.T) {
 	require.NotContains(t, m, "mcpServers")
 }
 
-func TestWindsurfRegistered(t *testing.T) {
-	selected := SelectHosts(Targets{TargetWindsurf})
+func TestDevinDesktopRegistered(t *testing.T) {
+	selected := SelectHosts(Targets{TargetDevinDesktop})
 	require.Len(t, selected, 1)
-	require.Equal(t, TargetWindsurf, selected[0].Name())
+	require.Equal(t, TargetDevinDesktop, selected[0].Name())
 }
 
-func TestWindsurfUninstallLeavesSharedSkill(t *testing.T) {
+func TestDevinDesktopUninstallLeavesSharedSkill(t *testing.T) {
 	home := t.TempDir()
-	h := windsurfHost{}
+	h := devinDesktopHost{}
 	ctx := Context{Target: h.GlobalTarget(home), SkillsDir: SharedSkillsDir(home), BinaryPath: "/opt/homebrew/bin/cq"}
 	_, err := h.Install(ctx)
 	require.NoError(t, err)
