@@ -53,6 +53,13 @@ func cursorTarget(home string) string {
 	return filepath.Join(home, ".cursor")
 }
 
+// devinDesktopTarget returns the Devin Desktop configuration directory under home.
+func devinDesktopTarget(home string) string {
+	// Devin Desktop (formerly Windsurf) still reads config from .codeium/windsurf on every platform;
+	// the rebrand kept the original Codeium-era path.
+	return filepath.Join(home, ".codeium", "windsurf")
+}
+
 // opencodeTarget returns the OpenCode configuration directory.
 //
 // Honors OPENCODE_CONFIG_DIR the same way OpenCode itself does: if set, the
@@ -70,9 +77,4 @@ func opencodeTarget(home string) string {
 // per-project path (.pi/) does not.
 func piTarget(home string) string {
 	return filepath.Join(home, ".pi", "agent")
-}
-
-// windsurfTarget returns the Windsurf configuration directory under home.
-func windsurfTarget(home string) string {
-	return filepath.Join(home, ".codeium", "windsurf")
 }
