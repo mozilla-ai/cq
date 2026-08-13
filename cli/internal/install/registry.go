@@ -19,14 +19,14 @@ const (
 	// TargetCursor is the Cursor editor.
 	TargetCursor Target = "cursor"
 
+	// TargetDevinDesktop is the Devin Desktop editor (formerly Windsurf).
+	TargetDevinDesktop Target = "devin-desktop"
+
 	// TargetOpenCode is the OpenCode editor.
 	TargetOpenCode Target = "opencode"
 
 	// TargetPi is the Pi coding agent.
 	TargetPi Target = "pi"
-
-	// TargetWindsurf is the Windsurf editor.
-	TargetWindsurf Target = "windsurf"
 )
 
 // hosts is every supported install adapter, keyed by target.
@@ -34,13 +34,13 @@ const (
 // It is the single source of truth for the targets cq install accepts; adding
 // an entry extends ValidTarget, AllowedTargets, and SelectHosts.
 var hosts = map[Target]Host{
-	TargetClaude:   claudeHost{},
-	TargetCodex:    codexHost{},
-	TargetCopilot:  copilotHost{},
-	TargetCursor:   cursorHost{},
-	TargetOpenCode: opencodeHost{},
-	TargetPi:       piHost{},
-	TargetWindsurf: windsurfHost{},
+	TargetClaude:       claudeHost{},
+	TargetCodex:        codexHost{},
+	TargetCopilot:      copilotHost{},
+	TargetCursor:       cursorHost{},
+	TargetDevinDesktop: devinDesktopHost{},
+	TargetOpenCode:     opencodeHost{},
+	TargetPi:           piHost{},
 }
 
 // Target identifies a supported coding-agent host.

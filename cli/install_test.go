@@ -206,13 +206,13 @@ func TestInstallOpencodeEndToEnd(t *testing.T) {
 	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
 }
 
-func TestInstallWindsurfEndToEnd(t *testing.T) {
+func TestInstallDevinDesktopEndToEnd(t *testing.T) {
 	home := t.TempDir()
 	setTestHome(t, home)
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
 
-	_, err := runInstall(t, "--target", "windsurf")
+	_, err := runInstall(t, "--target", "devin-desktop")
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(home, ".agents", "skills", "cq", "SKILL.md"))
@@ -225,11 +225,11 @@ func TestInstallWindsurfEndToEnd(t *testing.T) {
 		m["mcpServers"].(map[string]any)["cq"].(map[string]any)["command"])
 
 	// Re-run is idempotent.
-	_, err = runInstall(t, "--target", "windsurf")
+	_, err = runInstall(t, "--target", "devin-desktop")
 	require.NoError(t, err)
 
 	// Uninstall reverses the MCP entry.
-	_, err = runInstall(t, "--target", "windsurf", "--uninstall")
+	_, err = runInstall(t, "--target", "devin-desktop", "--uninstall")
 	require.NoError(t, err)
 	data, err = os.ReadFile(cfg)
 	require.NoError(t, err)
