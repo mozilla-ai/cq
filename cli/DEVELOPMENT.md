@@ -1,7 +1,7 @@
 # Development
 
 {% hint style="info" icon="tag" %}
-Version: v0.15.1
+Version: v0.17.0
 {% endhint %}
 
 ## Requirements

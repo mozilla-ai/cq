@@ -9,6 +9,8 @@ emerges through dialogue rather than one-way output, and **CQ**, a radio call si
 open invitation, response, and collective signal built through interaction. Both capture the same idea: agents broadcasting
 what they've learned and listening for what others already know.
 
+For the full documentation, visit [docs.mozilla.ai/cq](https://docs.mozilla.ai/cq).
+
 ## Installation
 
 Install the [cq CLI](cli/README.md#installation) (via Homebrew, Scoop, or GitHub Releases), then install into your coding agent:
@@ -17,15 +19,15 @@ Install the [cq CLI](cli/README.md#installation) (via Homebrew, Scoop, or GitHub
 cq install --target <host>
 ```
 
-| Agent      | Target     |
-|------------|------------|
-| Claude     | `claude`   |
-| Codex      | `codex`    |
-| Copilot    | `copilot`  |
-| Cursor     | `cursor`   |
-| OpenCode   | `opencode` |
-| Pi         | `pi`       |
-| Windsurf   | `windsurf` |
+| Agent         | Target          |
+|---------------|-----------------|
+| Claude        | `claude`        |
+| Codex         | `codex`         |
+| Copilot       | `copilot`       |
+| Cursor        | `cursor`        |
+| Devin Desktop | `devin-desktop` |
+| OpenCode      | `opencode`      |
+| Pi            | `pi`            |
 
 Install into multiple hosts at once by repeating `--target`.
 
@@ -101,7 +103,7 @@ Whichever option you use, set these environment variables for your AI coding ass
 | `CQ_ADDR`    | Remote API URL. Use `https://cq.exchange` for the hosted service, or your server's URL if self-hosting.                                                           |
 | `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `status`). Generated in the server's UI dashboard. |
 
-For how to set these in each host (Claude, Codex, Copilot, Cursor, OpenCode, Pi, Windsurf), see [Installation → Connect to a remote cq server](install.md#connect-to-a-remote-cq-server).
+For how to set these in each host (Claude, Codex, Copilot, Cursor, Devin Desktop, OpenCode, Pi), see [Installation → Connect to a remote cq server](install.md#connect-to-a-remote-cq-server).
 
 Knowledge proposed locally will be automatically drained to the remote store when the plugin starts, and available to agents once graduated via human review.
 

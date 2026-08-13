@@ -14,15 +14,15 @@ Install the `cq` CLI first — via Homebrew, Scoop, or a GitHub release. See the
 cq install --target <host>
 ```
 
-| Agent      | Target     |
-|------------|------------|
-| Claude     | `claude`   |
-| Codex      | `codex`    |
-| Copilot    | `copilot`  |
-| Cursor     | `cursor`   |
-| OpenCode   | `opencode` |
-| Pi         | `pi`       |
-| Windsurf   | `windsurf` |
+| Agent         | Target          |
+|---------------|-----------------|
+| Claude        | `claude`        |
+| Codex         | `codex`         |
+| Copilot       | `copilot`       |
+| Cursor        | `cursor`        |
+| Devin Desktop | `devin-desktop` |
+| OpenCode      | `opencode`      |
+| Pi            | `pi`            |
 
 Install into several hosts at once by repeating `--target`:
 
@@ -37,11 +37,11 @@ cq install --target cursor --target opencode
 
 ## What `cq install` sets up
 
-For every host except Claude Code, the installer manages three things:
+For every host except Claude Code, the installer manages up to three things:
 
 - **The shared skill** at `~/.agents/skills/cq/SKILL.md`. All non-Claude hosts read the skill from this shared location, so installing several hosts writes it once.
 - **An MCP server entry** pointing at `cq mcp`. Pi is the exception: it has no native MCP support, so cq is wired in through a CLI mapping instead.
-- **An always-loaded instruction** (an `AGENTS.md` block, a rule file, or an instructions file, depending on the host) telling the agent to load the cq skill before starting work.
+- **An always-loaded instruction** (an `AGENTS.md` block, a rule file, or an instructions file, depending on the host) telling the agent to load the cq skill before starting work. Devin Desktop is the exception: it reads the shared skill directly, so no instruction file is written.
 
 Claude Code manages its own plugins, so `cq install --target claude` shells out to the Claude plugin marketplace rather than writing files.
 
@@ -170,6 +170,34 @@ The VS Code user `mcp.json` lives at:
 ```
 {% endtab %}
 
+{% tab title="Devin Desktop" %}
+**Files managed**
+
+| Asset          | Location                          |
+|----------------|-----------------------------------|
+| MCP server     | `~/.codeium/windsurf/mcp_config.json` → `mcpServers.cq` |
+| Skill          | `~/.agents/skills/cq/SKILL.md`    |
+
+> **Devin Desktop was formerly Windsurf.** After the rebrand it still reads MCP config from the original `~/.codeium/windsurf/` path, so the location below is unchanged.
+
+**Point at a remote server** — add an `env` object to the cq entry in `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "cq": {
+      "command": "/opt/homebrew/bin/cq",
+      "args": ["mcp"],
+      "env": {
+        "CQ_ADDR": "https://cq.exchange",
+        "CQ_API_KEY": "<your-api-key>"
+      }
+    }
+  }
+}
+```
+{% endtab %}
+
 {% tab title="OpenCode" %}
 **Files managed**
 
@@ -214,32 +242,6 @@ Pi has no native MCP support. Instead of an MCP server, the installed `AGENTS.md
 ```json
 {
   "shellCommandPrefix": "export CQ_ADDR='https://cq.exchange' CQ_API_KEY='<your-api-key>'"
-}
-```
-{% endtab %}
-
-{% tab title="Windsurf" %}
-**Files managed**
-
-| Asset          | Location                          |
-|----------------|-----------------------------------|
-| MCP server     | `~/.codeium/windsurf/mcp_config.json` → `mcpServers.cq` |
-| Skill          | `~/.agents/skills/cq/SKILL.md`    |
-
-**Point at a remote server** — add an `env` object to the cq entry in `~/.codeium/windsurf/mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "cq": {
-      "command": "/opt/homebrew/bin/cq",
-      "args": ["mcp"],
-      "env": {
-        "CQ_ADDR": "https://cq.exchange",
-        "CQ_API_KEY": "<your-api-key>"
-      }
-    }
-  }
 }
 ```
 {% endtab %}
