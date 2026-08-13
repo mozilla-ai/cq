@@ -6,22 +6,22 @@ import (
 	"github.com/mozilla-ai/cq/sdk/go/prompts"
 )
 
-// windsurfMCPFile is the MCP configuration file Windsurf reads on every platform.
-const windsurfMCPFile = "mcp_config.json"
+// devinDesktopMCPFile is the MCP configuration file Devin Desktop reads on every platform.
+const devinDesktopMCPFile = "mcp_config.json"
 
-// windsurfHost installs cq into the Windsurf editor (skill commons + MCP entry).
+// devinDesktopHost installs cq into the Devin Desktop editor (skill commons + MCP entry).
 //
-// Windsurf stores its config under ~/.codeium/windsurf on every platform and
-// is global-only; it reads skills from the shared commons.
-type windsurfHost struct{}
+// Devin Desktop (formerly Windsurf) stores its config under ~/.codeium/windsurf
+// on every platform and is global-only; it reads skills from the shared commons.
+type devinDesktopHost struct{}
 
-// GlobalTarget returns the Windsurf config dir under home.
-func (windsurfHost) GlobalTarget(home string) string {
-	return windsurfTarget(home)
+// GlobalTarget returns the Devin Desktop config dir under home.
+func (devinDesktopHost) GlobalTarget(home string) string {
+	return devinDesktopTarget(home)
 }
 
 // Install writes the shared skill and the cq MCP server entry.
-func (windsurfHost) Install(ctx Context) ([]Change, error) {
+func (devinDesktopHost) Install(ctx Context) ([]Change, error) {
 	skill, err := writeManagedFiles(ctx.SkillsDir, map[string]string{
 		filepath.Join("cq", "SKILL.md"): prompts.Skill(),
 	}, ctx.DryRun)
@@ -29,7 +29,7 @@ func (windsurfHost) Install(ctx Context) ([]Change, error) {
 		return nil, err
 	}
 	mcp, err := upsertJSONEntry(
-		filepath.Join(ctx.Target, windsurfMCPFile),
+		filepath.Join(ctx.Target, devinDesktopMCPFile),
 		[]string{"mcpServers", "cq"},
 		map[string]any{"command": ctx.BinaryPath, "args": []any{"mcp"}},
 		ctx.DryRun,
@@ -41,19 +41,19 @@ func (windsurfHost) Install(ctx Context) ([]Change, error) {
 }
 
 // Name returns the host identifier.
-func (windsurfHost) Name() Target { return TargetWindsurf }
+func (devinDesktopHost) Name() Target { return TargetDevinDesktop }
 
-// SupportsProject reports that Windsurf is global-only.
-func (windsurfHost) SupportsProject() bool { return false }
+// SupportsProject reports that Devin Desktop is global-only.
+func (devinDesktopHost) SupportsProject() bool { return false }
 
 // Uninstall removes the cq MCP entry.
 //
 // NOTE: the skill lives in the shared commons (~/.agents/skills), which other
 // hosts may also use, so uninstalling one host must not remove it; the shared
 // skill is intentionally left in place.
-func (windsurfHost) Uninstall(ctx Context) ([]Change, error) {
+func (devinDesktopHost) Uninstall(ctx Context) ([]Change, error) {
 	mcp, err := removeJSONEntry(
-		filepath.Join(ctx.Target, windsurfMCPFile),
+		filepath.Join(ctx.Target, devinDesktopMCPFile),
 		[]string{"mcpServers", "cq"},
 		ctx.DryRun,
 	)
