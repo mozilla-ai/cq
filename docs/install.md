@@ -37,11 +37,11 @@ cq install --target cursor --target opencode
 
 ## What `cq install` sets up
 
-For every host except Claude Code, the installer manages three things:
+For every host except Claude Code, the installer manages up to three things:
 
 - **The shared skill** at `~/.agents/skills/cq/SKILL.md`. All non-Claude hosts read the skill from this shared location, so installing several hosts writes it once.
 - **An MCP server entry** pointing at `cq mcp`. Pi is the exception: it has no native MCP support, so cq is wired in through a CLI mapping instead.
-- **An always-loaded instruction** (an `AGENTS.md` block, a rule file, or an instructions file, depending on the host) telling the agent to load the cq skill before starting work.
+- **An always-loaded instruction** (an `AGENTS.md` block, a rule file, or an instructions file, depending on the host) telling the agent to load the cq skill before starting work. Devin Desktop is the exception: it reads the shared skill directly, so no instruction file is written.
 
 Claude Code manages its own plugins, so `cq install --target claude` shells out to the Claude plugin marketplace rather than writing files.
 
