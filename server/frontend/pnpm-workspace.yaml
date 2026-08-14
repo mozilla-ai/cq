@@ -1,3 +1,6 @@
 # Delay installation of newly published packages by 3 days (4320 minutes).
 # Malware is typically detected within hours, so this window provides protection.
 minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+  - postcss@8.5.18 || 8.5.23
+  - nanoid@3.3.16 || 3.3.18
