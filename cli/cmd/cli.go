@@ -36,7 +36,7 @@ const (
 	// the SDK's handling of XDG_DATA_HOME.
 	envVarXDGConfigHome = "XDG_CONFIG_HOME"
 
-	// defaultCLITimeout is the CLI operation timeout when CQ_TIMEOUT is not set.
+	// defaultCLITimeout is the CLI operation timeout when neither --timeout nor CQ_TIMEOUT is set.
 	defaultCLITimeout = 30 * time.Second
 
 	// jsonIndentSpaces is the number of spaces used for JSON indentation in CLI output.
@@ -53,6 +53,11 @@ var (
 	// flagDBPath holds the resolved --db-path persistent flag value.
 	flagDBPath string
 
+	// flagTimeout holds the resolved --timeout persistent flag value. A
+	// non-positive value means "unset"; cliTimeout then falls back to
+	// CQ_TIMEOUT and finally the default.
+	flagTimeout time.Duration
+
 	// jsonIndent is the indent string for JSON output.
 	jsonIndent = strings.Repeat(" ", jsonIndentSpaces)
 )
@@ -62,10 +67,21 @@ func InitFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&flagAddr, "addr", os.Getenv(envVarAddr), "Remote API address (env: "+envVarAddr+")")
 	fs.StringVar(&flagAPIKey, "api-key", "", "API key for remote authentication (env: "+envVarAPIKey+")")
 	fs.StringVar(&flagDBPath, "db-path", os.Getenv(envVarDBPath), "Local database path (env: "+envVarDBPath+")")
+	fs.DurationVar(
+		&flagTimeout,
+		"timeout",
+		0,
+		"CLI operation timeout, e.g. 30s (env: "+envVarTimeout+", default "+defaultCLITimeout.String()+")",
+	)
 }
 
-// cliTimeout returns the CLI operation timeout from CQ_TIMEOUT env var or the default.
+// cliTimeout resolves the CLI operation timeout with precedence: the --timeout
+// flag, then the CQ_TIMEOUT env var (integer seconds), then the default.
 func cliTimeout() time.Duration {
+	if flagTimeout > 0 {
+		return flagTimeout
+	}
+
 	if v := os.Getenv(envVarTimeout); v != "" {
 		if d, err := strconv.Atoi(v); err == nil && d > 0 {
 			return time.Duration(d) * time.Second
