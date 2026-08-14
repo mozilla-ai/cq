@@ -33,6 +33,30 @@ func TestInitFlagsTimeoutUsesZeroSentinelDefault(t *testing.T) {
 	require.Contains(t, f.Usage, envVarTimeout)
 	require.Contains(t, f.Usage, "default "+defaultCLITimeout.String())
 	require.NotContains(t, fs.FlagUsages(), "(default 0s)")
+
+	// The env var is parsed as integer seconds (unlike the duration flag), so
+	// the help must document the unit to avoid a silent fallback on e.g.
+	// CQ_TIMEOUT=30s.
+	require.Contains(t, f.Usage, "seconds")
+}
+
+func TestInitFlagsParsesTimeoutDuration(t *testing.T) {
+	setFlag(t, &flagTimeout, 0)
+
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	InitFlags(fs)
+
+	require.NoError(t, fs.Parse([]string{"--timeout=1m30s"}))
+	require.Equal(t, 90*time.Second, flagTimeout)
+}
+
+func TestInitFlagsRejectsInvalidTimeout(t *testing.T) {
+	setFlag(t, &flagTimeout, 0)
+
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	InitFlags(fs)
+
+	require.Error(t, fs.Parse([]string{"--timeout=not-a-duration"}))
 }
 
 func TestCLITimeout(t *testing.T) {

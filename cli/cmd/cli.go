@@ -71,7 +71,7 @@ func InitFlags(fs *pflag.FlagSet) {
 		&flagTimeout,
 		"timeout",
 		0,
-		"CLI operation timeout, e.g. 30s (env: "+envVarTimeout+", default "+defaultCLITimeout.String()+")",
+		"CLI operation timeout, e.g. 30s (env: "+envVarTimeout+" in seconds, default "+defaultCLITimeout.String()+")",
 	)
 }
 
