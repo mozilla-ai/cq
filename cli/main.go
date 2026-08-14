@@ -100,7 +100,7 @@ func hideFlagsFor(root *cobra.Command, names ...string) {
 	for _, c := range root.Commands() {
 		if hidden[c.Name()] {
 			c.SetHelpFunc(func(c *cobra.Command, args []string) {
-				for _, name := range []string{"addr", "api-key", "db-path"} {
+				for _, name := range []string{"addr", "api-key", "db-path", "timeout"} {
 					if f := c.Flags().Lookup(name); f != nil {
 						f.Hidden = true
 					}

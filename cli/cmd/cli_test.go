@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
@@ -13,8 +14,73 @@ func TestInitFlagsRegistersAllFlags(t *testing.T) {
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	InitFlags(fs)
 
-	for _, name := range []string{"addr", "api-key", "db-path"} {
+	for _, name := range []string{"addr", "api-key", "db-path", "timeout"} {
 		require.NotNil(t, fs.Lookup(name), "expected flag %s to be registered", name)
+	}
+}
+
+func TestInitFlagsTimeoutUsesZeroSentinelDefault(t *testing.T) {
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	InitFlags(fs)
+
+	f := fs.Lookup("timeout")
+	require.NotNil(t, f)
+
+	// The flag carries a 0 sentinel so flag > env > default resolution stays in
+	// cliTimeout. Because 0 is the zero value for a duration, pflag suppresses a
+	// misleading "(default 0s)"; the real default is documented in the usage.
+	require.Equal(t, "0s", f.DefValue)
+	require.Contains(t, f.Usage, envVarTimeout)
+	require.Contains(t, f.Usage, "default "+defaultCLITimeout.String())
+	require.NotContains(t, fs.FlagUsages(), "(default 0s)")
+
+	// The env var is parsed as integer seconds (unlike the duration flag), so
+	// the help must document the unit to avoid a silent fallback on e.g.
+	// CQ_TIMEOUT=30s.
+	require.Contains(t, f.Usage, "seconds")
+}
+
+func TestInitFlagsParsesTimeoutDuration(t *testing.T) {
+	setFlag(t, &flagTimeout, 0)
+
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	InitFlags(fs)
+
+	require.NoError(t, fs.Parse([]string{"--timeout=1m30s"}))
+	require.Equal(t, 90*time.Second, flagTimeout)
+}
+
+func TestInitFlagsRejectsInvalidTimeout(t *testing.T) {
+	setFlag(t, &flagTimeout, 0)
+
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	InitFlags(fs)
+
+	require.Error(t, fs.Parse([]string{"--timeout=not-a-duration"}))
+}
+
+func TestCLITimeout(t *testing.T) {
+	tests := []struct {
+		name string
+		flag time.Duration
+		env  string
+		want time.Duration
+	}{
+		{name: "flag overrides env and default", flag: 3 * time.Second, env: "8", want: 3 * time.Second},
+		{name: "flag honors sub-second durations", flag: 500 * time.Millisecond, env: "", want: 500 * time.Millisecond},
+		{name: "env used when flag unset", flag: 0, env: "8", want: 8 * time.Second},
+		{name: "default when flag and env unset", flag: 0, env: "", want: defaultCLITimeout},
+		{name: "default when env is non-numeric", flag: 0, env: "abc", want: defaultCLITimeout},
+		{name: "default when env is non-positive", flag: 0, env: "0", want: defaultCLITimeout},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(envVarTimeout, tc.env)
+			setFlag(t, &flagTimeout, tc.flag)
+
+			require.Equal(t, tc.want, cliTimeout())
+		})
 	}
 }
 
