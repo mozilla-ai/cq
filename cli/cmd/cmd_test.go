@@ -23,7 +23,7 @@ func testSetup(t *testing.T) {
 }
 
 // setFlag sets a package-level flag variable and restores it after the test.
-func setFlag(t *testing.T, target *string, value string) {
+func setFlag[T any](t *testing.T, target *T, value T) {
 	t.Helper()
 
 	prev := *target
