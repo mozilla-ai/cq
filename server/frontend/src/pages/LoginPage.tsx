@@ -1,5 +1,23 @@
 import { type FormEvent, useState } from "react"
+import { ApiError } from "../api"
 import { useAuth } from "../auth"
+
+// Only a 401 means the username/password were wrong. Every other failure —
+// an unreachable API, a dev-proxy error, a 5xx — is an availability problem,
+// and reporting it as "Invalid credentials" sends people looking for the
+// wrong bug entirely.
+function loginErrorMessage(err: unknown): string {
+  if (!(err instanceof ApiError)) {
+    return "Cannot reach the cq server. Check that the API is running."
+  }
+  if (err.status === 401) {
+    return "Invalid credentials"
+  }
+  if (err.status >= 500) {
+    return `The cq server is unavailable (HTTP ${err.status}).`
+  }
+  return err.message
+}
 
 export function LoginPage() {
   const { login } = useAuth()
@@ -14,8 +32,8 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(username, password)
-    } catch {
-      setError("Invalid credentials")
+    } catch (err) {
+      setError(loginErrorMessage(err))
     } finally {
       setLoading(false)
     }
