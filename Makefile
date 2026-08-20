@@ -1,9 +1,9 @@
 .DEFAULT_GOAL := help
 
-# Local (non-Docker) dev server settings, shared by dev-api and the dev-seed-*
-# targets so the port and database path cannot drift apart. DEV_DB is relative
-# to server/backend; DEV_API_PORT must match the frontend proxy target in
-# server/frontend/vite.config.ts.
+# Local (non-Docker) dev server settings, shared by dev-api, dev-ui and the
+# dev-seed-* targets so the port and database path cannot drift apart. DEV_DB
+# is relative to server/backend; DEV_API_PORT is passed through to Vite by
+# dev-ui, which uses it as the /api/v1 proxy target.
 DEV_DB ?= ./dev.db
 DEV_API_PORT ?= 8742
 
@@ -149,41 +149,58 @@ endif
 
 .PHONY: dev-api
 dev-api:
-	cd server/backend && CQ_DB_PATH=$(DEV_DB) CQ_JWT_SECRET=dev-secret CQ_API_KEY_PEPPER=dev-pepper CQ_PORT=$(DEV_API_PORT) uv run cq-server
+	cd server/backend && CQ_DATABASE_URL= CQ_DB_PATH="$(DEV_DB)" CQ_JWT_SECRET=dev-secret CQ_API_KEY_PEPPER=dev-pepper CQ_PORT=$(DEV_API_PORT) uv run cq-server
 
 .PHONY: dev-ui
 dev-ui:
-	cd server/frontend && pnpm dev
+	cd server/frontend && DEV_API_PORT=$(DEV_API_PORT) pnpm dev
 
 .PHONY: dev-seed-users
 dev-seed-users:
 # USER is exported by every POSIX shell, so `ifndef USER` never fires and the
 # target would silently fall back to the current OS username. Require it to be
-# passed on the command line instead.
+# passed on the command line, and reject an empty value.
 ifneq ($(origin USER),command line)
 	$(error USER is required. Usage: make dev-seed-users USER=demo PASS=demo123)
 endif
-ifndef PASS
+ifeq ($(strip $(USER)),)
+	$(error USER is required. Usage: make dev-seed-users USER=demo PASS=demo123)
+endif
+ifeq ($(strip $(PASS)),)
 	$(error PASS is required. Usage: make dev-seed-users USER=demo PASS=demo123)
 endif
-	cd server/backend && CQ_DB_PATH=$(DEV_DB) uv run alembic upgrade head
+	cd server/backend && CQ_DATABASE_URL= CQ_DB_PATH="$(DEV_DB)" uv run alembic upgrade head
 	cd server/backend && uv run python ../scripts/seed-users.py --username "$(USER)" --password "$(PASS)" --db "$(DEV_DB)"
 
 .PHONY: dev-seed-kus
 dev-seed-kus:
 # USER is exported by every POSIX shell, so `ifndef USER` never fires and the
 # target would silently fall back to the current OS username. Require it to be
-# passed on the command line instead.
+# passed on the command line, and reject an empty value.
 ifneq ($(origin USER),command line)
 	$(error USER is required. Usage: make dev-seed-kus USER=demo PASS=demo123)
 endif
-ifndef PASS
+ifeq ($(strip $(USER)),)
+	$(error USER is required. Usage: make dev-seed-kus USER=demo PASS=demo123)
+endif
+ifeq ($(strip $(PASS)),)
 	$(error PASS is required. Usage: make dev-seed-kus USER=demo PASS=demo123)
 endif
 	cd server/backend && uv run python ../scripts/seed-kus.py --user "$(USER)" --pass "$(PASS)" --url "http://localhost:$(DEV_API_PORT)"
 
 .PHONY: dev-seed-all
-dev-seed-all: dev-seed-users dev-seed-kus
+dev-seed-all:
+ifneq ($(origin USER),command line)
+	$(error USER is required. Usage: make dev-seed-all USER=demo PASS=demo123)
+endif
+ifeq ($(strip $(USER)),)
+	$(error USER is required. Usage: make dev-seed-all USER=demo PASS=demo123)
+endif
+ifeq ($(strip $(PASS)),)
+	$(error PASS is required. Usage: make dev-seed-all USER=demo PASS=demo123)
+endif
+	$(MAKE) dev-seed-users USER="$(USER)" PASS="$(PASS)"
+	$(MAKE) dev-seed-kus USER="$(USER)" PASS="$(PASS)"
 
 .PHONY: validate-schema
 validate-schema:
