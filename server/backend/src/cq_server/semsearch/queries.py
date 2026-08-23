@@ -251,13 +251,15 @@ async def combined_query(
                 `total_distance` (treated as 0 if `total_distance` <= 0) before weighting.
 
         Returns:
-            float: Combined score computed as 0.8 * relevance + 0.2 * (normalized distance),
+            float: Combined score computed as 0.8 * relevance + 0.2 * (1 - normalized distance),
                 where normalized distance is `distance / total_distance` or 0 when `total_distance` is 0.
+                `distance` is a cosine dissimilarity (lower means more similar), so it is inverted
+                here to reward closer matches rather than penalize them.
         """
         relevance_weight = 0.8
         distance_weight = 0.2
         normalized_distance = distance / total_distance if total_distance > 0 else 0
-        result = relevance * relevance_weight + normalized_distance * distance_weight
+        result = relevance * relevance_weight + (1 - normalized_distance) * distance_weight
         return result
 
     scored = [

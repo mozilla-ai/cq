@@ -482,6 +482,74 @@ class TestSemsearchQueryHelpers:
         expected = sorted([unit_a.id, unit_b.id], reverse=True)
         assert [u.id for u in results] == expected
 
+    async def test_combined_query_ranks_closer_distance_first(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """combined_query should rank the closer (lower-distance) unit first when relevance and confidence tie.
+
+        vec_distance_cosine is a dissimilarity measure (lower means more similar), and the SQL
+        that produces these rows orders by distance ascending (closest first). The combined score
+        must preserve that ordering rather than reward the farthest match.
+        """
+        monkeypatch.setattr(semsearch_queries, "semsearch_enabled", lambda: True)
+        monkeypatch.setattr(semsearch_queries, "normalize_domains", lambda d: d)
+
+        async def _fake_embeddings(_domains: list[str]):
+            return [0.5, 0.5]
+
+        monkeypatch.setattr(semsearch_queries, "_get_embeddings", _fake_embeddings)
+        monkeypatch.setattr(semsearch_queries, "_serialize_embedding", lambda _vec: b"Q")
+        monkeypatch.setattr(semsearch_queries, "calculate_relevance", lambda *args, **kwargs: 0.7)
+
+        unit_near = _make_unit("astro")
+        unit_far = _make_unit("astro")
+        unit_near.evidence.confidence = 1.0
+        unit_far.evidence.confidence = 1.0
+
+        rows = [
+            (unit_near.model_dump_json(), 0.05),
+            (unit_far.model_dump_json(), 0.90),
+        ]
+
+        results = await semsearch_queries.combined_query(
+            _RecordingDatabase(fetch_rows=rows),
+            ["astro"],
+            None,
+            None,
+            "",
+            limit=2,
+        )
+
+        assert [u.id for u in results] == [unit_near.id, unit_far.id]
+
+    async def test_combined_query_zero_total_distance_does_not_divide_by_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """combined_query should take the guarded zero-distance branch without raising ZeroDivisionError."""
+        monkeypatch.setattr(semsearch_queries, "semsearch_enabled", lambda: True)
+        monkeypatch.setattr(semsearch_queries, "normalize_domains", lambda d: d)
+
+        async def _fake_embeddings(_domains: list[str]):
+            return [0.5, 0.5]
+
+        monkeypatch.setattr(semsearch_queries, "_get_embeddings", _fake_embeddings)
+        monkeypatch.setattr(semsearch_queries, "_serialize_embedding", lambda _vec: b"Q")
+        monkeypatch.setattr(semsearch_queries, "calculate_relevance", lambda *args, **kwargs: 0.7)
+
+        unit_a = _make_unit("astro")
+        unit_a.evidence.confidence = 1.0
+
+        rows = [(unit_a.model_dump_json(), 0.0)]
+
+        results = await semsearch_queries.combined_query(
+            _RecordingDatabase(fetch_rows=rows),
+            ["astro"],
+            None,
+            None,
+            "",
+            limit=1,
+        )
+
+        assert [u.id for u in results] == [unit_a.id]
+
 
 class TestCombinedQueryErrors:
     """Test combined_query error handling and edge cases."""
