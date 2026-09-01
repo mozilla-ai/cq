@@ -8,7 +8,7 @@ import pytest
 
 from cq_server.auth import hash_password
 from cq_server.exceptions import InvalidCredentialsError
-from cq_server.services.auth import AuthService
+from cq_server.services.auth import _DUMMY_PASSWORD_HASH, AuthService
 
 
 class _StubUserRepo:
@@ -41,6 +41,22 @@ class TestAuthServiceLogin:
 
         with pytest.raises(InvalidCredentialsError):
             await service.login("nobody", "secret123")
+
+    async def test_login_verifies_password_even_for_unknown_user(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Unknown usernames must still cost a bcrypt verify (no timing oracle)."""
+        hashes_checked: list[str] = []
+
+        def _recording_verify(password: str, hashed: str) -> bool:
+            hashes_checked.append(hashed)
+            return True  # even a "passing" dummy verify must not log in
+
+        monkeypatch.setattr("cq_server.services.auth.verify_password", _recording_verify)
+        service = AuthService(users=_StubUserRepo(None), jwt_secret="test-secret")  # type: ignore[arg-type]
+
+        with pytest.raises(InvalidCredentialsError):
+            await service.login("nobody", "secret123")
+
+        assert hashes_checked == [_DUMMY_PASSWORD_HASH]
 
     async def test_login_raises_invalid_credentials_for_wrong_password(self) -> None:
         repo = _StubUserRepo({"username": "alice", "password_hash": hash_password("secret123")})
