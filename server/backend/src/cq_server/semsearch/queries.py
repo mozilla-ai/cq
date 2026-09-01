@@ -247,8 +247,8 @@ async def combined_query(
 
         Parameters:
             relevance (float): Base relevance value to weight.
-            distance (float): Non-negative distance value; it is normalized by the module-level
-                `total_distance` (treated as 0 if `total_distance` <= 0) before weighting.
+            distance (float): Non-negative distance value; it is normalized by `total_distance`, a closure
+                variable of `combined_query` (treated as 0 if `total_distance` <= 0) before weighting.
 
         Returns:
             float: Combined score computed as 0.8 * relevance + 0.2 * (1 - normalized distance),
