@@ -55,7 +55,7 @@ help:
 	@echo "  make dev-ui                                  Run the dashboard on :3000 (proxies /api/v1 to dev-api)"
 	@echo "  make dev-seed-users USER=demo PASS=demo123   Create a user in the dev-api database"
 	@echo "  make dev-seed-kus   USER=demo PASS=demo123   Load sample KUs (requires make dev-api running)"
-	@echo "  make dev-seed-all   USER=demo PASS=demo123   Create user + load KUs"
+	@echo "  make dev-seed-all   USER=demo PASS=demo123   Create user + load KUs (requires make dev-api running)"
 	@echo ""
 	@echo "Docker Compose:"
 	@echo "  make compose-up                              Build and start services (creates .env from example if missing)"

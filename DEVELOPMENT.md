@@ -72,7 +72,7 @@ These run against `server/backend/dev.db`, which is a separate database from the
 ```bash
 make dev-seed-users USER=demo PASS=demo123   # creates dev.db and its schema if needed
 make dev-seed-kus   USER=demo PASS=demo123   # requires make dev-api to be running
-make dev-seed-all   USER=demo PASS=demo123   # both
+make dev-seed-all   USER=demo PASS=demo123   # both (requires make dev-api to be running)
 ```
 
 To point an installed agent at this local server, set `CQ_ADDR` to `http://localhost:3000` — see [Connect to a remote cq server](docs/install.md#connect-to-a-remote-cq-server) for the per-host configuration.
