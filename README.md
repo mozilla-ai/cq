@@ -21,15 +21,14 @@ cq install --target <host>
 
 | Agent         | Target          |
 |---------------|-----------------|
+| Agent Skills  | `agent-skills`  |
 | Claude        | `claude`        |
-| Codex         | `codex`         |
-| Copilot       | `copilot`       |
-| Cursor        | `cursor`        |
-| Devin Desktop | `devin-desktop` |
-| OpenCode      | `opencode`      |
-| Pi            | `pi`            |
-
-Install into multiple hosts at once by repeating `--target`.
+| Codex         | `codex`          |
+| Copilot       | `copilot`        |
+| Cursor        | `cursor`         |
+| Devin Desktop | `devin-desktop`  |
+| OpenCode      | `opencode`       |
+| Pi            | `pi`             |
 
 For per-host config paths, flags, remote-server setup, and Windows locations, see [the installation guide](docs/install.md).
 
@@ -56,6 +55,7 @@ Then it will `propose` that learning as a knowledge unit.
 
 ### Session reflection (optional)
 
+For hosts that discover the interoperable Agent Skills format, install `cq` and `cq-reflect` with `cq install --target agent-skills`. This installs skills only; Agent Skills does not define slash-command discovery. The host must discover `~/.agents/skills` and have the cq tools configured.
 `/cq:reflect` is a catch-all for the end of a session, useful if you suspect the agent missed proposing something in-flow.
 It scans the session for learnings worth sharing (debugging breakthroughs, undocumented API behavior, workarounds), presents
 them for approval, and queries the store before submitting each one to avoid duplicates.
