@@ -23,7 +23,7 @@ cd cq/cli
 make build
 ```
 
-> **Homebrew tap trust:** `mozilla-ai/tap` is a third-party tap, and Homebrew will require explicit [tap trust](https://docs.brew.sh/Tap-Trust) for non-official taps from versions 5.2.0 and 6.0.0 onwards. Installing by the fully-qualified cask name (`mozilla-ai/tap/cq`, as above) trusts only the `cq` cask, so that command keeps working without extra steps. If you prefer to tap first and install by short name, trust the cask explicitly:
+> **Homebrew tap trust:** `mozilla-ai/tap` is a third-party tap, and Homebrew 6.0.0 and later require explicit [tap trust](https://docs.brew.sh/Tap-Trust) for non-official taps. Installing by the fully-qualified cask name (`mozilla-ai/tap/cq`, as above) trusts only the `cq` cask, so that command works without extra steps. If you prefer to tap first and install by short name, trust the cask explicitly:
 >
 > ```bash
 > brew tap mozilla-ai/tap
@@ -78,14 +78,16 @@ cq mcp
 
 The CLI works out of the box in local-only mode with no configuration.
 
-| Variable           | Description                        | Default                        |
-|--------------------|------------------------------------|--------------------------------|
-| `CQ_ADDR`          | Remote cq API address              | None (local-only)              |
-| `CQ_API_KEY`       | API key (data-plane, long-lived)   | None                           |
-| `CQ_LOCAL_DATABASE_URL` | Local store connection URL (e.g. `sqlite:///abs/path/local.db`) | None (falls back to `CQ_LOCAL_DB_PATH`) |
-| `CQ_LOCAL_DB_PATH` | Local SQLite path                  | `~/.local/share/cq/local.db`   |
-| `CQ_CONFIG_DIR`    | Credential and config directory    | `${XDG_CONFIG_HOME:-~/.config}/cq` |
-| `CQ_TIMEOUT`       | CLI operation timeout              | 30s                            |
+| Variable           | Flag          | Description                        | Default                        |
+|--------------------|---------------|------------------------------------|--------------------------------|
+| `CQ_ADDR`          | `--addr`      | Remote cq API address              | None (local-only)              |
+| `CQ_API_KEY`       | `--api-key`   | API key (data-plane, long-lived)   | None                           |
+| `CQ_LOCAL_DATABASE_URL` |          | Local store connection URL (e.g. `sqlite:///abs/path/local.db`) | None (falls back to `CQ_LOCAL_DB_PATH`) |
+| `CQ_LOCAL_DB_PATH` | `--db-path`   | Local SQLite path                  | `~/.local/share/cq/local.db`   |
+| `CQ_CONFIG_DIR`    |               | Credential and config directory    | `${XDG_CONFIG_HOME:-~/.config}/cq` |
+| `CQ_TIMEOUT`       | `--timeout`   | CLI operation timeout              | 30s                            |
+
+Flags take precedence over environment variables. `CQ_TIMEOUT` takes whole seconds (`30`), while `--timeout` takes a duration (`30s`, `1m30s`). A `--timeout` of zero or less is ignored, so `CQ_TIMEOUT` or the default applies.
 
 ## Authentication
 
