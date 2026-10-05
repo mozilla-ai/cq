@@ -58,22 +58,6 @@ jobs:
 
           echo "Version package validated successfully"
 
-      - name: Validate brew template
-        working-directory: build/brew
-        run: |
-          set -euo pipefail
-
-          # Render with dummy data to catch template errors.
-          printf "aaaa cq_Darwin_arm64.tar.gz\nbbbb cq_Linux_x86_64.tar.gz\n" > /tmp/checksums.txt
-          go run . \
-            -checksums /tmp/checksums.txt \
-            -base-url "https://example.com" \
-            -version "0.0.0" \
-            -template cq.rb.tpl \
-            -output /dev/null
-
-          echo "Brew template validated successfully"
-
       # Scoop autoupdate contract.
       #
       # The CLI is distributed on Windows via Scoop's community "Main" bucket:
@@ -124,3 +108,30 @@ jobs:
           fi
 
           echo "Scoop autoupdate contract validated successfully"
+
+  validate-brew-postflight:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: build/brew/go.mod
+          cache: false
+
+      - name: Validate generated cask install steps
+        working-directory: build/brew
+        run: |
+          set -euo pipefail
+          printf "aaaa cq_Darwin_arm64.tar.gz\nbbbb cq_Linux_x86_64.tar.gz\n" > "$RUNNER_TEMP/checksums.txt"
+          go run . \
+            -checksums "$RUNNER_TEMP/checksums.txt" \
+            -base-url "https://example.com" \
+            -version "0.0.0" \
+            -template cq.rb.tpl \
+            -output "$RUNNER_TEMP/cq.rb"
+          brew style --only-cops Cask/InstallSteps "$RUNNER_TEMP/cq.rb"

@@ -31,6 +31,8 @@ make build
 > brew install --cask cq
 > ```
 
+The Homebrew cask removes macOS quarantine from the unsigned `cq` binary during installation. Install the cask only if you trust its source.
+
 ## Usage
 
 ```bash
