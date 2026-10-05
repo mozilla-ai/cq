@@ -166,10 +166,16 @@ func TestRenderTemplate(t *testing.T) {
 		"sha256 \"aaaa\"",
 		"sha256 \"bbbb\"",
 		"cli/v0.1.0/cq_Darwin_arm64.tar.gz",
+		"postflight_steps do",
+		`run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{staged_path}}/cq"]`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Errorf("output missing %q", want)
 		}
+	}
+
+	if strings.Contains(output, "postflight do") {
+		t.Error("output should not use the deprecated postflight block")
 	}
 
 	// Verify Windows is excluded.
