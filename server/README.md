@@ -1,7 +1,7 @@
 # cq-server backend
 
 {% hint style="info" icon="tag" %}
-Version: v0.12.0
+Version: v0.12.2
 {% endhint %}
 
 FastAPI service backing the cq remote store.
