@@ -336,7 +336,7 @@ tests = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.4,<2" },
-    { name = "bcrypt", specifier = ">=4.0" },
+    { name = "bcrypt", specifier = ">=5.0" },
     { name = "cq-sdk", specifier = "~=0.18.0" },
     { name = "fastapi" },
     { name = "httpx", marker = "extra == 'semsearch'" },

@@ -43,6 +43,22 @@ class TestPasswordHashing:
         hashed = hash_password("secret123")
         assert verify_password("wrong", hashed) is False
 
+    def test_verify_accepts_password_at_hashing_limit(self) -> None:
+        password = "a" * 72
+        assert verify_password(password, hash_password(password)) is True
+
+    def test_verify_rejects_password_over_hashing_limit(self) -> None:
+        hashed = hash_password("secret123")
+        assert verify_password("a" * 80, hashed) is False
+
+    def test_verify_rejects_multibyte_password_over_byte_limit(self) -> None:
+        hashed = hash_password("secret123")
+        assert verify_password("é" * 40, hashed) is False
+
+    def test_hash_rejects_password_over_hashing_limit(self) -> None:
+        with pytest.raises(ValueError):
+            hash_password("a" * 80)
+
 
 class TestJWT:
     def test_create_and_verify_token(self) -> None:
@@ -92,6 +108,15 @@ class TestLoginEndpoint:
 
     def test_login_unknown_user(self, client: TestClient) -> None:
         resp = client.post("/api/v1/auth/login", json={"username": "nobody", "password": self.test_password})
+        assert resp.status_code == 401
+
+    def test_login_over_long_password_rejected_for_known_user(self, client: TestClient) -> None:
+        _seed_user(client)
+        resp = client.post("/api/v1/auth/login", json={"username": "peter", "password": "a" * 100})
+        assert resp.status_code == 401
+
+    def test_login_over_long_password_rejected_for_unknown_user(self, client: TestClient) -> None:
+        resp = client.post("/api/v1/auth/login", json={"username": "nobody", "password": "a" * 100})
         assert resp.status_code == 401
 
 

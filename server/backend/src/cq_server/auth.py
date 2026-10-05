@@ -21,6 +21,9 @@ from typing import Any
 import bcrypt
 import jwt
 
+# bcrypt hashes at most 72 bytes of input and rejects anything longer.
+_MAX_PASSWORD_BYTES = 72
+
 
 def create_token(username: str, *, secret: str, ttl_hours: int = 24) -> str:
     """Create a JWT token for the given username."""
@@ -39,8 +42,14 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against its bcrypt hash."""
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+    """Verify a password against its bcrypt hash.
+
+    A password over the hashing limit fails, because no stored hash can have come from one.
+    """
+    encoded = password.encode()
+    if len(encoded) > _MAX_PASSWORD_BYTES:
+        return False
+    return bcrypt.checkpw(encoded, hashed.encode())
 
 
 def verify_token(token: str, *, secret: str) -> dict[str, Any]:
