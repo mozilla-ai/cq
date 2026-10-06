@@ -30,7 +30,7 @@ func TestClaudeInstallRunsMarketplaceCommands(t *testing.T) {
 	require.Equal(t, []string{"claude", "plugin", "install", claudeMarketplaceID}, ran[1])
 }
 
-func TestClaudeUninstallRunsMarketplaceRemove(t *testing.T) {
+func TestClaudeUninstallRemovesPluginThenMarketplace(t *testing.T) {
 	var ran [][]string
 	h := claudeHost{
 		lookPath: stubLookPath,
@@ -42,11 +42,14 @@ func TestClaudeUninstallRunsMarketplaceRemove(t *testing.T) {
 
 	changes, err := h.Uninstall(Context{DryRun: false})
 	require.NoError(t, err)
-	require.Len(t, changes, 1)
-	require.Equal(t, ActionRemoved, changes[0].Action)
+	require.Equal(t, []Change{
+		{Action: ActionRemoved, Path: "claude plugin"},
+		{Action: ActionRemoved, Path: "claude marketplace"},
+	}, changes)
 
-	require.Len(t, ran, 1)
-	require.Equal(t, []string{"claude", "plugin", "marketplace", "remove", claudeMarketplaceID}, ran[0])
+	require.Len(t, ran, 2)
+	require.Equal(t, []string{"claude", "plugin", "uninstall", claudeMarketplaceID}, ran[0])
+	require.Equal(t, []string{"claude", "plugin", "marketplace", "remove", claudeMarketplaceID}, ran[1])
 }
 
 func TestClaudeInstallDryRunSkipsExecution(t *testing.T) {

@@ -11,8 +11,7 @@ const (
 	// claudeCLI is the command name for the Claude Code CLI.
 	claudeCLI = "claude"
 
-	// claudeMarketplaceID is the plugin identifier used by
-	// `claude plugin install` and `claude plugin marketplace remove`.
+	// claudeMarketplaceID is the plugin and marketplace name that the `claude plugin` commands use.
 	claudeMarketplaceID = "cq"
 
 	// claudeMarketplaceSource is the GitHub source slug used by
@@ -66,21 +65,25 @@ func (claudeHost) Name() Target { return TargetClaude }
 // SupportsProject reports that Claude Code is global-only.
 func (claudeHost) SupportsProject() bool { return false }
 
-// Uninstall runs `claude plugin marketplace remove`.
+// Uninstall runs `claude plugin uninstall` and `claude plugin marketplace remove`.
 //
-// Removing the marketplace entry unregisters the plugin as well, so no
-// separate `claude plugin uninstall` call is needed.
+// NOTE: Removing the marketplace leaves the plugin enabled when another
+// settings scope still declares the marketplace, so the plugin is uninstalled first.
 func (h claudeHost) Uninstall(ctx Context) ([]Change, error) {
 	if err := h.requireCLI(ctx.DryRun); err != nil {
 		return nil, err
 	}
 	commands := [][]string{
+		{claudeCLI, "plugin", "uninstall", claudeMarketplaceID},
 		{claudeCLI, "plugin", "marketplace", "remove", claudeMarketplaceID},
 	}
 	if err := h.runAll(commands, ctx.DryRun); err != nil {
 		return nil, err
 	}
-	return []Change{{Action: ActionRemoved, Path: "claude marketplace"}}, nil
+	return []Change{
+		{Action: ActionRemoved, Path: "claude plugin"},
+		{Action: ActionRemoved, Path: "claude marketplace"},
+	}, nil
 }
 
 // requireCLI verifies the claude CLI is on PATH.
