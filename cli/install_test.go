@@ -132,6 +132,17 @@ func TestInstallProjectRejectsMissingDirectory(t *testing.T) {
 	require.ErrorContains(t, err, "project directory "+missing+" does not exist")
 }
 
+func TestInstallProjectRejectsEmptyDirectory(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	out, err := runInstall(t, "--target", "claude", "--project=", "--dry-run")
+	require.ErrorContains(t, err, "--project needs a directory")
+	require.NotContains(t, out, "[claude]")
+}
+
 func TestInstallProjectRejectsHostWithoutProjectSupport(t *testing.T) {
 	home := t.TempDir()
 	setTestHome(t, home)

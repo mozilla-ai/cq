@@ -184,6 +184,9 @@ func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 	if err != nil {
 		return fmt.Errorf("resolving binary path: %w", err)
 	}
+	if cmd.Flags().Changed("project") && f.project == "" {
+		return errors.New("--project needs a directory")
+	}
 	var projectDir string
 	if f.project != "" {
 		if err := install.CheckProjectSupport(hosts); err != nil {
