@@ -28,7 +28,7 @@ const (
 	// envVarDBPath is the environment variable for the local database path.
 	envVarDBPath = "CQ_LOCAL_DB_PATH"
 
-	// envVarTimeout is the environment variable for the CLI operation timeout in seconds.
+	// envVarTimeout is the environment variable for the CLI operation timeout.
 	envVarTimeout = "CQ_TIMEOUT"
 
 	// envVarXDGConfigHome is the XDG Base Directory specification's
@@ -71,29 +71,34 @@ func InitFlags(fs *pflag.FlagSet) {
 		&flagTimeout,
 		"timeout",
 		0,
-		"CLI operation timeout, e.g. 30s (env: "+envVarTimeout+" in seconds, default "+defaultCLITimeout.String()+")",
+		"CLI operation timeout, e.g. 30s (env: "+envVarTimeout+", default "+defaultCLITimeout.String()+")",
 	)
 }
 
 // cliTimeout resolves the CLI operation timeout with precedence: the --timeout
-// flag, then the CQ_TIMEOUT env var (integer seconds), then the default.
-func cliTimeout() time.Duration {
+// flag, then the CQ_TIMEOUT env var, then the default.
+func cliTimeout() (time.Duration, error) {
 	if flagTimeout > 0 {
-		return flagTimeout
+		return flagTimeout, nil
 	}
 
 	if v := os.Getenv(envVarTimeout); v != "" {
-		if d, err := strconv.Atoi(v); err == nil && d > 0 {
-			return time.Duration(d) * time.Second
-		}
+		return parseTimeoutEnv(v)
 	}
 
-	return defaultCLITimeout
+	return defaultCLITimeout, nil
 }
 
 // cliContext returns a context with the CLI timeout applied.
-func cliContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), cliTimeout())
+func cliContext() (context.Context, context.CancelFunc, error) {
+	timeout, err := cliTimeout()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+
+	return ctx, cancel, nil
 }
 
 // configDir resolves the CLI's config and credential directory.
@@ -122,7 +127,12 @@ func configDir() (string, error) {
 
 // newCLIClient creates a new SDK client using the persistent flag values.
 func newCLIClient() (*cq.Client, error) {
-	opts := []cq.ClientOption{cq.WithTimeout(cliTimeout())}
+	timeout, err := cliTimeout()
+	if err != nil {
+		return nil, err
+	}
+
+	opts := []cq.ClientOption{cq.WithTimeout(timeout)}
 	if flagAddr != "" {
 		opts = append(opts, cq.WithAddr(flagAddr))
 	}
@@ -146,4 +156,24 @@ func newCLIClient() (*cq.Client, error) {
 	}
 
 	return c, nil
+}
+
+// parseTimeoutEnv reads a CQ_TIMEOUT value given as whole seconds (30) or as a duration (30s).
+func parseTimeoutEnv(v string) (time.Duration, error) {
+	invalid := fmt.Errorf("%s must be a positive duration (30s) or whole seconds (30), got %s", envVarTimeout, v)
+
+	if secs, err := strconv.Atoi(v); err == nil {
+		if secs <= 0 {
+			return 0, invalid
+		}
+
+		return time.Duration(secs) * time.Second, nil
+	}
+
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0, invalid
+	}
+
+	return d, nil
 }
