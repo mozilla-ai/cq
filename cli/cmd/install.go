@@ -198,6 +198,7 @@ func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 		}
 	}
 
+	verbs := cliVerbs()
 	for _, h := range hosts {
 		ctx := install.Context{
 			Home:       home,
@@ -206,7 +207,7 @@ func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 			SkillsDir:  install.SharedSkillsDir(home),
 			BinaryPath: binary,
 			DryRun:     f.dryRun,
-			CLIVerbs:   cliVerbs(),
+			CLIVerbs:   verbs,
 		}
 		var changes []install.Change
 		if f.uninstall {
