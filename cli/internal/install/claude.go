@@ -124,20 +124,34 @@ func (claudeHost) SupportsProject() bool { return true }
 // An item that is already absent is reported unchanged, so repeated uninstalls succeed.
 // NOTE: Removing the marketplace leaves the plugin enabled when another settings scope still declares the marketplace,
 // so the plugin is uninstalled first.
+// NOTE: When the plugin is not installed in the scope, the marketplace is left in place.
+// Settings that still enable the plugin then keep the marketplace it needs.
 func (h claudeHost) Uninstall(ctx Context) ([]Change, error) {
+	if err := h.requireCLI(ctx.DryRun); err != nil {
+		return nil, err
+	}
 	scope := string(claudeScopeFor(ctx))
-	return h.applyAll(ctx, []claudeStep{
-		{
-			absent: []claudeFailureCode{claudePluginNotInstalled, claudePluginNotInstalledAtScope},
-			args:   []string{"plugin", "uninstall", claudePluginID, "--scope", scope, "--json"},
-			path:   "claude plugin",
-		},
-		{
-			absent: []claudeFailureCode{claudeMarketplaceNotConfigured},
-			args:   []string{"plugin", "marketplace", "remove", claudeMarketplaceID, "--scope", scope, "--json"},
-			path:   "claude marketplace",
-		},
+	plugin, err := h.apply(ctx, claudeStep{
+		absent: []claudeFailureCode{claudePluginNotInstalled, claudePluginNotInstalledAtScope},
+		args:   []string{"plugin", "uninstall", claudePluginID, "--scope", scope, "--json"},
+		path:   "claude plugin",
 	}, ActionRemoved)
+	if err != nil {
+		return nil, err
+	}
+	marketplace := claudeStep{
+		absent: []claudeFailureCode{claudeMarketplaceNotConfigured},
+		args:   []string{"plugin", "marketplace", "remove", claudeMarketplaceID, "--scope", scope, "--json"},
+		path:   "claude marketplace",
+	}
+	if plugin.Action == ActionUnchanged {
+		return []Change{plugin, {Action: ActionUnchanged, Path: marketplace.path, Detail: plugin.Detail}}, nil
+	}
+	removed, err := h.apply(ctx, marketplace, ActionRemoved)
+	if err != nil {
+		return nil, err
+	}
+	return []Change{plugin, removed}, nil
 }
 
 // apply runs one step and reports action, or reports the item unchanged when it is already absent.

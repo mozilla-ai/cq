@@ -130,7 +130,7 @@ func TestClaudeUninstallRemovesPluginThenMarketplaceInScope(t *testing.T) {
 	}
 }
 
-func TestClaudeUninstallReportsAbsentStepsUnchanged(t *testing.T) {
+func TestClaudeUninstallLeavesMarketplaceWhenPluginAbsent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -145,14 +145,12 @@ func TestClaudeUninstallReportsAbsentStepsUnchanged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			var ran [][]string
 			h := claudeHost{
 				lookPath: stubLookPath,
 				run: func(_ string, _ string, args ...string) ([]byte, error) {
-					code := tc.pluginCode
-					if args[1] == "marketplace" {
-						code = "not_configured"
-					}
-					out := fmt.Sprintf(`{"outcome":"failed","failureCode":"%s"}`, code)
+					ran = append(ran, args)
+					out := fmt.Sprintf(`{"outcome":"failed","failureCode":"%s"}`, tc.pluginCode)
 					return []byte("progress\n" + out + "\n"), errors.New("exit status 1")
 				},
 			}
@@ -163,8 +161,30 @@ func TestClaudeUninstallReportsAbsentStepsUnchanged(t *testing.T) {
 				{Action: ActionUnchanged, Path: "claude plugin", Detail: "user scope"},
 				{Action: ActionUnchanged, Path: "claude marketplace", Detail: "user scope"},
 			}, changes)
+			require.Len(t, ran, 1, "the marketplace must not be removed when the plugin is absent")
 		})
 	}
+}
+
+func TestClaudeUninstallReportsAbsentMarketplaceUnchanged(t *testing.T) {
+	t.Parallel()
+
+	h := claudeHost{
+		lookPath: stubLookPath,
+		run: func(_ string, _ string, args ...string) ([]byte, error) {
+			if args[1] != "marketplace" {
+				return nil, nil
+			}
+			return []byte(`{"outcome":"failed","failureCode":"not_configured"}`), errors.New("exit status 1")
+		},
+	}
+
+	changes, err := h.Uninstall(Context{DryRun: false})
+	require.NoError(t, err)
+	require.Equal(t, []Change{
+		{Action: ActionRemoved, Path: "claude plugin", Detail: "user scope"},
+		{Action: ActionUnchanged, Path: "claude marketplace", Detail: "user scope"},
+	}, changes)
 }
 
 func TestClaudeUninstallPropagatesOtherFailures(t *testing.T) {
