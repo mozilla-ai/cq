@@ -11,6 +11,8 @@ import (
 )
 
 func TestTargetsSetAccumulatesAndDedupes(t *testing.T) {
+	t.Parallel()
+
 	sel := targets{}
 	require.NoError(t, sel.Set("cursor"))
 	require.NoError(t, sel.Set("devin-desktop"))
@@ -19,12 +21,16 @@ func TestTargetsSetAccumulatesAndDedupes(t *testing.T) {
 }
 
 func TestTargetsSetSplitsCommasAndTrims(t *testing.T) {
+	t.Parallel()
+
 	sel := targets{}
 	require.NoError(t, sel.Set(" cursor , devin-desktop "))
 	require.Equal(t, install.Targets{install.TargetCursor, install.TargetDevinDesktop}, sel.names())
 }
 
 func TestTargetsSetGarbageInputIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		input string
@@ -36,6 +42,8 @@ func TestTargetsSetGarbageInputIsNoOp(t *testing.T) {
 		{"tabs and newlines", " \t , \n "},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			sel := targets{}
 			require.NoError(t, sel.Set(tc.input))
 			require.Empty(t, sel)
@@ -44,6 +52,8 @@ func TestTargetsSetGarbageInputIsNoOp(t *testing.T) {
 }
 
 func TestTargetsSetRejectsUnknown(t *testing.T) {
+	t.Parallel()
+
 	sel := targets{}
 	err := sel.Set("emacs")
 	require.Error(t, err)
@@ -52,6 +62,8 @@ func TestTargetsSetRejectsUnknown(t *testing.T) {
 }
 
 func TestTargetsStringAndType(t *testing.T) {
+	t.Parallel()
+
 	sel := targets{}
 	require.NoError(t, sel.Set("devin-desktop,cursor"))
 	require.Equal(t, "target", sel.Type())

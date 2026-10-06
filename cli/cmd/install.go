@@ -91,6 +91,28 @@ func NewInstallCmd() *cobra.Command {
 	return cmd
 }
 
+// cliVerbs returns the cq CLI verb descriptions derived from the actual cobra
+// command definitions, for hosts that embed CLI invocation instructions.
+func cliVerbs() []install.CLIVerb {
+	// NOTE: The order follows the cq workflow, and hosts render the verbs in this order.
+	cmds := []*cobra.Command{
+		NewQueryCmd(),
+		NewProposeCmd(),
+		NewConfirmCmd(),
+		NewFlagCmd(),
+		NewStatusCmd(),
+	}
+	verbs := make([]install.CLIVerb, len(cmds))
+	for i, c := range cmds {
+		verbs[i] = install.CLIVerb{
+			Name:       c.Name(),
+			UseLine:    c.Use,
+			FlagUsages: c.Flags().FlagUsages(),
+		}
+	}
+	return verbs
+}
+
 // parseTargetNames splits, trims, lowercases, and dedupes the raw flag value,
 // discarding blanks.
 func parseTargetNames(v string) []install.Target {
@@ -127,27 +149,6 @@ func printChanges(cmd *cobra.Command, host install.Target, changes []install.Cha
 		}
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s %s%s\n", marker[c.Action], c.Path, suffix)
 	}
-}
-
-// cliVerbs returns the cq CLI verb descriptions derived from the actual cobra
-// command definitions, for hosts that embed CLI invocation instructions.
-func cliVerbs() []install.CLIVerb {
-	cmds := []*cobra.Command{
-		NewQueryCmd(),
-		NewProposeCmd(),
-		NewConfirmCmd(),
-		NewFlagCmd(),
-		NewStatusCmd(),
-	}
-	verbs := make([]install.CLIVerb, len(cmds))
-	for i, c := range cmds {
-		verbs[i] = install.CLIVerb{
-			Name:       c.Name(),
-			UseLine:    c.Use,
-			FlagUsages: c.Flags().FlagUsages(),
-		}
-	}
-	return verbs
 }
 
 // resolveProjectDir returns the absolute path of a project directory that must already exist.
