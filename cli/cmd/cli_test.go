@@ -68,12 +68,14 @@ func TestCLITimeout(t *testing.T) {
 		{name: "env whole seconds used when flag unset", flag: 0, env: "8", want: 8 * time.Second},
 		{name: "env duration used when flag unset", flag: 0, env: "1m30s", want: 90 * time.Second},
 		{name: "env sub-second duration", flag: 0, env: "500ms", want: 500 * time.Millisecond},
+		{name: "env largest whole seconds", flag: 0, env: "9223372036", want: 9223372036 * time.Second},
 		{name: "default when flag and env unset", flag: 0, env: "", want: defaultCLITimeout},
 		{name: "error when env is not a duration or number", flag: 0, env: "abc", wantErr: true},
 		{name: "error when env is zero seconds", flag: 0, env: "0", wantErr: true},
 		{name: "error when env is a zero duration", flag: 0, env: "0s", wantErr: true},
 		{name: "error when env is negative seconds", flag: 0, env: "-5", wantErr: true},
 		{name: "error when env is a negative duration", flag: 0, env: "-5s", wantErr: true},
+		{name: "error when env whole seconds overflow", flag: 0, env: "9223372037", wantErr: true},
 	}
 
 	for _, tc := range tests {

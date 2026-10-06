@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -163,7 +164,7 @@ func parseTimeoutEnv(v string) (time.Duration, error) {
 	invalid := fmt.Errorf("%s must be a positive duration (30s) or whole seconds (30), got %s", envVarTimeout, v)
 
 	if secs, err := strconv.Atoi(v); err == nil {
-		if secs <= 0 {
+		if secs <= 0 || time.Duration(secs) > math.MaxInt64/time.Second {
 			return 0, invalid
 		}
 
