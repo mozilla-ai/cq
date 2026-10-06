@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -147,6 +150,25 @@ func cliVerbs() []install.CLIVerb {
 	return verbs
 }
 
+// resolveProjectDir returns the absolute path of a project directory that must already exist.
+func resolveProjectDir(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolving project directory %s: %w", path, err)
+	}
+	info, err := os.Stat(abs)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", fmt.Errorf("project directory %s does not exist", path)
+	}
+	if err != nil {
+		return "", fmt.Errorf("project directory %s is not accessible: %w", path, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("project path %s is not a directory", path)
+	}
+	return abs, nil
+}
+
 // runInstallCmd resolves the selected hosts and applies the requested action.
 func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 	hosts := install.SelectHosts(f.targets.names())
@@ -162,13 +184,20 @@ func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 	if err != nil {
 		return fmt.Errorf("resolving binary path: %w", err)
 	}
+	var projectDir string
+	if f.project != "" {
+		if err := install.CheckProjectSupport(hosts); err != nil {
+			return err
+		}
+		if projectDir, err = resolveProjectDir(f.project); err != nil {
+			return err
+		}
+	}
 
 	for _, h := range hosts {
-		if f.project != "" && !h.SupportsProject() {
-			return fmt.Errorf("host %s does not support project installs", h.Name())
-		}
 		ctx := install.Context{
 			Home:       home,
+			ProjectDir: projectDir,
 			Target:     h.GlobalTarget(home),
 			SkillsDir:  install.SharedSkillsDir(home),
 			BinaryPath: binary,

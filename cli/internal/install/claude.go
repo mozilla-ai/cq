@@ -33,6 +33,14 @@ const (
 	claudePluginNotInstalledAtScope claudeFailureCode = "not_installed_at_scope"
 )
 
+const (
+	// claudeScopeProject declares cq in a project's shared settings.
+	claudeScopeProject claudeScope = "project"
+
+	// claudeScopeUser declares cq in the user's settings.
+	claudeScopeUser claudeScope = "user"
+)
+
 // claudeFailureCode is a failure code that `claude plugin --json` reports.
 type claudeFailureCode string
 
@@ -47,28 +55,31 @@ type claudeHost struct {
 	// Nil uses exec.LookPath.
 	lookPath func(file string) (string, error)
 
-	// run executes an external command and returns its standard output.
+	// run executes an external command in dir and returns its standard output.
 	//
 	// Nil uses execRun.
-	run func(name string, args ...string) ([]byte, error)
-}
-
-// claudeRemoval is one uninstall command and the failure codes that mean its target is already absent.
-type claudeRemoval struct {
-	// absent lists the failure codes reported when there is nothing to remove.
-	absent []claudeFailureCode
-
-	// args are the arguments passed to the claude CLI.
-	args []string
-
-	// path names the removed item in the reported change.
-	path string
+	run func(dir string, name string, args ...string) ([]byte, error)
 }
 
 // claudeResult is the machine-readable result line of a `claude plugin --json` command.
 type claudeResult struct {
 	// FailureCode is empty when the command succeeded.
 	FailureCode claudeFailureCode `json:"failureCode"` //nolint:tagliatelle // Claude Code defines this field name.
+}
+
+// claudeScope is a Claude Code settings scope that a plugin is declared in.
+type claudeScope string
+
+// claudeStep is one claude CLI command and the item it reports a change for.
+type claudeStep struct {
+	// absent lists the failure codes that mean the item is already absent.
+	absent []claudeFailureCode
+
+	// args are the arguments passed to the claude CLI.
+	args []string
+
+	// path names the item in the reported change.
+	path string
 }
 
 // GlobalTarget returns a sentinel path.
@@ -79,72 +90,83 @@ func (claudeHost) GlobalTarget(string) string {
 	return os.DevNull
 }
 
-// Install runs `claude plugin marketplace add` and `claude plugin install`.
+// Install declares the cq marketplace and installs the cq plugin in Claude Code.
+//
+// A global install uses the user scope, and a project install uses the project scope.
+// NOTE: The claude CLI reports success whether or not cq was already present,
+// so a repeated install still reports each item as created.
 func (h claudeHost) Install(ctx Context) ([]Change, error) {
-	if err := h.requireCLI(ctx.DryRun); err != nil {
-		return nil, err
-	}
-	commands := [][]string{
-		{"plugin", "marketplace", "add", claudeMarketplaceSource},
-		{"plugin", "install", claudeMarketplaceID},
-	}
-	if err := h.runAll(commands, ctx.DryRun); err != nil {
-		return nil, err
-	}
-	return []Change{{Action: ActionCreated, Path: "claude marketplace"}}, nil
+	scope := string(claudeScopeFor(ctx))
+	return h.applyAll(ctx, []claudeStep{
+		{
+			args: []string{"plugin", "marketplace", "add", claudeMarketplaceSource, "--scope", scope},
+			path: "claude marketplace",
+		},
+		{
+			args: []string{"plugin", "install", claudeMarketplaceID, "--scope", scope},
+			path: "claude plugin",
+		},
+	}, ActionCreated)
 }
 
 // Name returns the host identifier.
 func (claudeHost) Name() Target { return TargetClaude }
 
-// SupportsProject reports that Claude Code is global-only.
-func (claudeHost) SupportsProject() bool { return false }
+// SupportsProject reports that Claude Code supports project installs.
+func (claudeHost) SupportsProject() bool { return true }
 
-// Uninstall runs `claude plugin uninstall` and `claude plugin marketplace remove`.
+// Uninstall removes the cq plugin and marketplace from the scope that Install uses.
 //
 // An item that is already absent is reported unchanged, so repeated uninstalls succeed.
 // NOTE: Removing the marketplace leaves the plugin enabled when another settings scope still declares the marketplace,
 // so the plugin is uninstalled first.
 func (h claudeHost) Uninstall(ctx Context) ([]Change, error) {
-	if err := h.requireCLI(ctx.DryRun); err != nil {
-		return nil, err
-	}
-	removals := []claudeRemoval{
+	scope := string(claudeScopeFor(ctx))
+	return h.applyAll(ctx, []claudeStep{
 		{
 			absent: []claudeFailureCode{claudePluginNotInstalled, claudePluginNotInstalledAtScope},
-			args:   []string{"plugin", "uninstall", claudeMarketplaceID, "--json"},
+			args:   []string{"plugin", "uninstall", claudeMarketplaceID, "--scope", scope, "--json"},
 			path:   "claude plugin",
 		},
 		{
 			absent: []claudeFailureCode{claudeMarketplaceNotConfigured},
-			args:   []string{"plugin", "marketplace", "remove", claudeMarketplaceID, "--json"},
+			args:   []string{"plugin", "marketplace", "remove", claudeMarketplaceID, "--scope", scope, "--json"},
 			path:   "claude marketplace",
 		},
+	}, ActionRemoved)
+}
+
+// apply runs one step and reports action, or reports the item unchanged when it is already absent.
+func (h claudeHost) apply(ctx Context, step claudeStep, action Action) (Change, error) {
+	change := Change{Action: action, Path: step.path, Detail: claudeScopeDetail(ctx)}
+	if ctx.DryRun {
+		return change, nil
 	}
-	changes := make([]Change, 0, len(removals))
-	for _, r := range removals {
-		c, err := h.remove(r, ctx.DryRun)
+	out, err := h.runner()(ctx.ProjectDir, claudeCLI, step.args...)
+	if err == nil {
+		return change, nil
+	}
+	if slices.Contains(step.absent, parseClaudeFailureCode(out)) {
+		change.Action = ActionUnchanged
+		return change, nil
+	}
+	return Change{}, err
+}
+
+// applyAll runs each step in order and stops at the first failure.
+func (h claudeHost) applyAll(ctx Context, steps []claudeStep, action Action) ([]Change, error) {
+	if err := h.requireCLI(ctx.DryRun); err != nil {
+		return nil, err
+	}
+	changes := make([]Change, 0, len(steps))
+	for _, step := range steps {
+		c, err := h.apply(ctx, step, action)
 		if err != nil {
 			return nil, err
 		}
 		changes = append(changes, c)
 	}
 	return changes, nil
-}
-
-// remove runs one uninstall command, treating an already-absent target as unchanged.
-func (h claudeHost) remove(r claudeRemoval, dryRun bool) (Change, error) {
-	if dryRun {
-		return Change{Action: ActionRemoved, Path: r.path}, nil
-	}
-	out, err := h.runner()(claudeCLI, r.args...)
-	if err == nil {
-		return Change{Action: ActionRemoved, Path: r.path}, nil
-	}
-	if slices.Contains(r.absent, parseClaudeFailureCode(out)) {
-		return Change{Action: ActionUnchanged, Path: r.path}, nil
-	}
-	return Change{}, err
 }
 
 // requireCLI verifies the claude CLI is on PATH.
@@ -162,34 +184,38 @@ func (h claudeHost) requireCLI(dryRun bool) error {
 	return nil
 }
 
-// runAll executes each claude CLI argument list in sequence, skipping all in dry-run mode.
-func (h claudeHost) runAll(commands [][]string, dryRun bool) error {
-	if dryRun {
-		return nil
-	}
-	runner := h.runner()
-	for _, args := range commands {
-		if _, err := runner(claudeCLI, args...); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// runner returns the command executor, defaulting to exec.Command when none
-// was injected.
-func (h claudeHost) runner() func(string, ...string) ([]byte, error) {
+// runner returns the command executor, defaulting to execRun when none was injected.
+func (h claudeHost) runner() func(string, string, ...string) ([]byte, error) {
 	if h.run != nil {
 		return h.run
 	}
 	return execRun
 }
 
-// execRun runs an external command and returns its standard output.
+// claudeScopeDetail describes the settings scope that a change applies to.
+func claudeScopeDetail(ctx Context) string {
+	scope := claudeScopeFor(ctx)
+	if scope == claudeScopeProject {
+		return fmt.Sprintf("%s scope: %s", scope, ctx.ProjectDir)
+	}
+	return fmt.Sprintf("%s scope", scope)
+}
+
+// claudeScopeFor returns the settings scope for a global or project install.
+func claudeScopeFor(ctx Context) claudeScope {
+	if ctx.ProjectDir != "" {
+		return claudeScopeProject
+	}
+	return claudeScopeUser
+}
+
+// execRun runs an external command in dir and returns its standard output.
 //
+// An empty dir runs the command in the current directory.
 // A non-zero exit returns the standard output with a descriptive error.
-func execRun(name string, args ...string) ([]byte, error) {
+func execRun(dir string, name string, args ...string) ([]byte, error) {
 	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

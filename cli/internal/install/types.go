@@ -64,6 +64,13 @@ type Context struct {
 	// Home is the user's home directory.
 	Home string
 
+	// ProjectDir is the absolute project directory for a project install.
+	//
+	// Empty means a global install.
+	// NOTE: Callers must set it only for a host whose SupportsProject reports true.
+	// CheckProjectSupport validates a host set before any install runs.
+	ProjectDir string
+
 	// SkillsDir is the shared skills commons the skill is written into.
 	SkillsDir string
 
