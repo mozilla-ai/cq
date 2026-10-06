@@ -26,7 +26,10 @@ func NewFlagCmd() *cobra.Command {
 		Short: "Flag a knowledge unit as problematic, reducing its confidence.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := cliContext()
+			ctx, cancel, err := cliContext()
+			if err != nil {
+				return err
+			}
 			defer cancel()
 
 			c, err := newCLIClient()

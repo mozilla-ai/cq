@@ -33,11 +33,6 @@ func TestInitFlagsTimeoutUsesZeroSentinelDefault(t *testing.T) {
 	require.Contains(t, f.Usage, envVarTimeout)
 	require.Contains(t, f.Usage, "default "+defaultCLITimeout.String())
 	require.NotContains(t, fs.FlagUsages(), "(default 0s)")
-
-	// The env var is parsed as integer seconds (unlike the duration flag), so
-	// the help must document the unit to avoid a silent fallback on e.g.
-	// CQ_TIMEOUT=30s.
-	require.Contains(t, f.Usage, "seconds")
 }
 
 func TestInitFlagsParsesTimeoutDuration(t *testing.T) {
@@ -61,17 +56,26 @@ func TestInitFlagsRejectsInvalidTimeout(t *testing.T) {
 
 func TestCLITimeout(t *testing.T) {
 	tests := []struct {
-		name string
-		flag time.Duration
-		env  string
-		want time.Duration
+		name    string
+		flag    time.Duration
+		env     string
+		want    time.Duration
+		wantErr bool
 	}{
 		{name: "flag overrides env and default", flag: 3 * time.Second, env: "8", want: 3 * time.Second},
 		{name: "flag honors sub-second durations", flag: 500 * time.Millisecond, env: "", want: 500 * time.Millisecond},
-		{name: "env used when flag unset", flag: 0, env: "8", want: 8 * time.Second},
+		{name: "flag overrides unreadable env", flag: 3 * time.Second, env: "abc", want: 3 * time.Second},
+		{name: "env whole seconds used when flag unset", flag: 0, env: "8", want: 8 * time.Second},
+		{name: "env duration used when flag unset", flag: 0, env: "1m30s", want: 90 * time.Second},
+		{name: "env sub-second duration", flag: 0, env: "500ms", want: 500 * time.Millisecond},
+		{name: "env largest whole seconds", flag: 0, env: "9223372036", want: 9223372036 * time.Second},
 		{name: "default when flag and env unset", flag: 0, env: "", want: defaultCLITimeout},
-		{name: "default when env is non-numeric", flag: 0, env: "abc", want: defaultCLITimeout},
-		{name: "default when env is non-positive", flag: 0, env: "0", want: defaultCLITimeout},
+		{name: "error when env is not a duration or number", flag: 0, env: "abc", wantErr: true},
+		{name: "error when env is zero seconds", flag: 0, env: "0", wantErr: true},
+		{name: "error when env is a zero duration", flag: 0, env: "0s", wantErr: true},
+		{name: "error when env is negative seconds", flag: 0, env: "-5", wantErr: true},
+		{name: "error when env is a negative duration", flag: 0, env: "-5s", wantErr: true},
+		{name: "error when env whole seconds overflow", flag: 0, env: "9223372037", wantErr: true},
 	}
 
 	for _, tc := range tests {
@@ -79,7 +83,15 @@ func TestCLITimeout(t *testing.T) {
 			t.Setenv(envVarTimeout, tc.env)
 			setFlag(t, &flagTimeout, tc.flag)
 
-			require.Equal(t, tc.want, cliTimeout())
+			got, err := cliTimeout()
+			if tc.wantErr {
+				require.ErrorContains(t, err, envVarTimeout)
+				require.ErrorContains(t, err, tc.env)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }

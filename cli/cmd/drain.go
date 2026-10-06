@@ -26,7 +26,10 @@ func NewDrainCmd() *cobra.Command {
 				return fmt.Errorf("unsupported format '%s': must be text or json", format)
 			}
 
-			ctx, cancel := cliContext()
+			ctx, cancel, err := cliContext()
+			if err != nil {
+				return err
+			}
 			defer cancel()
 
 			c, err := newCLIClient()

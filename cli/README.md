@@ -87,7 +87,7 @@ The CLI works out of the box in local-only mode with no configuration.
 | `CQ_CONFIG_DIR`    |               | Credential and config directory    | `${XDG_CONFIG_HOME:-~/.config}/cq` |
 | `CQ_TIMEOUT`       | `--timeout`   | CLI operation timeout              | 30s                            |
 
-Flags take precedence over environment variables. `CQ_TIMEOUT` takes whole seconds (`30`), while `--timeout` takes a duration (`30s`, `1m30s`). A `--timeout` of zero or less is ignored, so `CQ_TIMEOUT` or the default applies.
+Flags take precedence over environment variables. `CQ_TIMEOUT` takes a duration (`30s`, `1m30s`) or whole seconds (`30`), while `--timeout` takes only a duration. Any other `CQ_TIMEOUT` value, including zero, is an error. A `--timeout` of zero or less is ignored, so `CQ_TIMEOUT` or the default applies.
 
 ## Authentication
 
