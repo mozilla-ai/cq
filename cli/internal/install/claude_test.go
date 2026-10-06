@@ -216,6 +216,27 @@ func TestClaudeUninstallPropagatesOtherFailures(t *testing.T) {
 	}
 }
 
+func TestClaudeReportsCompletedStepsWhenALaterStepFails(t *testing.T) {
+	t.Parallel()
+
+	failOn := func(sub string) func(string, string, ...string) ([]byte, error) {
+		return func(_ string, _ string, args ...string) ([]byte, error) {
+			if args[1] == sub {
+				return nil, errors.New("exit status 1")
+			}
+			return nil, nil
+		}
+	}
+
+	installed, err := claudeHost{lookPath: stubLookPath, run: failOn("install")}.Install(Context{})
+	require.ErrorContains(t, err, "exit status 1")
+	require.Equal(t, []Change{{Action: ActionCreated, Path: "claude marketplace", Detail: "user scope"}}, installed)
+
+	removed, err := claudeHost{lookPath: stubLookPath, run: failOn("marketplace")}.Uninstall(Context{})
+	require.ErrorContains(t, err, "exit status 1")
+	require.Equal(t, []Change{{Action: ActionRemoved, Path: "claude plugin", Detail: "user scope"}}, removed)
+}
+
 func TestClaudeInstallDryRunSkipsExecution(t *testing.T) {
 	var ran []recordedRun
 	h := claudeHost{run: recordRuns(&ran)}

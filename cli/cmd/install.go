@@ -210,10 +210,12 @@ func runInstallCmd(cmd *cobra.Command, f *installFlags) error {
 		} else {
 			changes, err = h.Install(ctx)
 		}
+		if err == nil || len(changes) > 0 {
+			printChanges(cmd, h.Name(), changes)
+		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", h.Name(), err)
 		}
-		printChanges(cmd, h.Name(), changes)
 	}
 	return nil
 }

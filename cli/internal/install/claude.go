@@ -149,7 +149,7 @@ func (h claudeHost) Uninstall(ctx Context) ([]Change, error) {
 	}
 	removed, err := h.apply(ctx, marketplace, ActionRemoved)
 	if err != nil {
-		return nil, err
+		return []Change{plugin}, err
 	}
 	return []Change{plugin, removed}, nil
 }
@@ -172,6 +172,8 @@ func (h claudeHost) apply(ctx Context, step claudeStep, action Action) (Change, 
 }
 
 // applyAll runs each step in order and stops at the first failure.
+//
+// On failure it returns the changes of the steps that completed with the error.
 func (h claudeHost) applyAll(ctx Context, steps []claudeStep, action Action) ([]Change, error) {
 	if err := h.requireCLI(ctx.DryRun); err != nil {
 		return nil, err
@@ -180,7 +182,7 @@ func (h claudeHost) applyAll(ctx Context, steps []claudeStep, action Action) ([]
 	for _, step := range steps {
 		c, err := h.apply(ctx, step, action)
 		if err != nil {
-			return nil, err
+			return changes, err
 		}
 		changes = append(changes, c)
 	}

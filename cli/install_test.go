@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -150,6 +151,25 @@ func TestInstallProjectTouchesNoHostWhenAnyHostLacksProjectSupport(t *testing.T)
 	out, err := runInstall(t, "--target", "claude", "--target", "cursor", "--project", t.TempDir(), "--dry-run")
 	require.ErrorContains(t, err, "host cursor does not support project installs")
 	require.NotContains(t, out, "[claude]")
+}
+
+func TestInstallClaudePrintsCompletedStepsBeforeAnError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake claude CLI is a shell script")
+	}
+	home := t.TempDir()
+	setTestHome(t, home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+	fake := t.TempDir()
+	script := "#!/bin/sh\nif [ \"$2\" = install ]; then exit 1; fi\nexit 0\n"
+	require.NoError(t, os.WriteFile(filepath.Join(fake, "claude"), []byte(script), 0o755))
+	t.Setenv("PATH", fake+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	out, err := runInstall(t, "--target", "claude")
+	require.ErrorContains(t, err, "claude plugin install")
+	require.Contains(t, out, "+ claude marketplace  (user scope)")
+	require.NotContains(t, out, "claude plugin  (user scope)")
 }
 
 func TestInstallCursorEndToEnd(t *testing.T) {
