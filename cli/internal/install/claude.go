@@ -127,7 +127,7 @@ func (claudeHost) SupportsProject() bool { return true }
 // NOTE: When the plugin is not installed in the scope, the marketplace is left in place.
 // Settings that still enable the plugin then keep the marketplace it needs.
 func (h claudeHost) Uninstall(ctx Context) ([]Change, error) {
-	if err := h.requireCLI(ctx.DryRun); err != nil {
+	if err := h.requireCLI(); err != nil {
 		return nil, err
 	}
 	scope := string(claudeScopeFor(ctx))
@@ -175,7 +175,7 @@ func (h claudeHost) apply(ctx Context, step claudeStep, action Action) (Change, 
 //
 // On failure it returns the changes of the steps that completed with the error.
 func (h claudeHost) applyAll(ctx Context, steps []claudeStep, action Action) ([]Change, error) {
-	if err := h.requireCLI(ctx.DryRun); err != nil {
+	if err := h.requireCLI(); err != nil {
 		return nil, err
 	}
 	changes := make([]Change, 0, len(steps))
@@ -189,11 +189,8 @@ func (h claudeHost) applyAll(ctx Context, steps []claudeStep, action Action) ([]
 	return changes, nil
 }
 
-// requireCLI verifies the claude CLI is on PATH.
-func (h claudeHost) requireCLI(dryRun bool) error {
-	if dryRun {
-		return nil
-	}
+// requireCLI verifies the claude CLI is on PATH, so a dry run fails where a real run would.
+func (h claudeHost) requireCLI() error {
 	lookup := h.lookPath
 	if lookup == nil {
 		lookup = exec.LookPath

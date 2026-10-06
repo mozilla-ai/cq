@@ -22,6 +22,21 @@ func runInstall(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
+// setFakeClaude puts an executable named claude first on PATH so the install command finds the Claude CLI.
+func setFakeClaude(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	name := "claude"
+	if runtime.GOOS == "windows" {
+		name += ".bat"
+	}
+	require.NoError(
+		t,
+		os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\nexit 0\n"), 0o755),
+	)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 // setTestHome sets both HOME (Unix) and USERPROFILE (Windows) so
 // os.UserHomeDir() resolves to the temp dir on all platforms.
 func setTestHome(t *testing.T, home string) {
@@ -100,6 +115,8 @@ func TestInstallClaudeDryRun(t *testing.T) {
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
 
+	setFakeClaude(t)
+
 	out, err := runInstall(t, "--target", "claude", "--dry-run")
 	require.NoError(t, err)
 	require.Contains(t, out, "[claude]")
@@ -112,6 +129,8 @@ func TestInstallClaudeProjectDryRun(t *testing.T) {
 	setTestHome(t, home)
 	bin := filepath.Join(t.TempDir(), "cq")
 	t.Setenv("CQ_INSTALL_BINARY", bin)
+
+	setFakeClaude(t)
 
 	project := t.TempDir()
 	out, err := runInstall(t, "--target", "claude", "--project", project, "--dry-run")
@@ -181,6 +200,17 @@ func TestInstallClaudePrintsCompletedStepsBeforeAnError(t *testing.T) {
 	require.ErrorContains(t, err, "claude plugin install")
 	require.Contains(t, out, "+ claude marketplace  (user scope)")
 	require.NotContains(t, out, "claude plugin  (user scope)")
+}
+
+func TestInstallClaudeDryRunFailsWithoutClaudeCLI(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+	bin := filepath.Join(t.TempDir(), "cq")
+	t.Setenv("CQ_INSTALL_BINARY", bin)
+	t.Setenv("PATH", t.TempDir())
+
+	_, err := runInstall(t, "--target", "claude", "--dry-run")
+	require.ErrorContains(t, err, "claude CLI not found on PATH")
 }
 
 func TestInstallCursorEndToEnd(t *testing.T) {
