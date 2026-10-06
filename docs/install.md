@@ -16,13 +16,14 @@ cq install --target <host>
 
 | Agent         | Target          |
 |---------------|-----------------|
+| Agent Skills  | `agent-skills`  |
 | Claude        | `claude`        |
-| Codex         | `codex`         |
-| Copilot       | `copilot`       |
-| Cursor        | `cursor`        |
-| Devin Desktop | `devin-desktop` |
-| OpenCode      | `opencode`      |
-| Pi            | `pi`            |
+| Codex         | `codex`          |
+| Copilot       | `copilot`        |
+| Cursor        | `cursor`         |
+| Devin Desktop | `devin-desktop`  |
+| OpenCode      | `opencode`       |
+| Pi            | `pi`             |
 
 Install into several hosts at once by repeating `--target`:
 
@@ -35,20 +36,15 @@ cq install --target cursor --target opencode
 | `--dry-run`   | Print the changes that would be made, without writing anything. |
 | `--uninstall` | Remove cq from the selected hosts.                 |
 
-## What `cq install` sets up
+For every host except Claude Code, the installer manages the host-specific configuration and installs the shared `cq` skill at `~/.agents/skills/cq/SKILL.md`. The `agent-skills` target is format-only: it installs the shared `cq` skill and a separate `cq-reflect` skill at `~/.agents/skills/cq-reflect/SKILL.md`. It does not configure MCP/tools or register a slash command; the host must discover `~/.agents/skills` and already provide cq tools. Agent Skills defines skill packaging and discovery, not slash-command discovery.
 
-For every host except Claude Code, the installer manages up to three things:
-
-- **The shared skill** at `~/.agents/skills/cq/SKILL.md`. All non-Claude hosts read the skill from this shared location, so installing several hosts writes it once.
-- **An MCP server entry** pointing at `cq mcp`. Pi is the exception: it has no native MCP support, so cq is wired in through a CLI mapping instead.
-- **An always-loaded instruction** (an `AGENTS.md` block, a rule file, or an instructions file, depending on the host) telling the agent to load the cq skill before starting work. Devin Desktop is the exception: it reads the shared skill directly, so no instruction file is written.
+For the existing host targets, the installer also manages an MCP server entry (Pi instead receives a CLI mapping) and an always-loaded instruction where that host requires one.
 
 Claude Code manages its own plugins, so `cq install --target claude` shells out to the Claude plugin marketplace rather than writing files.
 
-`--uninstall` reverses the MCP entry and the instruction, but intentionally leaves the shared skill in place, since other installed hosts may still rely on it.
+`--uninstall` reverses host-specific configuration and instructions. It intentionally leaves the shared `cq` skill in place. The `agent-skills` target removes only its managed `cq-reflect` skill; each skill uses its own manifest so uninstalling or reinstalling another host does not remove it.
 
 ## Connect to a remote cq server
-
 With no remote configured, knowledge stays local on the machine running the agent. To sync knowledge to a shared or hosted store, point the agent at a remote server with two environment variables:
 
 | Variable     | Purpose                                                                 |
@@ -66,6 +62,16 @@ Pick your host for the exact files `cq install` manages and how to point it at a
 
 {% tabs %}
 
+{% tab title="Agent Skills" %}
+**Files managed**
+
+| Asset | Location |
+|-------|----------|
+| Shared skill | `~/.agents/skills/cq/SKILL.md` |
+| Reflection skill | `~/.agents/skills/cq-reflect/SKILL.md` |
+
+Run `cq install --target agent-skills` to install these skills. This target does not set up a cq MCP server, CLI mapping, or host-specific command. Configure cq tools using the host's own setup, and ensure it discovers the shared Agent Skills directory. The skill can be invoked through the host's skill mechanism; slash-command names and discovery are host-specific and are not provided by the Agent Skills format.
+{% endtab %}
 {% tab title="Claude Code" %}
 Installed through Claude Code's own plugin marketplace. `cq install --target claude` runs:
 

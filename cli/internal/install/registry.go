@@ -7,6 +7,8 @@ import (
 )
 
 const (
+	// TargetAgentSkills installs portable skills for Agent Skills hosts.
+	TargetAgentSkills Target = "agent-skills"
 	// TargetClaude is Claude Code via the plugin marketplace.
 	TargetClaude Target = "claude"
 
@@ -34,6 +36,7 @@ const (
 // It is the single source of truth for the targets cq install accepts; adding
 // an entry extends ValidTarget, AllowedTargets, and SelectHosts.
 var hosts = map[Target]Host{
+	TargetAgentSkills:  agentSkillsHost{},
 	TargetClaude:       claudeHost{},
 	TargetCodex:        codexHost{},
 	TargetCopilot:      copilotHost{},
