@@ -25,7 +25,7 @@ type Change struct {
 	// Action is the kind of change applied, or planned in dry-run.
 	Action Action
 
-	// Path is the file or directory the change targeted.
+	// Path names the change's target: a file or directory, or an item that a host manages itself.
 	Path string
 
 	// Detail optionally explains the outcome, e.g. why a target was skipped.
