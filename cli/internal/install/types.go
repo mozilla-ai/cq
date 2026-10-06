@@ -68,7 +68,6 @@ type Context struct {
 	//
 	// Empty means a global install.
 	// NOTE: Callers must set it only for a host whose SupportsProject reports true.
-	// CheckProjectSupport validates a host set before any install runs.
 	ProjectDir string
 
 	// SkillsDir is the shared skills commons the skill is written into.

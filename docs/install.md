@@ -77,7 +77,7 @@ claude plugin install cq@cq --scope user
 
 The `claude` CLI must be on your `PATH`. cq does not write Claude config files directly; the plugin is managed by Claude Code.
 
-**Install for one project:** `cq install --target claude --project <dir>` runs the same commands from `<dir>` with `--scope project`. Claude Code records the plugin in `<dir>/.claude/settings.json`, which you can commit to share cq with your team. A project install still uses the same local store as a global one (`~/.local/share/cq/local.db`) unless you set `CQ_LOCAL_DB_PATH`.
+**Install for one project:** `cq install --target claude --project <dir>` runs the same commands from `<dir>` with `--scope project`. Claude Code records the plugin in `<dir>/.claude/settings.json`, which you can commit to share cq with your team. A project install uses the same local store as a global install, so knowledge is shared across projects unless you point a project at a different store with the local store variables in the [CLI configuration](../cli/README.md#configuration).
 
 A global `--uninstall` removes only the user-scope install. `--uninstall --project <dir>` removes only that project's install. If a project's settings enable cq but cq is not installed in that project on this machine, as in a fresh clone, `--uninstall --project <dir>` leaves the settings unchanged. Remove cq from `<dir>/.claude/settings.json` by hand in that case.
 
