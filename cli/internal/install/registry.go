@@ -1,6 +1,8 @@
 package install
 
 import (
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -64,6 +66,17 @@ func (ts Targets) String() string {
 // intended for rendering help and error messages.
 func AllowedTargets() Targets {
 	return Targets(slices.Sorted(maps.Keys(hosts)))
+}
+
+// CheckProjectSupport reports an error that names every host unable to install into a project directory.
+func CheckProjectSupport(selected []Host) error {
+	var errs []error
+	for _, h := range selected {
+		if !h.SupportsProject() {
+			errs = append(errs, fmt.Errorf("host %s does not support project installs", h.Name()))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // SelectHosts returns the adapters for the named targets in stable, sorted

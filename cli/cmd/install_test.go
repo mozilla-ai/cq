@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -54,4 +56,50 @@ func TestTargetsStringAndType(t *testing.T) {
 	require.NoError(t, sel.Set("devin-desktop,cursor"))
 	require.Equal(t, "target", sel.Type())
 	require.Equal(t, "cursor, devin-desktop", sel.String())
+}
+
+func TestResolveProjectDir(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	file := filepath.Join(dir, "file.txt")
+	require.NoError(t, os.WriteFile(file, nil, 0o600))
+
+	tests := []struct {
+		name    string
+		path    string
+		want    string
+		wantErr string
+	}{
+		{name: "absolute directory", path: dir, want: dir},
+		{name: "missing directory", path: filepath.Join(dir, "missing"), wantErr: "does not exist"},
+		{name: "file instead of directory", path: file, wantErr: "is not a directory"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := resolveProjectDir(tc.path)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				require.ErrorContains(t, err, tc.path)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestResolveProjectDirMakesRelativePathAbsolute(t *testing.T) {
+	t.Parallel()
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+
+	got, err := resolveProjectDir(".")
+	require.NoError(t, err)
+	require.Equal(t, wd, got)
 }
