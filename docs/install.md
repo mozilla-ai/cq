@@ -72,7 +72,7 @@ Installed through Claude Code's own plugin marketplace. `cq install --target cla
 
 ```bash
 claude plugin marketplace add mozilla-ai/cq --scope user
-claude plugin install cq --scope user
+claude plugin install cq@cq --scope user
 ```
 
 The `claude` CLI must be on your `PATH`. cq does not write Claude config files directly; the plugin is managed by Claude Code.

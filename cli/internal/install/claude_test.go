@@ -75,7 +75,7 @@ func TestClaudeInstallRunsMarketplaceCommandsInScope(t *testing.T) {
 				},
 				{
 					dir:  tc.projectDir,
-					args: []string{"claude", "plugin", "install", claudeMarketplaceID, "--scope", tc.scope},
+					args: []string{"claude", "plugin", "install", "cq@cq", "--scope", tc.scope},
 				},
 			}, ran)
 		})
@@ -117,12 +117,12 @@ func TestClaudeUninstallRemovesPluginThenMarketplaceInScope(t *testing.T) {
 			require.Equal(t, []recordedRun{
 				{
 					dir:  tc.projectDir,
-					args: []string{"claude", "plugin", "uninstall", claudeMarketplaceID, "--scope", tc.scope, "--json"},
+					args: []string{"claude", "plugin", "uninstall", "cq@cq", "--scope", tc.scope, "--json"},
 				},
 				{
 					dir: tc.projectDir,
 					args: []string{
-						"claude", "plugin", "marketplace", "remove", claudeMarketplaceID, "--scope", tc.scope, "--json",
+						"claude", "plugin", "marketplace", "remove", "cq", "--scope", tc.scope, "--json",
 					},
 				},
 			}, ran)

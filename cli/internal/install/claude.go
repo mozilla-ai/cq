@@ -14,12 +14,16 @@ const (
 	// claudeCLI is the command name for the Claude Code CLI.
 	claudeCLI = "claude"
 
-	// claudeMarketplaceID is the plugin and marketplace name that the `claude plugin` commands use.
+	// claudeMarketplaceID is the name of the cq marketplace.
 	claudeMarketplaceID = "cq"
 
 	// claudeMarketplaceSource is the GitHub source slug used by
 	// `claude plugin marketplace add`.
 	claudeMarketplaceSource = "mozilla-ai/cq"
+
+	// claudePluginID names the cq plugin within the cq marketplace,
+	// so a plugin of the same name from another marketplace cannot match.
+	claudePluginID = "cq@" + claudeMarketplaceID
 )
 
 const (
@@ -103,7 +107,7 @@ func (h claudeHost) Install(ctx Context) ([]Change, error) {
 			path: "claude marketplace",
 		},
 		{
-			args: []string{"plugin", "install", claudeMarketplaceID, "--scope", scope},
+			args: []string{"plugin", "install", claudePluginID, "--scope", scope},
 			path: "claude plugin",
 		},
 	}, ActionCreated)
@@ -125,7 +129,7 @@ func (h claudeHost) Uninstall(ctx Context) ([]Change, error) {
 	return h.applyAll(ctx, []claudeStep{
 		{
 			absent: []claudeFailureCode{claudePluginNotInstalled, claudePluginNotInstalledAtScope},
-			args:   []string{"plugin", "uninstall", claudeMarketplaceID, "--scope", scope, "--json"},
+			args:   []string{"plugin", "uninstall", claudePluginID, "--scope", scope, "--json"},
 			path:   "claude plugin",
 		},
 		{
