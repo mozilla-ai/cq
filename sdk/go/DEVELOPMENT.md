@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Go 1.26.1+
+- Go 1.27.1+
 - [golangci-lint](https://golangci-lint.run/welcome/install/)
 
 ## Initial Setup

@@ -1,3 +1,3 @@
 module github.com/mozilla-ai/cq/build/brew
 
-go 1.26
+go 1.27.1
