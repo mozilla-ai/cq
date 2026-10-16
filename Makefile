@@ -212,7 +212,7 @@ lint-cli:
 
 .PHONY: lint-schema-go
 lint-schema-go:
-	cd schema && golangci-lint run --fix -v
+	cd schema && $(MAKE) golangci-lint
 
 .PHONY: lint-schema-python
 lint-schema-python: sync-schema

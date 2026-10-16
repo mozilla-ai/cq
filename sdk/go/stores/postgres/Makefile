@@ -6,19 +6,21 @@ NOTICE_TPL := ../../../../build/licenses/notice.tpl
 SDK_MODULE_PATH := github.com/mozilla-ai/cq/sdk/go
 SCHEMA_MODULE_PATH := github.com/mozilla-ai/cq/schema
 
+include ../../../../build/golangci-lint/golangci-lint.mk
+
 .PHONY: help
 help:
 	@echo "cq Go SDK — PostgreSQL Store adapter"
 	@echo ""
-	@echo "  make lint             Run golangci-lint"
+	@echo "  make lint             Run golangci-lint, license and NOTICE checks"
+	@echo "  make golangci-lint    Run golangci-lint only"
 	@echo "  make test             Run all tests"
 	@echo "  make check-licenses   Verify dependency licenses"
 	@echo "  make notice           Regenerate NOTICE from dependency licenses"
 	@echo "  make check-notice     Verify NOTICE is up to date"
 
 .PHONY: lint
-lint: check-notice check-licenses
-	golangci-lint run --fix -v
+lint: check-notice check-licenses golangci-lint
 
 .PHONY: test
 test:

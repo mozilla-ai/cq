@@ -1,11 +1,14 @@
 .DEFAULT_GOAL := help
 
+include ../build/golangci-lint/golangci-lint.mk
+
 .PHONY: help
 help:
 	@echo "cq canonical schemas (Go module + Python package)"
 	@echo ""
 	@echo "  make setup              Install Python package dependencies (runs sync-schema)"
 	@echo "  make lint               Lint Go module and Python package"
+	@echo "  make golangci-lint      Run golangci-lint only"
 	@echo "  make test               Test Go module and Python package"
 	@echo "  make validate           Validate JSON Schema files and values"
 	@echo "  make sync-schema        Copy canonical schemas into the Python package"
@@ -15,11 +18,7 @@ setup:
 	cd python && $(MAKE) setup
 
 .PHONY: lint
-lint: lint-go lint-python
-
-.PHONY: lint-go
-lint-go:
-	golangci-lint run --fix -v
+lint: golangci-lint lint-python
 
 .PHONY: lint-python
 lint-python:
