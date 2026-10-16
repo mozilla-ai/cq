@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - .github/workflows/ci-schema.yaml
+      - .golangci.yml
+      - build/golangci-lint/**
       - schema/**
   pull_request:
     branches: [main]
     paths:
       - .github/workflows/ci-schema.yaml
+      - .golangci.yml
+      - build/golangci-lint/**
       - schema/**
   workflow_dispatch:
 
@@ -41,12 +45,13 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: schema/go.mod
+          cache-dependency-path: |
+            schema/go.sum
+            build/golangci-lint/go.sum
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
-        with:
-          version: v2.14.0
-          working-directory: schema
+        working-directory: schema
+        run: make golangci-lint
 
   test-go:
     name: Test Go module
@@ -60,6 +65,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: schema/go.mod
+          cache-dependency-path: schema/go.sum
 
       - name: Test
         working-directory: schema

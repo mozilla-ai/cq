@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - .github/workflows/ci-sdk-go-postgres.yaml
+      - .golangci.yml
+      - build/golangci-lint/**
       - schema/**
       - sdk/go/**/*.go
       - sdk/go/stores/postgres/**
@@ -12,6 +14,8 @@ on:
     branches: [main]
     paths:
       - .github/workflows/ci-sdk-go-postgres.yaml
+      - .golangci.yml
+      - build/golangci-lint/**
       - schema/**
       - sdk/go/**/*.go
       - sdk/go/stores/postgres/**
@@ -32,12 +36,13 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: sdk/go/stores/postgres/go.mod
+          cache-dependency-path: |
+            sdk/go/stores/postgres/go.sum
+            build/golangci-lint/go.sum
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
-        with:
-          version: v2.14.0
-          working-directory: sdk/go/stores/postgres
+        working-directory: sdk/go/stores/postgres
+        run: make golangci-lint
 
       - name: Check licenses
         working-directory: sdk/go/stores/postgres
@@ -59,6 +64,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: sdk/go/stores/postgres/go.mod
+          cache-dependency-path: sdk/go/stores/postgres/go.sum
 
       - name: Test
         working-directory: sdk/go/stores/postgres

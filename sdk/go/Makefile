@@ -23,13 +23,16 @@ ALLOWED_LICENSES := Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ZeroBSD,Unlicense
 NOTICE_TPL := ../../build/licenses/notice.tpl
 SCHEMA_MODULE_PATH := github.com/mozilla-ai/cq/schema
 
+include ../../build/golangci-lint/golangci-lint.mk
+
 .PHONY: help
 help:
 	@echo "cq Go SDK"
 	@echo ""
 	@echo "  make sync-prompts       Copy canonical prompts from golden sources"
 	@echo "  make check-prompts-sync Verify prompt copies match golden sources"
-	@echo "  make lint               Run golangci-lint"
+	@echo "  make lint               Run golangci-lint, prompt, license and NOTICE checks"
+	@echo "  make golangci-lint      Run golangci-lint only"
 	@echo "  make test               Run all tests"
 	@echo "  make check-licenses     Verify dependency licenses"
 	@echo "  make notice             Regenerate NOTICE from dependency licenses"
@@ -60,8 +63,7 @@ check-prompts-sync:
 	@echo "✓ Prompts are in sync."
 
 .PHONY: lint
-lint: check-prompts-sync check-notice check-licenses
-	golangci-lint run --fix -v
+lint: check-prompts-sync check-notice check-licenses golangci-lint
 
 .PHONY: test
 test: check-prompts-sync

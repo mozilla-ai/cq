@@ -3,7 +3,6 @@
 ## Requirements
 
 - Go 1.27.1+
-- [golangci-lint](https://golangci-lint.run/welcome/install/)
 
 ## Initial Setup
 
@@ -26,7 +25,7 @@ cd ../sdk/go && make sync-prompts
 ```bash
 make test      # Lint + test.
 make build     # Build the cq binary.
-make lint      # Run golangci-lint.
+make lint      # Run golangci-lint, license and NOTICE checks.
 make install   # Copy binary to /usr/local/bin.
 make clean     # Remove build artifacts.
 make help      # Show all available targets.

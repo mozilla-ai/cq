@@ -12,6 +12,7 @@ dist/
 build/*
 !build/licenses/
 !build/brew/
+!build/golangci-lint/
 
 node_modules/
 

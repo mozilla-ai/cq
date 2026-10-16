@@ -8,6 +8,8 @@
 - Docker and Docker Compose
 - Go 1.27.1+ (CLI, Go SDK)
 
+golangci-lint is not a prerequisite. `make lint` builds the version pinned in `build/golangci-lint/go.mod` with `go tool`, so local lint and CI use the same linter. To bump it, run `go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@vX.Y.Z` and then `go mod tidy` inside `build/golangci-lint`.
+
 ## Repository Structure
 
 | Directory         | Component                              | Stack                              |
