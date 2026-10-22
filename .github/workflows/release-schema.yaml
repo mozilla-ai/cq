@@ -42,6 +42,13 @@ jobs:
             exit 1
           fi
 
+          # A deployment environment gates the ref the run is on, so the built
+          # ref has to be the released tag for that gate to mean anything.
+          if [[ "$GITHUB_REF" != "refs/tags/$TAG" ]]; then
+            echo "::error::Run this workflow on tag '$TAG', not on '$GITHUB_REF'"
+            exit 1
+          fi
+
           RAW_VERSION="${TAG#schema/}"
           VERSION="${RAW_VERSION#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -50,7 +57,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: ${{ steps.tag.outputs.tag }}
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
 
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 

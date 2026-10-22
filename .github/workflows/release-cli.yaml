@@ -14,7 +14,7 @@ on:
         default: "false"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -60,6 +60,13 @@ jobs:
             exit 1
           fi
 
+          # A deployment environment gates the ref the run is on, so the built
+          # ref has to be the released tag for that gate to mean anything.
+          if [[ "$GITHUB_REF" != "refs/tags/$TAG" ]]; then
+            echo "::error::Run this workflow on tag '$TAG', not on '$GITHUB_REF'"
+            exit 1
+          fi
+
           VERSION="${TAG#cli/}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
@@ -68,7 +75,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: ${{ steps.tag.outputs.tag }}
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -134,6 +141,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event.inputs.skip_publish != 'true'
+    # The homebrew-tap environment holds the tap App's private key, and only
+    # cli/v* tags may deploy to it. See RELEASE.md.
+    environment: homebrew-tap
+    permissions:
+      contents: write
     steps:
       - name: Resolve tag
         id: tag
@@ -179,7 +191,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: ${{ steps.tag.outputs.tag }}
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
           sparse-checkout: build/brew
           path: repo
 
@@ -201,13 +213,25 @@ jobs:
             -template cq.rb.tpl \
             -output "$GITHUB_WORKSPACE/dist/cq.rb"
 
+      # The App is installed on this repository and on the tap. The token it
+      # mints reaches only the tap's contents and expires within the hour.
+      - name: Generate tap token
+        id: tap-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TAP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: mozilla-ai
+          repositories: homebrew-tap
+          permission-contents: write
+
       - name: Push Homebrew cask
         env:
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          TAP_TOKEN: ${{ steps.tap-token.outputs.token }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           cd "$(mktemp -d)"
-          git clone "https://x-access-token:${HOMEBREW_TAP_GITHUB_TOKEN}@github.com/mozilla-ai/homebrew-tap.git" .
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/mozilla-ai/homebrew-tap.git" .
           cp "$GITHUB_WORKSPACE/dist/cq.rb" Casks/cq.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

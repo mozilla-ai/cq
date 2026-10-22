@@ -74,6 +74,13 @@ jobs:
             exit 1
           fi
 
+          # The built ref has to be the released tag, so a dispatch cannot publish
+          # one ref's documentation under another ref's tag.
+          if [[ "$GITHUB_REF" != "refs/tags/$TAG" ]]; then
+            echo "::error::Run this workflow on tag '$TAG', not on '$GITHUB_REF'"
+            exit 1
+          fi
+
           VERSION="${TAG#docs/}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
@@ -82,7 +89,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: ${{ steps.tag.outputs.tag }}
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
           fetch-depth: 0
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0

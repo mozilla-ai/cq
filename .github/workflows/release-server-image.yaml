@@ -23,7 +23,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 env:
   GHCR_IMAGE: ghcr.io/mozilla-ai/cq/server
@@ -35,6 +34,14 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'server/v'))
+    # Docker Hub trusts this repository's docker-hub environment through an OIDC
+    # connection, so no Docker credential is stored, and only server/v* tags may
+    # deploy to it. See RELEASE.md.
+    environment: docker-hub
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     steps:
       - name: Resolve tag
         id: tag
@@ -45,6 +52,14 @@ jobs:
             echo "::error::Tag '$TAG' does not match expected pattern server/vX.Y.Z"
             exit 1
           fi
+
+          # A deployment environment gates the ref the run is on, so the built
+          # ref has to be the released tag for that gate to mean anything.
+          if [[ "$GITHUB_REF" != "refs/tags/$TAG" ]]; then
+            echo "::error::Run this workflow on tag '$TAG', not on '$GITHUB_REF'"
+            exit 1
+          fi
+
           VERSION="${TAG#server/}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -67,7 +82,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+          ref: refs/tags/${{ github.event.release.tag_name || github.event.inputs.tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
@@ -77,18 +92,24 @@ jobs:
 
       - name: Log in to GHCR
         if: steps.publish.outputs.ghcr == 'true'
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # NOTE: OIDC login needs v4.5.0 or later, an organization account as the
+      # username, and no password input. A password input keeps the stored-credential
+      # path even when the connection ID is set.
       - name: Log in to DockerHub
         if: steps.publish.outputs.dockerhub == 'true'
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        env:
+          DOCKERHUB_OIDC_CONNECTIONID: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
+          # The default lifetime is 300 seconds, which a two-platform build outruns.
+          DOCKERHUB_OIDC_EXPIREIN: "3600"
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: mzdotai
 
       - name: Collect tags
         id: tags
