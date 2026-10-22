@@ -107,6 +107,7 @@ jobs:
         env:
           DOCKERHUB_OIDC_CONNECTIONID: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
           # The default lifetime is 300 seconds, which a two-platform build outruns.
+          # 3600 is this version's maximum; a larger value throws at the login step.
           DOCKERHUB_OIDC_EXPIREIN: "3600"
         with:
           username: mzdotai
