@@ -69,11 +69,11 @@ A tag pattern says which refs may deploy. It does not say who may create such a 
 
 Add required reviewers to each publishing environment and enable **Prevent self-review**. A job cannot read an environment secret until a reviewer who did not trigger the run approves it. That is the control that actually closes the gap.
 
-### 5. Clean up the old credentials
+### 5. The old credentials are already gone
 
-1. Ask an organization admin to remove this repository from the organization secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `HOMEBREW_TAP_GITHUB_TOKEN` and `GHA_PAT`. Nothing here uses `GHA_PAT`. Until this is done they stay readable from any branch.
-2. Do not revoke `HOMEBREW_TAP_GITHUB_TOKEN` itself while another repository still pushes to the tap with it. Removing this repository's access is enough.
-3. Revoke the Docker Hub access token once no repository uses it.
+The organization secrets this repository used to read were deleted organization-wide on 2026-10-22, so there is nothing left to unshare or revoke. The deleted names were `DOCKERHUB_TOKEN`, `DOCKERHUB_USERNAME`, `DOCKERHUB_RO_TOKEN`, `DOCKERHUB_RO_USERNAME`, `HOMEBREW_TAP_GITHUB_TOKEN` and `GHA_PAT`. Confirm with `gh api 'orgs/mozilla-ai/audit-log?phrase=action:org.remove_actions_secret' --jq '.[] | "\(.created_at|tonumber/1000|todate)  \(.actor)  \(.key)  op=\(.operation_type)"'`, which is readable without organization admin.
+
+Nothing in this repository reads any of those names now. Should a future workflow need a shared credential, give it an environment secret rather than an organization secret, for the reasons at the top of this file.
 
 An environment and the job that binds it are separate objects, and nothing reports a mismatch between them. An environment holding a secret that no job binds is a credential no run can reach; a bound environment with no policy gates nothing. Cross-reference the two with `gh api repos/mozilla-ai/cq/environments --jq '.environments[].name'` against `grep -rn 'environment:' .github/workflows/`, and check each name's `protection_rules` and `deployment_branch_policy`.
 
