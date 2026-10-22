@@ -16,7 +16,9 @@ That leaves one stored credential in the whole release path, `TAP_APP_PRIVATE_KE
 
 Each release workflow also asserts that the tag it builds is the tag the run is on. The deployment policy gates the run's ref, so a job that checked out some other ref would satisfy the policy and then build unreviewed code with the credential.
 
-The checkout steps name `refs/tags/<tag>` rather than the bare tag. An unqualified ref is ambiguous when a branch shares the tag's name, and the tools disagree about which one wins: `actions/checkout` and `git checkout` take the branch, while `git rev-parse` takes the tag. Each warns that the name is ambiguous and then exits 0, so the only signal is a warning on a green run. Qualifying the ref removes the question rather than relying on any one precedence.
+The checkout steps name the run's commit, `github.sha`, rather than the tag. A tag is a mutable pointer, so a checkout that names the tag can resolve to a commit other than the one the run started on, and a job that already holds a credential would then run code nobody approved. Naming the commit also settles the separate question of what an unqualified tag name means when a branch shares it, which `actions/checkout` and `git rev-parse` answer differently and warn about on an otherwise green run.
+
+Each publishing job asserts that the tag still names `github.sha` before it reads a credential. A tag that moves mid-run fails the run instead of publishing.
 
 ## Setup
 
@@ -81,5 +83,6 @@ An environment and the job that binds it are separate objects, and nothing repor
 
 - A `workflow_dispatch` of a release workflow from a branch is refused with "Branch is not allowed to deploy to ...".
 - A `workflow_dispatch` whose tag input does not match the ref it runs on fails in the tag step before any credential is read.
+- A run whose tag is moved to another commit while it is queued fails in the tag step of the next job, before that job reads a credential.
 - The next server release logs in to Docker Hub with no password, as a `docker-hub` deployment.
 - The next CLI release pushes the cask as a `homebrew-tap` deployment, and the tap commit's author is the App.

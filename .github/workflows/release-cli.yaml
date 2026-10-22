@@ -48,6 +48,7 @@ jobs:
       - name: Validate tag
         id: tag
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
           if [[ -z "$TAG" ]]; then
@@ -67,6 +68,14 @@ jobs:
             exit 1
           fi
 
+          # A tag is mutable, so every checkout names $GITHUB_SHA. This asserts
+          # the tag still names that commit.
+          TAGGED_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq .sha)"
+          if [[ "$TAGGED_SHA" != "$GITHUB_SHA" ]]; then
+            echo "::error::Tag '$TAG' now names '$TAGGED_SHA', not this run's commit '$GITHUB_SHA'"
+            exit 1
+          fi
+
           VERSION="${TAG#cli/}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
@@ -75,7 +84,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          ref: ${{ github.sha }}
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -150,8 +159,17 @@ jobs:
       - name: Resolve tag
         id: tag
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
+          # A tag is mutable and this job runs after the environment's reviewers
+          # approve, so assert the tag still names the commit they approved.
+          TAGGED_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq .sha)"
+          if [[ "$TAGGED_SHA" != "$GITHUB_SHA" ]]; then
+            echo "::error::Tag '$TAG' now names '$TAGGED_SHA', not this run's commit '$GITHUB_SHA'"
+            exit 1
+          fi
+
           VERSION="${TAG#cli/}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
@@ -191,7 +209,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          ref: ${{ github.sha }}
           sparse-checkout: build/brew
           path: repo
 
