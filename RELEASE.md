@@ -31,7 +31,7 @@ Do step 3 first. A workflow that names an environment which does not exist creat
 Docker Hub issues a short-lived token in exchange for the run's GitHub OIDC token, so no Docker credential is stored and there is nothing to rotate.
 
 1. In Docker Home for the `mzdotai` organization, open **Identity & auth > OIDC connections** and create a connection.
-2. Set the subject claim to `repo:mozilla-ai/cq:environment:docker-hub`. Only a job running in that environment can then log in.
+2. Add a ruleset on the connection. Set its subject claim to `repo:mozilla-ai/cq:environment:docker-hub`, its resource to the `mzdotai/cq-server` repository, and its scope to **Image Push**. The subject claim decides which job may log in, and the resource and the scope decide what that job may do; a connection carrying the claim alone authenticates the run and then refuses the push with `access denied`.
 3. Copy the connection ID and set it as the `docker-hub` environment **variable** `DOCKERHUB_OIDC_CONNECTIONID`. It is an identifier, not a secret. The action rejects anything that is not a UUID.
 
 Only organization accounts can sign in with OIDC, which is why the workflow's `username` is the organization name rather than a user.
@@ -67,9 +67,13 @@ A pattern's `*` is not documented to cross a `/`, so every pattern above keeps i
 
 ### 4. Required reviewers
 
-A tag pattern says which refs may deploy. It does not say who may create such a ref, and this repository has no tag ruleset, so anyone with write access can create a `cli/v*` or `server/v*` tag and satisfy the policy.
+A tag pattern says which refs may deploy. It does not say who may publish from one, so one person with write access can both create a `cli/v*` or `server/v*` tag and publish from it unobserved.
 
-Add required reviewers to each publishing environment and enable **Prevent self-review**. A job cannot read an environment secret until a reviewer who did not trigger the run approves it. That is the control that actually closes the gap.
+Add required reviewers to `docker-hub`, `homebrew-tap` and `pypi`, and enable **Prevent self-review** on each. A job cannot read an environment secret or mint an OIDC token until a reviewer who did not trigger the run approves it. That is the control that actually closes the gap.
+
+The `release` environment already carries required reviewers and a tag policy, but no workflow binds it, so it gates nothing. The reviewers belong on the three environments the workflows name.
+
+The `v prefix` tag ruleset covers the release tag patterns and restricts creating, deleting and force-pushing them, with no bypass actors. That keeps a published tag from being rewritten. It still says nothing about who may publish, which is what the reviewers are for.
 
 ### 5. The old credentials are already gone
 
@@ -85,4 +89,4 @@ An environment and the job that binds it are separate objects, and nothing repor
 - A `workflow_dispatch` whose tag input does not match the ref it runs on fails in the tag step before any credential is read.
 - A run whose tag is moved to another commit while it is queued fails in the tag step of the next job, before that job reads a credential.
 - The next server release logs in to Docker Hub with no password, as a `docker-hub` deployment.
-- The next CLI release pushes the cask as a `homebrew-tap` deployment, and the tap commit's author is the App.
+- The next CLI release pushes the cask as a `homebrew-tap` deployment, authenticated by the App token scoped to the tap.
