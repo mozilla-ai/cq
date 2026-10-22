@@ -73,7 +73,9 @@ Add required reviewers to `docker-hub`, `homebrew-tap` and `pypi`, and enable **
 
 The `release` environment already carries required reviewers and a tag policy, but no workflow binds it, so it gates nothing. The reviewers belong on the three environments the workflows name.
 
-The `v prefix` tag ruleset covers the release tag patterns and restricts creating, deleting and force-pushing them, with no bypass actors. That keeps a published tag from being rewritten. It still says nothing about who may publish, which is what the reviewers are for.
+The `v prefix` tag ruleset restricts deleting and force-pushing the release tag patterns, with no bypass actors, so no one can rewrite a published tag. It deliberately does not restrict creating them. A ruleset's bypass actors apply to every rule in it, so the single actor permitted to cut a release tag would also be permitted to delete a published one, and a `creation` rule with an empty bypass list stops everyone from releasing at all. Creating a tag publishes nothing on its own, and the required reviewers above gate the publish, so the restriction belongs on the operations that rewrite history rather than on the one that starts a release.
+
+Its patterns are `cli/v*`, `docs/v*`, `plugin/*`, `schema/*`, `sdk/go/v*`, `sdk/python/*` and `server/v*`. The `plugin`, `schema` and `sdk/python` patterns omit the `v` because tags in those families are published without one, and `release-schema.yaml` accepts both spellings.
 
 ### 5. The old credentials are already gone
 
