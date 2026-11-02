@@ -84,6 +84,59 @@ class TestLocalOnlyMode:
         assert len(flagged.flags) == 1
         assert flagged.flags[0].reason == FlagReason.STALE
 
+    def test_local_evidence_makes_no_remote_call(self, tmp_path: Path):
+        """A local-only unit is unknown to the remote, so no call is attempted.
+
+        Matches the Go client, whose local branch updates the store and returns.
+        """
+        from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo
+
+        class _StaticResolver:
+            def resolve(self, addr: str) -> NodeInfo:
+                return NodeInfo(
+                    version=SUPPORTED_DISCOVERY_VERSION,
+                    api_base_url="https://api.example.com/api/v1",
+                    api_version="v1",
+                )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
+        captured: list[str] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(f"{request.method} {request.url.path}")
+            # 401 makes propose fall back to local, and is the error a
+            # suppressed forward would hide most dangerously.
+            return httpx.Response(
+                status_code=401,
+                json={"detail": "API key expired."},
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "evidence.db",
+                _resolver=_StaticResolver(),  # type: ignore[arg-type]
+            )
+            try:
+                ku = c.propose(
+                    summary="Local only",
+                    detail="Detail.",
+                    action="Action.",
+                    domains=["testing"],
+                )
+            except FallbackError as exc:
+                ku = exc.local_unit
+
+            captured.clear()
+            c.confirm(ku.id)
+            c.flag(ku.id, FlagReason.STALE)
+            c.close()
+
+        assert captured == [], f"local evidence should reach no remote, got {captured}"
+
     def test_revoke_deletes_local_unit(self, client: Client):
         ku = client.propose(
             summary="Test insight",

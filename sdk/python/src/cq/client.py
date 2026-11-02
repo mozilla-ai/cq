@@ -4,7 +4,6 @@ Handles remote mode (HTTP calls to a cq API) and local mode
 (SQLite at $XDG_DATA_HOME/cq/local.db), with fallback between them.
 """
 
-import contextlib
 import logging
 import os
 from dataclasses import dataclass, field
@@ -308,7 +307,8 @@ class Client:
         """Confirm a knowledge unit, boosting its confidence.
 
         Uses tier to determine where to route the confirmation:
-        - LOCAL: operates on local store, forwards to remote if configured.
+        - LOCAL: operates on the local store only. A local unit has never
+          reached the remote, so there is nothing there to confirm.
         - Non-local (PRIVATE, PUBLIC): routes directly to the remote API.
 
         Raises:
@@ -324,9 +324,6 @@ class Client:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
             confirmed = apply_confirmation(unit)
             self._store.update(confirmed)
-            if self._http is not None:
-                with contextlib.suppress(RemoteError):
-                    self._remote_confirm(unit_id)
             return confirmed
 
         if self._http is None:
@@ -340,7 +337,8 @@ class Client:
         """Flag a knowledge unit, reducing its confidence.
 
         Uses tier to determine where to route the flag:
-        - LOCAL: operates on local store, forwards to remote if configured.
+        - LOCAL: operates on the local store only. A local unit has never
+          reached the remote, so there is nothing there to flag.
         - Non-local (PRIVATE, PUBLIC): routes directly to the remote API.
 
         Raises:
@@ -356,9 +354,6 @@ class Client:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
             flagged = apply_flag(unit, reason)
             self._store.update(flagged)
-            if self._http is not None:
-                with contextlib.suppress(RemoteError):
-                    self._remote_flag(unit_id, reason)
             return flagged
 
         if self._http is None:
