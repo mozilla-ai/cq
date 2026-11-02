@@ -10,6 +10,7 @@ SCHEMA_FILES := \
 	node_discovery.json \
 	propose.json \
 	query.json \
+	revoke.json \
 	review.json \
 	scoring.json \
 	scoring.values.json \
@@ -34,6 +35,7 @@ setup: sync-schema
 .PHONY: sync-schema
 sync-schema:
 	@mkdir -p $(SCHEMA_DST_DIR)
+	@rm -f $(SCHEMA_DST_DIR)/*.json
 	@for f in $(SCHEMA_FILES); do \
 		cp $(SCHEMA_SRC_DIR)$$f $(SCHEMA_DST_DIR)/$$f; \
 	done
