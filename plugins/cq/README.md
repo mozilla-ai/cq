@@ -42,7 +42,7 @@ Re-running `cq install` is idempotent.
 
 The plugin bundles three things:
 
-1. **MCP server** — exposes the five cq tools (`query`, `propose`, `confirm`, `flag`, `status`) over stdio via the `cq` binary.
+1. **MCP server** — exposes the six cq tools (`query`, `propose`, `confirm`, `flag`, `revoke`, `status`) over stdio via the `cq` binary.
 2. **Skill** (`cq`) — the core protocol that guides the agent to query before acting, propose when it discovers something novel, and confirm or flag existing knowledge.
 3. **Commands** — `/cq:status` and `/cq:reflect`, described below.
 
@@ -54,6 +54,7 @@ The plugin bundles three things:
 | `propose` | Submit a new knowledge unit                |
 | `confirm` | Endorse an existing KU that proved correct |
 | `flag`    | Mark a KU as wrong or stale                |
+| `revoke`  | Withdraw a knowledge unit you proposed     |
 | `status`  | Show store statistics                      |
 
 The agent calls these tools during normal work. You do not need to invoke them directly.

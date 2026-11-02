@@ -68,6 +68,7 @@ The five MCP tools underneath:
 | `propose` | Submit a new knowledge unit                |
 | `confirm` | Endorse an existing KU that proved correct |
 | `flag`    | Mark a KU as wrong or stale                |
+| `revoke`  | Withdraw a knowledge unit you proposed     |
 | `status`  | Show store statistics                      |
 
 ## Remote storage
@@ -114,7 +115,7 @@ Knowledge proposed locally will be automatically drained to the remote store whe
 cq runs across three runtime boundaries:
 
 1. **Agent process** — the plugin loads `SKILL.md`, which guides when and how the agent uses cq tools.
-2. **Local MCP server** — spawned via stdio, runs the Go based CLI, exposes the five tools above, owns the local SQLite store which defaults to `~/.local/share/cq/local.db`.
+2. **Local MCP server** — spawned via stdio, runs the Go based CLI, exposes the six tools above, owns the local SQLite store which defaults to `~/.local/share/cq/local.db`.
 3. **Remote API** (optional) — runs in a Docker container as a separate FastAPI service. In production this would be hosted with auth, tenancy, and RBAC.
 See [docs/architecture.md](docs/architecture.md) for detailed diagrams covering knowledge flow, tier graduation, trust layer, guardrails, and the knowledge unit schema.
 

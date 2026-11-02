@@ -4,7 +4,8 @@ description: |
   INVOKE WHEN:
   - Starting any task — query first (cq catches blind spots your training data missed: stale versions, integration gotchas, undocumented quirks)
   - You just resolved a non-obvious error, confusing error message, or surprising tool behavior — present a draft KU to the user and call `propose` if they approve
-  - Retrieved guidance proved correct or wrong — confirm or flag it
+  - Retrieved guidance proved correct or wrong — confirm it, or flag it if another agent proposed it
+  - A unit you proposed yourself turned out to be wrong — revoke it
 
   SKIP WHEN:
   - You already queried cq for this exact topic earlier in this session
