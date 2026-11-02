@@ -46,7 +46,7 @@ func TestHandleFlagOnNotFoundNamesRevoke(t *testing.T) {
 	result, err := s.HandleFlag(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "flag",
-			Arguments: map[string]any{"unit_id": "ku_1", "reason": "incorrect"},
+			Arguments: map[string]any{"unit_id": "ku_00000000000000000000000000000001", "reason": "incorrect"},
 		},
 	})
 	require.NoError(t, err, "a 404 is an answer, not a transport failure")
@@ -54,7 +54,7 @@ func TestHandleFlagOnNotFoundNamesRevoke(t *testing.T) {
 
 	text := toolResultText(t, result)
 	require.Contains(t, text, "revoke")
-	require.Contains(t, text, "ku_1")
+	require.Contains(t, text, "ku_00000000000000000000000000000001")
 }
 
 func TestHandleConfirmOnNotFoundNamesRevoke(t *testing.T) {
@@ -65,7 +65,7 @@ func TestHandleConfirmOnNotFoundNamesRevoke(t *testing.T) {
 	result, err := s.HandleConfirm(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "confirm",
-			Arguments: map[string]any{"unit_id": "ku_1"},
+			Arguments: map[string]any{"unit_id": "ku_00000000000000000000000000000001"},
 		},
 	})
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestHandleConfirmOnNotFoundNamesRevoke(t *testing.T) {
 
 	text := toolResultText(t, result)
 	require.Contains(t, text, "revoke")
-	require.Contains(t, text, "ku_1")
+	require.Contains(t, text, "ku_00000000000000000000000000000001")
 }
 
 func TestHandleFlagOnOtherErrorsIsUnchanged(t *testing.T) {
@@ -94,7 +94,7 @@ func TestHandleFlagOnOtherErrorsIsUnchanged(t *testing.T) {
 	_, err := s.HandleFlag(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "flag",
-			Arguments: map[string]any{"unit_id": "ku_1", "reason": "incorrect"},
+			Arguments: map[string]any{"unit_id": "ku_00000000000000000000000000000001", "reason": "incorrect"},
 		},
 	})
 	require.Error(t, err, "a non-404 failure keeps surfacing as a tool error")
@@ -118,14 +118,14 @@ func TestHandleRevokeOnNotFoundNamesBothCauses(t *testing.T) {
 	result, err := s.HandleRevoke(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "revoke",
-			Arguments: map[string]any{"unit_id": "ku_1"},
+			Arguments: map[string]any{"unit_id": "ku_00000000000000000000000000000001"},
 		},
 	})
 	require.NoError(t, err)
 	require.True(t, result.IsError)
 
 	text := toolResultText(t, result)
-	require.Contains(t, text, "ku_1")
+	require.Contains(t, text, "ku_00000000000000000000000000000001")
 	require.Contains(t, text, "did not propose it")
 	require.Contains(t, text, "does not support")
 }
