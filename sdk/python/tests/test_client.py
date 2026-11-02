@@ -84,6 +84,27 @@ class TestLocalOnlyMode:
         assert len(flagged.flags) == 1
         assert flagged.flags[0].reason == FlagReason.STALE
 
+    def test_revoke_deletes_local_unit(self, client: Client):
+        ku = client.propose(
+            summary="Test insight",
+            detail="Detail.",
+            action="Action.",
+            domains=["testing"],
+        )
+        revoked = client.revoke(ku.id)
+        assert revoked.id == ku.id
+
+        with pytest.raises(KeyError, match=ku.id):
+            client.revoke(ku.id)
+
+    def test_revoke_missing_unit_raises(self, client: Client):
+        with pytest.raises(KeyError, match="ku_ffffffffffffffffffffffffffffffff"):
+            client.revoke("ku_ffffffffffffffffffffffffffffffff")
+
+    def test_revoke_non_local_without_remote_raises(self, client: Client):
+        with pytest.raises(RuntimeError, match="without remote API configured"):
+            client.revoke("ku_ffffffffffffffffffffffffffffffff", tier=Tier.PRIVATE)
+
     def test_confirm_missing_unit_raises(self, client: Client):
         with pytest.raises(KeyError, match="ku_ffffffffffffffffffffffffffffffff"):
             client.confirm("ku_ffffffffffffffffffffffffffffffff")
