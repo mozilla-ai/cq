@@ -101,6 +101,35 @@ func TestHandleFlagOnOtherErrorsIsUnchanged(t *testing.T) {
 	require.NotContains(t, err.Error(), "revoke")
 }
 
+func TestHandleRevokeOnNotFoundNamesBothCauses(t *testing.T) {
+	t.Parallel()
+
+	remoteErr := &cq.RemoteError{StatusCode: http.StatusNotFound, Detail: `{"detail":"Not Found"}`}
+	s := New(&mockClient{
+		revokeFn: func(_ context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error) {
+			if ku.Tier == cq.Local {
+				return cq.KnowledgeUnit{}, cq.ErrNotFound
+			}
+
+			return cq.KnowledgeUnit{}, remoteErr
+		},
+	}, "test")
+
+	result, err := s.HandleRevoke(context.Background(), mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      "revoke",
+			Arguments: map[string]any{"unit_id": "ku_1"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+
+	text := toolResultText(t, result)
+	require.Contains(t, text, "ku_1")
+	require.Contains(t, text, "did not propose it")
+	require.Contains(t, text, "does not support")
+}
+
 // toolResultText returns the text payload of a tool result.
 func toolResultText(t *testing.T, result *mcp.CallToolResult) string {
 	t.Helper()

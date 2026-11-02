@@ -39,6 +39,10 @@ func (s *Server) HandleRevoke(ctx context.Context, req mcp.CallToolRequest) (*mc
 		result, err = s.client.Revoke(ctx, cq.KnowledgeUnit{ID: unitID, Tier: cq.Private})
 	}
 	if err != nil {
+		if unrevokable := unrevokableUnitResult(unitID, err); unrevokable != nil {
+			return unrevokable, nil
+		}
+
 		return nil, fmt.Errorf("revoking: %w", err)
 	}
 

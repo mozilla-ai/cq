@@ -31,3 +31,22 @@ func unreachableUnitResult(unitID string, err error) *mcp.CallToolResult {
 		unitID,
 	))
 }
+
+// unrevokableUnitResult explains a not-found answer from the withdrawal path,
+// or returns nil when err is something else.
+//
+// A node that implements no author-scoped withdrawal endpoint answers exactly
+// as one that holds no such unit, so the message has to name both causes
+// rather than assert either.
+func unrevokableUnitResult(unitID string, err error) *mcp.CallToolResult {
+	var remoteErr *cq.RemoteError
+	if !errors.As(err, &remoteErr) || remoteErr.StatusCode != http.StatusNotFound {
+		return nil
+	}
+
+	return mcp.NewToolResultError(fmt.Sprintf(
+		"knowledge unit %s could not be withdrawn. Either you did not propose it, "+
+			"or the configured knowledge store does not support withdrawing a unit.",
+		unitID,
+	))
+}
