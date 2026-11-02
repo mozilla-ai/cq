@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/spf13/cobra"
 
@@ -36,6 +37,15 @@ func NewRevokeCmd() *cobra.Command {
 			}
 
 			if err != nil {
+				var remoteErr *cq.RemoteError
+				if errors.As(err, &remoteErr) && remoteErr.StatusCode == http.StatusNotFound {
+					return fmt.Errorf(
+						"knowledge unit %s could not be withdrawn: either you did not propose it, "+
+							"or the configured knowledge store does not support withdrawing a unit",
+						args[0],
+					)
+				}
+
 				return err
 			}
 
