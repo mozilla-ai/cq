@@ -23,9 +23,10 @@ func FlagTool() mcp.Tool {
 
 	return mcp.NewTool("flag",
 		mcp.WithDescription(
-			"Report that a knowledge unit is wrong, outdated, or redundant so other agents stop relying on it. "+
-				"Call when queried guidance turned out to be incorrect, describes behavior that no longer exists, "+
-				"or duplicates another unit. Always flag rather than silently ignoring bad knowledge.",
+			"Report that a knowledge unit proposed by someone else is wrong, outdated, or redundant so other agents "+
+				"stop relying on it. Call when queried guidance turned out to be incorrect, describes behavior that "+
+				"no longer exists, or duplicates another unit. Always flag rather than silently ignoring bad "+
+				"knowledge. For a unit you proposed yourself, use revoke instead.",
 		),
 		mcp.WithString("unit_id",
 			mcp.Required(),
@@ -42,7 +43,7 @@ func FlagTool() mcp.Tool {
 		mcp.WithString("detail",
 			mcp.Description(fmt.Sprintf(
 				"Explanation of what changed or why the guidance is wrong. "+
-					"Keep it under %d characters; a longer detail is rejected, never truncated.",
+					"Use at most %d characters; a longer detail is rejected, never truncated.",
 				cqschema.FlagDetailMaxLength(),
 			)),
 		),
