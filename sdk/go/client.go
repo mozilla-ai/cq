@@ -427,6 +427,61 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 	}, nil
 }
 
+// Revoke withdraws a knowledge unit on behalf of its author.
+//
+// A remote unit moves to the revoked review state on the remote API. A
+// local unit has never been reviewed, so there is no state to record and the
+// unit is deleted from the local store instead.
+//
+// NOTE: deleting a local unit is not reversible. Callers that need the unit
+// preserved should drain before revoking.
+func (c *Client) Revoke(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, error) {
+	if err := ValidateID(ku.ID); err != nil {
+		return KnowledgeUnit{}, err
+	}
+
+	ctx, cancel := c.operationContext(ctx)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+		return KnowledgeUnit{}, ctx.Err()
+	default:
+	}
+
+	if !ku.Tier.IsRemote() {
+		stored, err := c.store.Unit(ctx, ku.ID)
+		if err != nil {
+			return KnowledgeUnit{}, fmt.Errorf("reading knowledge unit: %w", err)
+		}
+
+		if stored == nil {
+			return KnowledgeUnit{}, fmt.Errorf("%w: %s", ErrNotFound, ku.ID)
+		}
+
+		if err := c.store.Delete(ctx, ku.ID); err != nil {
+			return KnowledgeUnit{}, fmt.Errorf("deleting knowledge unit: %w", err)
+		}
+
+		return *stored, nil
+	}
+
+	if c.remote == nil {
+		return KnowledgeUnit{}, fmt.Errorf(
+			"knowledge unit %s has tier %s but no remote API is configured",
+			ku.ID,
+			ku.Tier,
+		)
+	}
+
+	result, err := c.remote.revoke(ctx, ku.ID)
+	if err != nil {
+		return KnowledgeUnit{}, fmt.Errorf("remote revoke failed: %w", err)
+	}
+
+	return result, nil
+}
+
 // Status returns aggregated statistics about the knowledge store.
 // When a remote API is configured and reachable, tier counts include
 // both local and remote breakdowns. If the remote stats request fails,

@@ -287,6 +287,38 @@ type remoteStatsResponse struct {
 	ConfidenceDistribution map[string]int `json:"confidence_distribution"`
 }
 
+// revoke withdraws the caller's own unit on the remote API.
+// Returns errUnreachable on transport/5xx, RemoteError on 4xx.
+func (r *remoteClient) revoke(ctx context.Context, unitID string) (KnowledgeUnit, error) {
+	revokeURL, err := r.url(ctx, "/users/me/knowledge/"+url.PathEscape(unitID))
+	if err != nil {
+		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+
+	resp, err := r.do(ctx, http.MethodPatch, revokeURL, map[string]ReviewStatus{"status": Revoked})
+	if err != nil {
+		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 500 {
+		return KnowledgeUnit{}, errUnreachable
+	}
+
+	if resp.StatusCode >= 400 {
+		detail, _ := io.ReadAll(resp.Body)
+
+		return KnowledgeUnit{}, &RemoteError{StatusCode: resp.StatusCode, Detail: string(detail)}
+	}
+
+	var result KnowledgeUnit
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return KnowledgeUnit{}, fmt.Errorf("decoding revoke response: %w", err)
+	}
+
+	return result, nil
+}
+
 // stats fetches store statistics from the remote API.
 // Returns errUnreachable on transport/5xx errors.
 func (r *remoteClient) stats(ctx context.Context) (remoteStatsResponse, error) {
