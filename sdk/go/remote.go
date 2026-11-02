@@ -313,7 +313,7 @@ func (r *remoteClient) revoke(ctx context.Context, unitID string) (KnowledgeUnit
 
 	var result KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return KnowledgeUnit{}, fmt.Errorf("decoding revoke response: %w", err)
+		return KnowledgeUnit{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
 	}
 
 	return result, nil
