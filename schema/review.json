@@ -98,7 +98,7 @@
     "StatusCounts": {
       "type": "object",
       "description": "Counts of knowledge units by review status.",
-      "required": ["pending", "approved", "rejected"],
+      "required": ["pending", "approved", "rejected", "revoked"],
       "properties": {
         "pending": {
           "type": "integer",
@@ -109,6 +109,10 @@
           "minimum": 0
         },
         "rejected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "revoked": {
           "type": "integer",
           "minimum": 0
         }
