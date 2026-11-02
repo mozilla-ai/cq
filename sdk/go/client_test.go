@@ -1069,13 +1069,13 @@ func TestRevokeRejectsMalformedID(t *testing.T) {
 	}
 }
 
-func TestRevokeRemoteTierWithoutRemoteErrors(t *testing.T) {
+func TestRevokeRemoteTierWithoutRemoteIsNotFound(t *testing.T) {
 	c := newTestClient(t)
 
 	_, err := c.Revoke(context.Background(), KnowledgeUnit{
 		ID:   "ku_00000000000000000000000000000007",
 		Tier: Private,
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no remote API is configured")
+	require.ErrorIs(t, err, ErrNotFound, "an unreachable unit is not-found, not a configuration report")
+	require.NotContains(t, err.Error(), "no remote API is configured")
 }
