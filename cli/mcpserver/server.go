@@ -21,6 +21,7 @@ type Client interface {
 	HasRemote() bool
 	Propose(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
 	Query(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
+	Revoke(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
 	Status(ctx context.Context) (cq.StoreStats, error)
 }
 
@@ -45,6 +46,7 @@ func New(client Client, ver string) *Server {
 	srv.mcpSrv.AddTool(ProposeTool(), srv.HandlePropose)
 	srv.mcpSrv.AddTool(ConfirmTool(), srv.HandleConfirm)
 	srv.mcpSrv.AddTool(FlagTool(), srv.HandleFlag)
+	srv.mcpSrv.AddTool(RevokeTool(), srv.HandleRevoke)
 	srv.mcpSrv.AddTool(StatusTool(), srv.HandleStatus)
 
 	return srv
