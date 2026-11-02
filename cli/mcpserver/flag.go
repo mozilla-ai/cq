@@ -9,6 +9,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
+	cqschema "github.com/mozilla-ai/cq/schema"
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
@@ -39,7 +40,11 @@ func FlagTool() mcp.Tool {
 			mcp.Enum(enumValues...),
 		),
 		mcp.WithString("detail",
-			mcp.Description("Explanation of what changed or why the guidance is wrong."),
+			mcp.Description(fmt.Sprintf(
+				"Explanation of what changed or why the guidance is wrong. "+
+					"Keep it under %d characters; a longer detail is rejected, never truncated.",
+				cqschema.FlagDetailMaxLength(),
+			)),
 		),
 		mcp.WithString("duplicate_of",
 			mcp.Description("ID of the original unit when reason is \"duplicate\"."),

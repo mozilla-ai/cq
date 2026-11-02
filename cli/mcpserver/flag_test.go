@@ -3,11 +3,13 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
+	cqschema "github.com/mozilla-ai/cq/schema"
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
@@ -61,4 +63,14 @@ func TestHandleFlag(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, result.IsError)
 	})
+}
+
+func TestFlagToolDescribesDetailLimit(t *testing.T) {
+	t.Parallel()
+
+	prop, ok := FlagTool().InputSchema.Properties["detail"].(map[string]any)
+	require.True(t, ok, "detail property should be an object")
+	description, ok := prop["description"].(string)
+	require.True(t, ok, "detail property should carry a description")
+	require.Contains(t, description, strconv.Itoa(cqschema.FlagDetailMaxLength()))
 }
