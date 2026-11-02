@@ -511,3 +511,32 @@ func TestRemoteRevokeServerErrorIsUnreachable(t *testing.T) {
 	_, err := rc.revoke(context.Background(), "ku_00000000000000000000000000000007")
 	require.ErrorIs(t, err, errUnreachable)
 }
+
+func TestRemoteRevokeAcceptsEmptySuccessBody(t *testing.T) {
+	t.Parallel()
+
+	const unitID = "ku_00000000000000000000000000000007"
+
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{name: "204 no content", status: http.StatusNoContent},
+		{name: "200 with empty body", status: http.StatusOK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer srv.Close()
+
+			rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+			unit, err := rc.revoke(context.Background(), unitID)
+			require.NoError(t, err, "a status change need not echo the unit back")
+			require.Equal(t, unitID, unit.ID)
+		})
+	}
+}

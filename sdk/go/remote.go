@@ -311,8 +311,14 @@ func (r *remoteClient) revoke(ctx context.Context, unitID string) (KnowledgeUnit
 		return KnowledgeUnit{}, &RemoteError{StatusCode: resp.StatusCode, Detail: string(detail)}
 	}
 
+	// A status change need not echo the unit back, so an empty 2xx is a
+	// success with nothing to report rather than a failed read.
 	var result KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		if resp.StatusCode == http.StatusNoContent || errors.Is(err, io.EOF) {
+			return KnowledgeUnit{ID: unitID}, nil
+		}
+
 		return KnowledgeUnit{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
 	}
 
