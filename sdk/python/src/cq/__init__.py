@@ -9,6 +9,7 @@ from .models import (
     FlagReason,
     Insight,
     KnowledgeUnit,
+    ReviewStatus,
     Tier,
     create_knowledge_unit,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "ReflectResult",
     "Reflector",
     "RemoteError",
+    "ReviewStatus",
     "SqliteStore",
     "Store",
     "StoreQueryResult",
