@@ -6,8 +6,8 @@
   "$defs": {
     "ReviewStatus": {
       "type": "string",
-      "enum": ["pending", "approved", "rejected"],
-      "description": "Review status for a knowledge unit."
+      "enum": ["pending", "approved", "rejected", "revoked"],
+      "description": "Review status for a knowledge unit. Members are ordered by lifecycle, not alphabetically. A unit is revoked by its own author and rejected by a reviewer."
     },
     "ReviewItem": {
       "type": "object",
