@@ -20,8 +20,8 @@ func TestSchemaAccessorsReturnNonEmptyJSON(t *testing.T) {
 		"node_discovery": NodeDiscoverySchema(),
 		"propose":        ProposeSchema(),
 		"query":          QuerySchema(),
-		"revoke":         RevokeSchema(),
 		"review":         ReviewSchema(),
+		"revoke":         RevokeSchema(),
 		"scoring":        ScoringSchema(),
 		"stats":          StatsSchema(),
 	}

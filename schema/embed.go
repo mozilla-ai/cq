@@ -24,11 +24,11 @@ var confirmSchema []byte
 //go:embed flag.json
 var flagSchema []byte
 
-//go:embed revoke.json
-var revokeSchema []byte
-
 //go:embed review.json
 var reviewSchema []byte
+
+//go:embed revoke.json
+var revokeSchema []byte
 
 //go:embed health.json
 var healthSchema []byte
@@ -63,11 +63,11 @@ func ProposeSchema() []byte { return bytes.Clone(proposeSchema) }
 // QuerySchema returns the raw bytes of query.json.
 func QuerySchema() []byte { return bytes.Clone(querySchema) }
 
-// RevokeSchema returns the raw bytes of revoke.json.
-func RevokeSchema() []byte { return bytes.Clone(revokeSchema) }
-
 // ReviewSchema returns the raw bytes of review.json.
 func ReviewSchema() []byte { return bytes.Clone(reviewSchema) }
+
+// RevokeSchema returns the raw bytes of revoke.json.
+func RevokeSchema() []byte { return bytes.Clone(revokeSchema) }
 
 // ScoringSchema returns the raw bytes of scoring.json.
 func ScoringSchema() []byte { return bytes.Clone(scoringSchema) }

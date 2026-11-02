@@ -10,8 +10,8 @@ SCHEMA_FILES := \
 	node_discovery.json \
 	propose.json \
 	query.json \
-	revoke.json \
 	review.json \
+	revoke.json \
 	scoring.json \
 	scoring.values.json \
 	stats.json
