@@ -80,6 +80,19 @@ class Tier(StrEnum):
     PUBLIC = "public"
 
 
+class ReviewStatus(StrEnum):
+    """Review lifecycle state of a knowledge unit.
+
+    Members are ordered by lifecycle, not alphabetically.
+    """
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    # Withdrawn by the unit's own author, as distinct from REJECTED by a reviewer.
+    REVOKED = "revoked"
+
+
 class FlagReason(StrEnum):
     """Reason for flagging a knowledge unit."""
 
