@@ -85,6 +85,10 @@ func (s *Server) HandleFlag(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		result, err = s.client.Flag(ctx, cq.KnowledgeUnit{ID: unitID, Tier: cq.Private}, flagReason, opts...)
 	}
 	if err != nil {
+		if unreachable := unreachableUnitResult(unitID, err); unreachable != nil {
+			return unreachable, nil
+		}
+
 		return nil, fmt.Errorf("flagging: %w", err)
 	}
 
