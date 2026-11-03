@@ -73,7 +73,7 @@ body:
     attributes:
       label: Self-Checklist
       options:
-        - label: I have read the [Contributing Guidelines](CONTRIBUTING.md).
+        - label: I have read the [Contributing Guidelines](https://github.com/mozilla-ai/cq/blob/main/CONTRIBUTING.md).
           required: true
         - label: I have searched the existing issues and found no duplicate.
           required: true
