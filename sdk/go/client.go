@@ -120,11 +120,7 @@ func (c *Client) Confirm(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, 
 	}
 
 	if c.remote == nil {
-		return KnowledgeUnit{}, fmt.Errorf(
-			"knowledge unit %s has tier %s but no remote API is configured",
-			ku.ID,
-			ku.Tier,
-		)
+		return KnowledgeUnit{}, fmt.Errorf("%w: %s", ErrNotFound, ku.ID)
 	}
 
 	result, err := c.remote.confirm(ctx, ku.ID)
@@ -266,11 +262,7 @@ func (c *Client) Flag(
 	}
 
 	if c.remote == nil {
-		return KnowledgeUnit{}, fmt.Errorf(
-			"knowledge unit %s has tier %s but no remote API is configured",
-			ku.ID,
-			ku.Tier,
-		)
+		return KnowledgeUnit{}, fmt.Errorf("%w: %s", ErrNotFound, ku.ID)
 	}
 
 	result, err := c.remote.flag(ctx, ku.ID, reason, cfg)
@@ -466,8 +458,6 @@ func (c *Client) Revoke(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, e
 		return *stored, nil
 	}
 
-	// With no remote, a remote-tier unit is simply unreachable from here, and
-	// reporting the tier would describe the configuration rather than the unit.
 	if c.remote == nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %s", ErrNotFound, ku.ID)
 	}

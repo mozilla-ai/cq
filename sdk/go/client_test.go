@@ -231,6 +231,17 @@ func TestConfirmNotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestConfirmRemoteTierWithoutRemoteIsNotFound(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Confirm(context.Background(), KnowledgeUnit{
+		ID:   "ku_00000000000000000000000000000007",
+		Tier: Private,
+	})
+	require.ErrorIs(t, err, ErrNotFound, "an unreachable unit is not-found, not a configuration report")
+	require.NotContains(t, err.Error(), "no remote API is configured")
+}
+
 func TestFlag(t *testing.T) {
 	c := newTestClient(t)
 	ctx := context.Background()
@@ -251,6 +262,17 @@ func TestFlagNotFound(t *testing.T) {
 	c := newTestClient(t)
 	_, err := c.Flag(context.Background(), KnowledgeUnit{ID: "ku_00000000000000000000000000ffffff", Tier: Local}, Stale)
 	require.Error(t, err)
+}
+
+func TestFlagRemoteTierWithoutRemoteIsNotFound(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Flag(context.Background(), KnowledgeUnit{
+		ID:   "ku_00000000000000000000000000000007",
+		Tier: Private,
+	}, Stale)
+	require.ErrorIs(t, err, ErrNotFound, "an unreachable unit is not-found, not a configuration report")
+	require.NotContains(t, err.Error(), "no remote API is configured")
 }
 
 func TestFlagDuplicateRequiresDuplicateOf(t *testing.T) {
