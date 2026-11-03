@@ -448,7 +448,7 @@ func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
 	require.NotContains(t, capturedURL, "pattern=")
 }
 
-func TestRemoteRevokePatchesMemberSurface(t *testing.T) {
+func TestRemoteRevokePostsToNamedAction(t *testing.T) {
 	t.Parallel()
 
 	const unitID = "ku_00000000000000000000000000000007"
@@ -477,9 +477,9 @@ func TestRemoteRevokePatchesMemberSurface(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Equal(t, http.MethodPatch, gotMethod)
-	require.Equal(t, "/api/v1/users/me/knowledge/"+unitID, gotPath)
-	require.Equal(t, map[string]any{"status": "revoked"}, gotBody)
+	require.Equal(t, http.MethodPost, gotMethod)
+	require.Equal(t, "/api/v1/users/me/knowledge/"+unitID+"/revoke", gotPath)
+	require.Empty(t, gotBody)
 }
 
 func TestRemoteRevokeNotFoundReturnsRemoteError(t *testing.T) {
@@ -512,17 +512,15 @@ func TestRemoteRevokeServerErrorIsUnreachable(t *testing.T) {
 	require.ErrorIs(t, err, errUnreachable)
 }
 
-func TestRemoteRevokeAcceptsEmptySuccessBody(t *testing.T) {
+func TestRemoteRevokeRejectsEmptySuccessBody(t *testing.T) {
 	t.Parallel()
-
-	const unitID = "ku_00000000000000000000000000000007"
 
 	tests := []struct {
 		name   string
 		status int
 	}{
-		{name: "204 no content", status: http.StatusNoContent},
 		{name: "200 with empty body", status: http.StatusOK},
+		{name: "204 no content", status: http.StatusNoContent},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -534,9 +532,8 @@ func TestRemoteRevokeAcceptsEmptySuccessBody(t *testing.T) {
 			defer srv.Close()
 
 			rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
-			unit, err := rc.revoke(context.Background(), unitID)
-			require.NoError(t, err, "a status change need not echo the unit back")
-			require.Equal(t, unitID, unit.ID)
+			_, err := rc.revoke(context.Background(), "ku_00000000000000000000000000000007")
+			require.ErrorIs(t, err, errUnreachable)
 		})
 	}
 }

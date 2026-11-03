@@ -162,6 +162,40 @@ class TestLocalOnlyMode:
         with pytest.raises(ValueError, match="ID must match"):
             client.revoke("../../admin")
 
+    def test_revoke_posts_to_the_named_revoke_action(self, tmp_path: Path, static_resolver):
+        """Revoke is a POST to a named action, as confirm and flag are.
+
+        Pins the verb and the path so the call cannot drift into a generic
+        status write, which would let a caller name any review status.
+        """
+        unit_id = "ku_cccccccccccccccccccccccccccccc01"
+        captured: list[str] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(f"{request.method} {request.url.path}")
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "id": unit_id,
+                    "domains": ["api"],
+                    "insight": {"summary": "S", "detail": "D", "action": "A"},
+                    "tier": "private",
+                },
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "revoke_action.db",
+                _resolver=static_resolver,
+            )
+            revoked = c.revoke(unit_id, tier=Tier.PRIVATE)
+            c.close()
+
+        assert revoked.id == unit_id
+        assert captured == [f"POST /api/v1/users/me/knowledge/{unit_id}/revoke"]
+
     def test_revoke_keeps_the_unit_id_inside_its_path_segment(self, tmp_path: Path):
         """A unit ID is one path segment, so a traversal value must not reach the remote."""
         from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo

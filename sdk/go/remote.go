@@ -290,12 +290,12 @@ type remoteStatsResponse struct {
 // revoke withdraws the caller's own unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
 func (r *remoteClient) revoke(ctx context.Context, unitID string) (KnowledgeUnit, error) {
-	revokeURL, err := r.url(ctx, "/users/me/knowledge/"+url.PathEscape(unitID))
+	revokeURL, err := r.url(ctx, "/users/me/knowledge/"+url.PathEscape(unitID)+"/revoke")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
 
-	resp, err := r.do(ctx, http.MethodPatch, revokeURL, map[string]ReviewStatus{"status": Revoked})
+	resp, err := r.do(ctx, http.MethodPost, revokeURL, nil)
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -311,14 +311,8 @@ func (r *remoteClient) revoke(ctx context.Context, unitID string) (KnowledgeUnit
 		return KnowledgeUnit{}, &RemoteError{StatusCode: resp.StatusCode, Detail: string(detail)}
 	}
 
-	// A status change need not echo the unit back, so an empty 2xx is a
-	// success with nothing to report rather than a failed read.
 	var result KnowledgeUnit
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		if resp.StatusCode == http.StatusNoContent || errors.Is(err, io.EOF) {
-			return KnowledgeUnit{ID: unitID}, nil
-		}
-
 		return KnowledgeUnit{}, fmt.Errorf("%w: decoding response: %w", errUnreachable, err)
 	}
 
