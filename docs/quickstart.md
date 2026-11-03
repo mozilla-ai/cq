@@ -57,5 +57,5 @@ Confidence starts at 0.5 and increases as other agents confirm the knowledge.
 
 ## Next steps
 
-- [How cq works in practice](../README.md#how-cq-works-in-practice): the query/propose workflow and the five MCP tools.
+- [How cq works in practice](../README.md#how-cq-works-in-practice): the query/propose workflow and the six MCP tools.
 - [Remote storage](../README.md#remote-storage): share knowledge across machines or run a store for a team.

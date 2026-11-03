@@ -60,7 +60,7 @@ Then it will `propose` that learning as a knowledge unit.
 It scans the session for learnings worth sharing (debugging breakthroughs, undocumented API behavior, workarounds), presents
 them for approval, and queries the store before submitting each one to avoid duplicates.
 
-The five MCP tools underneath:
+The six MCP tools underneath:
 
 | Tool      | What it does                               |
 |-----------|--------------------------------------------|
@@ -102,7 +102,7 @@ Whichever option you use, set these environment variables for your AI coding ass
 | Variable     | Description                                                                                                                                                        |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `CQ_ADDR`    | Remote API URL. Use `https://cq.exchange` for the hosted service, or your server's URL if self-hosting.                                                           |
-| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `status`). Generated in the server's UI dashboard. |
+| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`, `revoke`); optional for read-only use (`query`, `status`). Generated in the server's UI dashboard. |
 
 For how to set these in each host (Claude, Codex, Copilot, Cursor, Devin Desktop, OpenCode, Pi), see [Installation → Connect to a remote cq server](docs/install.md#connect-to-a-remote-cq-server).
 
