@@ -290,12 +290,12 @@ type remoteStatsResponse struct {
 // revoke withdraws the caller's own unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
 func (r *remoteClient) revoke(ctx context.Context, unitID string) (KnowledgeUnit, error) {
-	revokeURL, err := r.url(ctx, "/users/me/knowledge/"+url.PathEscape(unitID))
+	revokeURL, err := r.url(ctx, "/users/me/knowledge/"+url.PathEscape(unitID)+"/revoke")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
 
-	resp, err := r.do(ctx, http.MethodPatch, revokeURL, map[string]ReviewStatus{"status": Revoked})
+	resp, err := r.do(ctx, http.MethodPost, revokeURL, nil)
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}

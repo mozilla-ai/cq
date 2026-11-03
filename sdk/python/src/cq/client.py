@@ -20,7 +20,6 @@ from .models import (
     FlagReason,
     Insight,
     KnowledgeUnit,
-    ReviewStatus,
     Tier,
     _validate_unit_id,
     create_knowledge_unit,
@@ -695,9 +694,8 @@ class Client:
         """
         assert self._http is not None
         try:
-            resp = self._http.patch(
-                f"{self._api_base_url()}/users/me/knowledge/{quote(unit_id, safe='')}",
-                json={"status": ReviewStatus.REVOKED.value},
+            resp = self._http.post(
+                f"{self._api_base_url()}/users/me/knowledge/{quote(unit_id, safe='')}/revoke",
             )
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:

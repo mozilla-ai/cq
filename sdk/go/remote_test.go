@@ -448,7 +448,7 @@ func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
 	require.NotContains(t, capturedURL, "pattern=")
 }
 
-func TestRemoteRevokePatchesMemberSurface(t *testing.T) {
+func TestRemoteRevokePostsToNamedAction(t *testing.T) {
 	t.Parallel()
 
 	const unitID = "ku_00000000000000000000000000000007"
@@ -477,9 +477,9 @@ func TestRemoteRevokePatchesMemberSurface(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Equal(t, http.MethodPatch, gotMethod)
-	require.Equal(t, "/api/v1/users/me/knowledge/"+unitID, gotPath)
-	require.Equal(t, map[string]any{"status": "revoked"}, gotBody)
+	require.Equal(t, http.MethodPost, gotMethod)
+	require.Equal(t, "/api/v1/users/me/knowledge/"+unitID+"/revoke", gotPath)
+	require.Empty(t, gotBody)
 }
 
 func TestRemoteRevokeNotFoundReturnsRemoteError(t *testing.T) {
