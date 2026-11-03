@@ -69,11 +69,11 @@ wheels = [
 
 [[package]]
 name = "cq-schema"
-version = "0.4.0"
+version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/3e/c6/0b5ee997c1089317bdb926c9fa6997ac3d55e6cc085f94e138cab053a4af/cq_schema-0.4.0.tar.gz", hash = "sha256:425bb3c2c10c24c2795396f51104ee7be420a2b923c08bfd72c1ce434989c7b7", size = 11130, upload-time = "2026-11-03T11:23:07.586Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/58/14910689173ea464dd4f98736a62fefd204ca0b614c5319b52c90ddae897/cq_schema-0.4.1.tar.gz", hash = "sha256:b14744c651b36122c9b503fbc6fea773bf62df4e46609cbfe48f67462a7f2ddd", size = 11128, upload-time = "2026-11-03T11:45:05.489Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/21/1c/5ae9005a0efb47c7cec2bd261299f1bacbc093c8289d4c87648ef31b4caa/cq_schema-0.4.0-py3-none-any.whl", hash = "sha256:d10c488e727102bcc7e0948a041dee55c0f9a39e73e41db329c5ef7490d85b54", size = 12689, upload-time = "2026-11-03T11:23:06.318Z" },
+    { url = "https://files.pythonhosted.org/packages/05/8f/18c9b894787277405107b340f9ca53f90dd745d99532afb3e557a79f6355/cq_schema-0.4.1-py3-none-any.whl", hash = "sha256:3b0f9e022d1a5c1b68c50703f47c4a1add7142a04d09003fedf4cd65c9365044", size = 12689, upload-time = "2026-11-03T11:45:04.056Z" },
 ]
 
 [[package]]
@@ -111,7 +111,7 @@ tests = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cq-schema", specifier = ">=0.4.0" },
+    { name = "cq-schema", specifier = ">=0.4.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.3.4,<4" },
     { name = "pydantic", specifier = ">=2.12.5" },
