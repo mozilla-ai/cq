@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/mark3labs/mcp-go v0.55.0
-	github.com/mozilla-ai/cq/schema v0.3.1
+	github.com/mozilla-ai/cq/schema v0.4.0
 	github.com/mozilla-ai/cq/sdk/go v0.16.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
