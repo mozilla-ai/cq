@@ -146,6 +146,23 @@ class TestCalculateRelevance:
         assert score_overlap > score_none
         assert score_no_overlap == score_none
 
+    def test_language_match_is_case_insensitive(self):
+        """A unit storing a mixed-case language matches a lowercase query.
+
+        Query paths lowercase the query, so a stored "Python" is otherwise unreachable.
+        """
+        unit = _make_unit(context=Context(languages=["Python"], frameworks=[]))
+        matched = calculate_relevance(unit, ["databases"], query_languages=["python"])
+        baseline = calculate_relevance(unit, ["databases"], query_languages=None)
+        assert matched > baseline
+
+    def test_framework_match_is_case_insensitive(self):
+        """A unit storing a mixed-case framework matches a lowercase query."""
+        unit = _make_unit(context=Context(languages=[], frameworks=["Django"]))
+        matched = calculate_relevance(unit, ["databases"], query_frameworks=["django"])
+        baseline = calculate_relevance(unit, ["databases"], query_frameworks=None)
+        assert matched > baseline
+
     def test_relevance_is_between_zero_and_one(self):
         unit = _make_unit(
             domains=["databases", "performance"],

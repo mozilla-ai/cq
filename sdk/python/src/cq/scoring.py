@@ -93,14 +93,16 @@ def calculate_relevance(
     else:
         domain_score = 0.0
 
-    # Language match: any overlap between query and unit languages.
+    # Language match: any overlap between query and unit languages, ignoring case.
+    unit_languages = {lang.lower() for lang in unit.context.languages}
     language_score = 0.0
-    if query_languages and any(lang in unit.context.languages for lang in query_languages):
+    if query_languages and any(lang.lower() in unit_languages for lang in query_languages):
         language_score = 1.0
 
-    # Framework match: any overlap between query and unit frameworks.
+    # Framework match: any overlap between query and unit frameworks, ignoring case.
+    unit_frameworks = {fw.lower() for fw in unit.context.frameworks}
     framework_score = 0.0
-    if query_frameworks and any(fw in unit.context.frameworks for fw in query_frameworks):
+    if query_frameworks and any(fw.lower() in unit_frameworks for fw in query_frameworks):
         framework_score = 1.0
 
     # Pattern match: exact case-insensitive equality between query and unit pattern.
