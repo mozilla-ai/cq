@@ -257,6 +257,12 @@ class TestReviewStats:
         assert body["counts"]["rejected"] == 1
         assert body["counts"]["pending"] == 1
 
+    def test_stats_counts_cover_every_published_status(self, client: TestClient) -> None:
+        token = _login(client)
+        resp = client.get("/api/v1/review/stats", headers=_auth_header(token))
+        assert resp.status_code == 200
+        assert set(resp.json()["counts"]) == {"pending", "approved", "rejected", "revoked"}
+
     def test_domains_count_approved_only(self, client: TestClient) -> None:
         token = _login(client)
         u1 = _propose(client, domains=["only-approved"])
