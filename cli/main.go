@@ -55,6 +55,7 @@ func newRootCmd() *cobra.Command {
 		cmd.NewPromptCmd,
 		cmd.NewProposeCmd,
 		cmd.NewQueryCmd,
+		cmd.NewRevokeCmd,
 		cmd.NewStatusCmd,
 	} {
 		c := fn()

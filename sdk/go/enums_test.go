@@ -101,3 +101,39 @@ func TestTiersString(t *testing.T) {
 
 	require.Equal(t, "local, private, public", AllTiers().String())
 }
+
+func TestAllReviewStatusesIsLifecycleOrdered(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, ReviewStatuses{Pending, Approved, Rejected, Revoked}, AllReviewStatuses())
+}
+
+func TestReviewStatusesString(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "pending, approved, rejected, revoked", AllReviewStatuses().String())
+}
+
+func TestReviewStatusValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		status   ReviewStatus
+		expected bool
+	}{
+		{name: "pending", status: Pending, expected: true},
+		{name: "approved", status: Approved, expected: true},
+		{name: "rejected", status: Rejected, expected: true},
+		{name: "revoked", status: Revoked, expected: true},
+		{name: "empty string", status: "", expected: false},
+		{name: "unknown", status: "withdrawn", expected: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.expected, tc.status.Valid())
+		})
+	}
+}

@@ -60,7 +60,7 @@ Then it will `propose` that learning as a knowledge unit.
 It scans the session for learnings worth sharing (debugging breakthroughs, undocumented API behavior, workarounds), presents
 them for approval, and queries the store before submitting each one to avoid duplicates.
 
-The five MCP tools underneath:
+The six MCP tools underneath:
 
 | Tool      | What it does                               |
 |-----------|--------------------------------------------|
@@ -68,6 +68,7 @@ The five MCP tools underneath:
 | `propose` | Submit a new knowledge unit                |
 | `confirm` | Endorse an existing KU that proved correct |
 | `flag`    | Mark a KU as wrong or stale                |
+| `revoke`  | Withdraw a knowledge unit you proposed     |
 | `status`  | Show store statistics                      |
 
 ## Remote storage
@@ -101,7 +102,7 @@ Whichever option you use, set these environment variables for your AI coding ass
 | Variable     | Description                                                                                                                                                        |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `CQ_ADDR`    | Remote API URL. Use `https://cq.exchange` for the hosted service, or your server's URL if self-hosting.                                                           |
-| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`); optional for read-only use (`query`, `status`). Generated in the server's UI dashboard. |
+| `CQ_API_KEY` | API key for authenticated write operations (`propose`, `confirm`, `flag`, `revoke`); optional for read-only use (`query`, `status`). Generated in the server's UI dashboard. |
 
 For how to set these in each host (Claude, Codex, Copilot, Cursor, Devin Desktop, OpenCode, Pi), see [Installation → Connect to a remote cq server](docs/install.md#connect-to-a-remote-cq-server).
 
@@ -114,7 +115,7 @@ Knowledge proposed locally will be automatically drained to the remote store whe
 cq runs across three runtime boundaries:
 
 1. **Agent process** — the plugin loads `SKILL.md`, which guides when and how the agent uses cq tools.
-2. **Local MCP server** — spawned via stdio, runs the Go based CLI, exposes the five tools above, owns the local SQLite store which defaults to `~/.local/share/cq/local.db`.
+2. **Local MCP server** — spawned via stdio, runs the Go based CLI, exposes the six tools above, owns the local SQLite store which defaults to `~/.local/share/cq/local.db`.
 3. **Remote API** (optional) — runs in a Docker container as a separate FastAPI service. In production this would be hosted with auth, tenancy, and RBAC.
 See [docs/architecture.md](docs/architecture.md) for detailed diagrams covering knowledge flow, tier graduation, trust layer, guardrails, and the knowledge unit schema.
 

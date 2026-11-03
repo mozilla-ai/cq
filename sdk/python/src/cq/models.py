@@ -80,6 +80,19 @@ class Tier(StrEnum):
     PUBLIC = "public"
 
 
+class ReviewStatus(StrEnum):
+    """Review lifecycle state of a knowledge unit.
+
+    Members are ordered by lifecycle, not alphabetically.
+    """
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    # Withdrawn by the unit's own author, as distinct from REJECTED by a reviewer.
+    REVOKED = "revoked"
+
+
 class FlagReason(StrEnum):
     """Reason for flagging a knowledge unit."""
 
@@ -165,8 +178,7 @@ class KnowledgeUnit(BaseModel):
     @classmethod
     def _validate_id_format(cls, v: str) -> str:
         """Enforce ku_ + 32 hex character ID format."""
-        if not _KU_ID_PATTERN.match(v):
-            raise ValueError(f"ID must match {_KU_ID_PATTERN.pattern}, got: {v!r}")
+        _validate_unit_id(v)
         return v
 
     @field_validator("superseded_by")
@@ -192,6 +204,12 @@ class KnowledgeUnit(BaseModel):
 def _generate_ku_id() -> str:
     """Generate a prefixed UUID for knowledge unit identification."""
     return _KU_ID_PREFIX + uuid.uuid4().hex
+
+
+def _validate_unit_id(unit_id: str) -> None:
+    """Raise ValueError unless unit_id has the knowledge unit ID format."""
+    if not _KU_ID_PATTERN.match(unit_id):
+        raise ValueError(f"ID must match {_KU_ID_PATTERN.pattern}, got: {unit_id!r}")
 
 
 def create_knowledge_unit(

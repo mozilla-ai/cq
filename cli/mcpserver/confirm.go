@@ -38,6 +38,10 @@ func (s *Server) HandleConfirm(ctx context.Context, req mcp.CallToolRequest) (*m
 		result, err = s.client.Confirm(ctx, cq.KnowledgeUnit{ID: unitID, Tier: cq.Private})
 	}
 	if err != nil {
+		if unreachable := unreachableUnitResult(unitID, err); unreachable != nil {
+			return unreachable, nil
+		}
+
 		return nil, fmt.Errorf("confirming: %w", err)
 	}
 

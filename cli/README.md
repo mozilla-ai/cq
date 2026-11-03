@@ -58,6 +58,9 @@ cq confirm <unit_id>
 cq flag <unit_id> --reason stale
 cq flag <unit_id> --reason duplicate --duplicate-of <other_id>
 
+# Withdraw one of your own units. A unit held only locally is deleted.
+cq revoke <unit_id>
+
 # Show store status.
 cq status
 cq status --format json

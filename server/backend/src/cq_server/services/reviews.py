@@ -103,6 +103,7 @@ class ReviewService:
                 "pending": counts.get("pending", 0),
                 "approved": counts.get("approved", 0),
                 "rejected": counts.get("rejected", 0),
+                "revoked": counts.get("revoked", 0),
             },
             domains=await self._knowledge.domain_counts(),
             confidence_distribution=await self._reviews.confidence_distribution(),

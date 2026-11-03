@@ -4,11 +4,11 @@ Handles remote mode (HTTP calls to a cq API) and local mode
 (SQLite at $XDG_DATA_HOME/cq/local.db), with fallback between them.
 """
 
-import contextlib
 import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from pydantic import ValidationError
@@ -20,7 +20,9 @@ from .models import (
     FlagReason,
     Insight,
     KnowledgeUnit,
+    ReviewStatus,
     Tier,
+    _validate_unit_id,
     create_knowledge_unit,
 )
 from .scoring import apply_confirmation, apply_flag
@@ -307,7 +309,8 @@ class Client:
         """Confirm a knowledge unit, boosting its confidence.
 
         Uses tier to determine where to route the confirmation:
-        - LOCAL: operates on local store, forwards to remote if configured.
+        - LOCAL: operates on the local store only. A local unit has never
+          reached the remote, so there is nothing there to confirm.
         - Non-local (PRIVATE, PUBLIC): routes directly to the remote API.
 
         Raises:
@@ -323,9 +326,6 @@ class Client:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
             confirmed = apply_confirmation(unit)
             self._store.update(confirmed)
-            if self._http is not None:
-                with contextlib.suppress(RemoteError):
-                    self._remote_confirm(unit_id)
             return confirmed
 
         if self._http is None:
@@ -339,7 +339,8 @@ class Client:
         """Flag a knowledge unit, reducing its confidence.
 
         Uses tier to determine where to route the flag:
-        - LOCAL: operates on local store, forwards to remote if configured.
+        - LOCAL: operates on the local store only. A local unit has never
+          reached the remote, so there is nothing there to flag.
         - Non-local (PRIVATE, PUBLIC): routes directly to the remote API.
 
         Raises:
@@ -355,9 +356,6 @@ class Client:
                 raise KeyError(f"Knowledge unit not found: {unit_id}")
             flagged = apply_flag(unit, reason)
             self._store.update(flagged)
-            if self._http is not None:
-                with contextlib.suppress(RemoteError):
-                    self._remote_flag(unit_id, reason)
             return flagged
 
         if self._http is None:
@@ -382,6 +380,41 @@ class Client:
         self._logger.warning(message)
         stats.warnings.append(message)
         return {}
+
+    def revoke(self, unit_id: str, *, tier: Tier = Tier.LOCAL) -> KnowledgeUnit:
+        """Withdraw a knowledge unit on behalf of its author.
+
+        Uses tier to determine where to route the withdrawal:
+        - LOCAL: deletes the unit from the local store.
+        - Non-local (PRIVATE, PUBLIC): routes to the remote API.
+
+        A local unit has never been reviewed, so there is no review state to
+        record and the unit is deleted instead.
+
+        NOTE: deleting a local unit is not reversible, and the returned unit is
+        its state at the moment it was withdrawn rather than a record a later
+        query can find.
+
+        Raises:
+            KeyError: If the unit is not found in the local store (LOCAL tier)
+                or if the remote is unreachable (non-local tiers).
+            RemoteError: If the remote API explicitly rejects the request.
+            RuntimeError: If a non-local tier is specified without a remote API.
+        """
+        _validate_unit_id(unit_id)
+        if tier == Tier.LOCAL:
+            unit = self._store.get(unit_id)
+            if unit is None:
+                raise KeyError(f"Knowledge unit not found: {unit_id}")
+            self._store.delete(unit_id)
+            return unit
+
+        if self._http is None:
+            raise RuntimeError("Cannot revoke non-local unit without remote API configured")
+        result = self._remote_revoke(unit_id)
+        if result is not None:
+            return result
+        raise KeyError(f"Remote unreachable; cannot revoke unit: {unit_id}")
 
     def status(self) -> StoreStats:
         """Return knowledge store statistics with tier counts.
@@ -597,7 +630,7 @@ class Client:
         """
         assert self._http is not None
         try:
-            resp = self._http.post(f"{self._api_base_url()}/knowledge/{unit_id}/confirmations")
+            resp = self._http.post(f"{self._api_base_url()}/knowledge/{quote(unit_id, safe='')}/confirmations")
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RemoteError(
@@ -629,8 +662,42 @@ class Client:
         assert self._http is not None
         try:
             resp = self._http.post(
-                f"{self._api_base_url()}/knowledge/{unit_id}/flags",
+                f"{self._api_base_url()}/knowledge/{quote(unit_id, safe='')}/flags",
                 json={"reason": reason.value},
+            )
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RemoteError(
+                status_code=exc.response.status_code,
+                detail=exc.response.text,
+            ) from exc
+        except httpx.HTTPError:
+            return None
+        try:
+            data = resp.json()
+            unit_data = data.get("knowledge_unit", data) if isinstance(data, dict) else data
+            return KnowledgeUnit.model_validate(unit_data)
+        except (ValueError, ValidationError) as exc:
+            raise RemoteError(
+                status_code=resp.status_code,
+                detail=f"Invalid response body: {exc}",
+            ) from exc
+
+    def _remote_revoke(self, unit_id: str) -> KnowledgeUnit | None:
+        """Withdraw a unit on the remote API.
+
+        Returns:
+            The withdrawn KnowledgeUnit on success, None on transport error.
+
+        Raises:
+            RemoteError: If the remote API explicitly rejects the request,
+                returns an unparseable response, or answers without a unit.
+        """
+        assert self._http is not None
+        try:
+            resp = self._http.patch(
+                f"{self._api_base_url()}/users/me/knowledge/{quote(unit_id, safe='')}",
+                json={"status": ReviewStatus.REVOKED.value},
             )
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:

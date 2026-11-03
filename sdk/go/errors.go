@@ -6,6 +6,10 @@ import (
 )
 
 // ErrNotFound indicates a knowledge unit was not found.
+//
+// NOTE: a remote-tier unit is also not found when no remote is configured.
+// Naming the tier would report the configuration rather than the unit the
+// caller asked about.
 var ErrNotFound = errors.New("knowledge unit not found")
 
 // FallbackError indicates that a propose could not reach the remote and the

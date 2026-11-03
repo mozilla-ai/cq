@@ -9,6 +9,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
+	cqschema "github.com/mozilla-ai/cq/schema"
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
@@ -22,9 +23,10 @@ func FlagTool() mcp.Tool {
 
 	return mcp.NewTool("flag",
 		mcp.WithDescription(
-			"Report that a knowledge unit is wrong, outdated, or redundant so other agents stop relying on it. "+
-				"Call when queried guidance turned out to be incorrect, describes behavior that no longer exists, "+
-				"or duplicates another unit. Always flag rather than silently ignoring bad knowledge.",
+			"Report that a knowledge unit proposed by someone else is wrong, outdated, or redundant so other agents "+
+				"stop relying on it. Call when queried guidance turned out to be incorrect, describes behavior that "+
+				"no longer exists, or duplicates another unit. Always flag rather than silently ignoring bad "+
+				"knowledge. For a unit you proposed yourself, use revoke instead.",
 		),
 		mcp.WithString("unit_id",
 			mcp.Required(),
@@ -39,7 +41,11 @@ func FlagTool() mcp.Tool {
 			mcp.Enum(enumValues...),
 		),
 		mcp.WithString("detail",
-			mcp.Description("Explanation of what changed or why the guidance is wrong."),
+			mcp.Description(fmt.Sprintf(
+				"Explanation of what changed or why the guidance is wrong. "+
+					"Use at most %d characters; a longer detail is rejected, never truncated.",
+				cqschema.FlagDetailMaxLength(),
+			)),
 		),
 		mcp.WithString("duplicate_of",
 			mcp.Description("ID of the original unit when reason is \"duplicate\"."),
@@ -80,6 +86,10 @@ func (s *Server) HandleFlag(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		result, err = s.client.Flag(ctx, cq.KnowledgeUnit{ID: unitID, Tier: cq.Private}, flagReason, opts...)
 	}
 	if err != nil {
+		if unreachable := unreachableUnitResult(unitID, err); unreachable != nil {
+			return unreachable, nil
+		}
+
 		return nil, fmt.Errorf("flagging: %w", err)
 	}
 

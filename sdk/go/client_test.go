@@ -231,6 +231,17 @@ func TestConfirmNotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestConfirmRemoteTierWithoutRemoteIsNotFound(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Confirm(context.Background(), KnowledgeUnit{
+		ID:   "ku_00000000000000000000000000000007",
+		Tier: Private,
+	})
+	require.ErrorIs(t, err, ErrNotFound, "an unreachable unit is not-found, not a configuration report")
+	require.NotContains(t, err.Error(), "no remote API is configured")
+}
+
 func TestFlag(t *testing.T) {
 	c := newTestClient(t)
 	ctx := context.Background()
@@ -251,6 +262,17 @@ func TestFlagNotFound(t *testing.T) {
 	c := newTestClient(t)
 	_, err := c.Flag(context.Background(), KnowledgeUnit{ID: "ku_00000000000000000000000000ffffff", Tier: Local}, Stale)
 	require.Error(t, err)
+}
+
+func TestFlagRemoteTierWithoutRemoteIsNotFound(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Flag(context.Background(), KnowledgeUnit{
+		ID:   "ku_00000000000000000000000000000007",
+		Tier: Private,
+	}, Stale)
+	require.ErrorIs(t, err, ErrNotFound, "an unreachable unit is not-found, not a configuration report")
+	require.NotContains(t, err.Error(), "no remote API is configured")
 }
 
 func TestFlagDuplicateRequiresDuplicateOf(t *testing.T) {
@@ -1030,4 +1052,52 @@ func TestClientQueryPassesPatternToStore(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, withPattern.Units)
 	require.Equal(t, "s", withPattern.Units[0].Insight.Summary, "the unit with matching pattern should rank first")
+}
+
+func TestRevokeLocalUnitDeletesIt(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	ku, err := c.Propose(ctx, ProposeParams{
+		Summary: "Revocable", Detail: "D.", Action: "A.", Domains: []string{"test"},
+	})
+	require.NoError(t, err)
+
+	revoked, err := c.Revoke(ctx, ku)
+	require.NoError(t, err)
+	require.Equal(t, ku.ID, revoked.ID)
+
+	_, err = c.Confirm(ctx, ku)
+	require.ErrorIs(t, err, ErrNotFound, "a revoked local unit should be gone from the store")
+}
+
+func TestRevokeLocalUnitNotFound(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Revoke(context.Background(), KnowledgeUnit{
+		ID:   "ku_00000000000000000000000000ffffff",
+		Tier: Local,
+	})
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestRevokeRejectsMalformedID(t *testing.T) {
+	c := newTestClient(t)
+
+	for _, id := range []string{"", "abc", "ku_zzzz", "ku_00000000000000000000000000FFFFFF"} {
+		_, err := c.Revoke(context.Background(), KnowledgeUnit{ID: id, Tier: Private})
+		require.Error(t, err, "id %s should be rejected before any request", id)
+		require.NotErrorIs(t, err, ErrNotFound, "a malformed id is not a missing unit")
+	}
+}
+
+func TestRevokeRemoteTierWithoutRemoteIsNotFound(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.Revoke(context.Background(), KnowledgeUnit{
+		ID:   "ku_00000000000000000000000000000007",
+		Tier: Private,
+	})
+	require.ErrorIs(t, err, ErrNotFound, "an unreachable unit is not-found, not a configuration report")
+	require.NotContains(t, err.Error(), "no remote API is configured")
 }

@@ -19,6 +19,7 @@ SCHEMA_NAMES = [
     "propose",
     "query",
     "review",
+    "revoke",
     "scoring",
     "stats",
 ]

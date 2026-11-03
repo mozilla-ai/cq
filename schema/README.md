@@ -200,7 +200,7 @@ Review workflow types for the knowledge unit review pipeline.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `counts` | StatusCounts | yes | Counts by review status (pending, approved, rejected). |
+| `counts` | StatusCounts | yes | Counts by review status (pending, approved, rejected, revoked). |
 | `domains` | object | yes | Count of knowledge units per domain. |
 | `confidence_distribution` | ConfidenceBucket[] | yes | Confidence distribution buckets. |
 | `trends` | DailyCount[] | yes | Daily proposal, approval, and rejection counts. |

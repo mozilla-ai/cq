@@ -16,6 +16,7 @@ type mockClient struct {
 	hasRemote bool
 	proposeFn func(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
 	queryFn   func(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
+	revokeFn  func(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
 	statusFn  func(ctx context.Context) (cq.StoreStats, error)
 }
 
@@ -66,6 +67,14 @@ func (m *mockClient) Query(ctx context.Context, params cq.QueryParams) (cq.Query
 	}
 
 	return m.queryFn(ctx, params)
+}
+
+func (m *mockClient) Revoke(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error) {
+	if m.revokeFn == nil {
+		return cq.KnowledgeUnit{}, errMockNotImplemented
+	}
+
+	return m.revokeFn(ctx, ku)
 }
 
 func (m *mockClient) Status(ctx context.Context) (cq.StoreStats, error) {

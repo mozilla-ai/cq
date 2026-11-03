@@ -447,3 +447,96 @@ func TestRemoteQueryOmitsEmptyPattern(t *testing.T) {
 	defer mu.Unlock()
 	require.NotContains(t, capturedURL, "pattern=")
 }
+
+func TestRemoteRevokePatchesMemberSurface(t *testing.T) {
+	t.Parallel()
+
+	const unitID = "ku_00000000000000000000000000000007"
+
+	var mu sync.Mutex
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+
+		mu.Lock()
+		gotMethod, gotPath, gotBody = r.Method, r.URL.Path, body
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(testRemoteKUJSON(unitID))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	unit, err := rc.revoke(context.Background(), unitID)
+	require.NoError(t, err)
+	require.Equal(t, unitID, unit.ID)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, http.MethodPatch, gotMethod)
+	require.Equal(t, "/api/v1/users/me/knowledge/"+unitID, gotPath)
+	require.Equal(t, map[string]any{"status": "revoked"}, gotBody)
+}
+
+func TestRemoteRevokeNotFoundReturnsRemoteError(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"detail":"Knowledge unit not found."}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.revoke(context.Background(), "ku_00000000000000000000000000000007")
+
+	var remoteErr *RemoteError
+	require.ErrorAs(t, err, &remoteErr)
+	require.Equal(t, http.StatusNotFound, remoteErr.StatusCode)
+}
+
+func TestRemoteRevokeServerErrorIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.revoke(context.Background(), "ku_00000000000000000000000000000007")
+	require.ErrorIs(t, err, errUnreachable)
+}
+
+func TestRemoteRevokeAcceptsEmptySuccessBody(t *testing.T) {
+	t.Parallel()
+
+	const unitID = "ku_00000000000000000000000000000007"
+
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{name: "204 no content", status: http.StatusNoContent},
+		{name: "200 with empty body", status: http.StatusOK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer srv.Close()
+
+			rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+			unit, err := rc.revoke(context.Background(), unitID)
+			require.NoError(t, err, "a status change need not echo the unit back")
+			require.Equal(t, unitID, unit.ID)
+		})
+	}
+}

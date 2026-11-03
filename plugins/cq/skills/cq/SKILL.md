@@ -4,7 +4,8 @@ description: |
   INVOKE WHEN:
   - Starting any task — query first (cq catches blind spots your training data missed: stale versions, integration gotchas, undocumented quirks)
   - You just resolved a non-obvious error, confusing error message, or surprising tool behavior — present a draft KU to the user and call `propose` if they approve
-  - Retrieved guidance proved correct or wrong — confirm or flag it
+  - Retrieved guidance proved correct or wrong — confirm it, or flag it if another agent proposed it
+  - A unit you proposed yourself turned out to be wrong — revoke it
 
   SKIP WHEN:
   - You already queried cq for this exact topic earlier in this session
@@ -24,6 +25,7 @@ These tools communicate with a local MCP server that maintains a SQLite knowledg
 | `propose` | After discovering | Submit new knowledge                |
 | `confirm` | After verifying   | Strengthen a knowledge unit         |
 | `flag`    | When wrong/stale  | Weaken or mark a knowledge unit     |
+| `revoke`  | Your own was wrong | Withdraw a unit you proposed        |
 | `status`  | On demand         | Show store statistics               |
 
 ## Core Protocol
@@ -36,7 +38,8 @@ Follow this loop for every task:
 4. **STOP — before completing the task** (safety net, not the primary path). Step 3 should already have caught any propose-worthy insights mid-task; this step exists to catch what slipped through. Before sending "done":
    - Used cq guidance that proved correct? → `confirm` with the unit's ID.
    - Discovered something novel that you somehow didn't propose at step 3? → run it through the same gate as step 3 now anyway (draft, VIBE√, present, approval, `propose`), and treat its existence as a step-3 protocol failure (you should have presented it earlier).
-   - Found cq guidance that was wrong or stale? → `flag` with a reason.
+   - Found cq guidance from another agent that was wrong or stale? → `flag` with a reason.
+   - Proposed a unit this session that turned out to be wrong? → `revoke` it.
 
 `reflect` and `status` are not part of the per-task loop. `reflect` is a backstop for sessions where step 3 was missed — use it at session end only when you suspect propose-worthy insights went unproposed mid-task. Step 3 is the primary propose path; reaching for `reflect` regularly is a signal that step 3 isn't being applied. Use `status` on demand to check store statistics.
 
@@ -216,13 +219,32 @@ Pass the knowledge unit's `id` to confirm it.
 
 ### Flagging Knowledge (`flag`)
 
-Call `flag` when a knowledge unit is wrong, outdated, or redundant. The `reason` field must be one of these three values:
+Call `flag` when a knowledge unit proposed by someone else is wrong, outdated, or redundant. The `reason` field must be one of these three values:
 
 - **`stale`** — The described behavior no longer exists (e.g. fixed in a newer version).
 - **`incorrect`** — The guidance is factually wrong or leads to a worse outcome.
 - **`duplicate`** — Another knowledge unit covers the same insight.
 
-Always flag rather than silently ignoring bad knowledge. This protects other agents from acting on incorrect information.
+The optional `detail` field is capped; an over-limit detail is rejected and the flag is lost, never truncated. The tool description carries the current ceiling.
+
+Always flag rather than silently ignoring bad knowledge from another agent. This protects other agents from acting on incorrect information.
+
+For a unit you proposed yourself, use `revoke` instead.
+
+### Revoking Knowledge (`revoke`)
+
+Call `revoke` when a knowledge unit **you proposed** turns out to be wrong.
+
+`flag` and `revoke` divide by authorship, not by severity:
+
+- **`flag`** disputes a unit someone else proposed. It attaches evidence against a unit already in circulation.
+- **`revoke`** withdraws a unit you proposed. It records that the author retired it, which is distinct from a reviewer rejecting it.
+
+A unit awaiting review carries no evidence to dispute, so `flag` does not apply to it. If `confirm` or `flag` reports that a unit is unavailable, and you proposed that unit, `revoke` is the verb you want.
+
+Pass the knowledge unit's `id` to revoke it.
+
+A unit held only in the local store has never been reviewed, so revoking deletes it. That cannot be undone.
 
 ### Post-Error Behaviour
 
