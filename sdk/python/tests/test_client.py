@@ -158,6 +158,44 @@ class TestLocalOnlyMode:
         with pytest.raises(RuntimeError, match="without remote API configured"):
             client.revoke("ku_ffffffffffffffffffffffffffffffff", tier=Tier.PRIVATE)
 
+    def test_revoke_rejects_a_malformed_unit_id(self, client: Client):
+        with pytest.raises(ValueError, match="ID must match"):
+            client.revoke("../../admin")
+
+    def test_revoke_keeps_the_unit_id_inside_its_path_segment(self, tmp_path: Path):
+        """A unit ID is one path segment, so a traversal value must not reach the remote."""
+        from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo
+
+        class _StaticResolver:
+            def resolve(self, addr: str) -> NodeInfo:
+                return NodeInfo(
+                    version=SUPPORTED_DISCOVERY_VERSION,
+                    api_base_url="https://api.example.com/api/v1",
+                    api_version="v1",
+                )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
+        captured: list[str] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request.url.path)
+            return httpx.Response(status_code=204, request=request)
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "revoke.db",
+                _resolver=_StaticResolver(),  # type: ignore[arg-type]
+            )
+            with pytest.raises(ValueError, match="ID must match"):
+                c.revoke("../../admin/x", tier=Tier.PRIVATE)
+            c.close()
+
+        escaped = [path for path in captured if not path.startswith("/api/v1/users/me/knowledge/")]
+        assert escaped == [], f"unit ID escaped its path segment, got {escaped}"
+
     def test_confirm_missing_unit_raises(self, client: Client):
         with pytest.raises(KeyError, match="ku_ffffffffffffffffffffffffffffffff"):
             client.confirm("ku_ffffffffffffffffffffffffffffffff")

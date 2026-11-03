@@ -8,6 +8,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from pydantic import ValidationError
@@ -21,6 +22,7 @@ from .models import (
     KnowledgeUnit,
     ReviewStatus,
     Tier,
+    _validate_unit_id,
     create_knowledge_unit,
 )
 from .scoring import apply_confirmation, apply_flag
@@ -399,6 +401,7 @@ class Client:
             RemoteError: If the remote API explicitly rejects the request.
             RuntimeError: If a non-local tier is specified without a remote API.
         """
+        _validate_unit_id(unit_id)
         if tier == Tier.LOCAL:
             unit = self._store.get(unit_id)
             if unit is None:
@@ -693,7 +696,7 @@ class Client:
         assert self._http is not None
         try:
             resp = self._http.patch(
-                f"{self._api_base_url()}/users/me/knowledge/{unit_id}",
+                f"{self._api_base_url()}/users/me/knowledge/{quote(unit_id, safe='')}",
                 json={"status": ReviewStatus.REVOKED.value},
             )
             resp.raise_for_status()
