@@ -196,6 +196,42 @@ class TestLocalOnlyMode:
         escaped = [path for path in captured if not path.startswith("/api/v1/users/me/knowledge/")]
         assert escaped == [], f"unit ID escaped its path segment, got {escaped}"
 
+    def test_remote_evidence_keeps_the_unit_id_inside_its_path_segment(self, tmp_path: Path):
+        """A unit ID is one path segment, so a traversal value must not reach another endpoint."""
+        from cq.discovery import SUPPORTED_DISCOVERY_VERSION, NodeInfo
+
+        class _StaticResolver:
+            def resolve(self, addr: str) -> NodeInfo:
+                return NodeInfo(
+                    version=SUPPORTED_DISCOVERY_VERSION,
+                    api_base_url="https://api.example.com/api/v1",
+                    api_version="v1",
+                )
+
+            def close(self) -> None:
+                """No-op; the test double owns no resources."""
+
+        captured: list[str] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request.url.path)
+            return httpx.Response(status_code=404, json={"detail": "Not found."}, request=request)
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "evidence_path.db",
+                _resolver=_StaticResolver(),  # type: ignore[arg-type]
+            )
+            with pytest.raises(RemoteError):
+                c.confirm("../../admin", tier=Tier.PRIVATE)
+            with pytest.raises(RemoteError):
+                c.flag("../../admin", FlagReason.STALE, tier=Tier.PRIVATE)
+            c.close()
+
+        escaped = [path for path in captured if not path.startswith("/api/v1/knowledge/")]
+        assert escaped == [], f"unit ID escaped its path segment, got {escaped}"
+
     def test_confirm_missing_unit_raises(self, client: Client):
         with pytest.raises(KeyError, match="ku_ffffffffffffffffffffffffffffffff"):
             client.confirm("ku_ffffffffffffffffffffffffffffffff")

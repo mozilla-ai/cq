@@ -630,7 +630,7 @@ class Client:
         """
         assert self._http is not None
         try:
-            resp = self._http.post(f"{self._api_base_url()}/knowledge/{unit_id}/confirmations")
+            resp = self._http.post(f"{self._api_base_url()}/knowledge/{quote(unit_id, safe='')}/confirmations")
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RemoteError(
@@ -662,7 +662,7 @@ class Client:
         assert self._http is not None
         try:
             resp = self._http.post(
-                f"{self._api_base_url()}/knowledge/{unit_id}/flags",
+                f"{self._api_base_url()}/knowledge/{quote(unit_id, safe='')}/flags",
                 json={"reason": reason.value},
             )
             resp.raise_for_status()
