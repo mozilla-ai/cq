@@ -311,6 +311,7 @@ semsearch = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cq-schema" },
     { name = "httpx" },
     { name = "jsonschema" },
     { name = "pre-commit" },
@@ -326,6 +327,7 @@ lint = [
     { name = "ty" },
 ]
 tests = [
+    { name = "cq-schema" },
     { name = "httpx" },
     { name = "jsonschema" },
     { name = "pytest" },
@@ -353,6 +355,7 @@ provides-extras = ["semsearch"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cq-schema", specifier = ">=0.4.1" },
     { name = "httpx" },
     { name = "jsonschema", specifier = ">=4.23.0" },
     { name = "pre-commit", specifier = ">=4.5.1" },
@@ -368,6 +371,7 @@ lint = [
     { name = "ty", specifier = ">=0.0.59" },
 ]
 tests = [
+    { name = "cq-schema", specifier = ">=0.4.1" },
     { name = "httpx" },
     { name = "jsonschema", specifier = ">=4.23.0" },
     { name = "pytest", specifier = ">=9.0.3" },
