@@ -203,7 +203,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
-        run: gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --repo "$GITHUB_REPOSITORY"
+        # Clobber so a re-run after a partial upload replaces the assets rather than failing.
+        run: gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
