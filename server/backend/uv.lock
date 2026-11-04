@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [options]
@@ -7,8 +7,8 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
-cq-sdk = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
 cq-schema = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
+cq-sdk = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
 
 [[package]]
 name = "alembic"
@@ -273,16 +273,16 @@ wheels = [
 
 [[package]]
 name = "cq-sdk"
-version = "0.21.1"
+version = "0.21.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cq-schema" },
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/71/57/7227194f3ccea4d1b0d5ae5e3d301c422c2d5d83210b7aed6c731c31cc27/cq_sdk-0.21.1.tar.gz", hash = "sha256:9a59e9379c6dd469e682fde2a3036413edc499210dbf7f2566f2d413770bf16d", size = 88537, upload-time = "2026-11-03T19:58:29.172Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/aa/3b84c6aec1bd9dbbf752eb0b8cb75dfd5ea3dbfdbaf0702d4081770885f2/cq_sdk-0.21.2.tar.gz", hash = "sha256:0bc69f0849a49a8a73560f1b762c67fdfe7d1ee7f896a04a3d01e4719dff301e", size = 88809, upload-time = "2026-11-04T15:46:53.449Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/07/d43390ce8943ade5553435bf7a94cc96f784117591e0a21e01a09b81088b/cq_sdk-0.21.1-py3-none-any.whl", hash = "sha256:09b7907a68ff3e72db919011995361dee19434c571fc963a3a2624f09995611a", size = 60982, upload-time = "2026-11-03T19:58:27.544Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/1e/f18ea550ff880daff1d8f0c1719c50f0ca8bd24233e412e5ece16cccf078/cq_sdk-0.21.2-py3-none-any.whl", hash = "sha256:fb0bf891443f34dfb6e4152c08868a608be6b67a04abab1c0ba385332aac5853", size = 61115, upload-time = "2026-11-04T15:46:52.095Z" },
 ]
 
 [[package]]
@@ -339,7 +339,7 @@ tests = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.4,<2" },
     { name = "bcrypt", specifier = ">=5.0" },
-    { name = "cq-sdk", specifier = "~=0.21.1" },
+    { name = "cq-sdk", specifier = "~=0.21.2" },
     { name = "fastapi" },
     { name = "httpx", marker = "extra == 'semsearch'" },
     { name = "numpy", marker = "extra == 'semsearch'", specifier = "==2.*" },
