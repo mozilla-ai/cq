@@ -262,8 +262,6 @@ class KnowledgeRepository:
     def build_insert_clauses(self, unit: KnowledgeUnit) -> list[tuple[Any, dict[str, Any]]]:
         """Build insert clauses for a unit and all of its normalized domains."""
         unit = normalize_unit_tags(unit)
-        if not unit.domains:
-            raise ValueError("At least one non-empty domain is required")
         created_at = (
             unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else datetime.now(UTC).isoformat()
         )
@@ -286,8 +284,6 @@ class KnowledgeRepository:
     def build_update_clauses(self, unit: KnowledgeUnit) -> list[tuple[Any, dict[str, Any]]]:
         """Build update clauses for unit JSON/tier and normalized domain mappings."""
         unit = normalize_unit_tags(unit)
-        if not unit.domains:
-            raise ValueError("At least one non-empty domain is required")
 
         clauses: list[tuple[Any, dict[str, Any]]] = [
             (

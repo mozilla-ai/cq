@@ -185,22 +185,20 @@ def _normalize_domains(domains: list[str]) -> list[str]:
 
 
 def _normalize_unit_tags(unit: KnowledgeUnit) -> KnowledgeUnit:
-    """Return a copy of unit with its domain, language, and framework tags normalized.
+    """Return a validated copy of unit with its domain, language, and framework tags normalized.
 
-    NOTE: callers must reject a unit whose returned domains list is empty.
-    A unit whose domains all normalize away has no usable domain.
+    Raises:
+        ValueError: If no domain survives normalization, or a normalized tag no
+            longer satisfies the schema.
     """
-    return unit.model_copy(
-        update={
-            "domains": _normalize_domains(unit.domains),
-            "context": unit.context.model_copy(
-                update={
-                    "languages": _normalize_domains(unit.context.languages),
-                    "frameworks": _normalize_domains(unit.context.frameworks),
-                }
-            ),
-        }
-    )
+    data = unit.model_dump()
+    data["domains"] = _normalize_domains(unit.domains)
+    data["context"]["languages"] = _normalize_domains(unit.context.languages)
+    data["context"]["frameworks"] = _normalize_domains(unit.context.frameworks)
+    if not data["domains"]:
+        raise ValueError("At least one non-empty domain is required")
+
+    return KnowledgeUnit.model_validate(data)
 
 
 def _build_fts_match_expr(terms: list[str]) -> str:
@@ -469,11 +467,9 @@ class SqliteStore:
 
         Raises:
             DuplicateUnitError: If a unit with the same ID already exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
         unit = _normalize_unit_tags(unit)
-        if not unit.domains:
-            raise ValueError("At least one non-empty domain is required")
         data = unit.model_dump_json(exclude_none=True)
         try:
             with self._transact() as conn:
@@ -537,11 +533,9 @@ class SqliteStore:
 
         Raises:
             KeyError: If no unit with the given ID exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
         unit = _normalize_unit_tags(unit)
-        if not unit.domains:
-            raise ValueError("At least one non-empty domain is required")
         data = unit.model_dump_json(exclude_none=True)
         with self._transact() as conn:
             cursor = conn.execute(

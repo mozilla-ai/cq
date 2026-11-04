@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from cq_schema import LANGUAGE_MAX_LENGTH
 
 from cq.models import Context, Evidence, Insight, KnowledgeUnit, Tier, create_knowledge_unit
 from cq.scoring import apply_confirmation
@@ -57,6 +58,7 @@ def run_store_conformance(make_store: StoreFactory) -> None:
     _assert_duplicate_insert_raises(make_store)
     _assert_empty_domains_raises(make_store)
     _assert_write_normalizes_tags(make_store)
+    _assert_overlong_normalized_tag_raises(make_store)
     _assert_update_existing(make_store)
     _assert_update_missing_raises(make_store)
     _assert_delete_existing(make_store)
@@ -131,6 +133,17 @@ def _assert_write_normalizes_tags(make_store: StoreFactory) -> None:
         assert stored.domains == ["api"]
         assert stored.context.languages == ["python"]
         assert stored.context.frameworks == ["django"]
+    finally:
+        store.close()
+
+
+def _assert_overlong_normalized_tag_raises(make_store: StoreFactory) -> None:
+    store = make_store()
+    try:
+        # NOTE: lowercasing İ produces two code points, so a tag at the limit grows past it.
+        unit = _make_unit(context=Context(languages=["a" * (LANGUAGE_MAX_LENGTH - 1) + "İ"]))
+        with pytest.raises(ValueError):
+            store.insert(unit)
     finally:
         store.close()
 

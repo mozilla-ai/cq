@@ -9,19 +9,17 @@ def normalize_domains(domains: list[str]) -> list[str]:
 
 
 def normalize_unit_tags(unit: KnowledgeUnit) -> KnowledgeUnit:
-    """Return a copy of unit with its domain, language, and framework tags normalized.
+    """Return a validated copy of unit with its domain, language, and framework tags normalized.
 
-    NOTE: callers must reject a unit whose returned domains list is empty.
-    A unit whose domains all normalize away has no usable domain.
+    Raises:
+        ValueError: If no domain survives normalization, or a normalized tag no
+            longer satisfies the schema.
     """
-    return unit.model_copy(
-        update={
-            "domains": normalize_domains(unit.domains),
-            "context": unit.context.model_copy(
-                update={
-                    "languages": normalize_domains(unit.context.languages),
-                    "frameworks": normalize_domains(unit.context.frameworks),
-                }
-            ),
-        }
-    )
+    data = unit.model_dump()
+    data["domains"] = normalize_domains(unit.domains)
+    data["context"]["languages"] = normalize_domains(unit.context.languages)
+    data["context"]["frameworks"] = normalize_domains(unit.context.frameworks)
+    if not data["domains"]:
+        raise ValueError("At least one non-empty domain is required")
+
+    return KnowledgeUnit.model_validate(data)

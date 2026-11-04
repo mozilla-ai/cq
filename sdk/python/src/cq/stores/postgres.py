@@ -156,11 +156,9 @@ class PostgresStore:
 
         Raises:
             DuplicateUnitError: If a unit with the same ID already exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
         unit = _normalize_unit_tags(unit)
-        if not unit.domains:
-            raise ValueError("At least one non-empty domain is required")
         data = unit.model_dump_json(exclude_none=True)
         with self._lock:
             self._check_open()
@@ -179,11 +177,9 @@ class PostgresStore:
 
         Raises:
             KeyError: If no unit with the given ID exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
         unit = _normalize_unit_tags(unit)
-        if not unit.domains:
-            raise ValueError("At least one non-empty domain is required")
         data = unit.model_dump_json(exclude_none=True)
         with self._lock:
             self._check_open()

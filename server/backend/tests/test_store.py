@@ -21,6 +21,7 @@ from cq.models import (
     create_knowledge_unit,
 )
 from cq.scoring import apply_confirmation, apply_flag
+from cq_schema import LANGUAGE_MAX_LENGTH
 from sqlalchemy.exc import IntegrityError
 
 from .db_helpers import _RepoBundle
@@ -119,6 +120,12 @@ class TestInsertAndGet:
         assert retrieved is not None
         assert retrieved.context.languages == ["python"]
         assert retrieved.context.frameworks == ["django"]
+
+    async def test_insert_rejects_overlong_normalized_tag(self, store: _RepoBundle) -> None:
+        # NOTE: lowercasing İ produces two code points, so a tag at the limit grows past it.
+        unit = _make_unit(context=Context(languages=["a" * (LANGUAGE_MAX_LENGTH - 1) + "İ"]))
+        with pytest.raises(ValueError):
+            await store.insert(unit)
 
     async def test_insert_omits_none_fields_in_stored_json(self, store: _RepoBundle) -> None:
         unit = _make_unit()
