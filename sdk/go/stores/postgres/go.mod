@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/mozilla-ai/cq/sdk/go v0.12.1
+	github.com/mozilla-ai/cq/sdk/go v0.17.2
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -32,4 +32,6 @@ require (
 	modernc.org/sqlite v1.53.0 // indirect
 )
 
-replace github.com/mozilla-ai/cq/sdk/go => ../../
+// Monorepo: the SDK is consumed locally. Re-pin to a published version
+// when the SDK is released alongside the adapter.
+//replace github.com/mozilla-ai/cq/sdk/go => ../../
