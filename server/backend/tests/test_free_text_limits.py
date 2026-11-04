@@ -6,7 +6,7 @@ from ``cq_schema`` rather than redeclared, so a schema change moves these tests 
 
 from __future__ import annotations
 
-import re
+import json
 import sqlite3
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -33,6 +33,11 @@ _LENGTH_CEILINGS = {
     "context.languages[]": cq_schema.LANGUAGE_MAX_LENGTH,
     "context.frameworks[]": cq_schema.FRAMEWORK_MAX_LENGTH,
 }
+
+
+def _field_name(field: str) -> str:
+    """Return the bare field name the validation message cites, e.g. ``context.languages[]`` -> ``languages``."""
+    return field.rsplit(".", 1)[-1].removesuffix("[]")
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:
@@ -89,29 +94,79 @@ def test_propose_accepts_field_at_ceiling(client: TestClient, field: str) -> Non
 
 @pytest.mark.parametrize("field", sorted(_BUILDERS))
 def test_propose_rejects_field_over_ceiling(client: TestClient, field: str) -> None:
-    resp = client.post("/api/v1/knowledge", json=_BUILDERS[field]("a" * (_LENGTH_CEILINGS[field] + 1)))
+    ceiling = _LENGTH_CEILINGS[field]
+    resp = client.post("/api/v1/knowledge", json=_BUILDERS[field]("a" * (ceiling + 1)))
     assert resp.status_code == 422, resp.text
-    assert "at most" in resp.text
+    # The message names the offending field and its ceiling, so another field's limit cannot satisfy this case.
+    assert f"{_field_name(field)} must be at most {ceiling} characters" in resp.text
 
 
 @pytest.mark.parametrize("field", sorted(_BUILDERS))
-def test_propose_stores_field_at_ceiling_untruncated(client: TestClient, field: str) -> None:
+def test_propose_stores_field_at_ceiling_untruncated(client: TestClient, tmp_path: Path, field: str) -> None:
+    """Read the persisted row back: the response is built from the in-memory unit and cannot see a lossy write."""
     text = "a" * _LENGTH_CEILINGS[field]
     created = client.post("/api/v1/knowledge", json=_BUILDERS[field](text))
     assert created.status_code == 201, created.text
-    assert text in created.text
+    conn = sqlite3.connect(str(tmp_path / "test.db"))
+    try:
+        row = conn.execute("SELECT data FROM knowledge_units WHERE id = ?", (created.json()["id"],)).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert text in row[0]
 
 
-def test_propose_rejects_too_many_domains(client: TestClient) -> None:
-    domains = [f"d{i}" for i in range(cq_schema.DOMAINS_MAX_ITEMS + 1)]
-    assert client.post("/api/v1/knowledge", json=_payload(domains=domains)).status_code == 422
+def test_propose_stores_maximal_unit_untruncated(client: TestClient, tmp_path: Path) -> None:
+    """A unit at every ceiling at once round-trips through storage intact, since ``data`` holds the whole document."""
+    body = _payload(
+        domains=["a" * cq_schema.DOMAIN_MAX_LENGTH],
+        insight={
+            "summary": "s" * cq_schema.SUMMARY_MAX_LENGTH,
+            "detail": "d" * cq_schema.DETAIL_MAX_LENGTH,
+            "action": "a" * cq_schema.ACTION_MAX_LENGTH,
+        },
+        context={
+            "pattern": "p" * cq_schema.PATTERN_MAX_LENGTH,
+            "languages": ["l" * cq_schema.LANGUAGE_MAX_LENGTH],
+            "frameworks": ["f" * cq_schema.FRAMEWORK_MAX_LENGTH],
+        },
+    )
+    created = client.post("/api/v1/knowledge", json=body)
+    assert created.status_code == 201, created.text
+    conn = sqlite3.connect(str(tmp_path / "test.db"))
+    try:
+        row = conn.execute("SELECT data FROM knowledge_units WHERE id = ?", (created.json()["id"],)).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    stored = json.loads(row[0])
+    assert stored["insight"] == body["insight"]
+    assert stored["context"]["pattern"] == body["context"]["pattern"]
+    assert stored["context"]["languages"] == body["context"]["languages"]
+    assert stored["context"]["frameworks"] == body["context"]["frameworks"]
+    assert stored["domains"] == body["domains"]
 
 
-def test_propose_rejects_too_many_languages_and_frameworks(client: TestClient) -> None:
-    languages = [f"l{i}" for i in range(cq_schema.LANGUAGES_MAX_ITEMS + 1)]
-    frameworks = [f"f{i}" for i in range(cq_schema.FRAMEWORKS_MAX_ITEMS + 1)]
-    assert client.post("/api/v1/knowledge", json=_payload(context={"languages": languages})).status_code == 422
-    assert client.post("/api/v1/knowledge", json=_payload(context={"frameworks": frameworks})).status_code == 422
+# One entry per item-count ceiling, so a regression in one cap does not hide the state of another.
+_ITEM_CEILINGS: dict[str, tuple[int, Callable[[list[str]], dict[str, Any]]]] = {
+    "domains": (cq_schema.DOMAINS_MAX_ITEMS, lambda items: _payload(domains=items)),
+    "context.languages": (cq_schema.LANGUAGES_MAX_ITEMS, lambda items: _payload(context={"languages": items})),
+    "context.frameworks": (cq_schema.FRAMEWORKS_MAX_ITEMS, lambda items: _payload(context={"frameworks": items})),
+}
+
+
+@pytest.mark.parametrize("field", sorted(_ITEM_CEILINGS))
+def test_propose_accepts_item_count_at_ceiling(client: TestClient, field: str) -> None:
+    ceiling, build = _ITEM_CEILINGS[field]
+    resp = client.post("/api/v1/knowledge", json=build([f"i{n}" for n in range(ceiling)]))
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.parametrize("field", sorted(_ITEM_CEILINGS))
+def test_propose_rejects_item_count_over_ceiling(client: TestClient, field: str) -> None:
+    ceiling, build = _ITEM_CEILINGS[field]
+    resp = client.post("/api/v1/knowledge", json=build([f"i{n}" for n in range(ceiling + 1)]))
+    assert resp.status_code == 422, resp.text
 
 
 def test_propose_rejects_username_over_created_by_ceiling(long_username_client: TestClient) -> None:
@@ -121,26 +176,19 @@ def test_propose_rejects_username_over_created_by_ceiling(long_username_client: 
     assert "created_by" in resp.text
 
 
-_VARCHAR = re.compile(r"^(?:N?VARCHAR|N?CHAR|CHARACTER VARYING)\((\d+)\)$", re.IGNORECASE)
+# Free text is persisted inside the ``data`` document (the whole serialised unit, so its width is the sum of every
+# bounded field, not the largest one) and, for domains, in the per-domain index. Declaring these unbounded is the
+# invariant that keeps storage at or above every ceiling; a narrower ``VARCHAR`` must fail here.
+_UNBOUNDED_COLUMNS = (("knowledge_units", "data"), ("knowledge_unit_domains", "domain"))
 
 
-def test_storage_is_not_narrower_than_any_ceiling(tmp_path: Path) -> None:
-    """No length-bounded column on the knowledge tables may be narrower than the widest ceiling it could hold.
-
-    Free text is persisted inside the unbounded ``data`` document and the per-domain index, so the columns must
-    be unbounded (``TEXT``) or at least as wide as the schema ceiling.
-    """
+@pytest.mark.parametrize(("table", "column"), _UNBOUNDED_COLUMNS)
+def test_storage_column_is_unbounded(tmp_path: Path, table: str, column: str) -> None:
     db = tmp_path / "guard.db"
     run_migrations(sqlite_url(db))
     conn = sqlite3.connect(str(db))
     try:
-        holders = {
-            ("knowledge_units", "data"): max(_LENGTH_CEILINGS.values()),
-            ("knowledge_unit_domains", "domain"): cq_schema.DOMAIN_MAX_LENGTH,
-        }
-        for (table, column), ceiling in holders.items():
-            declared = {row[1]: row[2] for row in conn.execute(f"PRAGMA table_info({table})")}[column]
-            match = _VARCHAR.match(declared)
-            assert match is None or int(match.group(1)) >= ceiling, f"{table}.{column} is {declared}, below {ceiling}"
+        declared = {row[1]: row[2] for row in conn.execute(f"PRAGMA table_info({table})")}[column]
     finally:
         conn.close()
+    assert declared.upper() == "TEXT", f"{table}.{column} is {declared}; a bounded column risks truncating a unit"
