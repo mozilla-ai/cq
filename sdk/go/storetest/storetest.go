@@ -12,6 +12,7 @@ package storetest
 import (
 	"context"
 	"maps"
+	"slices"
 	"testing"
 
 	cq "github.com/mozilla-ai/cq/sdk/go"
@@ -70,6 +71,31 @@ func RunConformance(t *testing.T, newStore func() cq.Store) {
 
 		ku := newKU("ku_00000000000000000000000000000003", []string{"  ", ""}, 0.5)
 		wantErr(t, s.Insert(context.Background(), ku), "Insert with empty domains")
+	})
+
+	t.Run("insert normalizes domain, language, and framework tags", func(t *testing.T) {
+		s := newStore()
+		t.Cleanup(func() { _ = s.Close() })
+
+		ku := newKU("ku_00000000000000000000000000000009", []string{"API"}, 0.8)
+		ku.Context.Languages = []string{"Python"}
+		ku.Context.Frameworks = []string{"Django"}
+		noErr(t, s.Insert(context.Background(), ku))
+
+		got, err := s.Unit(context.Background(), ku.ID)
+		noErr(t, err)
+		if got == nil {
+			t.Fatal("Unit returned nil for an inserted unit")
+		}
+		if !slices.Equal(got.Domains, []string{"api"}) {
+			t.Fatalf("Domains = %v, want [api]", got.Domains)
+		}
+		if !slices.Equal(got.Context.Languages, []string{"python"}) {
+			t.Fatalf("Languages = %v, want [python]", got.Context.Languages)
+		}
+		if !slices.Equal(got.Context.Frameworks, []string{"django"}) {
+			t.Fatalf("Frameworks = %v, want [django]", got.Context.Frameworks)
+		}
 	})
 
 	t.Run("update existing persists", func(t *testing.T) {

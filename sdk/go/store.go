@@ -196,6 +196,21 @@ func NormalizeQueryParams(params QueryParams) (NormalizedQuery, error) {
 	}, nil
 }
 
+// NormalizeUnitTags returns a copy of ku with its domain, language, and
+// framework tags normalized, so a stored unit's tags match the form queries
+// are normalized into.
+//
+// NOTE: callers must reject a unit whose returned Domains is empty. A unit
+// whose domains all normalize away has no usable domain.
+func NormalizeUnitTags(ku KnowledgeUnit) KnowledgeUnit {
+	out := ku
+	out.Domains = NormalizeDomains(ku.Domains)
+	out.Context.Languages = NormalizeDomains(ku.Context.Languages)
+	out.Context.Frameworks = NormalizeDomains(ku.Context.Frameworks)
+
+	return out
+}
+
 // StoreFromURL resolves a connection string to a Store.
 // A sqlite:///<path> or sqlite:<path> URL selects the built-in SQLite store.
 // A postgresql:// or postgres:// URL requires the separate adapter at

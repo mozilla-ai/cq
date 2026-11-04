@@ -16,7 +16,7 @@ from ..semsearch.queries import EmbeddingServiceError
 from ..semsearch.queries import combined_query as sem_query
 from ..semsearch.queries import insert_unit as sem_insert_unit
 from ..semsearch.queries import update_unit as sem_update_unit
-from ._normalize import normalize_domains
+from ._normalize import normalize_domains, normalize_unit_tags
 from ._queries import (
     DELETE_UNIT_DOMAINS,
     INSERT_UNIT,
@@ -261,14 +261,7 @@ class KnowledgeRepository:
 
     def build_insert_clauses(self, unit: KnowledgeUnit) -> list[tuple[Any, dict[str, Any]]]:
         """Build insert clauses for a unit and all of its normalized domains."""
-        domains = normalize_domains(unit.domains)
-        if not domains:
-            raise ValueError("At least one non-empty domain is required")
-
-        # Persist the normalised form in both the JSON blob and the
-        # knowledge_unit_domains rows so calculate_relevance reads the
-        # same domains from either source.
-        unit = unit.model_copy(update={"domains": domains})
+        unit = normalize_unit_tags(unit)
         created_at = (
             unit.evidence.first_observed.isoformat() if unit.evidence.first_observed else datetime.now(UTC).isoformat()
         )
@@ -284,16 +277,13 @@ class KnowledgeRepository:
                 },
             ),
         ]
-        for domain in domains:
+        for domain in unit.domains:
             clauses.append((INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": domain}))
         return clauses
 
     def build_update_clauses(self, unit: KnowledgeUnit) -> list[tuple[Any, dict[str, Any]]]:
         """Build update clauses for unit JSON/tier and normalized domain mappings."""
-        domains = normalize_domains(unit.domains)
-        if not domains:
-            raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains})
+        unit = normalize_unit_tags(unit)
 
         clauses: list[tuple[Any, dict[str, Any]]] = [
             (
@@ -302,6 +292,6 @@ class KnowledgeRepository:
             ),
             (DELETE_UNIT_DOMAINS, {"unit_id": unit.id}),
         ]
-        for domain in domains:
+        for domain in unit.domains:
             clauses.append((INSERT_UNIT_DOMAIN, {"unit_id": unit.id, "domain": domain}))
         return clauses

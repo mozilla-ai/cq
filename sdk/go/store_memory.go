@@ -103,17 +103,14 @@ func (s *inMemoryStore) Insert(ctx context.Context, ku KnowledgeUnit) error {
 		return ErrStoreClosed
 	}
 
-	domains := NormalizeDomains(ku.Domains)
-	if len(domains) == 0 {
+	stored := cloneUnit(NormalizeUnitTags(ku))
+	if len(stored.Domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}
 
 	if _, ok := s.units[ku.ID]; ok {
 		return fmt.Errorf("unit %s already exists", ku.ID)
 	}
-
-	stored := cloneUnit(ku)
-	stored.Domains = domains
 
 	s.units[ku.ID] = stored
 	s.order = append(s.order, ku.ID)
@@ -261,8 +258,8 @@ func (s *inMemoryStore) Update(ctx context.Context, ku KnowledgeUnit) error {
 		return ErrStoreClosed
 	}
 
-	domains := NormalizeDomains(ku.Domains)
-	if len(domains) == 0 {
+	stored := cloneUnit(NormalizeUnitTags(ku))
+	if len(stored.Domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}
 
@@ -270,8 +267,6 @@ func (s *inMemoryStore) Update(ctx context.Context, ku KnowledgeUnit) error {
 		return fmt.Errorf("unit %s not found", ku.ID)
 	}
 
-	stored := cloneUnit(ku)
-	stored.Domains = domains
 	s.units[ku.ID] = stored
 
 	return nil

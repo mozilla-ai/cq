@@ -294,6 +294,38 @@ func TestRelevancePatternBoost(t *testing.T) {
 	})
 }
 
+func TestRelevanceTagCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	// Query paths lowercase the query, so a mixed-case stored tag would
+	// otherwise be unreachable.
+	t.Run("language match is case-insensitive", func(t *testing.T) {
+		t.Parallel()
+
+		ku := KnowledgeUnit{
+			Domains: []string{"api"},
+			Context: Context{Languages: []string{"Python"}},
+		}
+		matched := ku.relevance([]string{"api"}, []string{"python"}, nil, "")
+		baseline := ku.relevance([]string{"api"}, nil, nil, "")
+
+		require.Greater(t, matched, baseline)
+	})
+
+	t.Run("framework match is case-insensitive", func(t *testing.T) {
+		t.Parallel()
+
+		ku := KnowledgeUnit{
+			Domains: []string{"api"},
+			Context: Context{Frameworks: []string{"Django"}},
+		}
+		matched := ku.relevance([]string{"api"}, nil, []string{"django"}, "")
+		baseline := ku.relevance([]string{"api"}, nil, nil, "")
+
+		require.Greater(t, matched, baseline)
+	})
+}
+
 func TestRelevanceWeightsRebalanced(t *testing.T) {
 	t.Parallel()
 

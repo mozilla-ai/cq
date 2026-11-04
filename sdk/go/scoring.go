@@ -54,17 +54,17 @@ func RankCandidates(candidates []KnowledgeUnit, params QueryParams) []KnowledgeU
 	return units
 }
 
-// anyMatch reports whether any element in queries appears in items.
+// anyMatch reports whether any element in queries appears in items, ignoring case.
 func anyMatch(items []string, queries []string) bool {
 	if len(queries) == 0 {
 		return false
 	}
 	set := make(map[string]struct{}, len(items))
 	for _, item := range items {
-		set[item] = struct{}{}
+		set[strings.ToLower(item)] = struct{}{}
 	}
 	for _, q := range queries {
-		if _, ok := set[q]; ok {
+		if _, ok := set[strings.ToLower(q)]; ok {
 			return true
 		}
 	}

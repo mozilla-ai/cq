@@ -179,11 +179,10 @@ func (s *Store) Insert(ctx context.Context, ku cq.KnowledgeUnit) error {
 	if s.closed {
 		return cq.ErrStoreClosed
 	}
-	domains := cq.NormalizeDomains(ku.Domains)
-	if len(domains) == 0 {
+	ku = cq.NormalizeUnitTags(ku)
+	if len(ku.Domains) == 0 {
 		return fmt.Errorf("at least one non-empty domain is required")
 	}
-	ku.Domains = domains
 	data, err := marshal(ku)
 	if err != nil {
 		return err
@@ -196,7 +195,7 @@ func (s *Store) Insert(ctx context.Context, ku cq.KnowledgeUnit) error {
 	if _, err := tx.Exec(ctx, sqlInsertUnit, ku.ID, data); err != nil {
 		return fmt.Errorf("inserting unit %s: %w", ku.ID, err)
 	}
-	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
+	if err := insertDomains(ctx, tx, ku.ID, ku.Domains); err != nil {
 		return err
 	}
 	if err := stampWriter(ctx, tx); err != nil {
@@ -296,11 +295,10 @@ func (s *Store) Update(ctx context.Context, ku cq.KnowledgeUnit) error {
 	if s.closed {
 		return cq.ErrStoreClosed
 	}
-	domains := cq.NormalizeDomains(ku.Domains)
-	if len(domains) == 0 {
+	ku = cq.NormalizeUnitTags(ku)
+	if len(ku.Domains) == 0 {
 		return fmt.Errorf("at least one non-empty domain is required")
 	}
-	ku.Domains = domains
 	data, err := marshal(ku)
 	if err != nil {
 		return err
@@ -320,7 +318,7 @@ func (s *Store) Update(ctx context.Context, ku cq.KnowledgeUnit) error {
 	if _, err := tx.Exec(ctx, sqlDeleteDomains, ku.ID); err != nil {
 		return err
 	}
-	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
+	if err := insertDomains(ctx, tx, ku.ID, ku.Domains); err != nil {
 		return err
 	}
 	if err := stampWriter(ctx, tx); err != nil {

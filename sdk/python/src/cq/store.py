@@ -184,6 +184,23 @@ def _normalize_domains(domains: list[str]) -> list[str]:
     return list(dict.fromkeys(d.strip().lower() for d in domains if d.strip()))
 
 
+def _normalize_unit_tags(unit: KnowledgeUnit) -> KnowledgeUnit:
+    """Return a validated copy of unit with its domain, language, and framework tags normalized.
+
+    Raises:
+        ValueError: If no domain survives normalization, or a normalized tag no
+            longer satisfies the schema.
+    """
+    data = unit.model_dump()
+    data["domains"] = _normalize_domains(unit.domains)
+    data["context"]["languages"] = _normalize_domains(unit.context.languages)
+    data["context"]["frameworks"] = _normalize_domains(unit.context.frameworks)
+    if not data["domains"]:
+        raise ValueError("At least one non-empty domain is required")
+
+    return KnowledgeUnit.model_validate(data)
+
+
 def _build_fts_match_expr(terms: list[str]) -> str:
     r"""Build a safe FTS5 MATCH expression from untrusted search terms.
 
@@ -450,12 +467,9 @@ class SqliteStore:
 
         Raises:
             DuplicateUnitError: If a unit with the same ID already exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
-        domains = _normalize_domains(unit.domains)
-        if not domains:
-            raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains})
+        unit = _normalize_unit_tags(unit)
         data = unit.model_dump_json(exclude_none=True)
         try:
             with self._transact() as conn:
@@ -465,7 +479,7 @@ class SqliteStore:
                 )
                 conn.executemany(
                     "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
-                    [(unit.id, d) for d in domains],
+                    [(unit.id, d) for d in unit.domains],
                 )
                 fts_sql = "INSERT INTO knowledge_units_fts (id, summary, detail, action) VALUES (?, ?, ?, ?)"
                 conn.execute(
@@ -519,12 +533,9 @@ class SqliteStore:
 
         Raises:
             KeyError: If no unit with the given ID exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
-        domains = _normalize_domains(unit.domains)
-        if not domains:
-            raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains})
+        unit = _normalize_unit_tags(unit)
         data = unit.model_dump_json(exclude_none=True)
         with self._transact() as conn:
             cursor = conn.execute(
@@ -539,7 +550,7 @@ class SqliteStore:
             )
             conn.executemany(
                 "INSERT INTO knowledge_unit_domains (unit_id, domain) VALUES (?, ?)",
-                [(unit.id, d) for d in domains],
+                [(unit.id, d) for d in unit.domains],
             )
             conn.execute(
                 "DELETE FROM knowledge_units_fts WHERE id = ?",

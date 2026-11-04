@@ -24,6 +24,7 @@ from ..store import (
     StoreQueryResult,
     StoreStats,
     _normalize_domains,
+    _normalize_unit_tags,
     rank_candidates,
 )
 
@@ -67,12 +68,9 @@ class InMemoryStore:
 
         Raises:
             DuplicateUnitError: If a unit with the same ID already exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
-        domains = _normalize_domains(unit.domains)
-        if not domains:
-            raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains}, deep=True)
+        unit = _normalize_unit_tags(unit.model_copy(deep=True))
         with self._lock:
             self._check_open()
             if unit.id in self._units:
@@ -109,12 +107,9 @@ class InMemoryStore:
 
         Raises:
             KeyError: If no unit with the given ID exists.
-            ValueError: If domain normalization results in no valid domains.
+            ValueError: If tag normalization leaves no valid domain, or produces a tag the schema rejects.
         """
-        domains = _normalize_domains(unit.domains)
-        if not domains:
-            raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains}, deep=True)
+        unit = _normalize_unit_tags(unit.model_copy(deep=True))
         with self._lock:
             self._check_open()
             if unit.id not in self._units:
