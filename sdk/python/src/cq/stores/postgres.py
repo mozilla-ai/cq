@@ -26,6 +26,7 @@ from ..store import (
     StoreQueryResult,
     StoreStats,
     _normalize_domains,
+    _normalize_unit_tags,
     rank_candidates,
 )
 
@@ -157,17 +158,16 @@ class PostgresStore:
             DuplicateUnitError: If a unit with the same ID already exists.
             ValueError: If domain normalization results in no valid domains.
         """
-        domains = _normalize_domains(unit.domains)
-        if not domains:
+        unit = _normalize_unit_tags(unit)
+        if not unit.domains:
             raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json(exclude_none=True)
         with self._lock:
             self._check_open()
             try:
                 with self._conn.transaction():
                     self._conn.execute(_SQL_INSERT_UNIT, (unit.id, data))
-                    self._insert_domains(unit.id, domains)
+                    self._insert_domains(unit.id, unit.domains)
                     self._stamp_writer()
             except psycopg.errors.UniqueViolation as exc:
                 raise DuplicateUnitError(f"Knowledge unit already exists: {unit.id}") from exc
@@ -181,10 +181,9 @@ class PostgresStore:
             KeyError: If no unit with the given ID exists.
             ValueError: If domain normalization results in no valid domains.
         """
-        domains = _normalize_domains(unit.domains)
-        if not domains:
+        unit = _normalize_unit_tags(unit)
+        if not unit.domains:
             raise ValueError("At least one non-empty domain is required")
-        unit = unit.model_copy(update={"domains": domains})
         data = unit.model_dump_json(exclude_none=True)
         with self._lock:
             self._check_open()
@@ -193,7 +192,7 @@ class PostgresStore:
                 if cur.rowcount == 0:
                     raise KeyError(f"Knowledge unit not found: {unit.id}")
                 self._conn.execute(_SQL_DELETE_DOMAINS, (unit.id,))
-                self._insert_domains(unit.id, domains)
+                self._insert_domains(unit.id, unit.domains)
                 self._stamp_writer()
 
     def delete(self, unit_id: str) -> None:

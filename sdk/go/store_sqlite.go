@@ -200,14 +200,10 @@ func (s *sqliteStore) Insert(ctx context.Context, ku KnowledgeUnit) error {
 		return ErrStoreClosed
 	}
 
-	domains := NormalizeDomains(ku.Domains)
-	if len(domains) == 0 {
+	stored := NormalizeUnitTags(ku)
+	if len(stored.Domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}
-
-	// Store normalized domains so the persisted data matches the domain index.
-	stored := ku
-	stored.Domains = domains
 
 	data, err := marshalUnit(stored)
 	if err != nil {
@@ -229,7 +225,7 @@ func (s *sqliteStore) Insert(ctx context.Context, ku KnowledgeUnit) error {
 		return fmt.Errorf("inserting unit: %w", err)
 	}
 
-	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
+	if err := insertDomains(ctx, tx, ku.ID, stored.Domains); err != nil {
 		return err
 	}
 
@@ -491,13 +487,10 @@ func (s *sqliteStore) Update(ctx context.Context, ku KnowledgeUnit) error {
 		return ErrStoreClosed
 	}
 
-	domains := NormalizeDomains(ku.Domains)
-	if len(domains) == 0 {
+	stored := NormalizeUnitTags(ku)
+	if len(stored.Domains) == 0 {
 		return errors.New("knowledge unit must have at least one non-empty domain")
 	}
-
-	stored := ku
-	stored.Domains = domains
 
 	data, err := marshalUnit(stored)
 	if err != nil {
@@ -527,7 +520,7 @@ func (s *sqliteStore) Update(ctx context.Context, ku KnowledgeUnit) error {
 	if _, err := tx.ExecContext(ctx, "DELETE FROM knowledge_unit_domains WHERE unit_id = ?", ku.ID); err != nil {
 		return fmt.Errorf("clearing domains: %w", err)
 	}
-	if err := insertDomains(ctx, tx, ku.ID, domains); err != nil {
+	if err := insertDomains(ctx, tx, ku.ID, stored.Domains); err != nil {
 		return err
 	}
 

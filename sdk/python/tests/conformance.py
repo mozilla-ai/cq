@@ -56,6 +56,7 @@ def run_store_conformance(make_store: StoreFactory) -> None:
     _assert_get_missing_returns_none(make_store)
     _assert_duplicate_insert_raises(make_store)
     _assert_empty_domains_raises(make_store)
+    _assert_write_normalizes_tags(make_store)
     _assert_update_existing(make_store)
     _assert_update_missing_raises(make_store)
     _assert_delete_existing(make_store)
@@ -113,6 +114,23 @@ def _assert_empty_domains_raises(make_store: StoreFactory) -> None:
         unit = _make_unit(domains=["  ", ""])
         with pytest.raises(ValueError, match="At least one non-empty domain"):
             store.insert(unit)
+    finally:
+        store.close()
+
+
+def _assert_write_normalizes_tags(make_store: StoreFactory) -> None:
+    store = make_store()
+    try:
+        unit = _make_unit(
+            domains=["API"],
+            context=Context(languages=["Python"], frameworks=["Django"]),
+        )
+        store.insert(unit)
+        stored = store.get(unit.id)
+        assert stored is not None
+        assert stored.domains == ["api"]
+        assert stored.context.languages == ["python"]
+        assert stored.context.frameworks == ["django"]
     finally:
         store.close()
 

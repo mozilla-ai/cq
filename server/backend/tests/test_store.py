@@ -110,6 +110,16 @@ class TestInsertAndGet:
         assert retrieved is not None
         assert retrieved.domains == ["databases", "performance"]
 
+    async def test_insert_persists_normalized_context_tags(self, store: _RepoBundle) -> None:
+        # Query paths lowercase the query tags, so a mixed-case stored
+        # language or framework would never match.
+        unit = _make_unit(context=Context(languages=["Python"], frameworks=[" Django "]))
+        await store.insert(unit)
+        retrieved = await store.get_any(unit.id)
+        assert retrieved is not None
+        assert retrieved.context.languages == ["python"]
+        assert retrieved.context.frameworks == ["django"]
+
     async def test_insert_omits_none_fields_in_stored_json(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)
