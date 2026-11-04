@@ -165,6 +165,17 @@ class TestUpdate:
         assert retrieved is not None
         assert retrieved.domains == ["databases", "performance"]
 
+    async def test_update_persists_normalized_context_tags(self, store: _RepoBundle) -> None:
+        # As with insert: a mixed-case stored language or framework would never match a query.
+        unit = _make_unit()
+        await store.insert(unit)
+        updated = unit.model_copy(update={"context": Context(languages=["Python"], frameworks=[" Django "])})
+        await store.update(updated)
+        retrieved = await store.get_any(unit.id)
+        assert retrieved is not None
+        assert retrieved.context.languages == ["python"]
+        assert retrieved.context.frameworks == ["django"]
+
     async def test_update_omits_none_fields_in_stored_json(self, store: _RepoBundle) -> None:
         unit = _make_unit()
         await store.insert(unit)

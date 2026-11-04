@@ -133,6 +133,16 @@ def _assert_write_normalizes_tags(make_store: StoreFactory) -> None:
         assert stored.domains == ["api"]
         assert stored.context.languages == ["python"]
         assert stored.context.frameworks == ["django"]
+
+        updated = unit.model_copy(
+            update={"domains": ["Caching"], "context": Context(languages=[" Go "], frameworks=["FastAPI"])}
+        )
+        store.update(updated)
+        stored = store.get(unit.id)
+        assert stored is not None
+        assert stored.domains == ["caching"]
+        assert stored.context.languages == ["go"]
+        assert stored.context.frameworks == ["fastapi"]
     finally:
         store.close()
 
