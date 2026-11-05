@@ -10,7 +10,7 @@ import json
 import sqlite3
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import cq_schema
 import pytest
@@ -140,6 +140,15 @@ def test_propose_stores_domain_index_at_ceiling_untruncated(client: TestClient, 
     assert [row[0] for row in rows] == [domain]
 
 
+def test_propose_stores_every_domain_in_the_index(client: TestClient, tmp_path: Path) -> None:
+    """The per-domain index holds one row per domain, so a write that drops rows has to fail here."""
+    domains = [f"d{n}" for n in range(cq_schema.DOMAINS_MAX_ITEMS)]
+    created = client.post("/api/v1/knowledge", json=_payload(domains=domains))
+    assert created.status_code == 201, created.text
+    rows = _fetch(tmp_path, "SELECT domain FROM knowledge_unit_domains WHERE unit_id = ?", created.json()["id"])
+    assert sorted(row[0] for row in rows) == sorted(domains)
+
+
 def test_propose_stores_maximal_unit_untruncated(client: TestClient, tmp_path: Path) -> None:
     """A unit at every ceiling at once round-trips through storage intact, since ``data`` holds the whole document."""
     body = _payload(
@@ -167,25 +176,50 @@ def test_propose_stores_maximal_unit_untruncated(client: TestClient, tmp_path: P
     assert stored["domains"] == body["domains"]
 
 
+class _ItemCeiling(NamedTuple):
+    """An item-count ceiling, with the payload builder and the stored-list reader for its field."""
+
+    ceiling: int
+    build: Callable[[list[str]], dict[str, Any]]
+    stored: Callable[[dict[str, Any]], list[str]]
+
+
 # One entry per item-count ceiling, so a regression in one cap does not hide the state of another.
-_ITEM_CEILINGS: dict[str, tuple[int, Callable[[list[str]], dict[str, Any]]]] = {
-    "domains": (cq_schema.DOMAINS_MAX_ITEMS, lambda items: _payload(domains=items)),
-    "context.languages": (cq_schema.LANGUAGES_MAX_ITEMS, lambda items: _payload(context={"languages": items})),
-    "context.frameworks": (cq_schema.FRAMEWORKS_MAX_ITEMS, lambda items: _payload(context={"frameworks": items})),
+_ITEM_CEILINGS: dict[str, _ItemCeiling] = {
+    "domains": _ItemCeiling(
+        cq_schema.DOMAINS_MAX_ITEMS,
+        lambda items: _payload(domains=items),
+        lambda unit: unit["domains"],
+    ),
+    "context.languages": _ItemCeiling(
+        cq_schema.LANGUAGES_MAX_ITEMS,
+        lambda items: _payload(context={"languages": items}),
+        lambda unit: unit["context"]["languages"],
+    ),
+    "context.frameworks": _ItemCeiling(
+        cq_schema.FRAMEWORKS_MAX_ITEMS,
+        lambda items: _payload(context={"frameworks": items}),
+        lambda unit: unit["context"]["frameworks"],
+    ),
 }
 
 
 @pytest.mark.parametrize("field", sorted(_ITEM_CEILINGS))
-def test_propose_accepts_item_count_at_ceiling(client: TestClient, field: str) -> None:
-    ceiling, build = _ITEM_CEILINGS[field]
-    resp = client.post("/api/v1/knowledge", json=build([f"i{n}" for n in range(ceiling)]))
-    assert resp.status_code == 201, resp.text
+def test_propose_accepts_item_count_at_ceiling(client: TestClient, tmp_path: Path, field: str) -> None:
+    """A write that drops entries still answers 201, so the stored list is compared in full."""
+    entry = _ITEM_CEILINGS[field]
+    items = [f"i{n}" for n in range(entry.ceiling)]
+    created = client.post("/api/v1/knowledge", json=entry.build(items))
+    assert created.status_code == 201, created.text
+    rows = _fetch(tmp_path, "SELECT data FROM knowledge_units WHERE id = ?", created.json()["id"])
+    assert rows
+    assert entry.stored(json.loads(rows[0][0])) == items
 
 
 @pytest.mark.parametrize("field", sorted(_ITEM_CEILINGS))
 def test_propose_rejects_item_count_over_ceiling(client: TestClient, field: str) -> None:
-    ceiling, build = _ITEM_CEILINGS[field]
-    resp = client.post("/api/v1/knowledge", json=build([f"i{n}" for n in range(ceiling + 1)]))
+    entry = _ITEM_CEILINGS[field]
+    resp = client.post("/api/v1/knowledge", json=entry.build([f"i{n}" for n in range(entry.ceiling + 1)]))
     assert resp.status_code == 422, resp.text
 
 
