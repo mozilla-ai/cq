@@ -286,14 +286,3 @@ func normalizeQueryParams(params QueryParams) (normalizedQuery, error) {
 		limit:      limit,
 	}, nil
 }
-
-// sqlitePathFromURL extracts the filesystem path from a parsed sqlite: URL.
-// It accepts both the sqlite:///abs/path host-less form and the sqlite:path
-// opaque form.
-func sqlitePathFromURL(parsed *url.URL) string {
-	if parsed.Opaque != "" {
-		return parsed.Opaque
-	}
-
-	return parsed.Path
-}
