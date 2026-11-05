@@ -8,6 +8,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
+	cqschema "github.com/mozilla-ai/cq/schema"
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
@@ -25,45 +26,70 @@ func ProposeTool() mcp.Tool {
 		mcp.WithString(
 			"summary",
 			mcp.Required(),
-			mcp.Description(
-				"One-line description of the discovery (e.g. \"webpack 5 removes built-in Node.js polyfills\").",
-			),
+			mcp.Description(fmt.Sprintf(
+				"One-line description of the discovery (e.g. \"webpack 5 removes built-in Node.js polyfills\"). "+
+					"Use at most %d characters; a longer summary is rejected, never truncated.",
+				cqschema.SummaryMaxLength(),
+			)),
 		),
 		mcp.WithString(
 			"detail",
 			mcp.Required(),
-			mcp.Description(
-				"Fuller explanation with enough context to understand the issue. Include when you verified and against what version.",
-			),
+			mcp.Description(fmt.Sprintf(
+				"Fuller explanation with enough context to understand the issue. "+
+					"Include when you verified and against what version. "+
+					"Use at most %d characters; a longer detail is rejected, never truncated.",
+				cqschema.DetailMaxLength(),
+			)),
 		),
 		mcp.WithString(
 			"action",
 			mcp.Required(),
-			mcp.Description(
-				"Concrete instruction starting with an imperative verb (e.g. \"Use\", \"Set\", \"When X, do Y\"). Prefer principle and verification method over exact pinned values.",
-			),
+			mcp.Description(fmt.Sprintf(
+				"Concrete instruction starting with an imperative verb (e.g. \"Use\", \"Set\", \"When X, do Y\"). "+
+					"Prefer principle and verification method over exact pinned values. "+
+					"Use at most %d characters; a longer action is rejected, never truncated.",
+				cqschema.ActionMaxLength(),
+			)),
 		),
 		mcp.WithArray(
 			"domains",
 			mcp.Required(),
-			mcp.Description(
-				"Subject-area tags capturing what the insight is about (e.g. \"api\", \"payments\", \"connection-pooling\"). Do not repeat languages or frameworks here.",
-			),
+			mcp.Description(fmt.Sprintf(
+				"Subject-area tags capturing what the insight is about (e.g. \"api\", \"payments\", \"connection-pooling\"). "+
+					"Do not repeat languages or frameworks here. "+
+					"Give at most %d tags of at most %d characters each; an over-limit value is rejected, never truncated.",
+				cqschema.DomainsMaxItems(),
+				cqschema.DomainMaxLength(),
+			)),
 			mcp.WithStringItems(),
 		),
 		mcp.WithArray("languages",
-			mcp.Description("Programming languages the insight applies to (e.g. \"python\", \"go\")."),
+			mcp.Description(fmt.Sprintf(
+				"Programming languages the insight applies to (e.g. \"python\", \"go\"). "+
+					"Give at most %d entries of at most %d characters each; an over-limit value is rejected, never truncated.",
+				cqschema.LanguagesMaxItems(),
+				cqschema.LanguageMaxLength(),
+			)),
 			mcp.WithStringItems(),
 		),
 		mcp.WithArray("frameworks",
-			mcp.Description("Libraries or frameworks involved (e.g. \"webpack\", \"react\", \"fastapi\")."),
+			mcp.Description(fmt.Sprintf(
+				"Libraries or frameworks involved (e.g. \"webpack\", \"react\", \"fastapi\"). "+
+					"Give at most %d entries of at most %d characters each; an over-limit value is rejected, never truncated.",
+				cqschema.FrameworksMaxItems(),
+				cqschema.FrameworkMaxLength(),
+			)),
 			mcp.WithStringItems(),
 		),
 		mcp.WithString(
 			"pattern",
-			mcp.Description(
-				"Reusable cross-cutting concern (e.g. \"shell-quoting\", \"build-tooling\"). Omit if it just rephrases the summary.",
-			),
+			mcp.Description(fmt.Sprintf(
+				"Reusable cross-cutting concern (e.g. \"shell-quoting\", \"build-tooling\"). "+
+					"Omit if it just rephrases the summary. "+
+					"Use at most %d characters; a longer pattern is rejected, never truncated.",
+				cqschema.PatternMaxLength(),
+			)),
 		),
 		mcp.WithObject(
 			"extensions",
