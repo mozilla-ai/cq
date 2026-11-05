@@ -65,6 +65,8 @@ _BUILDERS: dict[str, Callable[[str], dict[str, Any]]] = {
 
 
 def _make_client(username: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    # CQ_DATABASE_URL outranks CQ_DB_PATH, so an inherited one would send the app to another database.
+    monkeypatch.delenv("CQ_DATABASE_URL", raising=False)
     monkeypatch.setenv("CQ_DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setenv("CQ_JWT_SECRET", "test-secret")
     monkeypatch.setenv("CQ_API_KEY_PEPPER", "test-pepper")
