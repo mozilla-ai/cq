@@ -35,6 +35,9 @@ _LENGTH_CEILINGS = {
 }
 
 
+_CEILING_USERNAME = "u" * cq_schema.CREATED_BY_MAX_LENGTH
+
+
 def _fetch(tmp_path: Path, sql: str, *params: object) -> list[tuple[Any, ...]]:
     """Read rows straight from the test database, which the response body cannot speak for."""
     conn = sqlite3.connect(str(tmp_path / "test.db"))
@@ -89,7 +92,7 @@ def _make_client(username: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
 @pytest.fixture()
 def ceiling_username_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    yield from _make_client("u" * cq_schema.CREATED_BY_MAX_LENGTH, tmp_path, monkeypatch)
+    yield from _make_client(_CEILING_USERNAME, tmp_path, monkeypatch)
 
 
 @pytest.fixture()
@@ -186,10 +189,13 @@ def test_propose_rejects_item_count_over_ceiling(client: TestClient, field: str)
     assert resp.status_code == 422, resp.text
 
 
-def test_propose_accepts_username_at_created_by_ceiling(ceiling_username_client: TestClient) -> None:
-    """``created_by`` is the authenticated username, so one exactly at the ceiling must still be accepted."""
-    resp = ceiling_username_client.post("/api/v1/knowledge", json=_payload())
-    assert resp.status_code == 201, resp.text
+def test_propose_accepts_username_at_created_by_ceiling(ceiling_username_client: TestClient, tmp_path: Path) -> None:
+    """``created_by`` is the authenticated username, so one exactly at the ceiling must survive the write."""
+    created = ceiling_username_client.post("/api/v1/knowledge", json=_payload())
+    assert created.status_code == 201, created.text
+    rows = _fetch(tmp_path, "SELECT data FROM knowledge_units WHERE id = ?", created.json()["id"])
+    assert rows
+    assert json.loads(rows[0][0])["created_by"] == _CEILING_USERNAME
 
 
 def test_propose_rejects_username_over_created_by_ceiling(long_username_client: TestClient) -> None:
