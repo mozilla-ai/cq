@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
+	cqschema "github.com/mozilla-ai/cq/schema"
 	cq "github.com/mozilla-ai/cq/sdk/go"
 )
 
@@ -274,4 +276,57 @@ func TestHandlePropose(t *testing.T) {
 		require.True(t, result.IsError)
 		require.Equal(t, "domains must contain at least one tag", result.Content[0].(mcp.TextContent).Text)
 	})
+}
+
+func TestProposeToolDescribesFieldLimits(t *testing.T) {
+	t.Parallel()
+
+	// The tag-list patterns pin the order of the two ceilings, so a swapped
+	// item count and character length fails rather than matching on digits alone.
+	testCases := []struct {
+		field string
+		want  string
+	}{
+		{field: "action", want: fmt.Sprintf(`at most %d characters`, cqschema.ActionMaxLength())},
+		{field: "detail", want: fmt.Sprintf(`at most %d characters`, cqschema.DetailMaxLength())},
+		{
+			field: "domains",
+			want: fmt.Sprintf(
+				`at most %d \w+ of at most %d characters each`,
+				cqschema.DomainsMaxItems(),
+				cqschema.DomainMaxLength(),
+			),
+		},
+		{
+			field: "frameworks",
+			want: fmt.Sprintf(
+				`at most %d \w+ of at most %d characters each`,
+				cqschema.FrameworksMaxItems(),
+				cqschema.FrameworkMaxLength(),
+			),
+		},
+		{
+			field: "languages",
+			want: fmt.Sprintf(
+				`at most %d \w+ of at most %d characters each`,
+				cqschema.LanguagesMaxItems(),
+				cqschema.LanguageMaxLength(),
+			),
+		},
+		{field: "pattern", want: fmt.Sprintf(`at most %d characters`, cqschema.PatternMaxLength())},
+		{field: "summary", want: fmt.Sprintf(`at most %d characters`, cqschema.SummaryMaxLength())},
+	}
+
+	properties := ProposeTool().InputSchema.Properties
+	for _, tc := range testCases {
+		t.Run(tc.field, func(t *testing.T) {
+			t.Parallel()
+
+			prop, ok := properties[tc.field].(map[string]any)
+			require.True(t, ok, "%s property should be an object", tc.field)
+			description, ok := prop["description"].(string)
+			require.True(t, ok, "%s property should carry a description", tc.field)
+			require.Regexp(t, tc.want, description)
+		})
+	}
 }
