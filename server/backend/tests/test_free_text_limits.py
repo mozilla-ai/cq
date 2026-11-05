@@ -35,6 +35,15 @@ _LENGTH_CEILINGS = {
 }
 
 
+def _fetch(tmp_path: Path, sql: str, *params: object) -> list[tuple[Any, ...]]:
+    """Read rows straight from the test database, which the response body cannot speak for."""
+    conn = sqlite3.connect(str(tmp_path / "test.db"))
+    try:
+        return conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
+
 def _field_name(field: str) -> str:
     """Return the bare field name the validation message cites, e.g. ``context.languages[]`` -> ``languages``."""
     return field.rsplit(".", 1)[-1].removesuffix("[]")
@@ -79,6 +88,11 @@ def _make_client(username: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
 
 @pytest.fixture()
+def ceiling_username_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    yield from _make_client("u" * cq_schema.CREATED_BY_MAX_LENGTH, tmp_path, monkeypatch)
+
+
+@pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     yield from _make_client("test-user", tmp_path, monkeypatch)
 
@@ -109,13 +123,18 @@ def test_propose_stores_field_at_ceiling_untruncated(client: TestClient, tmp_pat
     text = "a" * _LENGTH_CEILINGS[field]
     created = client.post("/api/v1/knowledge", json=_BUILDERS[field](text))
     assert created.status_code == 201, created.text
-    conn = sqlite3.connect(str(tmp_path / "test.db"))
-    try:
-        row = conn.execute("SELECT data FROM knowledge_units WHERE id = ?", (created.json()["id"],)).fetchone()
-    finally:
-        conn.close()
-    assert row is not None
-    assert text in row[0]
+    rows = _fetch(tmp_path, "SELECT data FROM knowledge_units WHERE id = ?", created.json()["id"])
+    assert rows
+    assert text in rows[0][0]
+
+
+def test_propose_stores_domain_index_at_ceiling_untruncated(client: TestClient, tmp_path: Path) -> None:
+    """Domain lookup reads the per-domain index rather than ``data``, so the index needs its own assertion."""
+    domain = "a" * cq_schema.DOMAIN_MAX_LENGTH
+    created = client.post("/api/v1/knowledge", json=_payload(domains=[domain]))
+    assert created.status_code == 201, created.text
+    rows = _fetch(tmp_path, "SELECT domain FROM knowledge_unit_domains WHERE unit_id = ?", created.json()["id"])
+    assert [row[0] for row in rows] == [domain]
 
 
 def test_propose_stores_maximal_unit_untruncated(client: TestClient, tmp_path: Path) -> None:
@@ -135,13 +154,9 @@ def test_propose_stores_maximal_unit_untruncated(client: TestClient, tmp_path: P
     )
     created = client.post("/api/v1/knowledge", json=body)
     assert created.status_code == 201, created.text
-    conn = sqlite3.connect(str(tmp_path / "test.db"))
-    try:
-        row = conn.execute("SELECT data FROM knowledge_units WHERE id = ?", (created.json()["id"],)).fetchone()
-    finally:
-        conn.close()
-    assert row is not None
-    stored = json.loads(row[0])
+    rows = _fetch(tmp_path, "SELECT data FROM knowledge_units WHERE id = ?", created.json()["id"])
+    assert rows
+    stored = json.loads(rows[0][0])
     assert stored["insight"] == body["insight"]
     assert stored["context"]["pattern"] == body["context"]["pattern"]
     assert stored["context"]["languages"] == body["context"]["languages"]
@@ -169,6 +184,12 @@ def test_propose_rejects_item_count_over_ceiling(client: TestClient, field: str)
     ceiling, build = _ITEM_CEILINGS[field]
     resp = client.post("/api/v1/knowledge", json=build([f"i{n}" for n in range(ceiling + 1)]))
     assert resp.status_code == 422, resp.text
+
+
+def test_propose_accepts_username_at_created_by_ceiling(ceiling_username_client: TestClient) -> None:
+    """``created_by`` is the authenticated username, so one exactly at the ceiling must still be accepted."""
+    resp = ceiling_username_client.post("/api/v1/knowledge", json=_payload())
+    assert resp.status_code == 201, resp.text
 
 
 def test_propose_rejects_username_over_created_by_ceiling(long_username_client: TestClient) -> None:
