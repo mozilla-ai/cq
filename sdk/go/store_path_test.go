@@ -72,11 +72,11 @@ func TestDropWindowsDriveSeparator(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, dropWindowsDriveSeparator(tt.path))
+			require.Equal(t, tc.want, dropWindowsDriveSeparator(tc.path))
 		})
 	}
 }
@@ -93,24 +93,29 @@ func TestSQLitePathFromURL(t *testing.T) {
 	}{
 		{
 			name: "opaque form is used as it is",
-			url:  "sqlite:/data/local.db",
-			want: "/data/local.db",
+			url:  "sqlite:relative.db",
+			want: "relative.db",
 		},
 		{
 			name: "host-less form keeps its path",
 			url:  "sqlite:///data/local.db",
 			want: "/data/local.db",
 		},
+		{
+			name: "a single separator introduces a path rather than an opaque form",
+			url:  "sqlite:/data/local.db",
+			want: "/data/local.db",
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			parsed, err := url.Parse(tt.url)
+			parsed, err := url.Parse(tc.url)
 			require.NoError(t, err)
 
-			require.Equal(t, tt.want, sqlitePathFromURL(parsed))
+			require.Equal(t, tc.want, sqlitePathFromURL(parsed))
 		})
 	}
 }

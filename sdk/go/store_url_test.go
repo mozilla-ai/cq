@@ -41,14 +41,15 @@ func TestStoreFromURLKeepsNativeAbsolutePath(t *testing.T) {
 	})
 }
 
-// sqliteURL builds the documented "sqlite:///<path>" form from a native
-// absolute path.
+// sqliteURL builds the documented "sqlite:///<path>" form from an absolute
+// path, keeping the separators the caller wrote so that each subtest exercises
+// the form it names.
 //
 // NOTE: the "sqlite:///" prefix already supplies the separator that introduces
 // the URL path, so a leading separator on dbPath must come off or the URL gains
 // an empty first path segment.
 func sqliteURL(dbPath string) string {
-	return "sqlite:///" + strings.TrimPrefix(filepath.ToSlash(dbPath), "/")
+	return "sqlite:///" + strings.TrimPrefix(dbPath, string(filepath.Separator))
 }
 
 // storeFromURLCreatesDBPath asserts that connURL opens a working store at
