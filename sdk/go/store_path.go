@@ -2,17 +2,6 @@ package cq
 
 import "net/url"
 
-// sqlitePathFromURL extracts the filesystem path from a parsed sqlite: URL.
-// It accepts both the sqlite:///abs/path host-less form and the sqlite:path
-// opaque form.
-func sqlitePathFromURL(parsed *url.URL) string {
-	if parsed.Opaque != "" {
-		return parsed.Opaque
-	}
-
-	return storePathFromURLPath(parsed.Path)
-}
-
 // dropWindowsDriveSeparator drops the separator a host-less URL keeps in front
 // of a Windows drive letter, so the drive letter is a volume name again.
 //
@@ -44,4 +33,15 @@ func dropWindowsDriveSeparator(path string) string {
 // Windows drive letter can be.
 func isASCIILetter(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// sqlitePathFromURL extracts the filesystem path from a parsed sqlite: URL.
+// It accepts both the sqlite:///abs/path host-less form and the sqlite:path
+// opaque form.
+func sqlitePathFromURL(parsed *url.URL) string {
+	if parsed.Opaque != "" {
+		return parsed.Opaque
+	}
+
+	return storePathFromURLPath(parsed.Path)
 }
