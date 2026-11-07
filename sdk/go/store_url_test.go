@@ -39,6 +39,50 @@ func TestStoreFromURLKeepsNativeAbsolutePath(t *testing.T) {
 
 		storeFromURLCreatesDBPath(t, sqliteURL(filepath.ToSlash(dbPath)), dbPath)
 	})
+
+	t.Run("no slashes after the scheme", func(t *testing.T) {
+		t.Parallel()
+
+		dbPath := filepath.Join(dir, "opaque.db")
+
+		storeFromURLCreatesDBPath(t, "sqlite:"+filepath.ToSlash(dbPath), dbPath)
+	})
+}
+
+// TestStoreFromURLRejectsAuthority pins that a sqlite: URL carrying an
+// authority fails instead of opening what remains of the URL as a path.
+//
+// SQLite has no host, so an authority almost always means the URL is one slash
+// short, and the store would otherwise open a file the caller never named.
+func TestStoreFromURLRejectsAuthority(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		authority string
+	}{
+		{name: "host", authority: "ghost-host"},
+		{name: "localhost", authority: "localhost"},
+		{name: "Windows drive letter", authority: "C:"},
+		{name: "user info without a host", authority: "user@"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dbPath := filepath.Join(t.TempDir(), "wanted.db")
+			connURL := "sqlite://" + tc.authority + "/" + strings.TrimPrefix(filepath.ToSlash(dbPath), "/")
+
+			s, err := cq.StoreFromURL(connURL)
+			if s != nil {
+				t.Cleanup(func() { _ = s.Close() })
+			}
+
+			require.ErrorContains(t, err, "sqlite:///")
+			require.NoFileExists(t, dbPath)
+		})
+	}
 }
 
 // sqliteURL builds the documented "sqlite:///<path>" form from an absolute
