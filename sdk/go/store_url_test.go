@@ -49,6 +49,15 @@ func TestStoreFromURLKeepsNativeAbsolutePath(t *testing.T) {
 	})
 }
 
+// TestStoreFromURLKeepsRelativePath pins the sqlite:<path> form to the working
+// directory. Only a relative path reaches the URL's opaque part on every
+// platform, because url.Parse puts a path with a leading separator in Path.
+func TestStoreFromURLKeepsRelativePath(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	storeFromURLCreatesDBPath(t, "sqlite:relative.db", "relative.db")
+}
+
 // TestStoreFromURLRejectsAuthority pins that a sqlite: URL carrying an
 // authority fails instead of opening what remains of the URL as a path.
 //
