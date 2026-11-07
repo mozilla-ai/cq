@@ -212,7 +212,8 @@ func NormalizeUnitTags(ku KnowledgeUnit) KnowledgeUnit {
 }
 
 // StoreFromURL resolves a connection string to a Store.
-// A sqlite:///<path> or sqlite:<path> URL selects the built-in SQLite store.
+// A sqlite:///<path> or sqlite:<path> URL selects the built-in SQLite store;
+// a sqlite: URL with a host or user info is rejected.
 // A postgresql:// or postgres:// URL requires the separate adapter at
 // github.com/mozilla-ai/cq/sdk/go/stores/postgres; construct it with
 // postgres.New and pass via WithStore.
@@ -230,6 +231,14 @@ func StoreFromURL(connURL string) (Store, error) {
 
 	switch parsed.Scheme {
 	case "sqlite":
+		// SQLite has no host, so an authority means the URL is a slash short and
+		// its first path segment would otherwise silently disappear.
+		if parsed.Host != "" || parsed.User != nil {
+			return nil, fmt.Errorf(
+				"sqlite store URL must not include a host; use three slashes, for example sqlite:///path/to/local.db",
+			)
+		}
+
 		path := sqlitePathFromURL(parsed)
 		if path == "" {
 			return nil, fmt.Errorf("sqlite store URL must include a file path")
