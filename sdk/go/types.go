@@ -26,6 +26,18 @@ type Evidence struct {
 	LastConfirmed *time.Time `json:"last_confirmed,omitempty"`
 }
 
+// Facets counts how many units carry each tag value across a listing.
+type Facets struct {
+	// Domains counts the units carrying each subject tag.
+	Domains map[string]int `json:"domains"`
+
+	// Frameworks counts the units carrying each framework.
+	Frameworks map[string]int `json:"frameworks"`
+
+	// Languages counts the units carrying each language.
+	Languages map[string]int `json:"languages"`
+}
+
 // Flag records a problem report against a knowledge unit.
 type Flag struct {
 	Reason      FlagReason `json:"reason"`
@@ -65,9 +77,30 @@ type ListParams struct {
 	// empty value starts at the newest unit.
 	Cursor string
 
+	// Domains limits the listing to units carrying any of these subject
+	// tags. Values within an axis widen the selection; the axes narrow
+	// against each other.
+	Domains []string
+
+	// Frameworks limits the listing to units carrying any of these
+	// frameworks.
+	Frameworks []string
+
+	// Languages limits the listing to units carrying any of these
+	// languages.
+	Languages []string
+
 	// Limit caps the number of units returned. A non-positive value leaves
 	// the cap to the server.
 	Limit int
+
+	// Pattern limits the listing to units carrying this cross-cutting
+	// concern. An empty value leaves the pattern unfiltered.
+	Pattern string
+
+	// Search limits the listing to units whose summary, detail or action
+	// matches this text. An empty value leaves the text unfiltered.
+	Search string
 
 	// Status limits the listing to one review state. The zero value leaves
 	// the selection to the server.
@@ -77,6 +110,10 @@ type ListParams struct {
 // ListResult holds the caller's own knowledge units alongside metadata
 // about the listing.
 type ListResult struct {
+	// Facets counts the tag values across the whole filtered listing, not
+	// only the page returned.
+	Facets Facets `json:"facets"`
+
 	// NextCursor resumes the listing after the last unit returned. An empty
 	// value means the listing reached its end.
 	NextCursor string `json:"next_cursor,omitempty"`

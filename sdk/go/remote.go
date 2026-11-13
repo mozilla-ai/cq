@@ -158,6 +158,26 @@ func (r *remoteClient) flag(
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
 func (r *remoteClient) list(ctx context.Context, params ListParams) (ListResult, error) {
 	qv := url.Values{}
+	for _, d := range params.Domains {
+		qv.Add("domain", d)
+	}
+
+	for _, l := range params.Languages {
+		qv.Add("language", l)
+	}
+
+	for _, f := range params.Frameworks {
+		qv.Add("framework", f)
+	}
+
+	if params.Pattern != "" {
+		qv.Set("pattern", params.Pattern)
+	}
+
+	if params.Search != "" {
+		qv.Set("q", params.Search)
+	}
+
 	if params.Status != "" {
 		qv.Set("status", string(params.Status))
 	}
@@ -200,6 +220,7 @@ func (r *remoteClient) list(ctx context.Context, params ListParams) (ListResult,
 	// from an empty array (env.Data != nil, *env.Data == []).
 	var env struct {
 		Data       *[]OwnUnit `json:"data"`
+		Facets     Facets     `json:"facets"`
 		NextCursor string     `json:"next_cursor"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
@@ -210,7 +231,7 @@ func (r *remoteClient) list(ctx context.Context, params ListParams) (ListResult,
 		return ListResult{}, fmt.Errorf("decoding own knowledge response: missing or null data field")
 	}
 
-	return ListResult{NextCursor: env.NextCursor, Units: *env.Data}, nil
+	return ListResult{Facets: env.Facets, NextCursor: env.NextCursor, Units: *env.Data}, nil
 }
 
 // propose pushes a knowledge unit to the remote API.

@@ -692,3 +692,59 @@ func TestRemoteListEndOfStreamCarriesNoCursor(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, result.NextCursor)
 }
+
+func TestRemoteListSendsTagFilters(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var gotQuery url.Values
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotQuery = r.URL.Query()
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.list(context.Background(), ListParams{
+		Domains:    []string{"api", "payments"},
+		Frameworks: []string{"fastapi"},
+		Languages:  []string{"go"},
+		Pattern:    "shell-quoting",
+		Search:     "nektos/act",
+	})
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	// The member surface names each tag axis in the singular and repeats the
+	// parameter per value, unlike the plural names the commons search takes.
+	require.Equal(t, []string{"api", "payments"}, gotQuery["domain"])
+	require.Equal(t, []string{"go"}, gotQuery["language"])
+	require.Equal(t, []string{"fastapi"}, gotQuery["framework"])
+	require.Equal(t, "shell-quoting", gotQuery.Get("pattern"))
+	require.Equal(t, "nektos/act", gotQuery.Get("q"))
+}
+
+func TestRemoteListReturnsFacets(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(
+			`{"data":[],"facets":{"domains":{"api":3},"languages":{"go":2},"frameworks":{"fastapi":1}}}`,
+		))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	result, err := rc.list(context.Background(), ListParams{})
+	require.NoError(t, err)
+	require.Equal(t, map[string]int{"api": 3}, result.Facets.Domains)
+	require.Equal(t, map[string]int{"go": 2}, result.Facets.Languages)
+	require.Equal(t, map[string]int{"fastapi": 1}, result.Facets.Frameworks)
+}
