@@ -137,3 +137,24 @@ func TestReviewStatusValid(t *testing.T) {
 		})
 	}
 }
+
+func TestNewReviewStatusSetDropsRepeats(t *testing.T) {
+	t.Parallel()
+
+	set := NewReviewStatusSet(Pending, Pending, Rejected)
+	require.Len(t, set, 2)
+}
+
+func TestReviewStatusSetOrderedFollowsLifecycle(t *testing.T) {
+	t.Parallel()
+
+	set := NewReviewStatusSet(Revoked, Pending, Approved)
+	require.Equal(t, ReviewStatuses{Pending, Approved, Revoked}, set.Ordered())
+}
+
+func TestReviewStatusSetOrderedIgnoresUnknownStatus(t *testing.T) {
+	t.Parallel()
+
+	set := NewReviewStatusSet(Pending, ReviewStatus("archived"))
+	require.Equal(t, ReviewStatuses{Pending}, set.Ordered())
+}

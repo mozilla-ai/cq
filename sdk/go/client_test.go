@@ -108,6 +108,15 @@ func testRemoteKUJSON(id string) map[string]any {
 	}
 }
 
+// testRemoteOwnUnitJSON builds the member shape, where a unit's review state
+// sits beside the unit's own fields rather than in a nested object.
+func testRemoteOwnUnitJSON(id string, status ReviewStatus) map[string]any {
+	unit := testRemoteKUJSON(id)
+	unit["status"] = string(status)
+
+	return unit
+}
+
 // -- Local-only tests --
 
 func TestNewClientLocalOnly(t *testing.T) {
@@ -1100,4 +1109,30 @@ func TestRevokeRemoteTierWithoutRemoteIsNotFound(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrNotFound, "an unreachable unit is not-found, not a configuration report")
 	require.NotContains(t, err.Error(), "no remote API is configured")
+}
+
+func TestListNoRemote(t *testing.T) {
+	c := newTestClient(t)
+	_, err := c.List(context.Background(), ListParams{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no remote API configured")
+}
+
+func TestListReturnsOwnUnitsWithTheirStatus(t *testing.T) {
+	const unitID = "ku_00000000000000000000000000000009"
+
+	c := newTestClientWithRemote(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data":        []map[string]any{testRemoteOwnUnitJSON(unitID, Pending)},
+			"next_cursor": "cursor_next",
+		})
+	}))
+
+	result, err := c.List(context.Background(), ListParams{Status: Pending})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	require.Equal(t, unitID, result.Units[0].ID)
+	require.Equal(t, Pending, result.Units[0].Status)
+	require.Equal(t, "cursor_next", result.NextCursor, "dropping the cursor silently truncates the listing")
 }

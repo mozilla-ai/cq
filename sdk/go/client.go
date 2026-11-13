@@ -273,6 +273,32 @@ func (c *Client) Flag(
 	return result, nil
 }
 
+// List returns the caller's own knowledge units, each carrying the review state the remote holds for it.
+//
+// NOTE: review state exists only on a remote, so a client configured
+// without one has nothing to list and returns an error.
+func (c *Client) List(ctx context.Context, params ListParams) (ListResult, error) {
+	ctx, cancel := c.operationContext(ctx)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+		return ListResult{}, ctx.Err()
+	default:
+	}
+
+	if c.remote == nil {
+		return ListResult{}, fmt.Errorf("no remote API configured")
+	}
+
+	result, err := c.remote.list(ctx, params)
+	if err != nil {
+		return ListResult{}, fmt.Errorf("listing own units: %w", err)
+	}
+
+	return result, nil
+}
+
 // Propose creates a new knowledge unit.
 // When a remote API is configured and reachable, the unit is sent to the
 // remote only and returned with no error. The remote is the source of

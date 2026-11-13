@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -536,4 +537,158 @@ func TestRemoteRevokeRejectsEmptySuccessBody(t *testing.T) {
 			require.ErrorIs(t, err, errUnreachable)
 		})
 	}
+}
+
+func TestRemoteListRequestsOwnKnowledge(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var gotMethod, gotPath string
+	var gotQuery url.Values
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.Query()
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.list(context.Background(), ListParams{
+		Cursor: "cursor_abc",
+		Limit:  7,
+		Status: Pending,
+	})
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, http.MethodGet, gotMethod)
+	require.Equal(t, "/api/v1/users/me/knowledge", gotPath)
+	require.Equal(t, []string{"pending"}, gotQuery["status"])
+	require.Equal(t, "7", gotQuery.Get("limit"))
+	require.Equal(t, "cursor_abc", gotQuery.Get("cursor"))
+}
+
+func TestRemoteListOmitsEmptyFilters(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var gotRawQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotRawQuery = r.URL.RawQuery
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.list(context.Background(), ListParams{})
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Empty(t, gotRawQuery)
+}
+
+func TestRemoteListPairsEachUnitWithItsStatus(t *testing.T) {
+	t.Parallel()
+
+	const unitID = "ku_00000000000000000000000000000008"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{testRemoteOwnUnitJSON(unitID, Pending)},
+		})
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	result, err := rc.list(context.Background(), ListParams{})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	require.Equal(t, unitID, result.Units[0].ID)
+	require.Equal(t, Pending, result.Units[0].Status)
+}
+
+func TestRemoteListUnauthorizedReturnsRemoteError(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"detail":"API key expired."}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.list(context.Background(), ListParams{})
+
+	var remoteErr *RemoteError
+	require.ErrorAs(t, err, &remoteErr)
+	require.Equal(t, http.StatusUnauthorized, remoteErr.StatusCode)
+}
+
+func TestRemoteListServerErrorIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.list(context.Background(), ListParams{})
+	require.ErrorIs(t, err, errUnreachable)
+}
+
+func TestRemoteListRejectsMissingDataField(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	_, err := rc.list(context.Background(), ListParams{})
+	require.ErrorContains(t, err, "missing or null data field")
+}
+
+func TestRemoteListReturnsNextCursor(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[],"next_cursor":"cursor_next"}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	result, err := rc.list(context.Background(), ListParams{})
+	require.NoError(t, err)
+	require.Equal(t, "cursor_next", result.NextCursor)
+}
+
+func TestRemoteListEndOfStreamCarriesNoCursor(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[],"next_cursor":null}`))
+	}))
+	defer srv.Close()
+
+	rc := newRemoteClient(srv.URL, "", 5*time.Second, staticResolver{})
+	result, err := rc.list(context.Background(), ListParams{})
+	require.NoError(t, err)
+	require.Empty(t, result.NextCursor)
 }

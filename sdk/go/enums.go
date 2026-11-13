@@ -20,6 +20,10 @@ type ReviewStatus string
 // ReviewStatuses is an ordered collection of review statuses.
 type ReviewStatuses []ReviewStatus
 
+// ReviewStatusSet is a set of review statuses, used where a selection of
+// states is wanted and neither order nor repetition carries meaning.
+type ReviewStatusSet map[ReviewStatus]struct{}
+
 // Tier indicates the storage tier of a knowledge unit.
 type Tier string
 
@@ -94,9 +98,32 @@ func AllTiers() Tiers {
 	return t
 }
 
+// NewReviewStatusSet collects statuses into a set, dropping repeats.
+func NewReviewStatusSet(statuses ...ReviewStatus) ReviewStatusSet {
+	set := make(ReviewStatusSet, len(statuses))
+	for _, s := range statuses {
+		set[s] = struct{}{}
+	}
+
+	return set
+}
+
 // IsRemote reports whether the tier represents a remotely-stored unit.
 func (t Tier) IsRemote() bool {
 	return t == Private || t == Public
+}
+
+// Ordered returns the set's members in lifecycle order, ignoring any
+// status this SDK does not know.
+func (s ReviewStatusSet) Ordered() ReviewStatuses {
+	ordered := make(ReviewStatuses, 0, len(s))
+	for _, status := range AllReviewStatuses() {
+		if _, ok := s[status]; ok {
+			ordered = append(ordered, status)
+		}
+	}
+
+	return ordered
 }
 
 // Valid reports whether s is a known review status.
