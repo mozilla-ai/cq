@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from cq.client import Client, FallbackError, RemoteError
-from cq.models import FlagReason, Insight, Tier, create_knowledge_unit
+from cq.models import FlagReason, Insight, ReviewStatus, Tier, create_knowledge_unit
 from cq.store import SqliteStore, StoreStats, create_store
 from cq.stores import InMemoryStore
 
@@ -1553,3 +1553,175 @@ def httpx_mock():
 
     with patch.object(httpx.Client, "send", patched_send):
         yield mock
+
+
+class TestListOwn:
+    """The member listing of the caller's own units and their review state."""
+
+    def test_list_own_omits_empty_filters(self, tmp_path: Path, static_resolver):
+        captured: list[httpx.Request] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request)
+            return httpx.Response(
+                status_code=200,
+                json={"data": [], "facets": {"domains": {}, "languages": {}, "frameworks": {}}},
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "list_empty.db",
+                _resolver=static_resolver,
+            )
+            c.list_own()
+            c.close()
+
+        params = captured[0].url.params
+        for absent in ("domain", "language", "framework", "pattern", "q", "status", "cursor"):
+            assert absent not in params
+
+    def test_list_own_pairs_each_unit_with_its_status(self, tmp_path: Path, static_resolver):
+        """The member shape carries status beside the unit's own fields, not nested."""
+
+        def send(self, request, **kwargs):
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "data": [
+                        {
+                            "id": "ku_dddddddddddddddddddddddddddddd01",
+                            "domains": ["api"],
+                            "insight": {"summary": "S", "detail": "D", "action": "A"},
+                            "tier": "private",
+                            "status": "approved",
+                        }
+                    ],
+                    "facets": {"domains": {}, "languages": {}, "frameworks": {}},
+                },
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "list_status.db",
+                _resolver=static_resolver,
+            )
+            result = c.list_own()
+            c.close()
+
+        assert len(result.units) == 1
+        assert result.units[0].id == "ku_dddddddddddddddddddddddddddddd01"
+        assert result.units[0].status == ReviewStatus.APPROVED
+
+    def test_list_own_rejects_a_response_without_data(self, tmp_path: Path, static_resolver):
+        def send(self, request, **kwargs):
+            return httpx.Response(status_code=200, json={"facets": {}}, request=request)
+
+        with patch.object(httpx.Client, "send", send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "list_nodata.db",
+                _resolver=static_resolver,
+            )
+            with pytest.raises(ValueError, match="data"):
+                c.list_own()
+            c.close()
+
+    def test_list_own_requests_the_member_surface_with_every_filter(self, tmp_path: Path, static_resolver):
+        """The member surface names each tag axis in the singular and repeats it per value.
+
+        The commons search uses the plural names, so pinning the singular form
+        here keeps the two from being confused.
+        """
+        captured: list[httpx.Request] = []
+
+        def capturing_send(self, request, **kwargs):
+            captured.append(request)
+            return httpx.Response(
+                status_code=200,
+                json={"data": [], "facets": {"domains": {}, "languages": {}, "frameworks": {}}},
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", capturing_send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "list_filters.db",
+                _resolver=static_resolver,
+            )
+            c.list_own(
+                cursor="cursor_abc",
+                domains=["api", "payments"],
+                frameworks=["fastapi"],
+                languages=["go"],
+                limit=7,
+                pattern="shell-quoting",
+                search="nektos/act",
+                status=ReviewStatus.PENDING,
+            )
+            c.close()
+
+        assert len(captured) == 1
+        request = captured[0]
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/users/me/knowledge"
+
+        params = request.url.params
+        assert params.get_list("domain") == ["api", "payments"]
+        assert params.get_list("language") == ["go"]
+        assert params.get_list("framework") == ["fastapi"]
+        assert params["pattern"] == "shell-quoting"
+        assert params["q"] == "nektos/act"
+        assert params["status"] == "pending"
+        assert params["limit"] == "7"
+        assert params["cursor"] == "cursor_abc"
+
+    def test_list_own_returns_the_facets_and_the_next_cursor(self, tmp_path: Path, static_resolver):
+        """Dropping the cursor silently truncates the listing at one page."""
+
+        def send(self, request, **kwargs):
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "data": [],
+                    "facets": {"domains": {"api": 2}, "languages": {"go": 1}, "frameworks": {}},
+                    "next_cursor": "cursor_next",
+                },
+                request=request,
+            )
+
+        with patch.object(httpx.Client, "send", send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "list_cursor.db",
+                _resolver=static_resolver,
+            )
+            result = c.list_own()
+            c.close()
+
+        assert result.next_cursor == "cursor_next"
+        assert result.facets.domains == {"api": 2}
+        assert result.facets.languages == {"go": 1}
+
+    def test_list_own_surfaces_a_rejection_as_remote_error(self, tmp_path: Path, static_resolver):
+        def send(self, request, **kwargs):
+            return httpx.Response(status_code=401, text="unauthorized", request=request)
+
+        with patch.object(httpx.Client, "send", send):
+            c = Client(
+                addr="https://node.example.com",
+                local_db_path=tmp_path / "list_401.db",
+                _resolver=static_resolver,
+            )
+            with pytest.raises(RemoteError) as exc:
+                c.list_own()
+            c.close()
+
+        assert exc.value.status_code == 401
+
+    def test_list_own_without_remote_raises(self, client: Client):
+        with pytest.raises(RuntimeError, match="without remote API configured"):
+            client.list_own()

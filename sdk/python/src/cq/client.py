@@ -17,9 +17,12 @@ from ._util import _as_list
 from .discovery import Resolver, default_cache_dir
 from .models import (
     Context,
+    Facets,
     FlagReason,
     Insight,
     KnowledgeUnit,
+    OwnUnit,
+    ReviewStatus,
     Tier,
     _validate_unit_id,
     create_knowledge_unit,
@@ -48,6 +51,26 @@ class DrainResult:
     # Non-fatal issues encountered during the drain. Each entry
     # describes a unit that could not be pushed, either because the
     # remote was unreachable or because it rejected the request.
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class ListResult:
+    """Result of listing the caller's own knowledge units."""
+
+    # How many units carry each tag value across the whole filtered
+    # listing, not only the page returned.
+    facets: Facets = field(default_factory=Facets)
+
+    # Cursor resuming the listing after the last unit returned. Empty
+    # when the listing reached its end.
+    next_cursor: str = ""
+
+    # The caller's own units, each carrying the review state the remote
+    # holds for it.
+    units: list["OwnUnit"] = field(default_factory=list)
+
+    # Non-fatal issues encountered during the listing.
     warnings: list[str] = field(default_factory=list)
 
 
@@ -364,6 +387,58 @@ class Client:
             return result
         raise KeyError(f"Remote unreachable; cannot flag unit: {unit_id}")
 
+    def list_own(
+        self,
+        *,
+        cursor: str = "",
+        domains: list[str] | None = None,
+        frameworks: list[str] | None = None,
+        languages: list[str] | None = None,
+        limit: int = 20,
+        pattern: str = "",
+        search: str = "",
+        status: ReviewStatus | None = None,
+    ) -> ListResult:
+        """Return one page of the caller's own knowledge units with their review state.
+
+        Values within a tag axis widen the selection; the axes narrow against
+        each other.
+
+        NOTE: review state is held by a remote knowledge store, so a remote API
+        must be configured. A unit in the local store has never been reviewed
+        and never appears here.
+
+        Returns:
+            A ListResult with the page of units, the tag counts across the
+            whole filtered listing, and the cursor for the next page.
+
+        Raises:
+            RemoteError: If the remote API explicitly rejects the request or
+                answers with an unparseable body.
+            RuntimeError: If no remote API is configured.
+            ValueError: If the response carries no data field.
+            httpx.HTTPError: For transport-layer failures.
+        """
+        if self._http is None:
+            raise RuntimeError("Cannot list own units without remote API configured")
+
+        params: list[tuple[str, str]] = []
+        if cursor:
+            params.append(("cursor", cursor))
+        params.extend(("domain", value) for value in _as_list(domains or []))
+        params.extend(("framework", value) for value in _as_list(frameworks or []))
+        params.extend(("language", value) for value in _as_list(languages or []))
+        if limit > 0:
+            params.append(("limit", str(limit)))
+        if pattern:
+            params.append(("pattern", pattern))
+        if search:
+            params.append(("q", search))
+        if status is not None:
+            params.append(("status", status.value))
+
+        return self._remote_list(params)
+
     def _stats_section(self, remote: dict, key: str, stats: StoreStats) -> dict:
         """Return ``remote[key]`` when it is a mapping, else warn and return empty.
 
@@ -677,6 +752,44 @@ class Client:
             unit_data = data.get("knowledge_unit", data) if isinstance(data, dict) else data
             return KnowledgeUnit.model_validate(unit_data)
         except (ValueError, ValidationError) as exc:
+            raise RemoteError(
+                status_code=resp.status_code,
+                detail=f"Invalid response body: {exc}",
+            ) from exc
+
+    def _remote_list(self, params: list[tuple[str, str]]) -> ListResult:
+        """Fetch one page of the caller's own units from the remote API.
+
+        Raises:
+            RemoteError: If the remote API explicitly rejects the request or
+                answers with an unparseable body.
+            ValueError: If the response carries no data field.
+            httpx.HTTPError: For transport-layer failures.
+        """
+        assert self._http is not None
+        try:
+            resp = self._http.get(
+                f"{self._api_base_url()}/users/me/knowledge",
+                params=tuple(params),
+            )
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RemoteError(
+                status_code=exc.response.status_code,
+                detail=exc.response.text,
+            ) from exc
+
+        body = resp.json()
+        if not isinstance(body, dict) or "data" not in body:
+            raise ValueError("expected {data: [...]} envelope from the own knowledge endpoint")
+
+        try:
+            return ListResult(
+                facets=Facets.model_validate(body.get("facets") or {}),
+                next_cursor=body.get("next_cursor") or "",
+                units=[OwnUnit.model_validate(item) for item in body["data"]],
+            )
+        except ValidationError as exc:
             raise RemoteError(
                 status_code=resp.status_code,
                 detail=f"Invalid response body: {exc}",
