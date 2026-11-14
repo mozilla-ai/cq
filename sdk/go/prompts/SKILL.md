@@ -6,6 +6,7 @@ description: |
   - You just resolved a non-obvious error, confusing error message, or surprising tool behavior — present a draft KU to the user and call `propose` if they approve
   - Retrieved guidance proved correct or wrong — confirm it, or flag it if another agent proposed it
   - A unit you proposed yourself turned out to be wrong — revoke it
+  - You need to know what became of the units you proposed — list them with their review state
 
   SKIP WHEN:
   - You already queried cq for this exact topic earlier in this session
@@ -26,6 +27,7 @@ These tools communicate with a local MCP server that maintains a SQLite knowledg
 | `confirm` | After verifying   | Strengthen a knowledge unit         |
 | `flag`    | When wrong/stale  | Weaken or mark a knowledge unit     |
 | `revoke`  | Your own was wrong | Withdraw a unit you proposed        |
+| `list`    | On demand         | Review state of your own units      |
 | `status`  | On demand         | Show store statistics               |
 
 ## Core Protocol
@@ -41,7 +43,7 @@ Follow this loop for every task:
    - Found cq guidance from another agent that was wrong or stale? → `flag` with a reason.
    - Proposed a unit this session that turned out to be wrong? → `revoke` it.
 
-`reflect` and `status` are not part of the per-task loop. `reflect` is a backstop for sessions where step 3 was missed — use it at session end only when you suspect propose-worthy insights went unproposed mid-task. Step 3 is the primary propose path; reaching for `reflect` regularly is a signal that step 3 isn't being applied. Use `status` on demand to check store statistics.
+`list`, `reflect` and `status` are not part of the per-task loop. `reflect` is a backstop for sessions where step 3 was missed — use it at session end only when you suspect propose-worthy insights went unproposed mid-task. Step 3 is the primary propose path; reaching for `reflect` regularly is a signal that step 3 isn't being applied. Use `status` on demand to check store statistics, and `list` to see the units you proposed and the review state each one is in.
 
 ---
 
@@ -245,6 +247,20 @@ A unit awaiting review carries no evidence to dispute, so `flag` does not apply 
 Pass the knowledge unit's `id` to revoke it.
 
 A unit held only in the local store has never been reviewed, so revoking deletes it. That cannot be undone.
+
+### Listing Your Own Units (`list`)
+
+Call `list` to see the knowledge units you proposed and the review state each one is in.
+
+Use `list` when:
+- You want to know whether an earlier proposal was approved, rejected, or is still pending.
+- You need the ID of a unit you proposed earlier so you can confirm, flag, or revoke it.
+
+Narrow the listing with `status` for a single review state, `domains`/`languages`/`frameworks` for tags, `pattern` for a cross-cutting concern, and `search` for free text. Values within one tag axis widen the selection; the axes narrow against each other. Pass the `next_cursor` from a previous response as `cursor` to read the next page.
+
+Review state is held by a remote knowledge store, so `list` needs a remote API configured. A unit held only in the local store has never been reviewed and never appears in the listing.
+
+`list` covers your own units only. Use `query` to search the shared commons.
 
 ### Post-Error Behaviour
 
