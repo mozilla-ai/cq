@@ -47,7 +47,7 @@ flowchart TB
 
 **Claude Code** loads markdown and JSON configuration files. No cq code runs inside the agent process itself.
 
-**MCP Server** is spawned by Claude Code via stdio. It runs the Go CLI (`mcp-go`), exposes six tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
+**MCP Server** is spawned by Claude Code via stdio. It runs the Go CLI (`mcp-go`), exposes seven tools, and owns the local SQLite store (default: `$XDG_DATA_HOME/cq/local.db`, typically `~/.local/share/cq/local.db`).
 
 **Docker Container** runs the Remote API as an independent service (`docker compose up`). In production this would be a hosted service with authentication, tenancy, and RBAC.
 
@@ -379,7 +379,7 @@ flowchart LR
 
 **SKILL.md** is the behavioral layer. It teaches the agent *when* to use cq tools: query before unfamiliar API calls, propose when discovering undocumented behavior, confirm when knowledge proves correct, flag when it is wrong or stale. The Skill's core protocol instructs the agent to query before acting and propose immediately when a non-obvious insight stabilizes mid-task.
 
-**MCP Server** exposes six tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, remote API communication, confidence scoring, and query matching.
+**MCP Server** exposes seven tools over stdio. The agent calls these tools based on the Skill's instructions. The server handles local storage, remote API communication, confidence scoring, and query matching.
 
 **Commands** are developer-facing. `/cq:status` shows store statistics. `/cq:reflect` triggers retrospective session mining — it catches long-tail knowledge that the mid-task propose flow missed, ranks candidates by estimated generalizability, and checks the commons for existing coverage before proposing (surfacing existing KUs rather than creating duplicates). Candidates are presented for human approval.
 
