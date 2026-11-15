@@ -94,5 +94,5 @@ func TestCLIVerbsIncludesRevokeAfterFlag(t *testing.T) {
 	}
 
 	// cliVerbs follows the cq workflow order, not alphabetical order.
-	require.Equal(t, []string{"query", "propose", "confirm", "flag", "revoke", "status"}, names)
+	require.Equal(t, []string{"query", "propose", "confirm", "flag", "revoke", "list", "status"}, names)
 }

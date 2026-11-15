@@ -101,6 +101,7 @@ func cliVerbs() []install.CLIVerb {
 		NewConfirmCmd(),
 		NewFlagCmd(),
 		NewRevokeCmd(),
+		NewListCmd(),
 		NewStatusCmd(),
 	}
 	verbs := make([]install.CLIVerb, len(cmds))

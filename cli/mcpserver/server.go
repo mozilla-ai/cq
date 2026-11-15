@@ -19,6 +19,7 @@ type Client interface {
 		opts ...cq.FlagOption,
 	) (cq.KnowledgeUnit, error)
 	HasRemote() bool
+	List(ctx context.Context, params cq.ListParams) (cq.ListResult, error)
 	Propose(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
 	Query(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
 	Revoke(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
@@ -42,11 +43,14 @@ func New(client Client, ver string) *Server {
 		server.WithRecovery(),
 	)
 
+	// NOTE: The order follows the cq workflow rather than the alphabet,
+	// with the on-demand tools last.
 	srv.mcpSrv.AddTool(QueryTool(), srv.HandleQuery)
 	srv.mcpSrv.AddTool(ProposeTool(), srv.HandlePropose)
 	srv.mcpSrv.AddTool(ConfirmTool(), srv.HandleConfirm)
 	srv.mcpSrv.AddTool(FlagTool(), srv.HandleFlag)
 	srv.mcpSrv.AddTool(RevokeTool(), srv.HandleRevoke)
+	srv.mcpSrv.AddTool(ListTool(), srv.HandleList)
 	srv.mcpSrv.AddTool(StatusTool(), srv.HandleStatus)
 
 	return srv

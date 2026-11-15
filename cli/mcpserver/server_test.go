@@ -14,6 +14,7 @@ type mockClient struct {
 	drainFn   func(ctx context.Context) (cq.DrainResult, error)
 	flagFn    func(ctx context.Context, ku cq.KnowledgeUnit, reason cq.FlagReason, opts ...cq.FlagOption) (cq.KnowledgeUnit, error)
 	hasRemote bool
+	listFn    func(ctx context.Context, params cq.ListParams) (cq.ListResult, error)
 	proposeFn func(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error)
 	queryFn   func(ctx context.Context, params cq.QueryParams) (cq.QueryResult, error)
 	revokeFn  func(ctx context.Context, ku cq.KnowledgeUnit) (cq.KnowledgeUnit, error)
@@ -51,6 +52,14 @@ func (m *mockClient) Flag(
 
 func (m *mockClient) HasRemote() bool {
 	return m.hasRemote
+}
+
+func (m *mockClient) List(ctx context.Context, params cq.ListParams) (cq.ListResult, error) {
+	if m.listFn == nil {
+		return cq.ListResult{}, errMockNotImplemented
+	}
+
+	return m.listFn(ctx, params)
 }
 
 func (m *mockClient) Propose(ctx context.Context, params cq.ProposeParams) (cq.KnowledgeUnit, error) {

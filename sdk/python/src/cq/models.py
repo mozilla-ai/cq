@@ -159,6 +159,14 @@ class Evidence(BaseModel):
         return data
 
 
+class Facets(BaseModel):
+    """Counts of how many units carry each tag value across a listing."""
+
+    domains: dict[str, int] = Field(default_factory=dict)
+    frameworks: dict[str, int] = Field(default_factory=dict)
+    languages: dict[str, int] = Field(default_factory=dict)
+
+
 class KnowledgeUnit(BaseModel):
     """A single unit of shared agent knowledge."""
 
@@ -199,6 +207,16 @@ class KnowledgeUnit(BaseModel):
         if bad:
             raise ValueError(f"extension keys must match namespace:key format, got: {bad}")
         return v
+
+
+class OwnUnit(KnowledgeUnit):
+    """A knowledge unit the caller authored, paired with its review state.
+
+    NOTE: review state exists only on a server. A unit held in the local store
+    has never been reviewed and is therefore never an OwnUnit.
+    """
+
+    status: ReviewStatus
 
 
 def _generate_ku_id() -> str:

@@ -153,6 +153,87 @@ func (r *remoteClient) flag(
 	return result, nil
 }
 
+// list fetches one page of the caller's own units and the review state the
+// remote holds for each one.
+// Returns errUnreachable on transport/5xx, RemoteError on 4xx.
+func (r *remoteClient) list(ctx context.Context, params ListParams) (ListResult, error) {
+	qv := url.Values{}
+	for _, d := range params.Domains {
+		qv.Add("domain", d)
+	}
+
+	for _, l := range params.Languages {
+		qv.Add("language", l)
+	}
+
+	for _, f := range params.Frameworks {
+		qv.Add("framework", f)
+	}
+
+	if params.Pattern != "" {
+		qv.Set("pattern", params.Pattern)
+	}
+
+	if params.Search != "" {
+		qv.Set("q", params.Search)
+	}
+
+	if params.Status != "" {
+		qv.Set("status", string(params.Status))
+	}
+
+	if params.Limit > 0 {
+		qv.Set("limit", fmt.Sprintf("%d", params.Limit))
+	}
+
+	if params.Cursor != "" {
+		qv.Set("cursor", params.Cursor)
+	}
+
+	base, err := r.url(ctx, "/users/me/knowledge")
+	if err != nil {
+		return ListResult{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+
+	endpoint := base
+	if encoded := qv.Encode(); encoded != "" {
+		endpoint += "?" + encoded
+	}
+
+	resp, err := r.do(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return ListResult{}, fmt.Errorf("%w: %w", errUnreachable, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 500 {
+		return ListResult{}, errUnreachable
+	}
+
+	if resp.StatusCode >= 400 {
+		detail, _ := io.ReadAll(resp.Body)
+
+		return ListResult{}, &RemoteError{StatusCode: resp.StatusCode, Detail: string(detail)}
+	}
+
+	// Pointer field distinguishes an absent or null "data" key (env.Data == nil)
+	// from an empty array (env.Data != nil, *env.Data == []).
+	var env struct {
+		Data       *[]OwnUnit `json:"data"`
+		Facets     Facets     `json:"facets"`
+		NextCursor string     `json:"next_cursor"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return ListResult{}, fmt.Errorf("decoding own knowledge response: %w", err)
+	}
+
+	if env.Data == nil {
+		return ListResult{}, fmt.Errorf("decoding own knowledge response: missing or null data field")
+	}
+
+	return ListResult{Facets: env.Facets, NextCursor: env.NextCursor, Units: *env.Data}, nil
+}
+
 // propose pushes a knowledge unit to the remote API.
 // Returns errUnreachable on transport/5xx errors, RemoteError on 4xx rejection.
 func (r *remoteClient) propose(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, error) {
