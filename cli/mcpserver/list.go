@@ -23,7 +23,7 @@ func ListTool() mcp.Tool {
 		mcp.WithDescription(
 			"List the knowledge units you proposed and the review state each one is in. "+
 				"Call to check whether your own proposals were approved, rejected or are still pending, "+
-				"or to find a unit you proposed earlier so you can confirm, flag or revoke it. "+
+				"or to find a unit you proposed earlier so you can confirm or revoke it. "+
 				"This covers your own units only; use query to search the shared commons.",
 		),
 		mcp.WithString(

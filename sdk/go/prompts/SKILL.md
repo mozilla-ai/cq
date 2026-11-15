@@ -254,7 +254,7 @@ Call `list` to see the knowledge units you proposed and the review state each on
 
 Use `list` when:
 - You want to know whether an earlier proposal was approved, rejected, or is still pending.
-- You need the ID of a unit you proposed earlier so you can confirm, flag, or revoke it.
+- You need the ID of a unit you proposed earlier so you can confirm or revoke it.
 
 Narrow the listing with `status` for a single review state, `domains`/`languages`/`frameworks` for tags, `pattern` for a cross-cutting concern, and `search` for free text. Values within one tag axis widen the selection; the axes narrow against each other. Pass the `next_cursor` from a previous response as `cursor` to read the next page.
 

@@ -174,6 +174,17 @@ func TestHandleListWithoutRemoteExplainsWhy(t *testing.T) {
 	require.Contains(t, text, "remote")
 }
 
+func TestListToolDescriptionSendsAuthorsToRevoke(t *testing.T) {
+	t.Parallel()
+
+	description := ListTool().Description
+
+	// Flag disputes a unit another agent proposed, so pointing an author at it
+	// here would contradict the flag and revoke tools.
+	require.NotContains(t, description, "flag")
+	require.Contains(t, description, "revoke")
+}
+
 func TestListToolStatesTheLimitCeiling(t *testing.T) {
 	t.Parallel()
 
