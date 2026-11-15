@@ -1616,9 +1616,17 @@ class TestListOwn:
         assert result.units[0].id == "ku_dddddddddddddddddddddddddddddd01"
         assert result.units[0].status == ReviewStatus.APPROVED
 
-    def test_list_own_rejects_a_response_without_data(self, tmp_path: Path, static_resolver):
+    @pytest.mark.parametrize(
+        "body",
+        [
+            pytest.param({"facets": {}}, id="absent"),
+            pytest.param({"data": None}, id="null"),
+            pytest.param({"data": {}}, id="object"),
+        ],
+    )
+    def test_list_own_rejects_a_malformed_data_field(self, body, tmp_path: Path, static_resolver):
         def send(self, request, **kwargs):
-            return httpx.Response(status_code=200, json={"facets": {}}, request=request)
+            return httpx.Response(status_code=200, json=body, request=request)
 
         with patch.object(httpx.Client, "send", send):
             c = Client(

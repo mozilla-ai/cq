@@ -416,7 +416,7 @@ class Client:
             RemoteError: If the remote API explicitly rejects the request or
                 answers with an unparseable body.
             RuntimeError: If no remote API is configured.
-            ValueError: If the response carries no data field.
+            ValueError: If the response carries no data array.
             httpx.HTTPError: For transport-layer failures.
         """
         if self._http is None:
@@ -763,7 +763,7 @@ class Client:
         Raises:
             RemoteError: If the remote API explicitly rejects the request or
                 answers with an unparseable body.
-            ValueError: If the response carries no data field.
+            ValueError: If the response carries no data array.
             httpx.HTTPError: For transport-layer failures.
         """
         assert self._http is not None
@@ -780,14 +780,15 @@ class Client:
             ) from exc
 
         body = resp.json()
-        if not isinstance(body, dict) or "data" not in body:
+        data = body.get("data") if isinstance(body, dict) else None
+        if not isinstance(data, list):
             raise ValueError("expected {data: [...]} envelope from the own knowledge endpoint")
 
         try:
             return ListResult(
                 facets=Facets.model_validate(body.get("facets") or {}),
                 next_cursor=body.get("next_cursor") or "",
-                units=[OwnUnit.model_validate(item) for item in body["data"]],
+                units=[OwnUnit.model_validate(item) for item in data],
             )
         except ValidationError as exc:
             raise RemoteError(
