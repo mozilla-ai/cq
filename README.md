@@ -72,6 +72,8 @@ The seven MCP tools underneath:
 | `list`    | List your own KUs and their review state   |
 | `status`  | Show store statistics                      |
 
+`list` reads review state from a remote cq server, so it needs `CQ_ADDR` and `CQ_API_KEY` set. A unit held only in the local store has never been reviewed and does not appear in the listing.
+
 ## Remote storage
 
 With no remote configured, knowledge stays local on the machine running the plugin. If you want your KUs available across multiple machines, to read from a shared knowledge pool, or to run a shared store for a team, you have two options.

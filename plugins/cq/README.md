@@ -58,6 +58,8 @@ The plugin bundles three things:
 | `list`    | List your own KUs and their review state   |
 | `status`  | Show store statistics                      |
 
+`list` reads review state from a remote cq server, so it needs `CQ_ADDR` and `CQ_API_KEY` set. A unit held only in the local store has never been reviewed and does not appear in the listing.
+
 The agent calls these tools during normal work. You do not need to invoke them directly.
 
 ## Commands
