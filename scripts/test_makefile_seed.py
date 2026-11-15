@@ -50,5 +50,25 @@ class SeedTargetsAcceptCommandLineUser(unittest.TestCase):
                 self.assertNotIn("osuser", result.stdout)
 
 
+class SeedTargetsRejectEmptyCommandLineUser(unittest.TestCase):
+    def test_empty_or_whitespace_command_line_user_is_rejected(self):
+        for target in SEED_TARGETS:
+            for user_value in ("", "   "):
+                with self.subTest(target=target, user_value=repr(user_value)):
+                    result = run_make(
+                        target,
+                        f"USER={user_value}",
+                        "PASS=secret",
+                        env_user="osuser",
+                    )
+                    self.assertNotEqual(
+                        result.returncode,
+                        0,
+                        f"{target} accepted command-line USER={user_value!r}; "
+                        f"stdout={result.stdout!r}",
+                    )
+                    self.assertIn("USER is required", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
