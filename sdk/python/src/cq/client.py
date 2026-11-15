@@ -650,9 +650,10 @@ class Client:
         resp = self._http.get(f"{self._api_base_url()}/knowledge", params=params)
         resp.raise_for_status()
         body = resp.json()
-        if not isinstance(body, dict) or "data" not in body:
+        data = body.get("data") if isinstance(body, dict) else None
+        if not isinstance(data, list):
             raise ValueError("expected {data: [...]} envelope from knowledge list endpoint")
-        return [KnowledgeUnit.model_validate(item) for item in body["data"]]
+        return [KnowledgeUnit.model_validate(item) for item in data]
 
     def _remote_propose(self, unit: KnowledgeUnit) -> KnowledgeUnit:
         """Push a unit to the remote API.

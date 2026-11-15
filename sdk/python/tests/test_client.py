@@ -718,6 +718,19 @@ class TestRemoteIntegration:
         assert result.warnings, "missing data key should produce a warning"
         c.close()
 
+    def test_remote_query_warns_when_data_is_not_an_array(self, tmp_path: Path, httpx_mock):
+        """An object in place of the data array must warn rather than read as no results."""
+        httpx_mock.add_response(
+            url=httpx.URL("http://test-remote/api/v1/knowledge", params={"domains": ["api"], "limit": "5"}),
+            json={"data": {}},
+        )
+
+        c = Client(addr="http://test-remote", local_db_path=tmp_path / "test.db")
+        result = c.query(["api"])
+        assert result.units == []
+        assert result.warnings, "a non-array data field should produce a warning"
+        c.close()
+
     def test_propose_returns_server_response_when_remote_accepts(self, tmp_path: Path, httpx_mock):
         """When remote accepts, propose() returns the server-created unit."""
         server_unit = {
