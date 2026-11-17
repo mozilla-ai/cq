@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/mozilla-ai/cq/sdk/go v0.17.2
+	github.com/mozilla-ai/cq/sdk/go v0.18.0
 	github.com/stretchr/testify v1.11.1
 )
 
