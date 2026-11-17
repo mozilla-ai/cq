@@ -190,7 +190,7 @@ func (r *remoteClient) list(ctx context.Context, params ListParams) (ListResult,
 		qv.Set("cursor", params.Cursor)
 	}
 
-	base, err := r.url(ctx, "/users/me/knowledge")
+	base, err := r.url(ctx, "/knowledge/me")
 	if err != nil {
 		return ListResult{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -371,7 +371,7 @@ type remoteStatsResponse struct {
 // revoke withdraws the caller's own unit on the remote API.
 // Returns errUnreachable on transport/5xx, RemoteError on 4xx.
 func (r *remoteClient) revoke(ctx context.Context, unitID string) (KnowledgeUnit, error) {
-	revokeURL, err := r.url(ctx, "/users/me/knowledge/"+url.PathEscape(unitID)+"/revoke")
+	revokeURL, err := r.url(ctx, "/knowledge/me/"+url.PathEscape(unitID)+"/revoke")
 	if err != nil {
 		return KnowledgeUnit{}, fmt.Errorf("%w: %w", errUnreachable, err)
 	}

@@ -201,7 +201,7 @@ class TestLocalOnlyMode:
             c.close()
 
         assert revoked.id == unit_id
-        assert captured == [f"POST /api/v1/users/me/knowledge/{unit_id}/revoke"]
+        assert captured == [f"POST /api/v1/knowledge/me/{unit_id}/revoke"]
 
     def test_revoke_keeps_the_unit_id_inside_its_path_segment(self, tmp_path: Path):
         """A unit ID is one path segment, so a traversal value must not reach the remote."""
@@ -234,7 +234,7 @@ class TestLocalOnlyMode:
                 c.revoke("../../admin/x", tier=Tier.PRIVATE)
             c.close()
 
-        escaped = [path for path in captured if not path.startswith("/api/v1/users/me/knowledge/")]
+        escaped = [path for path in captured if not path.startswith("/api/v1/knowledge/me/")]
         assert escaped == [], f"unit ID escaped its path segment, got {escaped}"
 
     def test_remote_evidence_keeps_the_unit_id_inside_its_path_segment(self, tmp_path: Path):
@@ -1729,7 +1729,7 @@ def httpx_mock():
 
 
 class TestListOwn:
-    """The member listing of the caller's own units and their review state."""
+    """The agent listing of the caller's own units and their review state."""
 
     def test_list_own_omits_empty_filters(self, tmp_path: Path, static_resolver):
         captured: list[httpx.Request] = []
@@ -1811,8 +1811,8 @@ class TestListOwn:
                 c.list_own()
             c.close()
 
-    def test_list_own_requests_the_member_surface_with_every_filter(self, tmp_path: Path, static_resolver):
-        """The member surface names each tag axis in the singular and repeats it per value.
+    def test_list_own_requests_the_agent_surface_with_every_filter(self, tmp_path: Path, static_resolver):
+        """The agent surface names each tag axis in the singular and repeats it per value.
 
         The commons search uses the plural names, so pinning the singular form
         here keeps the two from being confused.
@@ -1848,7 +1848,7 @@ class TestListOwn:
         assert len(captured) == 1
         request = captured[0]
         assert request.method == "GET"
-        assert request.url.path == "/api/v1/users/me/knowledge"
+        assert request.url.path == "/api/v1/knowledge/me"
 
         params = request.url.params
         assert params.get_list("domain") == ["api", "payments"]

@@ -453,6 +453,12 @@ func (c *Client) Query(ctx context.Context, params QueryParams) (QueryResult, er
 //
 // NOTE: deleting a local unit is not reversible. Callers that need the unit
 // preserved should drain before revoking.
+//
+// NOTE: revoking a remote unit that is already revoked is not uniformly
+// idempotent. An individual author receives the unit unchanged, while an
+// author in an organization receives an error, because withdrawal there is
+// limited to a pending or approved unit. A caller that retries must tolerate
+// both outcomes.
 func (c *Client) Revoke(ctx context.Context, ku KnowledgeUnit) (KnowledgeUnit, error) {
 	if err := ValidateID(ku.ID); err != nil {
 		return KnowledgeUnit{}, err
