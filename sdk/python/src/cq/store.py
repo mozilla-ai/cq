@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol, runtime_checkable
-from urllib.parse import SplitResult, unquote_to_bytes, urlsplit
+from urllib.parse import SplitResult, unquote, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -232,6 +232,26 @@ def _build_fts_match_expr(terms: list[str]) -> str:
     return " OR ".join(safe)
 
 
+def _decode_url_path(path: str) -> str:
+    """Decode the percent-escapes in a URL path.
+
+    An escape that is malformed, or that does not decode as UTF-8, is rejected
+    rather than resolved to something else. Replacing an undecodable byte would
+    let two URLs name one database, and resolving it per platform would make
+    the same URL mean different things on different hosts.
+
+    Raises:
+        ValueError: If an escape is malformed or is not valid UTF-8.
+    """
+    if _MALFORMED_ESCAPE_RE.search(path):
+        raise ValueError("sqlite store URL has an invalid percent-escape")
+
+    try:
+        return unquote(path, errors="strict")
+    except UnicodeDecodeError as exc:
+        raise ValueError("sqlite store URL has a percent-escape that is not valid UTF-8") from exc
+
+
 def _drop_windows_drive_separator(path: str) -> str:
     """Drop the separator a host-less URL keeps before a Windows drive letter.
 
@@ -258,20 +278,15 @@ def _sqlite_path_from_url(split: SplitResult) -> str:
     URL delimiter can be expressed as an escape.
 
     Raises:
-        ValueError: If the host-less form carries a malformed percent-escape.
+        ValueError: If the host-less form carries a percent-escape that is
+            malformed or is not valid UTF-8.
     """
     # A path with no leading separator is the short form, whose text is not an
     # encoded URL path.
     if split.path and not split.path.startswith("/"):
         return split.path
 
-    if _MALFORMED_ESCAPE_RE.search(split.path):
-        raise ValueError("sqlite store URL has an invalid percent-escape")
-
-    # Decoding to bytes keeps two escapes of different bytes distinct, where
-    # decoding to text would map both onto one replacement character and let
-    # two URLs name one database.
-    path = os.fsdecode(unquote_to_bytes(split.path))
+    path = _decode_url_path(split.path)
     if os.name == "nt":
         return _drop_windows_drive_separator(path)
 
@@ -300,7 +315,7 @@ def create_store(database_url: str | None = None) -> Store:
         NotImplementedError: For a PostgreSQL URL when psycopg is not
             installed.
         ValueError: For an unrecognized scheme, or for a SQLite URL that
-            carries an authority, a malformed percent-escape, or no path.
+            carries an authority, a bad percent-escape, or no path.
     """
     if database_url is None:
         return SqliteStore()

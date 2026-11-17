@@ -648,36 +648,45 @@ class TestCreateStore:
 class TestSqlitePathFromURL:
     """Which text of a parsed sqlite: URL becomes the store path.
 
-    These assert on the resolver rather than a built store, because a path
-    holding a non-UTF-8 byte is a legal filename on some platforms and not on
-    others, and the resolver's job is the same either way.
+    Every case here resolves the same way on every platform, so none of them
+    is conditional on the host.
     """
 
     @pytest.mark.parametrize(
         ("url", "want"),
         [
-            ("sqlite:///tmp/%FF.db", "/tmp/\udcff.db"),
-            ("sqlite:///tmp/%FE.db", "/tmp/\udcfe.db"),
-            ("sqlite:///tmp/ok%41.db", "/tmp/okA.db"),
+            ("sqlite:///data/a%23b.db", "/data/a#b.db"),
+            ("sqlite:///data/a%3Fb.db", "/data/a?b.db"),
+            ("sqlite:///data/ok%41.db", "/data/okA.db"),
+            ("sqlite:///data/plain.db", "/data/plain.db"),
         ],
-        ids=["high_byte_ff", "high_byte_fe", "ascii_escape"],
+        ids=["hash", "question_mark", "ascii_letter", "no_escape"],
     )
-    def test_escapes_decode_to_distinct_paths(self, url: str, want: str) -> None:
+    def test_escapes_decode(self, url: str, want: str) -> None:
         assert _sqlite_path_from_url(urlsplit(url)) == want
-
-    def test_two_different_high_byte_escapes_do_not_collide(self) -> None:
-        first = _sqlite_path_from_url(urlsplit("sqlite:///tmp/%FF.db"))
-        second = _sqlite_path_from_url(urlsplit("sqlite:///tmp/%FE.db"))
-        assert first != second
 
     @pytest.mark.parametrize(
         "url",
-        ["sqlite:///tmp/%ZZ.db", "sqlite:///tmp/%.db", "sqlite:///tmp/%4.db"],
+        ["sqlite:///data/%ZZ.db", "sqlite:///data/%.db", "sqlite:///data/%4.db"],
         ids=["non_hex_digits", "bare_percent", "one_hex_digit"],
     )
     def test_malformed_escape_raises_value_error(self, url: str) -> None:
         with pytest.raises(ValueError, match="invalid percent-escape"):
             create_store(url)
+
+    @pytest.mark.parametrize(
+        "url",
+        ["sqlite:///data/%FF.db", "sqlite:///data/%FE.db", "sqlite:///data/%C3.db"],
+        ids=["byte_ff", "byte_fe", "truncated_sequence"],
+    )
+    def test_escape_that_is_not_utf8_raises_value_error(self, url: str) -> None:
+        with pytest.raises(ValueError, match="not valid UTF-8"):
+            create_store(url)
+
+    def test_two_undecodable_escapes_cannot_name_one_database(self) -> None:
+        for url in ("sqlite:///data/%FF.db", "sqlite:///data/%FE.db"):
+            with pytest.raises(ValueError):
+                create_store(url)
 
     @pytest.mark.parametrize(
         "path",
