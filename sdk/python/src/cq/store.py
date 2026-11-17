@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol, runtime_checkable
-from urllib.parse import urlsplit
+from urllib.parse import SplitResult, unquote, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -228,12 +228,50 @@ def _build_fts_match_expr(terms: list[str]) -> str:
     return " OR ".join(safe)
 
 
+def _drop_windows_drive_separator(path: str) -> str:
+    """Drop the separator a host-less URL keeps before a Windows drive letter.
+
+    A host-less URL keeps the separator that introduces its path, so the
+    documented ``sqlite:///C:/data/local.db`` form arrives as
+    ``/C:/data/local.db``. On Windows that names a path rooted at the current
+    drive rather than the C: drive. A UNC prefix is outside the rule, because
+    the character after the separator is another separator.
+
+    NOTE: the rule holds on Windows only. On other platforms ``/c:/data`` is a
+    legitimate absolute path whose leading separator carries meaning.
+    """
+    min_drive_len = 3  # The separator, the drive letter, and the colon.
+    if len(path) >= min_drive_len and path[0] in "/\\" and path[1].isascii() and path[1].isalpha() and path[2] == ":":
+        return path[1:]
+    return path
+
+
+def _sqlite_path_from_url(split: SplitResult) -> str:
+    """Return the filesystem path a parsed sqlite: URL names.
+
+    The short ``sqlite:<relative path>`` form is taken verbatim. The
+    ``sqlite:///<absolute path>`` form is percent-decoded, so a path holding a
+    URL delimiter can be expressed as an escape.
+    """
+    # A path with no leading separator is the short form, whose text is not an
+    # encoded URL path.
+    if split.path and not split.path.startswith("/"):
+        return split.path
+
+    path = unquote(split.path)
+    if os.name == "nt":
+        return _drop_windows_drive_separator(path)
+
+    return path
+
+
 def create_store(database_url: str | None = None) -> Store:
     """Resolve a connection-string URL to a concrete Store.
 
     A ``None`` URL or a ``sqlite:`` URL selects the built-in SqliteStore.
-    Accepted SQLite forms are ``sqlite:///<absolute path>`` and
-    ``sqlite:<relative path>``.
+    Accepted SQLite forms are ``sqlite:///<absolute path>``, which is
+    percent-decoded, and ``sqlite:<relative path>``, which is taken verbatim.
+    A ``#`` or ``?`` ends the path in either form, as a URL delimiter.
     A ``postgresql://`` or ``postgres://`` URL selects PostgresStore when
     the ``cq-sdk[postgres]`` extra is installed.
     Any other scheme raises ValueError.
@@ -263,9 +301,10 @@ def create_store(database_url: str | None = None) -> Store:
                 "sqlite store URL must not include a host or user info; use three "
                 "slashes and no authority, for example sqlite:///path/to/local.db"
             )
-        if not split.path:
+        path = _sqlite_path_from_url(split)
+        if not path:
             raise ValueError("sqlite store URL must include a file path")
-        return SqliteStore(db_path=Path(split.path))
+        return SqliteStore(db_path=Path(path))
     if database_url.startswith(("postgresql://", "postgres://")):
         try:
             from .stores.postgres import PostgresStore

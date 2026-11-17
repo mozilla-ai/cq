@@ -10,7 +10,7 @@ import pytest
 
 from cq.client import Client, FallbackError, RemoteError
 from cq.models import FlagReason, Insight, ReviewStatus, Tier, create_knowledge_unit
-from cq.store import SqliteStore, StoreStats, create_store
+from cq.store import SqliteStore, StoreStats, _drop_windows_drive_separator, create_store
 from cq.stores import InMemoryStore
 
 
@@ -609,6 +609,71 @@ class TestCreateStore:
         assert isinstance(store, SqliteStore)
         assert store.db_path == db
         store.close()
+
+    def test_sqlite_absolute_form_decodes_percent_escapes(self, tmp_path: Path) -> None:
+        store = create_store(f"sqlite://{tmp_path}/a%23b.db")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == tmp_path / "a#b.db"
+        store.close()
+
+    def test_sqlite_short_form_keeps_percent_escapes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        store = create_store("sqlite:a%23b.db")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == Path("a%23b.db")
+        store.close()
+
+    @pytest.mark.parametrize(
+        ("url", "want"),
+        [("sqlite:archive#2026.db", "archive"), ("sqlite:report?draft.db", "report")],
+        ids=["fragment", "query"],
+    )
+    def test_sqlite_url_delimiter_ends_the_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, url: str, want: str
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        store = create_store(url)
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == Path(want)
+        store.close()
+
+
+class TestDropWindowsDriveSeparator:
+    """The drive-letter rule, exercised on any host.
+
+    The rule applies on Windows only, so it is kept pure and called directly
+    rather than reached through a store the test platform cannot open.
+    """
+
+    @pytest.mark.parametrize(
+        ("path", "want"),
+        [
+            ("/C:/data/local.db", "C:/data/local.db"),
+            ("/c:/data/local.db", "c:/data/local.db"),
+            ("/C:\\data\\local.db", "C:\\data\\local.db"),
+            ("/data/local.db", "/data/local.db"),
+            ("//host/share/local.db", "//host/share/local.db"),
+            ("\\\\host\\share\\local.db", "\\\\host\\share\\local.db"),
+            ("/1:/data/local.db", "/1:/data/local.db"),
+            ("/C", "/C"),
+            ("/C:", "C:"),
+            ("", ""),
+        ],
+        ids=[
+            "drive_letter_after_the_separator",
+            "lower_case_drive_letter",
+            "backslash_separator_is_dropped_too",
+            "a_path_that_is_not_drive_rooted_is_untouched",
+            "a_UNC_prefix_keeps_both_separators",
+            "a_Windows_UNC_prefix_with_backslashes_keeps_both_separators",
+            "a_digit_is_not_a_drive_letter",
+            "shorter_than_a_drive_prefix",
+            "exactly_the_drive_prefix_without_a_trailing_segment",
+            "empty_path",
+        ],
+    )
+    def test_drive_separator_rule(self, path: str, want: str) -> None:
+        assert _drop_windows_drive_separator(path) == want
 
     def test_postgres_url_attempts_connection(self) -> None:
         psycopg = pytest.importorskip("psycopg")
