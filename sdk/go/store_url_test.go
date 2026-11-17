@@ -88,6 +88,7 @@ func TestStoreFromURLRejectsAuthority(t *testing.T) {
 				t.Cleanup(func() { _ = s.Close() })
 			}
 
+			require.ErrorContains(t, err, "host or user info")
 			require.ErrorContains(t, err, "sqlite:///")
 			require.NoFileExists(t, dbPath)
 		})

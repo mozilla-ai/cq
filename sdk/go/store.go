@@ -235,7 +235,7 @@ func StoreFromURL(connURL string) (Store, error) {
 		// its first path segment would otherwise silently disappear.
 		if parsed.Host != "" || parsed.User != nil {
 			return nil, fmt.Errorf(
-				"sqlite store URL must not include a host; use three slashes, for example sqlite:///path/to/local.db",
+				"sqlite store URL must not include a host or user info; use three slashes and no authority, for example sqlite:///path/to/local.db",
 			)
 		}
 
