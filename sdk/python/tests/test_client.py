@@ -4,13 +4,20 @@ import logging
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
 from cq.client import Client, FallbackError, RemoteError
 from cq.models import FlagReason, Insight, ReviewStatus, Tier, create_knowledge_unit
-from cq.store import SqliteStore, StoreStats, _drop_windows_drive_separator, create_store
+from cq.store import (
+    SqliteStore,
+    StoreStats,
+    _drop_windows_drive_separator,
+    _sqlite_path_from_url,
+    create_store,
+)
 from cq.stores import InMemoryStore
 
 
@@ -636,6 +643,49 @@ class TestCreateStore:
         assert isinstance(store, SqliteStore)
         assert store.db_path == Path(want)
         store.close()
+
+
+class TestSqlitePathFromURL:
+    """Which text of a parsed sqlite: URL becomes the store path.
+
+    These assert on the resolver rather than a built store, because a path
+    holding a non-UTF-8 byte is a legal filename on some platforms and not on
+    others, and the resolver's job is the same either way.
+    """
+
+    @pytest.mark.parametrize(
+        ("url", "want"),
+        [
+            ("sqlite:///tmp/%FF.db", "/tmp/\udcff.db"),
+            ("sqlite:///tmp/%FE.db", "/tmp/\udcfe.db"),
+            ("sqlite:///tmp/ok%41.db", "/tmp/okA.db"),
+        ],
+        ids=["high_byte_ff", "high_byte_fe", "ascii_escape"],
+    )
+    def test_escapes_decode_to_distinct_paths(self, url: str, want: str) -> None:
+        assert _sqlite_path_from_url(urlsplit(url)) == want
+
+    def test_two_different_high_byte_escapes_do_not_collide(self) -> None:
+        first = _sqlite_path_from_url(urlsplit("sqlite:///tmp/%FF.db"))
+        second = _sqlite_path_from_url(urlsplit("sqlite:///tmp/%FE.db"))
+        assert first != second
+
+    @pytest.mark.parametrize(
+        "url",
+        ["sqlite:///tmp/%ZZ.db", "sqlite:///tmp/%.db", "sqlite:///tmp/%4.db"],
+        ids=["non_hex_digits", "bare_percent", "one_hex_digit"],
+    )
+    def test_malformed_escape_raises_value_error(self, url: str) -> None:
+        with pytest.raises(ValueError, match="invalid percent-escape"):
+            create_store(url)
+
+    @pytest.mark.parametrize(
+        "path",
+        ["a%ZZb.db", "a%FFb.db"],
+        ids=["non_hex_digits", "high_byte"],
+    )
+    def test_short_form_is_neither_decoded_nor_validated(self, path: str) -> None:
+        assert _sqlite_path_from_url(urlsplit(f"sqlite:{path}")) == path
 
 
 class TestDropWindowsDriveSeparator:

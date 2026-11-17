@@ -14,6 +14,7 @@ from-scratch store only has to gather candidates and hand them over.
 
 import logging
 import os
+import re
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -22,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol, runtime_checkable
-from urllib.parse import SplitResult, unquote, urlsplit
+from urllib.parse import SplitResult, unquote_to_bytes, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -47,6 +48,9 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
 
 _FTS_MAX_TERMS = 20
 _FTS_MAX_TERM_LENGTH = 200
+
+# A percent sign that does not introduce two hex digits.
+_MALFORMED_ESCAPE_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
 # Store-level query bounds, aligned with the Go SDK.
 _MAX_QUERY_DOMAINS = 50
@@ -252,13 +256,22 @@ def _sqlite_path_from_url(split: SplitResult) -> str:
     The short ``sqlite:<relative path>`` form is taken verbatim. The
     ``sqlite:///<absolute path>`` form is percent-decoded, so a path holding a
     URL delimiter can be expressed as an escape.
+
+    Raises:
+        ValueError: If the host-less form carries a malformed percent-escape.
     """
     # A path with no leading separator is the short form, whose text is not an
     # encoded URL path.
     if split.path and not split.path.startswith("/"):
         return split.path
 
-    path = unquote(split.path)
+    if _MALFORMED_ESCAPE_RE.search(split.path):
+        raise ValueError("sqlite store URL has an invalid percent-escape")
+
+    # Decoding to bytes keeps two escapes of different bytes distinct, where
+    # decoding to text would map both onto one replacement character and let
+    # two URLs name one database.
+    path = os.fsdecode(unquote_to_bytes(split.path))
     if os.name == "nt":
         return _drop_windows_drive_separator(path)
 
@@ -287,7 +300,7 @@ def create_store(database_url: str | None = None) -> Store:
         NotImplementedError: For a PostgreSQL URL when psycopg is not
             installed.
         ValueError: For an unrecognized scheme, or for a SQLite URL that
-            carries an authority or no path.
+            carries an authority, a malformed percent-escape, or no path.
     """
     if database_url is None:
         return SqliteStore()
