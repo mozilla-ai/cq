@@ -4,13 +4,20 @@ import logging
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
 from cq.client import Client, FallbackError, RemoteError
 from cq.models import FlagReason, Insight, ReviewStatus, Tier, create_knowledge_unit
-from cq.store import SqliteStore, StoreStats, create_store
+from cq.store import (
+    SqliteStore,
+    StoreStats,
+    _drop_windows_drive_separator,
+    _sqlite_path_from_url,
+    create_store,
+)
 from cq.stores import InMemoryStore
 
 
@@ -516,7 +523,7 @@ class TestStoreSelection:
 
     def test_injected_store_takes_precedence(self, tmp_path: Path) -> None:
         injected = InMemoryStore()
-        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{tmp_path / 'url.db'}"}):
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite://{tmp_path / 'url.db'}"}):
             c = Client(local_db_path=tmp_path / "ignored.db", store=injected)
             assert c._store is injected
             c.close()
@@ -530,7 +537,7 @@ class TestStoreSelection:
 
     def test_database_url_env_selects_sqlite_store(self, tmp_path: Path) -> None:
         db = tmp_path / "from-url.db"
-        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{db}"}):
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite://{db}"}):
             c = Client()
             assert isinstance(c._store, SqliteStore)
             assert c._store.db_path == db
@@ -538,7 +545,7 @@ class TestStoreSelection:
 
     def test_database_url_env_takes_precedence_over_db_path(self, tmp_path: Path) -> None:
         url_db = tmp_path / "url.db"
-        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{url_db}"}):
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite://{url_db}"}):
             c = Client(local_db_path=tmp_path / "path.db")
             assert isinstance(c._store, SqliteStore)
             assert c._store.db_path == url_db
@@ -560,11 +567,18 @@ class TestCreateStore:
         assert isinstance(store, SqliteStore)
         store.close()
 
-    def test_sqlite_triple_slash_url(self, tmp_path: Path) -> None:
+    def test_sqlite_triple_slash_url_keeps_an_absolute_path(self, tmp_path: Path) -> None:
         db = tmp_path / "factory.db"
-        store = create_store(f"sqlite:///{db}")
+        store = create_store(f"sqlite://{db}")
         assert isinstance(store, SqliteStore)
         assert store.db_path == db
+        store.close()
+
+    def test_sqlite_extra_separator_url_opens_the_same_file(self, tmp_path: Path) -> None:
+        db = tmp_path / "extra.db"
+        store = create_store(f"sqlite:///{db}")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path.resolve() == db.resolve()
         store.close()
 
     def test_sqlite_short_form_url(self, tmp_path: Path) -> None:
@@ -573,6 +587,152 @@ class TestCreateStore:
         assert isinstance(store, SqliteStore)
         assert store.db_path == db
         store.close()
+
+    def test_sqlite_short_form_url_keeps_a_relative_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        store = create_store("sqlite:relative.db")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == Path("relative.db")
+        store.close()
+
+    @pytest.mark.parametrize(
+        "authority",
+        ["ghost-host", "localhost", "C:", "user@"],
+        ids=["host", "localhost", "windows_drive_letter", "user_info_without_a_host"],
+    )
+    def test_sqlite_url_with_an_authority_raises_value_error(self, tmp_path: Path, authority: str) -> None:
+        db = tmp_path / "wanted.db"
+        with pytest.raises(ValueError, match="host or user info"):
+            create_store(f"sqlite://{authority}{db}")
+        assert not db.exists()
+
+    def test_sqlite_url_with_an_empty_authority_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="must include a file path"):
+            create_store("sqlite://")
+
+    def test_sqlite_url_scheme_is_case_insensitive(self, tmp_path: Path) -> None:
+        db = tmp_path / "upper.db"
+        store = create_store(f"SQLITE://{db}")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == db
+        store.close()
+
+    def test_sqlite_absolute_form_decodes_percent_escapes(self, tmp_path: Path) -> None:
+        store = create_store(f"sqlite://{tmp_path}/a%23b.db")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == tmp_path / "a#b.db"
+        store.close()
+
+    def test_sqlite_short_form_keeps_percent_escapes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        store = create_store("sqlite:a%23b.db")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == Path("a%23b.db")
+        store.close()
+
+    @pytest.mark.parametrize(
+        ("url", "want"),
+        [("sqlite:archive#2026.db", "archive"), ("sqlite:report?draft.db", "report")],
+        ids=["fragment", "query"],
+    )
+    def test_sqlite_url_delimiter_ends_the_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, url: str, want: str
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        store = create_store(url)
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == Path(want)
+        store.close()
+
+
+class TestSqlitePathFromURL:
+    """Which text of a parsed sqlite: URL becomes the store path.
+
+    Every case here resolves the same way on every platform, so none of them
+    is conditional on the host.
+    """
+
+    @pytest.mark.parametrize(
+        ("url", "want"),
+        [
+            ("sqlite:///data/a%23b.db", "/data/a#b.db"),
+            ("sqlite:///data/a%3Fb.db", "/data/a?b.db"),
+            ("sqlite:///data/ok%41.db", "/data/okA.db"),
+            ("sqlite:///data/plain.db", "/data/plain.db"),
+        ],
+        ids=["hash", "question_mark", "ascii_letter", "no_escape"],
+    )
+    def test_escapes_decode(self, url: str, want: str) -> None:
+        assert _sqlite_path_from_url(urlsplit(url)) == want
+
+    @pytest.mark.parametrize(
+        "url",
+        ["sqlite:///data/%ZZ.db", "sqlite:///data/%.db", "sqlite:///data/%4.db"],
+        ids=["non_hex_digits", "bare_percent", "one_hex_digit"],
+    )
+    def test_malformed_escape_raises_value_error(self, url: str) -> None:
+        with pytest.raises(ValueError, match="invalid percent-escape"):
+            create_store(url)
+
+    @pytest.mark.parametrize(
+        "url",
+        ["sqlite:///data/%FF.db", "sqlite:///data/%FE.db", "sqlite:///data/%C3.db"],
+        ids=["byte_ff", "byte_fe", "truncated_sequence"],
+    )
+    def test_escape_that_is_not_utf8_raises_value_error(self, url: str) -> None:
+        with pytest.raises(ValueError, match="not valid UTF-8"):
+            create_store(url)
+
+    def test_two_undecodable_escapes_cannot_name_one_database(self) -> None:
+        for url in ("sqlite:///data/%FF.db", "sqlite:///data/%FE.db"):
+            with pytest.raises(ValueError):
+                create_store(url)
+
+    @pytest.mark.parametrize(
+        "path",
+        ["a%ZZb.db", "a%FFb.db"],
+        ids=["non_hex_digits", "high_byte"],
+    )
+    def test_short_form_is_neither_decoded_nor_validated(self, path: str) -> None:
+        assert _sqlite_path_from_url(urlsplit(f"sqlite:{path}")) == path
+
+
+class TestDropWindowsDriveSeparator:
+    """The drive-letter rule, exercised on any host.
+
+    The rule applies on Windows only, so it is kept pure and called directly
+    rather than reached through a store the test platform cannot open.
+    """
+
+    @pytest.mark.parametrize(
+        ("path", "want"),
+        [
+            ("/C:/data/local.db", "C:/data/local.db"),
+            ("/c:/data/local.db", "c:/data/local.db"),
+            ("/C:\\data\\local.db", "C:\\data\\local.db"),
+            ("/data/local.db", "/data/local.db"),
+            ("//host/share/local.db", "//host/share/local.db"),
+            ("\\\\host\\share\\local.db", "\\\\host\\share\\local.db"),
+            ("/1:/data/local.db", "/1:/data/local.db"),
+            ("/C", "/C"),
+            ("/C:", "C:"),
+            ("", ""),
+        ],
+        ids=[
+            "drive_letter_after_the_separator",
+            "lower_case_drive_letter",
+            "backslash_separator_is_dropped_too",
+            "a_path_that_is_not_drive_rooted_is_untouched",
+            "a_UNC_prefix_keeps_both_separators",
+            "a_Windows_UNC_prefix_with_backslashes_keeps_both_separators",
+            "a_digit_is_not_a_drive_letter",
+            "shorter_than_a_drive_prefix",
+            "exactly_the_drive_prefix_without_a_trailing_segment",
+            "empty_path",
+        ],
+    )
+    def test_drive_separator_rule(self, path: str, want: str) -> None:
+        assert _drop_windows_drive_separator(path) == want
 
     def test_postgres_url_attempts_connection(self) -> None:
         psycopg = pytest.importorskip("psycopg")

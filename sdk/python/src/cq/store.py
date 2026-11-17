@@ -14,6 +14,7 @@ from-scratch store only has to gather candidates and hand them over.
 
 import logging
 import os
+import re
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -22,6 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol, runtime_checkable
+from urllib.parse import SplitResult, unquote, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -46,6 +48,9 @@ _CONFIDENCE_BUCKETS: list[tuple[float, str]] = [
 
 _FTS_MAX_TERMS = 20
 _FTS_MAX_TERM_LENGTH = 200
+
+# A percent sign that does not introduce two hex digits.
+_MALFORMED_ESCAPE_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
 # Store-level query bounds, aligned with the Go SDK.
 _MAX_QUERY_DOMAINS = 50
@@ -227,12 +232,74 @@ def _build_fts_match_expr(terms: list[str]) -> str:
     return " OR ".join(safe)
 
 
+def _decode_url_path(path: str) -> str:
+    """Decode the percent-escapes in a URL path.
+
+    An escape that is malformed, or that does not decode as UTF-8, is rejected
+    rather than resolved to something else. Replacing an undecodable byte would
+    let two URLs name one database, and resolving it per platform would make
+    the same URL mean different things on different hosts.
+
+    Raises:
+        ValueError: If an escape is malformed or is not valid UTF-8.
+    """
+    if _MALFORMED_ESCAPE_RE.search(path):
+        raise ValueError("sqlite store URL has an invalid percent-escape")
+
+    try:
+        return unquote(path, errors="strict")
+    except UnicodeDecodeError as exc:
+        raise ValueError("sqlite store URL has a percent-escape that is not valid UTF-8") from exc
+
+
+def _drop_windows_drive_separator(path: str) -> str:
+    """Drop the separator a host-less URL keeps before a Windows drive letter.
+
+    A host-less URL keeps the separator that introduces its path, so the
+    documented ``sqlite:///C:/data/local.db`` form arrives as
+    ``/C:/data/local.db``. On Windows that names a path rooted at the current
+    drive rather than the C: drive. A UNC prefix is outside the rule, because
+    the character after the separator is another separator.
+
+    NOTE: the rule holds on Windows only. On other platforms ``/c:/data`` is a
+    legitimate absolute path whose leading separator carries meaning.
+    """
+    min_drive_len = 3  # The separator, the drive letter, and the colon.
+    if len(path) >= min_drive_len and path[0] in "/\\" and path[1].isascii() and path[1].isalpha() and path[2] == ":":
+        return path[1:]
+    return path
+
+
+def _sqlite_path_from_url(split: SplitResult) -> str:
+    """Return the filesystem path a parsed sqlite: URL names.
+
+    The short ``sqlite:<relative path>`` form is taken verbatim. The
+    ``sqlite:///<absolute path>`` form is percent-decoded, so a path holding a
+    URL delimiter can be expressed as an escape.
+
+    Raises:
+        ValueError: If the host-less form carries a percent-escape that is
+            malformed or is not valid UTF-8.
+    """
+    # A path with no leading separator is the short form, whose text is not an
+    # encoded URL path.
+    if split.path and not split.path.startswith("/"):
+        return split.path
+
+    path = _decode_url_path(split.path)
+    if os.name == "nt":
+        return _drop_windows_drive_separator(path)
+
+    return path
+
+
 def create_store(database_url: str | None = None) -> Store:
     """Resolve a connection-string URL to a concrete Store.
 
     A ``None`` URL or a ``sqlite:`` URL selects the built-in SqliteStore.
-    Accepted SQLite forms are ``sqlite:///<path>`` (absolute) and
-    ``sqlite:<path>``; the path is taken verbatim.
+    Accepted SQLite forms are ``sqlite:///<absolute path>``, which is
+    percent-decoded, and ``sqlite:<relative path>``, which is taken verbatim.
+    A ``#`` or ``?`` ends the path in either form, as a URL delimiter.
     A ``postgresql://`` or ``postgres://`` URL selects PostgresStore when
     the ``cq-sdk[postgres]`` extra is installed.
     Any other scheme raises ValueError.
@@ -247,18 +314,22 @@ def create_store(database_url: str | None = None) -> Store:
     Raises:
         NotImplementedError: For a PostgreSQL URL when psycopg is not
             installed.
-        ValueError: For an unrecognized scheme.
+        ValueError: For an unrecognized scheme, or for a SQLite URL that
+            carries an authority, a bad percent-escape, or no path.
     """
     if database_url is None:
         return SqliteStore()
 
-    if database_url.startswith("sqlite:///"):
-        path = database_url[len("sqlite:///") :]
-        if not path:
-            raise ValueError("sqlite store URL must include a file path")
-        return SqliteStore(db_path=Path(path))
-    if database_url.startswith("sqlite:"):
-        path = database_url[len("sqlite:") :]
+    split = urlsplit(database_url)
+    if split.scheme == "sqlite":
+        # SQLite has no host, so an authority means the URL is a separator
+        # short and its first path segment would otherwise disappear.
+        if split.netloc:
+            raise ValueError(
+                "sqlite store URL must not include a host or user info; use three "
+                "slashes and no authority, for example sqlite:///path/to/local.db"
+            )
+        path = _sqlite_path_from_url(split)
         if not path:
             raise ValueError("sqlite store URL must include a file path")
         return SqliteStore(db_path=Path(path))
