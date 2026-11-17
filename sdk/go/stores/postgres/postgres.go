@@ -80,6 +80,9 @@ const (
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`
 )
 
+// Compile-time assertion that *Store satisfies cq.Store.
+var _ cq.Store = (*Store)(nil)
+
 // execer runs a single SQL statement, whether against the connection pool
 // directly or within an open transaction.
 type execer interface {
