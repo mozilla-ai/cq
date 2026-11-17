@@ -21,7 +21,7 @@ const (
 	listBodyEmpty = `{"data":[],"facets":{"domains":{},"languages":{},"frameworks":{}},"next_cursor":""}`
 
 	// listPath is the member listing path the SDK requests.
-	listPath = "/api/v1/users/me/knowledge"
+	listPath = "/api/v1/knowledge/me"
 )
 
 func TestListJSONFormat(t *testing.T) {
