@@ -479,7 +479,7 @@ func TestRemoteRevokePostsToNamedAction(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	require.Equal(t, http.MethodPost, gotMethod)
-	require.Equal(t, "/api/v1/users/me/knowledge/"+unitID+"/revoke", gotPath)
+	require.Equal(t, "/api/v1/knowledge/me/"+unitID+"/revoke", gotPath)
 	require.Empty(t, gotBody)
 }
 
@@ -567,7 +567,7 @@ func TestRemoteListRequestsOwnKnowledge(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	require.Equal(t, http.MethodGet, gotMethod)
-	require.Equal(t, "/api/v1/users/me/knowledge", gotPath)
+	require.Equal(t, "/api/v1/knowledge/me", gotPath)
 	require.Equal(t, []string{"pending"}, gotQuery["status"])
 	require.Equal(t, "7", gotQuery.Get("limit"))
 	require.Equal(t, "cursor_abc", gotQuery.Get("cursor"))
@@ -721,7 +721,7 @@ func TestRemoteListSendsTagFilters(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	// The member surface names each tag axis in the singular and repeats the
+	// The agent surface names each tag axis in the singular and repeats the
 	// parameter per value, unlike the plural names the commons search takes.
 	require.Equal(t, []string{"api", "payments"}, gotQuery["domain"])
 	require.Equal(t, []string{"go"}, gotQuery["language"])

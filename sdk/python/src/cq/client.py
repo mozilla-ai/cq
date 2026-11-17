@@ -469,6 +469,12 @@ class Client:
         its state at the moment it was withdrawn rather than a record a later
         query can find.
 
+        NOTE: revoking a remote unit that is already revoked is not uniformly
+        idempotent. An individual author receives the unit unchanged, while an
+        author in an organization receives a RemoteError, because withdrawal
+        there is limited to a pending or approved unit. A caller that retries
+        must tolerate both outcomes.
+
         Raises:
             KeyError: If the unit is not found in the local store (LOCAL tier)
                 or if the remote is unreachable (non-local tiers).
@@ -770,7 +776,7 @@ class Client:
         assert self._http is not None
         try:
             resp = self._http.get(
-                f"{self._api_base_url()}/users/me/knowledge",
+                f"{self._api_base_url()}/knowledge/me",
                 params=tuple(params),
             )
             resp.raise_for_status()
@@ -810,7 +816,7 @@ class Client:
         assert self._http is not None
         try:
             resp = self._http.post(
-                f"{self._api_base_url()}/users/me/knowledge/{quote(unit_id, safe='')}/revoke",
+                f"{self._api_base_url()}/knowledge/me/{quote(unit_id, safe='')}/revoke",
             )
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
