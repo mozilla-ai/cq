@@ -516,7 +516,7 @@ class TestStoreSelection:
 
     def test_injected_store_takes_precedence(self, tmp_path: Path) -> None:
         injected = InMemoryStore()
-        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{tmp_path / 'url.db'}"}):
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite://{tmp_path / 'url.db'}"}):
             c = Client(local_db_path=tmp_path / "ignored.db", store=injected)
             assert c._store is injected
             c.close()
@@ -530,7 +530,7 @@ class TestStoreSelection:
 
     def test_database_url_env_selects_sqlite_store(self, tmp_path: Path) -> None:
         db = tmp_path / "from-url.db"
-        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{db}"}):
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite://{db}"}):
             c = Client()
             assert isinstance(c._store, SqliteStore)
             assert c._store.db_path == db
@@ -538,7 +538,7 @@ class TestStoreSelection:
 
     def test_database_url_env_takes_precedence_over_db_path(self, tmp_path: Path) -> None:
         url_db = tmp_path / "url.db"
-        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite:///{url_db}"}):
+        with patch.dict("os.environ", {"CQ_LOCAL_DATABASE_URL": f"sqlite://{url_db}"}):
             c = Client(local_db_path=tmp_path / "path.db")
             assert isinstance(c._store, SqliteStore)
             assert c._store.db_path == url_db
@@ -560,16 +560,52 @@ class TestCreateStore:
         assert isinstance(store, SqliteStore)
         store.close()
 
-    def test_sqlite_triple_slash_url(self, tmp_path: Path) -> None:
+    def test_sqlite_triple_slash_url_keeps_an_absolute_path(self, tmp_path: Path) -> None:
         db = tmp_path / "factory.db"
-        store = create_store(f"sqlite:///{db}")
+        store = create_store(f"sqlite://{db}")
         assert isinstance(store, SqliteStore)
         assert store.db_path == db
+        store.close()
+
+    def test_sqlite_extra_separator_url_opens_the_same_file(self, tmp_path: Path) -> None:
+        db = tmp_path / "extra.db"
+        store = create_store(f"sqlite:///{db}")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path.resolve() == db.resolve()
         store.close()
 
     def test_sqlite_short_form_url(self, tmp_path: Path) -> None:
         db = tmp_path / "short.db"
         store = create_store(f"sqlite:{db}")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == db
+        store.close()
+
+    def test_sqlite_short_form_url_keeps_a_relative_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        store = create_store("sqlite:relative.db")
+        assert isinstance(store, SqliteStore)
+        assert store.db_path == Path("relative.db")
+        store.close()
+
+    @pytest.mark.parametrize(
+        "authority",
+        ["ghost-host", "localhost", "C:", "user@"],
+        ids=["host", "localhost", "windows_drive_letter", "user_info_without_a_host"],
+    )
+    def test_sqlite_url_with_an_authority_raises_value_error(self, tmp_path: Path, authority: str) -> None:
+        db = tmp_path / "wanted.db"
+        with pytest.raises(ValueError, match="host or user info"):
+            create_store(f"sqlite://{authority}{db}")
+        assert not db.exists()
+
+    def test_sqlite_url_with_an_empty_authority_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="must include a file path"):
+            create_store("sqlite://")
+
+    def test_sqlite_url_scheme_is_case_insensitive(self, tmp_path: Path) -> None:
+        db = tmp_path / "upper.db"
+        store = create_store(f"SQLITE://{db}")
         assert isinstance(store, SqliteStore)
         assert store.db_path == db
         store.close()

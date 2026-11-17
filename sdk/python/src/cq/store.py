@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol, runtime_checkable
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -231,8 +232,8 @@ def create_store(database_url: str | None = None) -> Store:
     """Resolve a connection-string URL to a concrete Store.
 
     A ``None`` URL or a ``sqlite:`` URL selects the built-in SqliteStore.
-    Accepted SQLite forms are ``sqlite:///<path>`` (absolute) and
-    ``sqlite:<path>``; the path is taken verbatim.
+    Accepted SQLite forms are ``sqlite:///<absolute path>`` and
+    ``sqlite:<relative path>``.
     A ``postgresql://`` or ``postgres://`` URL selects PostgresStore when
     the ``cq-sdk[postgres]`` extra is installed.
     Any other scheme raises ValueError.
@@ -247,21 +248,24 @@ def create_store(database_url: str | None = None) -> Store:
     Raises:
         NotImplementedError: For a PostgreSQL URL when psycopg is not
             installed.
-        ValueError: For an unrecognized scheme.
+        ValueError: For an unrecognized scheme, or for a SQLite URL that
+            carries an authority or no path.
     """
     if database_url is None:
         return SqliteStore()
 
-    if database_url.startswith("sqlite:///"):
-        path = database_url[len("sqlite:///") :]
-        if not path:
+    split = urlsplit(database_url)
+    if split.scheme == "sqlite":
+        # SQLite has no host, so an authority means the URL is a separator
+        # short and its first path segment would otherwise disappear.
+        if split.netloc:
+            raise ValueError(
+                "sqlite store URL must not include a host or user info; use three "
+                "slashes and no authority, for example sqlite:///path/to/local.db"
+            )
+        if not split.path:
             raise ValueError("sqlite store URL must include a file path")
-        return SqliteStore(db_path=Path(path))
-    if database_url.startswith("sqlite:"):
-        path = database_url[len("sqlite:") :]
-        if not path:
-            raise ValueError("sqlite store URL must include a file path")
-        return SqliteStore(db_path=Path(path))
+        return SqliteStore(db_path=Path(split.path))
     if database_url.startswith(("postgresql://", "postgres://")):
         try:
             from .stores.postgres import PostgresStore
