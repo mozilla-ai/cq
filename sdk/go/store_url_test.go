@@ -40,7 +40,7 @@ func TestStoreFromURLKeepsNativeAbsolutePath(t *testing.T) {
 		storeFromURLCreatesDBPath(t, sqliteURL(filepath.ToSlash(dbPath)), dbPath)
 	})
 
-	t.Run("no slashes after the scheme", func(t *testing.T) {
+	t.Run("absolute path directly after the scheme", func(t *testing.T) {
 		t.Parallel()
 
 		dbPath := filepath.Join(dir, "opaque.db")
