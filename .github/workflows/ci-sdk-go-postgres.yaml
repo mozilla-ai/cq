@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/ci-sdk-go-postgres.yaml
       - .golangci.yml
+      - build/go-licenses/**
       - build/golangci-lint/**
       - schema/**
       - sdk/go/**/*.go
@@ -15,6 +16,7 @@ on:
     paths:
       - .github/workflows/ci-sdk-go-postgres.yaml
       - .golangci.yml
+      - build/go-licenses/**
       - build/golangci-lint/**
       - schema/**
       - sdk/go/**/*.go
@@ -38,6 +40,7 @@ jobs:
           go-version-file: sdk/go/stores/postgres/go.mod
           cache-dependency-path: |
             sdk/go/stores/postgres/go.sum
+            build/go-licenses/go.sum
             build/golangci-lint/go.sum
 
       - name: golangci-lint

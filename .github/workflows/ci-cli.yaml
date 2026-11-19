@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/ci-cli.yaml
       - .golangci.yml
+      - build/go-licenses/**
       - build/golangci-lint/**
       - cli/**
       - sdk/go/**
@@ -14,6 +15,7 @@ on:
     paths:
       - .github/workflows/ci-cli.yaml
       - .golangci.yml
+      - build/go-licenses/**
       - build/golangci-lint/**
       - cli/**
       - sdk/go/**
@@ -36,6 +38,7 @@ jobs:
           go-version-file: cli/go.mod
           cache-dependency-path: |
             cli/go.sum
+            build/go-licenses/go.sum
             build/golangci-lint/go.sum
 
       - name: golangci-lint
