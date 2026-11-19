@@ -1,6 +1,6 @@
 module github.com/mozilla-ai/cq/build/go-licenses
 
-go 1.27.0
+go 1.27.1
 
 tool github.com/google/go-licenses/v2
 
