@@ -13,6 +13,7 @@ build/*
 !build/licenses/
 !build/brew/
 !build/golangci-lint/
+!build/go-licenses/
 
 node_modules/
 

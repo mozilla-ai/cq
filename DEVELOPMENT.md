@@ -10,6 +10,8 @@
 
 golangci-lint is not a prerequisite. `make lint` builds the version pinned in `build/golangci-lint/go.mod` with `go tool`, so local lint and CI use the same linter. To bump it, run `go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@vX.Y.Z` and then `go mod tidy` inside `build/golangci-lint`.
 
+go-licenses is not a prerequisite either. `make check-licenses`, `make notice` and `make check-notice` build the version pinned in `build/go-licenses/go.mod` with `go tool`; to bump it, run `go get -tool github.com/google/go-licenses/v2@vX.Y.Z` and then `go mod tidy` inside `build/go-licenses`.
+
 ## Repository Structure
 
 | Directory         | Component                              | Stack                              |
