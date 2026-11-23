@@ -2,6 +2,8 @@ module github.com/mozilla-ai/cq/schema
 
 go 1.27.1
 
+toolchain go1.27.4
+
 require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0

@@ -2,6 +2,8 @@ module github.com/mozilla-ai/cq/sdk/go/stores/postgres
 
 go 1.27.1
 
+toolchain go1.27.4
+
 require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/mozilla-ai/cq/sdk/go v0.18.1

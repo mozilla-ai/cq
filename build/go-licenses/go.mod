@@ -2,6 +2,8 @@ module github.com/mozilla-ai/cq/build/go-licenses
 
 go 1.27.1
 
+toolchain go1.27.4
+
 tool github.com/google/go-licenses/v2
 
 require (
