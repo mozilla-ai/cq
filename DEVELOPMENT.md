@@ -8,7 +8,7 @@
 - Docker and Docker Compose
 - Go 1.27.1+ (CLI, Go SDK)
 
-The Go version above is the language floor, not the toolchain that builds the code. Every Go module pins a `toolchain` directive, so Go uses that patch release even when an older one is installed locally, and CI resolves the same version through `go-version-file`. To bump it, run `go get toolchain@go1.X.Y` in every directory that holds a `go.mod`.
+The Go version above is the language floor. Every Go module also sets a `toolchain` directive, which names a minimum rather than an exact version. An older installed Go switches up to it, a newer one is used unchanged, and `GOTOOLCHAIN=local` ignores it. CI installs the directive's exact version through `go-version-file`. To raise it, run `go get toolchain@go1.X.Y` in every directory that holds a `go.mod`.
 
 golangci-lint is not a prerequisite. `make lint` builds the version pinned in `build/golangci-lint/go.mod` with `go tool`, so local lint and CI use the same linter. To bump it, run `go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@vX.Y.Z` and then `go mod tidy` inside `build/golangci-lint`.
 
