@@ -118,7 +118,13 @@ backup-db:
 
 .PHONY: seed-users
 seed-users:
-ifndef USER
+# USER is exported by every POSIX shell, so `ifndef USER` never fires and the
+# target would silently fall back to the current OS username. Require it to be
+# passed on the command line, and reject an empty value.
+ifneq ($(origin USER),command line)
+	$(error USER is required. Usage: make seed-users USER=demouser PASS=changeme)
+endif
+ifeq ($(strip $(USER)),)
 	$(error USER is required. Usage: make seed-users USER=demouser PASS=changeme)
 endif
 ifndef PASS
@@ -128,7 +134,11 @@ endif
 
 .PHONY: seed-kus
 seed-kus:
-ifndef USER
+# See seed-users: USER must come from the command line, not the environment.
+ifneq ($(origin USER),command line)
+	$(error USER is required. Usage: make seed-kus USER=demo PASS=demo123)
+endif
+ifeq ($(strip $(USER)),)
 	$(error USER is required. Usage: make seed-kus USER=demo PASS=demo123)
 endif
 ifndef PASS
@@ -138,7 +148,11 @@ endif
 
 .PHONY: seed-all
 seed-all:
-ifndef USER
+# See seed-users: USER must come from the command line, not the environment.
+ifneq ($(origin USER),command line)
+	$(error USER is required. Usage: make seed-all USER=demo PASS=demo123)
+endif
+ifeq ($(strip $(USER)),)
 	$(error USER is required. Usage: make seed-all USER=demo PASS=demo123)
 endif
 ifndef PASS
