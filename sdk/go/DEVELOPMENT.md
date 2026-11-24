@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Go 1.27.1+
+See [Prerequisites](../../DEVELOPMENT.md#prerequisites) for the Go version and the pinned toolchain.
 
 ## Initial Setup
 
